@@ -33,6 +33,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 |---|---|
 | `--all` | alle Quellen aller aktiven Harnesses |
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
+| `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -43,6 +44,7 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 
 - `changed`: Dateien mit neuen Zeilen. `unchanged`: nichts Neues. `locked`: gerade von einem anderen Lauf gelesen, übersprungen.
 - Fehler je Datei stehen auf stderr; die übrigen Dateien werden trotzdem gelesen. Gab es Fehler, ist der Exit-Code 1.
+- Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
 
 Mehr dazu: [Hooks einrichten](hooks.md).
 
@@ -75,7 +77,7 @@ recent errors:
 
 ## `sessions` { #sessions }
 
-Listet Sessions, neueste zuerst. Subagent-Sessions sind ausgeblendet, außer mit `--subagents`.
+Listet Sessions, neueste zuerst. Subagent-Sessions sind ausgeblendet, außer mit `--subagents`. Ebenso Sessions ohne Events und ohne Startzeit (etwa wenn von einer Session nur ein Titel-Record gesehen wurde), außer mit `--all-sessions`.
 
 ```sh
 total-recall sessions --since 2026-10-01 --until 2026-10-31
@@ -98,6 +100,7 @@ START             DUR    ID        NAME                        REPO             
 | `--name TEXT` | Teilstring des Namens (eigener Titel, KI-Titel oder Agent-Name) |
 | `--limit N` | höchstens N Zeilen (0 = alle, Default) |
 | `--subagents` | Subagent-Sessions mit anzeigen |
+| `--all-sessions` | auch leere Sessions (keine Events, keine Startzeit) anzeigen |
 
 Spalten: `ID` ist ein Präfix der nativen Session-ID, das `show` versteht. `NAME` ist der eigene Titel (`/rename`), sonst der von Claude Code erzeugte Titel, sonst der Agent-Name. `REPO` ist `owner/repo` der Remote-URL, sonst der Ordnername. `HUMAN`/`AGENT` zählen Events nach Actor. `DUR` ist Ende minus Start, inklusive Pausen.
 

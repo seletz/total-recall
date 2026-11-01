@@ -567,6 +567,45 @@ func TestRestore(t *testing.T) {
 	}
 }
 
+func TestSessionsHidesEmpty(t *testing.T) {
+	e := newTestEnv(t)
+	tf.WriteFile(t, e.projects, "-w-delta/44444444-4444-4444-8444-444444444444.jsonl",
+		tf.CustomTitle("44444444-4444-4444-8444-444444444444", "title only").JSON())
+	e.mustRun(t, "ingest", "--all")
+	list := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json"))
+	for _, s := range list {
+		if s.DisplayName == "title only" {
+			t.Errorf("empty session listed: %+v", s)
+		}
+	}
+	all := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json", "--all-sessions"))
+	if len(all) != len(list)+1 {
+		t.Errorf("--all-sessions: %d sessions, want %d", len(all), len(list)+1)
+	}
+}
+
+func TestIngestRegit(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if r := e.run(t, "", "ingest", "--regit"); r.code == 0 || !strings.Contains(r.stderr, "git.resolve") {
+		t.Errorf("regit with git.resolve=false = %+v", r)
+	}
+	b, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(e.configPath, []byte(strings.Replace(string(b), "resolve = false", "resolve = true", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := e.mustRun(t, "ingest", "--regit")
+	if !strings.Contains(out, "regit: 2 directories") || strings.Contains(out, "scanned") {
+		t.Errorf("regit output = %q", out)
+	}
+	if out := e.mustRun(t, "ingest", "--all", "--regit"); !strings.Contains(out, "scanned") || !strings.Contains(out, "regit:") {
+		t.Errorf("ingest --all --regit output = %q", out)
+	}
+}
+
 func TestDoctor(t *testing.T) {
 	e := newTestEnv(t)
 	r := e.run(t, "", "doctor")

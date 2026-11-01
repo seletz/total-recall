@@ -204,7 +204,7 @@ func shortID(s model.Session) string {
 
 func (e *env) sessionsCmd() *cobra.Command {
 	var f filterFlags
-	var asJSON, subagents bool
+	var asJSON, subagents, allSessions bool
 	c := &cobra.Command{
 		Use:   "sessions",
 		Short: "List sessions (newest first)",
@@ -219,6 +219,7 @@ func (e *env) sessionsCmd() *cobra.Command {
 				return err
 			}
 			sf.TopLevel = !subagents
+			sf.HideEmpty = !allSessions
 			st, err := e.openRead(cfg)
 			if err != nil {
 				return err
@@ -248,6 +249,7 @@ func (e *env) sessionsCmd() *cobra.Command {
 	f.register(c, 0)
 	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	c.Flags().BoolVar(&subagents, "subagents", false, "include subagent sessions")
+	c.Flags().BoolVar(&allSessions, "all-sessions", false, "include sessions without events and start time (e.g. only a title was seen)")
 	return c
 }
 
