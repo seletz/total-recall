@@ -2,11 +2,15 @@ package tui
 
 import (
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/seletz/total-recall/internal/testfixture"
+	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -174,4 +178,118 @@ func TestCursorBelowHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+// appProbe wraps the app so a test can wait until the detail has loaded
+// its session and until the key presses sent so far have been handled.
+type appProbe struct {
+	App
+	st *probeState
+}
+
+type probeState struct {
+	mu     sync.Mutex
+	keys   int  // key presses handled
+	loaded bool // the detail holds a session
+	shown  bool // the detail is shown
+}
+
+func (p appProbe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m, cmd := p.App.Update(msg)
+	p.App = m.(App)
+	p.st.mu.Lock()
+	defer p.st.mu.Unlock()
+	if _, ok := msg.(tea.KeyPressMsg); ok {
+		p.st.keys++
+	}
+	p.st.loaded = p.detail.SessionID() != ""
+	p.st.shown = p.showDetail
+	return p, cmd
+}
+
+// wait blocks until keys key presses have been handled and, with loaded,
+// the detail holds a session, or with closed, the detail is hidden again
+// (Back arrives as a message after the esc key press).
+func (p *probeState) wait(t *testing.T, keys int, loaded, closed bool) {
+	t.Helper()
+	deadline := time.Now().Add(tuitest.Timeout)
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		ok := p.keys >= keys && (!loaded || p.loaded) && (!closed || !p.shown)
+		p.mu.Unlock()
+		if ok {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("app did not settle (keys %d, loaded %v, closed %v)", keys, loaded, closed)
+}
+
+// TestDetail drives the round trip search → detail → search against the
+// Activity fixture and compares the final frame with a golden file. Steps
+// are key names, "wait:<text>" (wait until the output shows text, used for
+// the search preview), "loaded" (wait until the detail has loaded a
+// session), "closed" (wait until the detail has gone again) and "keys"
+// (wait until every key press so far has been handled).
+func TestDetail(t *testing.T) {
+	tests := []struct {
+		name  string
+		steps []string
+	}{
+		{"Open", []string{"wait:Tagged v0.2.0.", "enter", "loaded"}},
+		{"OpenFromList", []string{"wait:Tagged v0.2.0.", "tab", "j", "wait:plan the week", "enter", "loaded"}},
+		{"BackKeepsInput", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "esc", "closed"}},
+		{"BackKeepsList", []string{"wait:Tagged v0.2.0.", "tab", "j", "wait:plan the week", "enter", "loaded", "esc", "closed"}},
+		{"Copy", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "y", "keys"}},
+		{"Help", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "?", "keys"}},
+		{"TabCloses", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "tab", "keys"}},
+		{"Key1Closes", []string{"wait:Tagged v0.2.0.", "tab", "enter", "loaded", "1", "keys"}},
+		{"Key2Closes", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "2", "keys"}},
+	}
+	st, _ := fixturedb.Activity(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := New(Options{Store: st, Query: "release", Now: tuitest.Clock, Location: testfixture.ActivityLocation})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := appProbe{App: app, st: &probeState{}}
+			tm := tuitest.New(t, p)
+			keys := 0
+			for _, s := range tt.steps {
+				switch {
+				case strings.HasPrefix(s, "wait:"):
+					tuitest.WaitFor(t, tm, strings.TrimPrefix(s, "wait:"))
+				case s == "loaded":
+					p.st.wait(t, keys, true, false)
+				case s == "closed":
+					p.st.wait(t, keys, false, true)
+				case s == "keys":
+					p.st.wait(t, keys, false, false)
+				default:
+					tuitest.Press(tm, s)
+					keys++
+				}
+			}
+			final := tuitest.Final(t, tm).(appProbe).App
+			golden.RequireEqual(t, tuitest.Frame(final))
+		})
+	}
+}
+
+// TestDetailQuit checks that q quits from the detail: it does not hold the
+// keyboard the way the search input does.
+func TestDetailQuit(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	app, err := New(Options{Store: st, Query: "release", Now: tuitest.Clock, Location: testfixture.ActivityLocation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := appProbe{App: app, st: &probeState{}}
+	tm := tuitest.New(t, p)
+	tuitest.WaitFor(t, tm, "Tagged v0.2.0.")
+	tuitest.Press(tm, "enter")
+	p.st.wait(t, 1, true, false)
+	tuitest.Press(tm, "q")
+	tuitest.WaitQuit(t, tm)
 }

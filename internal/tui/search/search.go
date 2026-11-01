@@ -1,11 +1,12 @@
 // Package search is the live full-text search view of the TUI: a text input
-// on top, the hits of the archive in the left column and, later, a preview of
-// the marked hit on the right.
+// on top, the hits of the archive in the left column and a preview of the
+// exchange around the marked hit on the right.
 //
 // Every change of the input starts a search after a short pause (the
 // debounce). Searches run as commands with a context; new input cancels the
 // running query, and every answer carries the sequence number of the input it
-// belongs to, so a slow answer to an older input is dropped.
+// belongs to, so a slow answer to an older input is dropped. The preview
+// follows the marked hit the same way with its own sequence.
 package search
 
 import (
@@ -36,9 +37,12 @@ type Searcher interface {
 type Options struct {
 	// Searcher answers the queries; nil means no database, the view shows a hint.
 	Searcher Searcher
+	// Loader reads sessions for the preview; nil leaves the preview empty.
+	Loader Loader
 	// Query is the initial input; it is searched right away.
 	Query string
-	// Now is the clock used to time searches; nil means time.Now.
+	// Now is the clock used to time searches and to anchor the time filter;
+	// nil means time.Now.
 	Now func() time.Time
 	// Location is the time zone hit times are shown in; nil means UTC.
 	Location *time.Location
@@ -59,10 +63,12 @@ func (o *Options) defaults() {
 }
 
 // OpenSession is sent upwards when the user opens the marked hit. It is not
-// handled by this view; the app routes it to the session detail.
+// handled by this view; the app routes it to the session detail. Terms are
+// the words of the query for highlighting.
 type OpenSession struct {
 	SessionID string
 	EventID   string
+	Terms     []string
 }
 
 // debounceMsg fires after the debounce pause; it starts a search when seq is
@@ -84,14 +90,17 @@ type focus int
 const (
 	focusInput focus = iota
 	focusList
+	focusRepo // the repo filter is typed in the status line
 )
 
 // Model is the search view.
 type Model struct {
-	opts  Options
-	keys  KeyMap
-	input textinput.Model
-	focus focus
+	opts    Options
+	keys    KeyMap
+	input   textinput.Model
+	repoIn  textinput.Model
+	focus   focus
+	filters filters
 
 	// seq counts input changes; debounce ticks and results carry the value
 	// they were started for and are ignored when it moved on.
@@ -105,6 +114,8 @@ type Model struct {
 	took      time.Duration
 	err       error
 	searching bool
+
+	preview preview
 
 	width, height int
 }
@@ -120,7 +131,11 @@ func New(opts Options) Model {
 	// commands, and the view reports the position through tea.View.Cursor.
 	in.SetVirtualCursor(false)
 	in.Focus()
-	m := Model{opts: opts, keys: defaultKeyMap(), input: in}
+	repo := textinput.New()
+	repo.Prompt = "repo: "
+	repo.Placeholder = "substring of remote, root or cwd"
+	repo.SetVirtualCursor(false)
+	m := Model{opts: opts, keys: defaultKeyMap(), input: in, repoIn: repo}
 	if opts.Query != "" {
 		m.query = opts.Query
 	}
@@ -130,8 +145,9 @@ func New(opts Options) Model {
 // Title implements tui.View.
 func (Model) Title() string { return "search" }
 
-// Focused implements tui.Focused: true while the text input has the focus.
-func (m Model) Focused() bool { return m.focus == focusInput }
+// Focused implements tui.Focused: true while the search input or the repo
+// filter has the focus.
+func (m Model) Focused() bool { return m.focus != focusList }
 
 // Init implements tea.Model: with an initial query, the first search runs
 // without waiting for the debounce.
@@ -147,7 +163,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.input.SetWidth(max(m.width-len(m.input.Prompt)-2, 1))
+		m.resizeInputs()
 		m.clampOffset()
 		return m, nil
 	case tea.KeyPressMsg:
@@ -164,16 +180,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.searching = false
 		m.query, m.hits, m.took, m.err = msg.query, msg.hits, msg.took, msg.err
 		m.cursor, m.offset = 0, 0
-		return m, nil
+		return m, m.follow()
+	case previewTickMsg:
+		if msg.seq != m.preview.seq {
+			return m, nil
+		}
+		return m.loadPreview()
+	case previewMsg:
+		return m.previewResult(msg)
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	return m, cmd
 }
 
+// resizeInputs fits the search input beside the filter label and the repo
+// input into the status line.
+func (m *Model) resizeInputs() {
+	label := len([]rune(m.filters.label()))
+	m.input.SetWidth(max(m.width-len(m.input.Prompt)-label-4, 1))
+	m.repoIn.SetWidth(max(m.width-len(m.repoIn.Prompt)-2, 1))
+}
+
 func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if key.Matches(msg, m.keys.Open) {
+	if m.focus == focusRepo {
+		return m.repoKey(msg)
+	}
+	switch {
+	case key.Matches(msg, m.keys.Open):
 		return m, m.open()
+	case key.Matches(msg, m.keys.Raw):
+		m.filters.raw = !m.filters.raw
+		return m.refilter()
 	}
 	if m.focus == focusList {
 		switch {
@@ -181,9 +219,20 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.focus = focusInput
 			m.input.Focus()
 		case key.Matches(msg, m.keys.Up):
-			m.move(-1)
+			return m, m.move(-1)
 		case key.Matches(msg, m.keys.Down):
-			m.move(1)
+			return m, m.move(1)
+		case key.Matches(msg, m.keys.Actor):
+			m.filters.actor = (m.filters.actor + 1) % len(actors)
+			return m.refilter()
+		case key.Matches(msg, m.keys.Time):
+			m.filters.span = (m.filters.span + 1) % len(spans)
+			return m.refilter()
+		case key.Matches(msg, m.keys.Repo):
+			m.focus = focusRepo
+			m.repoIn.SetValue(m.filters.repo)
+			m.repoIn.CursorEnd()
+			m.repoIn.Focus()
 		}
 		return m, nil
 	}
@@ -201,6 +250,38 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.changed(cmd)
 }
 
+// repoKey edits the repo filter: enter applies it, esc drops the edit.
+func (m Model) repoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Confirm):
+		m.focus = focusList
+		m.repoIn.Blur()
+		if v := strings.TrimSpace(m.repoIn.Value()); v != m.filters.repo {
+			m.filters.repo = v
+			return m.refilter()
+		}
+		return m, nil
+	case key.Matches(msg, m.keys.Cancel):
+		m.focus = focusList
+		m.repoIn.Blur()
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.repoIn, cmd = m.repoIn.Update(msg)
+	return m, cmd
+}
+
+// refilter runs the search again after a filter changed, without debounce.
+func (m Model) refilter() (tea.Model, tea.Cmd) {
+	m.resizeInputs()
+	m.seq++
+	m.stop()
+	if m.opts.Searcher == nil || m.input.Value() == "" {
+		return m, nil
+	}
+	return m.search()
+}
+
 // changed registers new input: it invalidates running and pending work and
 // schedules the debounce tick, or clears the hits when the input is empty.
 func (m Model) changed(cmd tea.Cmd) (tea.Model, tea.Cmd) {
@@ -209,7 +290,7 @@ func (m Model) changed(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if m.input.Value() == "" {
 		m.query, m.hits, m.err, m.took = "", nil, nil, 0
 		m.cursor, m.offset = 0, 0
-		return m, cmd
+		return m, tea.Batch(cmd, m.follow())
 	}
 	seq := m.seq
 	return m, tea.Batch(cmd, tea.Tick(m.opts.Debounce, func(time.Time) tea.Msg { return debounceMsg{seq: seq} }))
@@ -224,7 +305,7 @@ func (m *Model) stop() {
 	m.searching = false
 }
 
-// search starts the query for the current input.
+// search starts the query for the current input and filters.
 func (m Model) search() (tea.Model, tea.Cmd) {
 	m.stop()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -232,32 +313,41 @@ func (m Model) search() (tea.Model, tea.Cmd) {
 	m.searching = true
 	m.query = m.input.Value()
 	seq, query, now, s := m.seq, m.query, m.opts.Now, m.opts.Searcher
+	f := store.SearchFilter{
+		SessionFilter:  store.SessionFilter{Limit: Limit},
+		HighlightStart: hlStart,
+		HighlightEnd:   hlEnd,
+	}
+	m.filters.apply(&f, now())
 	return m, func() tea.Msg {
 		start := now()
-		hits, err := s.Search(ctx, query, store.SearchFilter{
-			SessionFilter:  store.SessionFilter{Limit: Limit},
-			HighlightStart: hlStart,
-			HighlightEnd:   hlEnd,
-		})
+		hits, err := s.Search(ctx, query, f)
 		return resultMsg{seq: seq, query: query, hits: hits, took: now().Sub(start), err: err}
 	}
 }
 
 // open emits OpenSession for the marked hit.
 func (m Model) open() tea.Cmd {
+	h := m.marked()
+	if h == nil {
+		return nil
+	}
+	ts := terms(m.query, m.filters.raw)
+	return func() tea.Msg { return OpenSession{SessionID: h.Event.SessionID, EventID: h.Event.ID, Terms: ts} }
+}
+
+// move marks the hit delta entries away and lets the preview follow.
+func (m *Model) move(delta int) tea.Cmd {
 	if len(m.hits) == 0 {
 		return nil
 	}
-	h := m.hits[m.cursor]
-	return func() tea.Msg { return OpenSession{SessionID: h.Event.SessionID, EventID: h.Event.ID} }
-}
-
-func (m *Model) move(delta int) {
-	if len(m.hits) == 0 {
-		return
+	cursor := min(max(m.cursor+delta, 0), len(m.hits)-1)
+	if cursor == m.cursor {
+		return nil
 	}
-	m.cursor = min(max(m.cursor+delta, 0), len(m.hits)-1)
+	m.cursor = cursor
 	m.clampOffset()
+	return m.follow()
 }
 
 // clampOffset scrolls the list so the marked hit is visible.
@@ -277,15 +367,21 @@ func (m *Model) clampOffset() {
 
 // ShortHelp implements help.KeyMap; it follows the focus.
 func (m Model) ShortHelp() []key.Binding {
-	if m.focus == focusList {
-		return []key.Binding{m.keys.Up, m.keys.Down, m.keys.Open, m.keys.Input}
+	switch m.focus {
+	case focusList:
+		return []key.Binding{m.keys.Move, m.keys.Open, m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input}
+	case focusRepo:
+		return []key.Binding{m.keys.Confirm, m.keys.Cancel}
 	}
-	return []key.Binding{m.keys.List, m.keys.Open}
+	return []key.Binding{m.keys.List, m.keys.Open, m.keys.Raw}
 }
 
 // FullHelp implements help.KeyMap.
 func (m Model) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{m.keys.List, m.keys.Input, m.keys.Open}, {m.keys.Up, m.keys.Down}}
+	return [][]key.Binding{
+		{m.keys.List, m.keys.Input, m.keys.Open, m.keys.Up, m.keys.Down},
+		{m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw},
+	}
 }
 
 // status is the text of the bottom line: hit count and duration, or why

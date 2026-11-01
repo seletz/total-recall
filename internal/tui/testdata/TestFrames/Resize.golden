@@ -1,6 +1,6 @@
  total-recall                          [1 search]  2 stats
 ────────────────────────────────────────────────────────────
- > type to search
+ > type to search           actor: all  since: all  repo: *
 ─────────────────────────────┬──────────────────────────────
  No database open.           │
                              │
@@ -9,4 +9,4 @@
                              │
  no database
 ────────────────────────────────────────────────────────────
- tab list • enter open • ctrl+c quit
+ tab list • enter open • ^r raw fts • ctrl+c quit

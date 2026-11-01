@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
-	"github.com/charmbracelet/x/exp/teatest/v2"
 
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
@@ -18,26 +18,112 @@ import (
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
-// typeText sends every rune of s as its own key press.
-func typeText(tm *teatest.TestModel, s string) {
-	for _, r := range s {
-		tuitest.Press(tm, string(r))
+// probe wraps the view so a test can wait until the preview of the marked
+// hit has been loaded: it counts the key presses the view has handled and
+// records whether the preview is ready after every message.
+type probe struct {
+	Model
+	st *probeState
+}
+
+type probeState struct {
+	mu      sync.Mutex
+	keys    int  // key presses handled
+	results int  // fresh search results applied
+	ready   bool // preview settled after the last message
+}
+
+func (p probe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	fresh := false
+	if r, ok := msg.(resultMsg); ok {
+		fresh = r.seq == p.seq
 	}
+	m, cmd := p.Model.Update(msg)
+	p.Model = m.(Model)
+	p.st.mu.Lock()
+	defer p.st.mu.Unlock()
+	if _, ok := msg.(tea.KeyPressMsg); ok {
+		p.st.keys++
+	}
+	if fresh {
+		p.st.results++
+	}
+	p.st.ready = p.previewReady()
+	return p, cmd
+}
+
+// previewReady reports whether the right column is settled: no hit is
+// marked, there is no loader, or the preview holds the marked hit.
+func (m Model) previewReady() bool {
+	h := m.marked()
+	return h == nil || m.opts.Loader == nil || m.preview.eventID == h.Event.ID
+}
+
+// wait blocks until the view has handled keys key presses and results
+// fresh search results and, with preview, the preview is ready; it fails
+// the test after the timeout.
+func wait(t *testing.T, st *probeState, keys, results int, preview bool) {
+	t.Helper()
+	deadline := time.Now().Add(tuitest.Timeout)
+	for time.Now().Before(deadline) {
+		st.mu.Lock()
+		ok := st.keys >= keys && st.results >= results && (!preview || st.ready)
+		st.mu.Unlock()
+		if ok {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("view did not settle (keys %d, results %d, preview %v)", keys, results, preview)
 }
 
 func newModel(t *testing.T, st *store.Store, query string) Model {
 	t.Helper()
-	var s Searcher
+	opts := Options{Query: query, Now: tuitest.Clock, Location: testfixture.ActivityLocation}
 	if st != nil {
-		s = st
+		opts.Searcher, opts.Loader = st, st
 	}
-	return New(Options{Searcher: s, Query: query, Now: tuitest.Clock, Location: testfixture.ActivityLocation})
+	return New(opts)
+}
+
+// run drives the view against st with steps and returns the final model.
+// Steps are key names (see tuitest.Key), "type:<text>" to type text,
+// "result" to wait until the next search result has been applied (results
+// arrive asynchronously after the debounce), "preview" to wait until the
+// preview of the marked hit is loaded, "wait:<text>" to wait until the
+// output shows text, and "resize" for a smaller window.
+func run(t *testing.T, st *store.Store, query string, steps []string) Model {
+	t.Helper()
+	p := probe{Model: newModel(t, st, query), st: &probeState{}}
+	tm := tuitest.New(t, p)
+	keys, results := 0, 0
+	for _, s := range steps {
+		switch {
+		case strings.HasPrefix(s, "type:"):
+			text := strings.TrimPrefix(s, "type:")
+			for _, r := range text {
+				tuitest.Press(tm, string(r))
+			}
+			keys += len([]rune(text))
+		case strings.HasPrefix(s, "wait:"):
+			tuitest.WaitFor(t, tm, strings.TrimPrefix(s, "wait:"))
+		case s == "result":
+			results++
+			wait(t, p.st, keys, results, false)
+		case s == "preview":
+			wait(t, p.st, keys, results, true)
+		case s == "resize":
+			tuitest.Resize(tm, 60, 12)
+		default:
+			tuitest.Press(tm, s)
+			keys++
+		}
+	}
+	return tuitest.Final(t, tm).(probe).Model
 }
 
 // TestFrames drives the search view against the Activity fixture and
-// compares the final frame with a golden file. Steps are key names (see
-// tuitest.Key), "type:<text>" to type text, or "wait:<text>" to wait until
-// the view shows text (results arrive asynchronously after the debounce).
+// compares the final frame with a golden file; see run for the steps.
 func TestFrames(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -45,36 +131,39 @@ func TestFrames(t *testing.T) {
 		steps []string
 	}{
 		{"Empty", "", nil},
-		{"Hits", "", []string{"type:release", "wait:hits ("}},
-		{"NoHits", "", []string{"type:zzzz", "wait:no hits"}},
-		{"InitialQuery", "release", []string{"wait:hits ("}},
-		{"ClearedInput", "release", []string{"wait:hits (", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "wait:type to search"}},
-		{"FocusList", "", []string{"type:release", "wait:hits (", "tab"}},
-		{"FocusBackEsc", "", []string{"type:release", "wait:hits (", "tab", "esc"}},
-		{"MoveDown", "", []string{"type:release", "wait:hits (", "tab", "j"}},
-		{"MoveDownClamps", "", []string{"type:release", "wait:hits (", "tab", "down", "down", "down"}},
-		{"MoveUpClamps", "", []string{"type:release", "wait:hits (", "tab", "j", "k", "up"}},
-		{"ListTypingIgnored", "", []string{"type:release", "wait:hits (", "tab", "x"}},
-		{"LongListScrolls", "", []string{"type:the", "wait:hits (", "tab", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j"}},
-		{"Narrow", "", []string{"type:release", "wait:hits (", "resize"}},
+		{"Hits", "", []string{"type:release", "result", "preview"}},
+		{"NoHits", "", []string{"type:zzzz", "result"}},
+		{"InitialQuery", "release", []string{"result", "preview"}},
+		{"ClearedInput", "release", []string{"result", "preview", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "wait:type to search", "preview"}},
+		{"FocusList", "", []string{"type:release", "result", "tab", "preview"}},
+		{"FocusBackEsc", "", []string{"type:release", "result", "tab", "esc", "preview"}},
+		{"MoveDown", "", []string{"type:release", "result", "tab", "j", "preview"}},
+		{"MoveDownClamps", "", []string{"type:release", "result", "tab", "down", "down", "down", "preview"}},
+		{"MoveUpClamps", "", []string{"type:release", "result", "tab", "j", "k", "up", "preview"}},
+		{"ListTypingIgnored", "", []string{"type:release", "result", "tab", "x", "preview"}},
+		{"LongListScrolls", "", []string{"type:the", "result", "tab", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "preview"}},
+		{"Narrow", "", []string{"type:release", "result", "preview", "resize"}},
+		{"PreviewToolHit", "", []string{"type:tag", "result", "tab", "j", "preview"}},
+		{"FilterActorHuman", "", []string{"type:release", "result", "tab", "a", "result", "preview"}},
+		{"FilterActorAgent", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "preview"}},
+		{"FilterActorPeer", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "a", "result"}},
+		{"FilterActorWraps", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "a", "result", "a", "result", "preview"}},
+		{"FilterTime7d", "", []string{"type:release", "result", "tab", "t", "result"}},
+		{"FilterTimeCycle", "", []string{"type:release", "result", "tab", "t", "result", "t", "result", "t", "result", "t", "result", "preview"}},
+		{"FilterRepoTyping", "", []string{"type:release", "result", "preview", "tab", "r", "type:bet"}},
+		{"FilterRepoNoHits", "", []string{"type:release", "result", "tab", "r", "type:alpha", "enter", "result"}},
+		{"FilterRepoHits", "", []string{"type:the", "result", "tab", "r", "type:gamma", "enter", "result", "preview"}},
+		{"FilterRepoEsc", "", []string{"type:release", "result", "tab", "r", "type:alpha", "esc", "preview"}},
+		{"FilterRepoUnchanged", "", []string{"type:release", "result", "tab", "r", "enter", "preview"}},
+		{"FilterRepoCleared", "", []string{"type:release", "result", "tab", "r", "type:alpha", "enter", "result", "r", "backspace", "backspace", "backspace", "backspace", "backspace", "enter", "result", "preview"}},
+		{"FilterRaw", "", []string{"type:release OR notes", "result", "ctrl+r", "result", "preview"}},
+		{"FilterRawFromList", "", []string{"type:release OR notes", "result", "tab", "ctrl+r", "result", "ctrl+r", "result", "preview"}},
+		{"FilterActorFromInputIgnored", "", []string{"type:release", "result", "a", "result"}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tm := tuitest.New(t, newModel(t, st, tt.query))
-			for _, s := range tt.steps {
-				switch {
-				case strings.HasPrefix(s, "type:"):
-					typeText(tm, strings.TrimPrefix(s, "type:"))
-				case strings.HasPrefix(s, "wait:"):
-					tuitest.WaitFor(t, tm, strings.TrimPrefix(s, "wait:"))
-				case s == "resize":
-					tuitest.Resize(tm, 60, 12)
-				default:
-					tuitest.Press(tm, s)
-				}
-			}
-			final := tuitest.Final(t, tm).(Model)
+			final := run(t, st, tt.query, tt.steps)
 			golden.RequireEqual(t, tuitest.Frame(final))
 		})
 	}
@@ -98,6 +187,9 @@ func TestFocused(t *testing.T) {
 		{"tab to list", []string{"tab"}, false},
 		{"tab twice stays in list", []string{"tab", "tab"}, false},
 		{"esc back to input", []string{"tab", "esc"}, true},
+		{"repo filter typed", []string{"tab", "r"}, true},
+		{"repo filter applied", []string{"tab", "r", "enter"}, false},
+		{"repo filter cancelled", []string{"tab", "r", "esc"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,10 +225,10 @@ func TestEnterOpensSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var m tea.Model = newModel(t, st, "release")
-			m, cmd := m.Update(resultMsg{seq: m.(Model).seq, query: "release", hits: hits})
-			if cmd != nil {
-				t.Fatal("result produced a command")
-			}
+			// The result also schedules the preview; that command is not
+			// run here.
+			m, _ = m.Update(resultMsg{seq: m.(Model).seq, query: "release", hits: hits})
+			var cmd tea.Cmd
 			for _, k := range tt.keys {
 				m, cmd = m.Update(tuitest.Key(k))
 			}
@@ -149,6 +241,9 @@ func TestEnterOpensSession(t *testing.T) {
 			}
 			if got.SessionID != tt.want.Event.SessionID || got.EventID != tt.want.Event.ID {
 				t.Errorf("OpenSession = %+v, want session %s event %s", got, tt.want.Event.SessionID, tt.want.Event.ID)
+			}
+			if !slices.Equal(got.Terms, []string{"release"}) {
+				t.Errorf("OpenSession.Terms = %q, want [release]", got.Terms)
 			}
 		})
 	}

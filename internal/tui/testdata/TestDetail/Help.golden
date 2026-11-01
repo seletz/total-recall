@@ -1,0 +1,30 @@
+ total-recall                                                        [1 search] › session  2 stats
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+             ╭────────────────────────────────────────────────────────────────────────╮
+             │ keys: session                                                          │
+             │                                                                        │
+             │ ↑/k    up             n   next hit           1   search       ?   help │
+             │ ↓/j    down           N   previous hit       2   stats        esc back │
+             │ b/pgup page up        T   tools on/off       tab next view    q   quit │
+             │ f/pgdn page down      y   copy session id                              │
+             │ u      ½ page up      esc back                                         │
+             │ d      ½ page down                                                     │
+             │ g/home top                                                             │
+             │ G/end  bottom                                                          │
+             │                                                                        │
+             │ esc or ? closes this help                                              │
+             ╰────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ esc back • q quit
