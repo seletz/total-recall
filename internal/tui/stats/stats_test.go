@@ -398,7 +398,7 @@ type fakeChart struct {
 
 func (c *fakeChart) Init() tea.Cmd                   { return nil }
 func (c *fakeChart) Update(tea.Msg) (Chart, tea.Cmd) { c.updates++; return c, nil }
-func (c *fakeChart) SetSpec(s chart.Spec)            { c.spec = s }
-func (c *fakeChart) SetSize(w, h int)                { c.width, c.height = w, h }
+func (c *fakeChart) SetSpec(s chart.Spec) tea.Cmd    { c.spec = s; return nil }
+func (c *fakeChart) SetSize(w, h int) tea.Cmd        { c.width, c.height = w, h; return nil }
 func (c *fakeChart) View() string                    { return "fake chart" }
 func (c *fakeChart) Mode() string                    { return "fake mode" }
