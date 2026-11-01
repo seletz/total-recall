@@ -756,3 +756,30 @@ func TestChildArgs(t *testing.T) {
 		t.Errorf("childArgs = %v", got)
 	}
 }
+
+func TestTUICommand(t *testing.T) {
+	e := newTestEnv(t)
+	// Flags and arguments are validated before anything is opened, so these
+	// never start the program.
+	if out := e.mustRun(t, "tui", "--help"); !strings.Contains(out, "--graphics") || !strings.Contains(out, "--query") {
+		t.Errorf("tui --help = %q", out)
+	}
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"bad graphics", []string{"tui", "--graphics", "bogus"}, "graphics"},
+		{"bad view", []string{"tui", "bogus"}, "view"},
+		{"too many args", []string{"tui", "search", "stats"}, "accepts"},
+		{"no archive", []string{"tui", "stats", "--graphics", "text", "--query", "x"}, "no archive"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := e.run(t, "", tt.args...)
+			if r.code == 0 || !strings.Contains(r.stderr, tt.want) {
+				t.Errorf("%v = %+v, want exit != 0 and %q in stderr", tt.args, r, tt.want)
+			}
+		})
+	}
+}

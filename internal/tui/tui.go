@@ -1,0 +1,126 @@
+// Package tui is the interactive terminal UI of total-recall (spike): an app
+// shell that hosts the search and stats views, switches between them and
+// shows a help overlay built from their key maps.
+//
+// Views live in their own packages (search, stats, …) and implement [View]
+// without importing this package. The app forwards key presses to the active
+// view and every other message to all views; the active view may claim the
+// keyboard with [Focused].
+package tui
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/bubbles/v2/help"
+
+	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/search"
+	"github.com/seletz/total-recall/internal/tui/stats"
+)
+
+// Graphics selects how charts are drawn.
+type Graphics string
+
+// Graphics modes. Auto probes the terminal for Kitty graphics, Text never
+// does, Kitty forces images without probing.
+const (
+	GraphicsAuto  Graphics = "auto"
+	GraphicsText  Graphics = "text"
+	GraphicsKitty Graphics = "kitty"
+)
+
+// ParseGraphics validates a --graphics flag value; empty means auto.
+func ParseGraphics(s string) (Graphics, error) {
+	switch g := Graphics(s); g {
+	case "":
+		return GraphicsAuto, nil
+	case GraphicsAuto, GraphicsText, GraphicsKitty:
+		return g, nil
+	default:
+		return "", fmt.Errorf("invalid graphics mode %q (use auto, text or kitty)", s)
+	}
+}
+
+// View names, the argument of `total-recall tui [view]`.
+const (
+	ViewSearch = "search"
+	ViewStats  = "stats"
+)
+
+// Options configure the app.
+type Options struct {
+	// Store is the read-only archive; nil in shell tests.
+	Store *store.Store
+	// Location is the time zone for day boundaries; nil means UTC.
+	Location *time.Location
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
+	// Start is the view shown first (ViewSearch or ViewStats); empty means
+	// search.
+	Start string
+	// Query is the initial search text.
+	Query string
+	// Graphics is the chart mode; empty means auto.
+	Graphics Graphics
+}
+
+func (o *Options) defaults() {
+	if o.Location == nil {
+		o.Location = time.UTC
+	}
+	if o.Now == nil {
+		o.Now = time.Now
+	}
+	if o.Start == "" {
+		o.Start = ViewSearch
+	}
+	if o.Graphics == "" {
+		o.Graphics = GraphicsAuto
+	}
+}
+
+// View is one screen of the app. Its View is rendered into the body between
+// header and footer; its key bindings feed the footer and the help overlay.
+type View interface {
+	tea.Model
+	help.KeyMap
+	// Title names the view in the header, e.g. "search".
+	Title() string
+}
+
+// Focused is implemented by views that take text input. While it reports
+// true the app passes every key except ctrl+c to the view, so typing "q" or
+// "1" neither quits nor switches views.
+type Focused interface {
+	Focused() bool
+}
+
+// New builds the app for opts.
+func New(opts Options) (App, error) {
+	opts.defaults()
+	views := []View{search.New(), stats.New()}
+	active := -1
+	for i, v := range views {
+		if v.Title() == opts.Start {
+			active = i
+		}
+	}
+	if active < 0 {
+		return App{}, fmt.Errorf("unknown view %q (use %s or %s)", opts.Start, ViewSearch, ViewStats)
+	}
+	return App{opts: opts, views: views, active: active, keys: defaultKeyMap()}, nil
+}
+
+// Run starts the app on in/out and blocks until it quits.
+func Run(ctx context.Context, opts Options, in io.Reader, out io.Writer) error {
+	app, err := New(opts)
+	if err != nil {
+		return err
+	}
+	_, err = tea.NewProgram(app, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out)).Run()
+	return err
+}
