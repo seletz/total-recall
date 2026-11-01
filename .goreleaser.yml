@@ -45,6 +45,8 @@ release:
 
 homebrew_casks:
   - name: total-recall
+    # Without the tap token (secret not set yet) the cask is not pushed; the GitHub release still happens.
+    skip_upload: "{{ if not (index .Env \"HOMEBREW_TAP_GITHUB_TOKEN\") }}true{{ else }}false{{ end }}"
     binaries:
       - total-recall
     repository:
