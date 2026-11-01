@@ -6,5 +6,7 @@
   "permission_mode": "default",
   "stop_hook_active": false,
   "last_assistant_message": "Forty-two lines.",
+  "background_tasks": [{"id": "task-001", "type": "shell"}],
+  "session_crons": [],
   "future_field": "ignored"
 }

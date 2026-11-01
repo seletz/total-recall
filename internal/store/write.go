@@ -160,8 +160,8 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 
 	if len(events) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO events
-			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset, raw)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset, raw, raw_truncated)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
 			return 0, fmt.Errorf("store: prepare: %w", err)
@@ -178,7 +178,7 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 			}
 			res, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
-				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw))
+				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw), e.RawTruncated)
 			if err != nil {
 				return 0, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}
@@ -313,4 +313,39 @@ func (s *Store) PutDir(ctx context.Context, d DirInfo) error {
 		return fmt.Errorf("store: put dir %s: %w", d.Cwd, err)
 	}
 	return nil
+}
+
+// SessionCwds returns the distinct non-empty working directories of all
+// sessions, sorted.
+func (s *Store) SessionCwds(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT cwd FROM sessions WHERE cwd IS NOT NULL AND cwd <> '' ORDER BY cwd")
+	if err != nil {
+		return nil, fmt.Errorf("store: session cwds: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("store: session cwds: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// SetSessionGit sets git root and remote URL of all sessions whose cwd is
+// cwd and returns how many rows changed. Unlike WriteBatch it overwrites
+// existing values: it is used to repair stale git info (ingest --regit).
+func (s *Store) SetSessionGit(ctx context.Context, cwd, root, remoteURL string) (int64, error) {
+	if s.readOnly {
+		return 0, fmt.Errorf("store: read-only")
+	}
+	res, err := s.db.ExecContext(ctx, `UPDATE sessions SET git_root = ?, git_remote_url = ?
+		WHERE cwd = ? AND (git_root IS NOT ? OR git_remote_url IS NOT ?)`,
+		nullStr(root), nullStr(remoteURL), cwd, nullStr(root), nullStr(remoteURL))
+	if err != nil {
+		return 0, fmt.Errorf("store: set session git %s: %w", cwd, err)
+	}
+	return res.RowsAffected()
 }

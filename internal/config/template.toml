@@ -21,7 +21,7 @@ timezone = "Europe/Berlin"
 log = ""
 
 [backup]
-# Target directory for `total-recall backup` (VACUUM INTO archive-YYYY-MM-DD.db).
+# Target directory for `total-recall backup` (gzip-compressed archive-YYYY-MM-DD.db.gz).
 # Override: --backup-dir, TOTAL_RECALL_BACKUP_DIR.
 dir = "~/Documents/total-recall"
 # Number of most recent daily copies to keep.
@@ -44,6 +44,9 @@ allow = []
 tool_result_max_bytes = 4096
 # Keep the (redacted) original JSON line of every event.
 store_raw = true
+# Lines longer than this many bytes are not kept as raw JSON (raw = NULL,
+# raw_truncated = 1); the event text is stored as usual. 0 = no limit.
+raw_max_bytes = 16384
 
 [harness.claude]
 enabled = true

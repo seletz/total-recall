@@ -24,6 +24,9 @@ type SessionFilter struct {
 	Name string
 	// TopLevel excludes subagent sessions (parent_id set).
 	TopLevel bool
+	// HideEmpty excludes sessions without events and without a start time
+	// (e.g. only a title record was seen).
+	HideEmpty bool
 	// Limit caps the number of results; 0 = no limit.
 	Limit int
 }
@@ -87,6 +90,9 @@ func (f SessionFilter) where(eventTime bool) ([]string, []any) {
 	}
 	if f.TopLevel {
 		cond = append(cond, "(s.parent_id IS NULL OR s.parent_id = '')")
+	}
+	if f.HideEmpty {
+		cond = append(cond, "(COALESCE(s.started_at, '') <> '' OR EXISTS (SELECT 1 FROM events x WHERE x.session_id = s.id))")
 	}
 	if f.Name != "" {
 		cond = append(cond, `(s.name LIKE ? ESCAPE '\' OR s.ai_title LIKE ? ESCAPE '\' OR s.agent_name LIKE ? ESCAPE '\')`)
