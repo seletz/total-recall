@@ -42,6 +42,7 @@ func TestTextMentionsKeyContent(t *testing.T) {
 		{"daily_activity view", "daily_activity"},
 		{"utc caveat", "UTC"},
 		{"redaction caveat", "redacted"},
+		{"raw cap", "raw_truncated"},
 	}
 	text := Text()
 	for _, tt := range tests {

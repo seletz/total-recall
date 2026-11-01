@@ -52,6 +52,7 @@ allow = []                       # Regexe, die nie maskiert werden
 
 [ingest]
 tool_result_max_bytes = 4096
+raw_max_bytes = 16384
 store_raw = true
 
 [harness.claude]
@@ -110,6 +111,9 @@ resolve = true
 
 `tool_result_max_bytes`
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
+
+`raw_max_bytes`
+:   Obergrenze für die Original-JSON-Zeile. Ist eine Zeile größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. `0` heißt: keine Grenze. Default: 16384 Bytes.
 
 `store_raw`
 :   Die Original-JSON-Zeile jedes Events (maskiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung. Default: `true`.

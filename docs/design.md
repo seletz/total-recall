@@ -59,6 +59,7 @@ allow = []                       # Regexe, die nie maskiert werden
 
 [ingest]
 tool_result_max_bytes = 4096
+raw_max_bytes = 16384            # größere Zeilen: raw = NULL, raw_truncated = 1; 0 = unbegrenzt
 store_raw = true
 
 [harness.claude]
@@ -152,7 +153,8 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 | `model` | TEXT NULL | |
 | `tokens_in` / `tokens_out` | INTEGER NULL | |
 | `source_path` / `source_offset` | TEXT / INTEGER | Rückverweis |
-| `raw` | TEXT | Original-JSON der Zeile, redigiert (siehe unten) |
+| `raw` | TEXT NULL | Original-JSON der Zeile, redigiert (siehe unten); NULL, wenn die Zeile größer als `ingest.raw_max_bytes` ist |
+| `raw_truncated` | INTEGER | 1, wenn `raw` wegen der Größe weggelassen wurde (Migration 3); `text` bleibt wie sonst |
 
 `events_fts`: FTS5 über `text` (external content auf `events`, Trigger für insert).
 

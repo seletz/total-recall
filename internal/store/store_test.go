@@ -532,3 +532,18 @@ func TestWriteBatchNCountsInserted(t *testing.T) {
 		}
 	}
 }
+
+func TestRawTruncatedRoundTrip(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess, evs := sampleBatch()
+	evs[2].Raw, evs[2].RawTruncated = "", true
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw_truncated = 1 AND raw IS NULL AND id = 'claude:e3'"); n != 1 {
+		t.Errorf("truncated rows = %d, want 1", n)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw_truncated = 0"); n != len(evs)-1 {
+		t.Errorf("untruncated rows = %d", n)
+	}
+}

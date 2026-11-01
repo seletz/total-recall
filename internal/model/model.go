@@ -73,6 +73,9 @@ type Event struct {
 	SourcePath   string
 	SourceOffset int64
 	Raw          string // original JSON line (redacted before storing)
+	// RawTruncated is set when Raw was dropped because the line exceeded the
+	// configured size cap (ingest.raw_max_bytes).
+	RawTruncated bool
 }
 
 // Record is what an adapter emits per transcript line: session facts and zero or more events.

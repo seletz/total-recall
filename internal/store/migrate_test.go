@@ -76,6 +76,7 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM events WHERE text = 'hello migration world'":          1,
 				"SELECT count(*) FROM events_fts WHERE events_fts MATCH 'migration'":        1,
 				"SELECT count(*) FROM dirs WHERE git_root = '/w'":                           1,
+				"SELECT count(*) FROM events WHERE raw_truncated = 0 AND raw = '{}'":        1,
 				"SELECT count(*) FROM exchanges WHERE request = 'hello migration world'":    1,
 				"SELECT count(*) FROM daily_activity WHERE repo = 'https://github.com/o/r'": 1,
 			}

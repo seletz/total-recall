@@ -44,6 +44,9 @@ allow = []
 tool_result_max_bytes = 4096
 # Keep the (redacted) original JSON line of every event.
 store_raw = true
+# Lines longer than this many bytes are not kept as raw JSON (raw = NULL,
+# raw_truncated = 1); the event text is stored as usual. 0 = no limit.
+raw_max_bytes = 16384
 
 [harness.claude]
 enabled = true

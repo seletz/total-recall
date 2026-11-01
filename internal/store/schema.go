@@ -138,4 +138,10 @@ ALTER TABLE sessions ADD COLUMN ai_title TEXT;
 ALTER TABLE sessions ADD COLUMN display_name TEXT GENERATED ALWAYS AS
 	(COALESCE(NULLIF(name, ''), NULLIF(ai_title, ''), NULLIF(agent_name, ''))) VIRTUAL;
 `,
+	// 3: raw lines above ingest.raw_max_bytes are not stored (raw = NULL);
+	// raw_truncated marks those events so "no raw" is distinguishable from
+	// "raw dropped because of its size".
+	`
+ALTER TABLE events ADD COLUMN raw_truncated INTEGER NOT NULL DEFAULT 0;
+`,
 }

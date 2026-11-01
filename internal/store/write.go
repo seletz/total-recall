@@ -160,8 +160,8 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 
 	if len(events) > 0 {
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO events
-			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset, raw)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset, raw, raw_truncated)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
 			return 0, fmt.Errorf("store: prepare: %w", err)
@@ -178,7 +178,7 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 			}
 			res, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
-				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw))
+				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw), e.RawTruncated)
 			if err != nil {
 				return 0, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}

@@ -35,6 +35,10 @@ const (
 //go:embed template.toml
 var Template string
 
+// DefaultRawMaxBytes is the default of ingest.raw_max_bytes: longer raw lines
+// are not stored (the event's text is kept).
+const DefaultRawMaxBytes = 16384
+
 // Origin says where an effective configuration value came from.
 type Origin string
 
@@ -101,6 +105,7 @@ type Redact struct {
 // Ingest configures reading transcripts.
 type Ingest struct {
 	ToolResultMaxBytes int  `toml:"tool_result_max_bytes"`
+	RawMaxBytes        int  `toml:"raw_max_bytes"`
 	StoreRaw           bool `toml:"store_raw"`
 }
 
@@ -167,6 +172,7 @@ var keys = []struct {
 	{"redact.extra_patterns", func(c *Config) string { return formatList(c.Redact.ExtraPatterns) }},
 	{"redact.allow", func(c *Config) string { return formatList(c.Redact.Allow) }},
 	{"ingest.tool_result_max_bytes", func(c *Config) string { return strconv.Itoa(c.Ingest.ToolResultMaxBytes) }},
+	{"ingest.raw_max_bytes", func(c *Config) string { return strconv.Itoa(c.Ingest.RawMaxBytes) }},
 	{"ingest.store_raw", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreRaw) }},
 	{"harness.claude.enabled", func(c *Config) string { return strconv.FormatBool(c.Harness.Claude.Enabled) }},
 	{"harness.claude.projects_dir", func(c *Config) string { return c.Harness.Claude.ProjectsDir }},
@@ -198,7 +204,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	}
 	c.Backup = Backup{Dir: filepath.Join(home, "Documents", "total-recall"), KeepDaily: 7, MinInterval: Duration{24 * time.Hour}}
 	c.Redact = Redact{Enabled: true, ExtraPatterns: []string{}, Allow: []string{}}
-	c.Ingest = Ingest{ToolResultMaxBytes: 4096, StoreRaw: true}
+	c.Ingest = Ingest{ToolResultMaxBytes: 4096, RawMaxBytes: DefaultRawMaxBytes, StoreRaw: true}
 	claudeDir := getenv("CLAUDE_CONFIG_DIR")
 	if claudeDir == "" {
 		claudeDir = filepath.Join(home, ".claude")
@@ -329,6 +335,9 @@ func (c *Config) validate() error {
 	}
 	if c.Ingest.ToolResultMaxBytes < 0 {
 		return fmt.Errorf("config: ingest.tool_result_max_bytes must be >= 0")
+	}
+	if c.Ingest.RawMaxBytes < 0 {
+		return fmt.Errorf("config: ingest.raw_max_bytes must be >= 0")
 	}
 	for _, l := range []struct {
 		key  string
