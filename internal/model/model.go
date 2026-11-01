@@ -14,6 +14,15 @@ const (
 	ActorTool       Actor = "tool"       // tool results
 )
 
+// Valid reports whether a is one of the defined actors.
+func (a Actor) Valid() bool {
+	switch a {
+	case ActorHuman, ActorAgent, ActorPeer, ActorAutomation, ActorTool:
+		return true
+	}
+	return false
+}
+
 // Kind classifies what an event is.
 type Kind string
 
@@ -24,6 +33,32 @@ const (
 	KindSystem     Kind = "system"
 	KindMeta       Kind = "meta"
 )
+
+// Valid reports whether k is one of the defined kinds.
+func (k Kind) Valid() bool {
+	switch k {
+	case KindMessage, KindToolUse, KindToolResult, KindSystem, KindMeta:
+		return true
+	}
+	return false
+}
+
+// Event roles.
+const (
+	RoleUser      = "user"
+	RoleAssistant = "assistant"
+	RoleSystem    = "system"
+	RoleTool      = "tool"
+)
+
+// ValidRole reports whether r is one of the defined event roles.
+func ValidRole(r string) bool {
+	switch r {
+	case RoleUser, RoleAssistant, RoleSystem, RoleTool:
+		return true
+	}
+	return false
+}
 
 // Session is a (partial) session description. Zero values mean "unknown" and never
 // overwrite known values in the store (see docs/design.md, upsert rule).
