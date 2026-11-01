@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/harness/claude"
 	"github.com/seletz/total-recall/internal/ingest"
 	"github.com/seletz/total-recall/internal/redact"
@@ -86,15 +87,22 @@ func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error)
 		}
 		d.Redactor = r
 	}
+	d.Adapters = adapters(cfg)
+	return d, nil
+}
+
+// adapters returns the enabled harness adapters configured from cfg.
+func adapters(cfg *config.Config) []harness.Adapter {
+	var out []harness.Adapter
 	if c := cfg.Harness.Claude; c.Enabled {
-		d.Adapters = append(d.Adapters, claude.New(c.ProjectsDir,
+		out = append(out, claude.New(c.ProjectsDir,
 			claude.WithToolResultMaxBytes(cfg.Ingest.ToolResultMaxBytes),
 			claude.WithPeerPrefixes(c.Actors.PeerPrefixes...),
 			claude.WithAutomationPrefixes(c.Actors.AutomationPrefixes...),
 			claude.WithSkipRecordTypes(c.SkipRecordTypes...),
 		))
 	}
-	return d, nil
+	return out
 }
 
 // openWrite opens the archive read-write (migrating it if needed).

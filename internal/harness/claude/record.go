@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -17,10 +18,72 @@ import (
 // truncMark is appended to text that was cut.
 const truncMark = " …[truncated]"
 
-// ingested lists the record types that produce records; everything else is skipped.
-var ingested = map[string]bool{
-	"user": true, "assistant": true, "system": true,
-	"custom-title": true, "ai-title": true, "agent-name": true, "summary": true,
+// Known record and content block types. The parser and the format check
+// (CheckFormat, `total-recall doctor`) share these lists; when Claude Code
+// adds a type, add it here (and handle it in the parser if it carries data).
+var (
+	ingestedTypes = []string{"user", "assistant", "system", "custom-title", "ai-title", "agent-name", "summary"}
+	skippedTypes  = []string{
+		"attachment", "api-request", "api-request-blob", "api-request-shape", "last-prompt", "mode",
+		"permission-mode", "atis-latch", "pr-link", "queue-operation", "bridge-session",
+		"file-history-snapshot", "file-history-delta", "cost-state", "tools-used",
+		"started", "result", // workflow journal.jsonl
+	}
+	handledUserBlocks      = []string{"text", "tool_result"}
+	ignoredUserBlocks      = []string{"image", "document"}
+	handledAssistantBlocks = []string{"text", "tool_use"}
+	ignoredAssistantBlocks = []string{"thinking", "redacted_thinking"}
+	// toolResultBlocks may appear in a tool_result's content array: text is
+	// kept, the others become a "[type]" placeholder.
+	toolResultBlocks = []string{"text", "image", "document", "tool_reference"}
+	// expectedFields are the top-level fields every record of a type should have.
+	expectedFields = map[string][]string{
+		"user":         {"timestamp", "sessionId", "uuid", "cwd"},
+		"assistant":    {"timestamp", "sessionId", "uuid", "cwd"},
+		"system":       {"timestamp", "sessionId", "uuid", "cwd"},
+		"custom-title": {"sessionId"},
+		"ai-title":     {"sessionId"},
+		"agent-name":   {"sessionId"},
+	}
+)
+
+// IngestedRecordTypes returns the record types the adapter reads.
+func IngestedRecordTypes() []string { return slices.Clone(ingestedTypes) }
+
+// SkippedRecordTypes returns record types known to carry nothing worth
+// archiving; they are skipped on purpose.
+func SkippedRecordTypes() []string { return slices.Clone(skippedTypes) }
+
+// HandledUserBlockTypes returns user content block types that become events.
+func HandledUserBlockTypes() []string { return slices.Clone(handledUserBlocks) }
+
+// IgnoredUserBlockTypes returns user content block types skipped on purpose.
+func IgnoredUserBlockTypes() []string { return slices.Clone(ignoredUserBlocks) }
+
+// HandledAssistantBlockTypes returns assistant content block types that become events.
+func HandledAssistantBlockTypes() []string { return slices.Clone(handledAssistantBlocks) }
+
+// IgnoredAssistantBlockTypes returns assistant content block types skipped on purpose.
+func IgnoredAssistantBlockTypes() []string { return slices.Clone(ignoredAssistantBlocks) }
+
+// ToolResultBlockTypes returns the block types known inside tool_result content.
+func ToolResultBlockTypes() []string { return slices.Clone(toolResultBlocks) }
+
+// ExpectedFields returns the top-level fields every record of type typ
+// should have (nil if none are required).
+func ExpectedFields(typ string) []string { return slices.Clone(expectedFields[typ]) }
+
+// ingested is the lookup set of ingestedTypes.
+var ingested = setOf(ingestedTypes)
+
+func setOf(l ...[]string) map[string]bool {
+	m := map[string]bool{}
+	for _, x := range l {
+		for _, s := range x {
+			m[s] = true
+		}
+	}
+	return m
 }
 
 // rawRecord is the subset of a transcript line the adapter looks at.

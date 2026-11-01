@@ -256,6 +256,44 @@ restored /Users/me/Documents/total-recall/archive-2026-11-01.db.gz to /tmp/archi
 
 Ein bestehendes Ziel wird ohne `--force` nie überschrieben. Die Daten landen zuerst in einer Temporärdatei neben dem Ziel und werden geprüft (Schema-Version, `PRAGMA quick_check`); erst dann wird das Ziel ersetzt. Vor `--force` auf die laufende Datenbank: sicherstellen, dass gerade kein `ingest` läuft. Was seit dem Backup dazukam, liest das nächste `ingest --all` wieder ein, solange die Transkripte noch da sind.
 
+## `doctor` { #doctor }
+
+Prüft die Transkripte einer Harness auf Format-Drift: Hat Claude Code etwas Neues eingeführt, das `total-recall` noch nicht kennt? Gelesen wird nur, die Datenbank wird nicht geöffnet.
+
+```sh
+total-recall doctor                  # Claude Code
+total-recall doctor --json
+```
+
+```text
+harness claude: 291 sources, 650112 lines
+versions (newest first): 2.1.316 (8492), 2.1.314 (1826), 2.1.312 (60947), …
+
+unknown record types:
+  hologram-state                           12  first: /Users/me/.claude/projects/-Users-me-repo/9a1b….jsonl:41
+
+findings: the adapter may need an update (see docs: Hooks, "Nach einem Claude-Code-Update")
+```
+
+Gemeldet werden:
+
+| Befund | Bedeutung |
+|---|---|
+| unbekannte Record-Typen | weder eingelesen noch als bewusst übersprungen bekannt (`skip_record_types` aus der Config zählt als bekannt) |
+| unbekannte Content-Block-Typen | in `user`-/`assistant`-Nachrichten oder im Inhalt eines `tool_result`, z.B. `assistant/hologram` |
+| fehlende Felder | `timestamp`, `sessionId`, `uuid`, `cwd` bei `user`/`assistant`/`system`; `sessionId` bei Titel-Records |
+| kaputte Zeilen | vollständige Zeilen, die kein JSON-Objekt sind (eine halb geschriebene letzte Zeile zählt nicht) |
+| Versionen | die Claude-Code-Versionen in den Transkripten, neueste zuerst, mit Anzahl Zeilen |
+
+Je Befund steht die erste Fundstelle (`Datei:Zeile`) dabei. Inhalte werden nicht ausgegeben.
+
+| Option | Bedeutung |
+|---|---|
+| `--harness NAME` | zu prüfende Harness, Default `claude` |
+| `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`) |
+
+Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](hooks.md#nach-einem-claude-code-update).
+
 ## `hooks print` { #hooks-print }
 
 Gibt die Hook-Konfiguration für `~/.claude/settings.json` als JSON aus.

@@ -94,6 +94,19 @@ total-recall sessions --since 2026-11-01
 
 Steht dort nichts, schau ins Log neben der Datenbank.
 
+## Nach einem Claude-Code-Update { #nach-einem-claude-code-update }
+
+Claude Code ändert sein Transkript-Format ohne Ankündigung: neue Record-Typen, neue Content-Blöcke, umbenannte Felder. `total-recall` liest dann trotzdem weiter, übersieht aber womöglich Neues. Nach einem Update deshalb:
+
+```sh
+total-recall doctor
+```
+
+- Exit-Code 0: alles bekannt.
+- Exit-Code 2: Es gibt Unbekanntes. Die Ausgabe nennt Typ, Anzahl und erste Fundstelle. Ein Blick in die genannte Zeile zeigt, ob darin etwas Archivierenswertes steht. Wenn ja, braucht der Adapter ein Update; wenn nein, gehört der Typ in die Liste der bewusst übersprungenen Typen im Adapter (bis dahin hilft `harness.claude.skip_record_types` in der Config).
+
+Die Versionsliste zeigt, ab welcher Claude-Code-Version etwas Neues auftaucht.
+
 ## Erstes Einlesen
 
 Einmal nach der Installation:

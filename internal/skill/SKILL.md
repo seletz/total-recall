@@ -26,6 +26,7 @@ Every read command accepts `--json`. Prefer `--json` and parse the output.
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--raw] [--limit N]` | full-text search with snippets, best first (default 20 hits); all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`; default current month) | total, per day, per repo, and all 7x24 weekday x hour cells (local time): sessions, human and agent events |
 | `total-recall sql --json "SELECT ..."` | read-only SQL; `--format table|json|csv`; writes are impossible |
+| `total-recall doctor --json` | checks the harness transcripts for format drift (unknown record/block types, missing fields); exit 2 = findings. Not needed for queries. |
 | `total-recall llm --skill` | prints this document |
 
 Dates for `--since/--until` are local time: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM` or RFC 3339. A date-only `--until` includes that whole day. JSON output always uses UTC timestamps.
