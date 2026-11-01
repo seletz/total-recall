@@ -15,8 +15,8 @@ import (
 // learns which renderer is active. Mode names the renderer in the status
 // line, e.g. "text chart".
 //
-// The zero model uses TextChart; another container comes in through
-// Options.Chart.
+// The zero model uses TextChart; Options.Graphics selects a KittyChart,
+// another container comes in through Options.Chart.
 type Chart interface {
 	// Init starts the container, like tea.Model.Init.
 	Init() tea.Cmd
@@ -24,10 +24,12 @@ type Chart interface {
 	// no key presses, no window sizes (those arrive via SetSize) and no
 	// load results.
 	Update(msg tea.Msg) (Chart, tea.Cmd)
-	// SetSpec sets the chart to draw.
-	SetSpec(spec chart.Spec)
-	// SetSize sets the area in cells; View must fit into it.
-	SetSize(width, height int)
+	// SetSpec sets the chart to draw. The command, if any, renders it;
+	// the model runs it like one of its own.
+	SetSpec(spec chart.Spec) tea.Cmd
+	// SetSize sets the area in cells; View must fit into it. The command,
+	// if any, re-renders for the new size.
+	SetSize(width, height int) tea.Cmd
 	// View draws the chart area: at most height lines of at most width
 	// cells. Shorter output is padded by the model.
 	View() string
@@ -50,11 +52,11 @@ func (*TextChart) Init() tea.Cmd { return nil }
 // Update implements Chart; the text chart ignores messages.
 func (c *TextChart) Update(tea.Msg) (Chart, tea.Cmd) { return c, nil }
 
-// SetSpec implements Chart.
-func (c *TextChart) SetSpec(spec chart.Spec) { c.spec = spec }
+// SetSpec implements Chart; the text chart renders in View.
+func (c *TextChart) SetSpec(spec chart.Spec) tea.Cmd { c.spec = spec; return nil }
 
 // SetSize implements Chart.
-func (c *TextChart) SetSize(width, height int) { c.width, c.height = width, height }
+func (c *TextChart) SetSize(width, height int) tea.Cmd { c.width, c.height = width, height; return nil }
 
 // View implements Chart: exactly height lines, or "" when the area is too
 // small for a chart.
