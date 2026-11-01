@@ -25,15 +25,15 @@ import (
 	"github.com/seletz/total-recall/internal/tui/stats"
 )
 
-// Graphics selects how charts are drawn.
-type Graphics string
+// Graphics selects how charts are drawn; the stats view owns the type.
+type Graphics = stats.Graphics
 
 // Graphics modes. Auto probes the terminal for Kitty graphics, Text never
 // does, Kitty forces images without probing.
 const (
-	GraphicsAuto  Graphics = "auto"
-	GraphicsText  Graphics = "text"
-	GraphicsKitty Graphics = "kitty"
+	GraphicsAuto  = stats.GraphicsAuto
+	GraphicsText  = stats.GraphicsText
+	GraphicsKitty = stats.GraphicsKitty
 )
 
 // ParseGraphics validates a --graphics flag value; empty means auto.
@@ -143,7 +143,7 @@ func searchOptions(opts Options) search.Options {
 // statsOptions is what the stats view gets from the app options; a nil store
 // stays a nil Loader.
 func statsOptions(opts Options) stats.Options {
-	so := stats.Options{Now: opts.Now, Location: opts.Location}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}

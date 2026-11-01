@@ -55,8 +55,12 @@ type Options struct {
 	Location *time.Location
 	// Now is the clock the default window ends with; nil means time.Now.
 	Now func() time.Time
-	// Chart draws the chart area; nil means a TextChart.
+	// Chart draws the chart area; nil means the container Graphics selects.
 	Chart Chart
+	// Graphics selects the chart container when Chart is nil: empty means a
+	// plain TextChart that never touches the terminal; auto, text or kitty
+	// mean a KittyChart starting in that mode (see NewKittyChart).
+	Graphics Graphics
 }
 
 func (o *Options) defaults() {
@@ -65,6 +69,9 @@ func (o *Options) defaults() {
 	}
 	if o.Now == nil {
 		o.Now = time.Now
+	}
+	if o.Chart == nil && o.Graphics != "" {
+		o.Chart = NewKittyChart(KittyOptions{Mode: o.Graphics})
 	}
 	if o.Chart == nil {
 		o.Chart = NewTextChart()
@@ -178,12 +185,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.chart.SetSize(m.chartSize())
-		return m, nil
+		return m, m.chart.SetSize(m.chartSize())
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case resultMsg:
-		return m.result(msg), nil
+		return m.result(msg)
 	case heatResultMsg:
 		return m.heatResult(msg), nil
 	}
@@ -193,10 +199,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	k := m.keys
+	if key.Matches(msg, k.Graphics) {
+		// The mode is worth switching without a database too: the status
+		// line shows the outcome.
+		if t, ok := m.chart.(GraphicsToggler); ok {
+			return m, t.Toggle()
+		}
+		return m, nil
+	}
 	if m.opts.Loader == nil {
 		return m, nil
 	}
-	k := m.keys
 	switch {
 	case key.Matches(msg, k.Day):
 		return m.setPeriod(store.PeriodDay)
@@ -220,8 +234,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.setWindow(m.window.Zoom(1))
 	case key.Matches(msg, k.Metric):
 		m.metric = (m.metric + 1) % 3
-		m.rebuild()
-		return m, nil
+		return m, m.rebuild()
 	case key.Matches(msg, k.Heatmap):
 		return m.toggleHeatmap()
 	}
@@ -239,8 +252,7 @@ func (m Model) toggleHeatmap() (tea.Model, tea.Cmd) {
 		m.heat.seq++
 		m.stopHeat()
 	}
-	m.chart.SetSize(m.chartSize())
-	return m, cmd
+	return m, tea.Batch(cmd, m.chart.SetSize(m.chartSize()))
 }
 
 func (m Model) setPeriod(p store.Period) (tea.Model, tea.Cmd) {
@@ -288,8 +300,7 @@ func (m Model) load() (Model, tea.Cmd) {
 	f := m.filter()
 	if s, ok := m.cache[f]; ok {
 		m.series, m.loaded, m.took = s, true, 0
-		m.rebuild()
-		return m, nil
+		return m, m.rebuild()
 	}
 	m.loaded, m.loading = false, true
 	ctx, cancel := context.WithCancel(context.Background())
@@ -373,33 +384,32 @@ func (m Model) heatResult(msg heatResultMsg) Model {
 }
 
 // result caches a successful answer and shows it when it is still current.
-func (m Model) result(msg resultMsg) Model {
+func (m Model) result(msg resultMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		m.cache[msg.filter] = msg.series
 	}
 	if msg.seq != m.seq {
-		return m
+		return m, nil
 	}
 	m.loading, m.cancel = false, nil
 	m.took, m.err = msg.took, msg.err
 	if msg.err != nil {
-		return m
+		return m, nil
 	}
 	m.series, m.loaded = msg.series, true
-	m.rebuild()
-	return m
+	return m, m.rebuild()
 }
 
 // rebuild derives the spec from the series and the metric and hands it to
-// the chart. Colours are assigned once per key and kept across switches.
-func (m *Model) rebuild() {
+// the chart, returning the chart's render command. Colours are assigned
+// once per key and kept across switches.
+func (m *Model) rebuild() tea.Cmd {
 	if !m.loaded {
-		return
+		return nil
 	}
 	names := project.Names(m.series.Keys)
 	m.spec = m.colors.Assign(chart.FromSeries(m.series, m.window.Period, m.metric, names))
-	m.chart.SetSpec(m.spec)
-	m.chart.SetSize(m.chartSize())
+	return tea.Batch(m.chart.SetSpec(m.spec), m.chart.SetSize(m.chartSize()))
 }
 
 // layout splits the body height between the chart, the heatmap and the

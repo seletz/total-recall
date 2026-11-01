@@ -12,6 +12,7 @@ type KeyMap struct {
 	ZoomOut, ZoomIn           key.Binding
 	Metric                    key.Binding
 	Heatmap                   key.Binding
+	Graphics                  key.Binding
 	// Footer groups.
 	Period, Dimension, Range key.Binding
 }
@@ -30,6 +31,7 @@ func defaultKeyMap() KeyMap {
 		ZoomIn:    key.NewBinding(key.WithKeys("+", "="), key.WithHelp("+", "zoom in")),
 		Metric:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "metric")),
 		Heatmap:   key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "heatmap")),
+		Graphics:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "graphics")),
 		Period:    key.NewBinding(key.WithKeys("d", "w", "m"), key.WithHelp("d/w/m", "period")),
 		Dimension: key.NewBinding(key.WithKeys("p", "a", "v"), key.WithHelp("p/a/v", "by")),
 		Range:     key.NewBinding(key.WithKeys("[", "]", "-", "+", "="), key.WithHelp("[ ] -/+", "range")),
@@ -49,6 +51,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Day, k.Week, k.Month, k.Metric},
 		{k.Project, k.Agent, k.Directory, k.Heatmap},
-		{k.Earlier, k.Later, k.ZoomOut, k.ZoomIn},
+		{k.Earlier, k.Later, k.ZoomOut, k.ZoomIn, k.Graphics},
 	}
 }
