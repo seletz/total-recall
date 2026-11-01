@@ -123,8 +123,10 @@ Ist eine Datei kleiner als `offset` (ersetzt/gekürzt), wird ab 0 neu gelesen; E
 | `harness_version` | TEXT | zuletzt gesehene Version |
 | `native_id` | TEXT | |
 | `parent_id` | TEXT NULL | Subagent → Eltern-Session |
-| `name` | TEXT NULL | Titel (Claude: `custom-title`, sonst `agent-name`, sonst Slug) |
+| `name` | TEXT NULL | eigener Titel (Claude: `custom-title`), maßgeblich |
+| `ai_title` | TEXT NULL | von der Harness erzeugter Titel (Claude: `ai-title`, Legacy `summary`) |
 | `agent_name` | TEXT NULL | |
+| `display_name` | TEXT, generiert | `COALESCE(name, ai_title, agent_name)`; das zeigen `sessions`, `show`, `search` |
 | `cwd` | TEXT | erstes gesehenes Arbeitsverzeichnis |
 | `git_root` | TEXT NULL | |
 | `git_remote_url` | TEXT NULL | normalisiert, ohne Credentials |
@@ -175,7 +177,7 @@ Ein Assistant-Eintrag mit mehreren Content-Blöcken ergibt mehrere Events (`<uui
 
 ### Welche Claude-Records
 
-Eingelesen: `user`, `assistant`, `system`, `custom-title`, `agent-name`, `summary`. Alle anderen (`attachment`, `api-request*`, `bridge-session`, `file-history-*`, `queue-operation`, `mode`, …) werden übersprungen, der Offset läuft trotzdem weiter. `custom-title`/`agent-name` erzeugen kein Event, sondern setzen Felder der Session.
+Eingelesen: `user`, `assistant`, `system`, `custom-title`, `ai-title`, `agent-name`, `summary`. Alle anderen (`attachment`, `api-request*`, `bridge-session`, `file-history-*`, `queue-operation`, `mode`, …) werden übersprungen, der Offset läuft trotzdem weiter. `custom-title`/`ai-title`/`agent-name`/`summary` erzeugen kein Event, sondern setzen Felder der Session (`summary` und `ai-title` → `ai_title`, damit ein eigener Titel nie überschrieben wird).
 
 ## Redaction
 
@@ -183,13 +185,16 @@ Vor dem Schreiben werden `text` und `raw` maskiert (`«redacted:<art>»`): Priva
 
 ## Git-Info
 
-`gitinfo.Resolve(cwd)`: existiert `cwd`, dann `git -C cwd rev-parse --show-toplevel`, `git remote get-url origin`, `git branch --show-current`. Für Worktrees wird der Hauptrepo-Root über `git rev-parse --git-common-dir` bestimmt. Existiert `cwd` nicht mehr (gelöschter Worktree), wird zum nächsten existierenden Elternverzeichnis gegangen, das ein Git-Repo ist. Ergebnis wird in Tabelle `dirs(cwd PK, git_root, git_remote_url, resolved_at)` gecacht, damit es nach dem Löschen eines Worktrees erhalten bleibt. Remote-URLs werden normalisiert (`git@github.com:o/r.git` → `https://github.com/o/r`), Credentials entfernt.
+`gitinfo.Resolve(cwd)`: existiert `cwd`, dann `git -C cwd rev-parse --show-toplevel`, `git remote get-url origin`, `git branch --show-current`. Für Worktrees wird der Hauptrepo-Root über `git rev-parse --git-common-dir` bestimmt. Existiert `cwd` nicht mehr (gelöschter Worktree), wird zum nächsten existierenden Elternverzeichnis gegangen, das ein Git-Repo ist. Ist auch das kein Repo und liegt `cwd` unter `<pfad>/<repo>__worktrees/` (Worktree-Layout von worktrunk), wird `<pfad>/<repo>` aufgelöst. Ergebnis wird in Tabelle `dirs(cwd PK, git_root, git_remote_url, resolved_at)` gecacht, damit es nach dem Löschen eines Worktrees erhalten bleibt. Ein Treffer gilt für immer, „kein Repo“ wird nach 7 Tagen neu geprüft. Je Lauf wird jedes `cwd` höchstens einmal aufgelöst. Remote-URLs werden normalisiert (`git@github.com:o/r.git` → `https://github.com/o/r`), Credentials entfernt.
 
 ## Ingest, Hooks, Nebenläufigkeit
 
 - `ingest [PATH…]`: einzelne Dateien. `ingest --all`: alle Quellen aller Adapter (= Nachlesen). `ingest --hook`: liest Hook-JSON von stdin (`transcript_path`, `session_id`, `cwd`, `hook_event_name`), liest diese Datei ein, und bei `SessionStart` zusätzlich `--all`.
 - `--detach`: startet sich selbst als losgelösten Hintergrundprozess (neue Session-ID, stdin-Daten als Argument/Tempdatei) und kehrt sofort mit Exit 0 zurück. Hooks dürfen die Harness nie bremsen oder blockieren; Fehler gehen ins Log, Exit-Code im Hook-Modus ist immer 0.
-- SQLite im WAL-Modus, `busy_timeout` 10 s. Je Quelldatei ein Lock (Lockfile neben der DB, `flock`), damit zwei parallele Läufe dieselbe Datei nicht doppelt lesen. Events sind ohnehin idempotent (`INSERT … ON CONFLICT DO NOTHING`).
+- SQLite im WAL-Modus, `busy_timeout` 10 s. Je Quelldatei ein Lock (Lockfile in `locks/` neben der DB, `flock` ohne Warten: eine gesperrte Datei wird übersprungen), damit zwei parallele Läufe dieselbe Datei nicht doppelt lesen. Events sind ohnehin idempotent (`INSERT … ON CONFLICT DO NOTHING`).
+- Geschrieben wird in Batches (500 Events) je Transaktion, zusammen mit dem Offset der ersten noch nicht geschriebenen Zeile. Ein Absturz verliert und verdoppelt daher nichts.
+- `--detach` übergibt das Hook-JSON in einer Tempdatei (`--hook-payload`, intern), der Kindprozess löscht sie nach dem Lesen. Stdout/stderr des Kindprozesses gehen ins Log.
+- Im Hook-Modus schreibt `ingest` nichts auf stdout (bei `SessionStart` landete das im Kontext der Session).
 - Nur vollständige Zeilen lesen; eine halb geschriebene letzte Zeile bleibt für den nächsten Lauf.
 
 Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen Block aus, eingetragen wird er manuell bzw. über die dotfiles):
@@ -200,15 +205,25 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | `SessionStart` | `total-recall ingest --hook --detach` (liest zusätzlich alles nach) |
 | `SessionEnd` | `total-recall ingest --hook --detach` und `total-recall backup --if-older 24h --detach` |
 
+## Schema-Versionierung
+
+- Die Tabelle `schema_version` hält die Version der Datenbank. Jede Migration ist ein SQL-Block in `internal/store/schema.go`, Version = Position in der Liste.
+- **Migrationen sind vorwärts-only. Eine bestehende Migration wird nie geändert, neue werden nur angehängt.**
+- Ein schreibendes Öffnen (`ingest`, `backup`) wendet fehlende Migrationen an. Vorher schreibt es per `VACUUM INTO` eine Kopie `<db>.pre-v<N>.bak` neben die DB (N = alte Version) und loggt das. Für eine neue, leere DB entfällt die Kopie.
+- Ist die DB neuer als das Programm, ist das ein Fehler (`ErrSchemaTooNew`); im Hook-Modus wird er geloggt, Exit 0, nichts geschrieben.
+- Lesende Befehle öffnen read-only und migrieren nie. Neuer → Fehler. Älter → Warnung mit dem Hinweis, einen schreibenden Befehl auszuführen; Abfragen laufen, soweit sie keine neuen Spalten brauchen.
+- `status` zeigt Version der DB und des Programms.
+- Ein Test baut die DB in jeder historischen Version (Migrationen 1..k), füllt sie und migriert auf den neuesten Stand. Neue Migrationen sind damit automatisch gegen alle älteren Stände getestet.
+
 ## CLI
 
 | Befehl | Zweck |
 |---|---|
 | `ingest` | siehe oben |
 | `status` | DB-Pfad, Größe, Anzahl Sessions/Events, letzter Ingest je Harness, letzte Fehler aus dem Log, letztes Backup |
-| `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`; Spalten Start, Dauer, Name, Repo, Branch, #human, #agent |
+| `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools) |
-| `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor` |
+| `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |
 | `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Basis für `monthly_stats.py` im Vault. |
 | `sql QUERY` | Read-only-SQL (DB mit `mode=ro` und `PRAGMA query_only`), Ausgabe Tabelle/JSON/CSV |
 | `backup` | `VACUUM INTO` + Aufbewahrung; `--if-older DURATION` |
@@ -217,4 +232,4 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | `config show` / `config init` | wirksame Konfiguration / Vorlage schreiben |
 | `version` | |
 
-Globale Flags: `--config`, `--db`, `--json` (wo sinnvoll), `--tz` (Default `Europe/Berlin` für Auswertungen).
+Globale Flags: `--config`, `--db`, `--tz` (Default `Europe/Berlin` für Auswertungen), `--backup-dir`. `--json` haben die lesenden Befehle einzeln. `backup.min_interval` ist derzeit ungenutzt; `--if-older` braucht eine ausdrückliche Dauer.
