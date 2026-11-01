@@ -20,47 +20,54 @@ import (
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
-// probe wraps the view so a test can wait until a load result or a window
-// size has been applied before it sends the next message.
-type probe struct {
-	Model
-	loaded chan struct{}
-	sized  chan struct{}
-}
-
-func (p probe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m, cmd := p.Model.Update(msg)
-	p.Model = m.(Model)
-	switch msg.(type) {
-	case loadedMsg:
-		p.loaded <- struct{}{}
-	case tea.WindowSizeMsg:
-		p.sized <- struct{}{}
-	}
-	return p, cmd
-}
-
-// start runs the view in a test program and waits for the start-up window
-// size. Both teatest and the program send one, the program's from a
-// goroutine, so a resize sent before both arrived could be overridden.
-func start(t *testing.T) (probe, *teatest.TestModel, *store.Store) {
+// run executes cmd synchronously and feeds every message it produces back
+// into m, so a test can drive the view without a program: a load command
+// yields its result right away, a load that triggers another (tools switched
+// on for a tool event) is followed to the end, batches are unpacked.
+func run(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
 	t.Helper()
-	st, _ := fixturedb.Activity(t)
-	p := probe{Model: New(st, testfixture.ActivityLocation), loaded: make(chan struct{}, 16), sized: make(chan struct{}, 16)}
-	tm := tuitest.New(t, p)
-	for range 2 {
-		wait(t, p.sized, "initial window size")
+	if cmd == nil {
+		return m
 	}
-	return p, tm, st
+	switch msg := cmd().(type) {
+	case nil:
+		return m
+	case tea.BatchMsg:
+		for _, c := range msg {
+			m = run(t, m, c)
+		}
+		return m
+	default:
+		var next tea.Cmd
+		m, next = m.Update(msg)
+		return run(t, m, next)
+	}
 }
 
-func wait(t *testing.T, ch chan struct{}, what string) {
+// drive starts a view on st at the test terminal size and applies the steps
+// in order, running every command to completion. Steps are key names (see
+// tuitest.Key), "open" (send open) and "resize:W:H".
+func drive(t *testing.T, st *store.Store, open Open, steps []string) Model {
 	t.Helper()
-	select {
-	case <-ch:
-	case <-time.After(tuitest.Timeout):
-		t.Fatalf("%s did not arrive", what)
+	var m tea.Model = New(st, testfixture.ActivityLocation)
+	m = run(t, m, m.Init())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height})
+	for _, s := range steps {
+		var cmd tea.Cmd
+		switch {
+		case s == "open":
+			m, cmd = m.Update(open)
+		case strings.HasPrefix(s, "resize:"):
+			f := strings.Split(s, ":")
+			w, _ := strconv.Atoi(f[1])
+			h, _ := strconv.Atoi(f[2])
+			m, cmd = m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		default:
+			m, cmd = m.Update(tuitest.Key(s))
+		}
+		m = run(t, m, cmd)
 	}
+	return m.(Model)
 }
 
 func sessionID(native string) string { return "claude:" + native }
@@ -79,11 +86,11 @@ func eventID(t *testing.T, st *store.Store, native string, all bool, n int) stri
 	return evs[n].ID
 }
 
-// TestFrames opens a session, drives the view with steps and compares the
-// final frame with a golden file. Steps are key names (see tuitest.Key),
-// "open" (send the test's Open and wait for it; implied as the first step
-// when absent), "wait" (block until a load result has been applied) and
-// "resize:W:H".
+// TestFrames opens a session, drives the view with steps (see drive; "open"
+// is implied as the first step when absent) and compares the final frame
+// with a golden file. Commands run synchronously, so every frame shows the
+// settled state: an Open that needs a second load (tool event) is complete
+// before the next step.
 func TestFrames(t *testing.T) {
 	alpha4 := sessionID(testfixture.ActivitySessionAlpha4)
 	tests := []struct {
@@ -109,31 +116,32 @@ func TestFrames(t *testing.T) {
 		}, []string{"resize:100:12"}},
 		{"OpenToolEvent", func(st *store.Store) Open {
 			// A tool event is only listed with tools on: the view switches
-			// them on by itself (second load).
+			// them on by itself with a second load.
 			return Open{SessionID: alpha4, EventID: eventID(t, st, testfixture.ActivitySessionAlpha4, true, 5), Terms: []string{"vet"}}
-		}, []string{"resize:100:12", "open", "wait"}},
+		}, []string{"resize:100:12", "open"}},
 		{"JumpToEventWithHits", func(st *store.Store) Open {
 			return Open{SessionID: alpha4, EventID: eventID(t, st, testfixture.ActivitySessionAlpha4, false, 2), Terms: []string{"build", "vet"}}
 		}, nil},
 		{"Scroll", func(*store.Store) Open { return Open{SessionID: alpha4} }, []string{"resize:100:12", "down", "down", "down"}},
 		{"ScrollPage", func(*store.Store) Open { return Open{SessionID: alpha4} }, []string{"resize:100:12", "f"}},
 		{"OpenUnknownEvent", func(*store.Store) Open {
-			// Tools are switched on to look for it (second load); still
+			// Tools are switched on to look for it with a second load; still
 			// absent, nothing is marked.
 			return Open{SessionID: alpha4, EventID: "claude:nope"}
-		}, []string{"open", "wait"}},
+		}, []string{"open"}},
 		{"ScrollBottom", func(*store.Store) Open { return Open{SessionID: alpha4} }, []string{"resize:100:12", "G"}},
 		{"ScrollBottomTop", func(*store.Store) Open { return Open{SessionID: alpha4} }, []string{"resize:100:12", "G", "g"}},
-		{"Tools", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionBeta1)} }, []string{"T", "wait"}},
-		{"ToolsOff", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionBeta1)} }, []string{"T", "wait", "T", "wait"}},
+		{"Tools", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionBeta1)} }, []string{"T"}},
+		{"ToolsOff", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionBeta1)} }, []string{"T", "T"}},
 		{"ToolsKeepEvent", func(st *store.Store) Open {
 			return Open{SessionID: alpha4, EventID: eventID(t, st, testfixture.ActivitySessionAlpha4, false, 2), Terms: []string{"vet"}}
-		}, []string{"resize:100:12", "T", "wait"}},
+		}, []string{"resize:100:12", "T"}},
 		{"ToolsOffHidesCurrent", func(st *store.Store) Open {
-			// The current event is a tool result; without tools the view falls
-			// back to the last visible event before it.
+			// Opening a tool result switches tools on and marks it; T switches
+			// them off, and the view falls back to the last visible event
+			// before it.
 			return Open{SessionID: alpha4, EventID: eventID(t, st, testfixture.ActivitySessionAlpha4, true, 2)}
-		}, []string{"resize:100:12", "T", "wait", "T", "wait"}},
+		}, []string{"resize:100:12", "T"}},
 		{"Copy", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionBeta1)} }, []string{"y"}},
 		{"CopyNoticeClears", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionBeta1)} }, []string{"y", "down"}},
 		{"Narrow", func(*store.Store) Open { return Open{SessionID: alpha4, Terms: []string{"findings"}} }, []string{"resize:40:20"}},
@@ -143,32 +151,19 @@ func TestFrames(t *testing.T) {
 		{"Tiny", func(*store.Store) Open { return Open{SessionID: alpha4} }, []string{"resize:30:3"}},
 		{"BeforeOpen", nil, nil},
 	}
+	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, tm, st := start(t)
 			steps := tt.steps
-			if tt.open != nil && !slices.Contains(steps, "open") {
-				steps = append([]string{"open"}, steps...)
-			}
-			for _, s := range steps {
-				switch {
-				case s == "open":
-					tm.Send(tt.open(st))
-					wait(t, p.loaded, "load")
-				case s == "wait":
-					wait(t, p.loaded, "load")
-				case strings.HasPrefix(s, "resize:"):
-					f := strings.Split(s, ":")
-					w, _ := strconv.Atoi(f[1])
-					h, _ := strconv.Atoi(f[2])
-					tuitest.Resize(tm, w, h)
-					wait(t, p.sized, "resize")
-				default:
-					tuitest.Press(tm, s)
+			var open Open
+			if tt.open != nil {
+				open = tt.open(st)
+				if !slices.Contains(steps, "open") {
+					steps = append([]string{"open"}, steps...)
 				}
 			}
-			final := tuitest.Final(t, tm).(probe)
-			golden.RequireEqual(t, tuitest.Frame(final))
+			m := drive(t, st, open, steps)
+			golden.RequireEqual(t, tuitest.Frame(m))
 		})
 	}
 }
@@ -185,12 +180,16 @@ func TestEscSendsBack(t *testing.T) {
 	}
 }
 
-// TestCopyWritesOSC52 checks that y sets the clipboard through OSC 52.
+// TestCopyWritesOSC52 checks that y sets the clipboard through OSC 52. It
+// runs a real program, since the sequence is written by the renderer.
 func TestCopyWritesOSC52(t *testing.T) {
-	p, tm, _ := start(t)
+	st, _ := fixturedb.Activity(t)
+	tm := tuitest.New(t, New(st, testfixture.ActivityLocation))
 	id := sessionID(testfixture.ActivitySessionBeta1)
 	tm.Send(Open{SessionID: id})
-	wait(t, p.loaded, "load")
+	// The header shows the ID once the session is loaded; y is ignored
+	// before that.
+	tuitest.WaitFor(t, tm, id)
 	tuitest.Press(tm, "y")
 	// The sequence is queued and flushed with the next frame, so wait for it
 	// instead of reading the output after quitting.
