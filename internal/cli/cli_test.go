@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
 	tf "github.com/seletz/total-recall/internal/testfixture"
@@ -563,6 +564,40 @@ func TestRestore(t *testing.T) {
 	e.mustRun(t, "restore", bak, "--to", to, "--force")
 	if r := e.run(t, "", "restore"); r.code == 0 {
 		t.Error("restore without argument succeeded")
+	}
+}
+
+func TestDoctor(t *testing.T) {
+	e := newTestEnv(t)
+	r := e.run(t, "", "doctor")
+	if r.code != 0 || !strings.Contains(r.stdout, "no unknown") {
+		t.Fatalf("doctor on clean fixtures = %+v", r)
+	}
+	if _, err := os.Stat(e.db); err == nil {
+		t.Error("doctor created the database")
+	}
+	tf.WriteFile(t, e.projects, "-w-gamma/33333333-3333-4333-8333-333333333333.jsonl", tf.Join(
+		tf.Line{"type": "brand-new", "sessionId": "x"},
+		tf.Line{"type": "assistant", "uuid": "d1", "timestamp": "2026-10-07T10:00:00Z", "sessionId": "x", "cwd": "/w",
+			"version": "2.1.999", "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "hologram"}}}},
+	))
+	r = e.run(t, "", "doctor", "--json")
+	if r.code != 2 {
+		t.Fatalf("doctor with drift: exit %d, want 2\n%s%s", r.code, r.stdout, r.stderr)
+	}
+	reps := decode[[]harness.FormatReport](t, r.stdout)
+	if len(reps) != 1 || reps[0].UnknownRecordTypes["brand-new"] == nil || reps[0].UnknownBlockTypes["assistant/hologram"] == nil {
+		t.Errorf("report = %+v", reps)
+	}
+	if len(reps[0].Versions) == 0 || reps[0].Versions[0].Version != "2.1.999" {
+		t.Errorf("versions = %+v", reps[0].Versions)
+	}
+	r = e.run(t, "", "doctor")
+	if r.code != 2 || !strings.Contains(r.stdout, "brand-new") || !strings.Contains(r.stdout, "assistant/hologram") {
+		t.Errorf("doctor text = %+v", r)
+	}
+	if r := e.run(t, "", "doctor", "--harness", "nope"); r.code != 1 {
+		t.Errorf("unknown harness: %+v", r)
 	}
 }
 
