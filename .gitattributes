@@ -1,0 +1,2 @@
+# Golden files pin raw terminal output byte for byte; no end-of-line conversion.
+*.golden -text

@@ -8,15 +8,15 @@
 
 
 
-                                   ╭───────────────────────────╮
-                                   │ keys: search              │
-                                   │                           │
-                                   │ 1   search       ?   help │
-                                   │ 2   stats        esc back │
-                                   │ tab next view    q   quit │
-                                   │                           │
-                                   │ esc or ? closes this help │
-                                   ╰───────────────────────────╯
+                      ╭──────────────────────────────────────────────────────╮
+                      │ keys: search                                         │
+                      │                                                      │
+                      │ tab   list     ↑/k up      1   search       ?   help │
+                      │ esc   input    ↓/j down    2   stats        esc back │
+                      │ enter open                 tab next view    q   quit │
+                      │                                                      │
+                      │ esc or ? closes this help                            │
+                      ╰──────────────────────────────────────────────────────╯
 
 
 

@@ -10,7 +10,10 @@ import (
 )
 
 // Chrome rows: header line and rule above the body, rule and footer below.
-const chromeHeight = 4
+const (
+	chromeHeight = 4
+	headerRows   = chromeHeight / 2
+)
 
 // App is the root model: header with view tabs, the active view's body,
 // footer with key hints, and a help overlay.
@@ -123,9 +126,16 @@ func (a App) View() tea.View {
 		return v
 	}
 	body := a.bodySize()
-	content := a.views[a.active].View().Content
+	bv := a.views[a.active].View()
+	content := bv.Content
 	if a.help {
 		content = a.helpView()
+	} else if bv.Cursor != nil {
+		// The view positions its cursor within the body; shift it below
+		// the header and the rule.
+		c := *bv.Cursor
+		c.Y += headerRows
+		v.Cursor = &c
 	}
 	bodyStyle := lipgloss.NewStyle().Width(body.Width).Height(body.Height).MaxWidth(body.Width).MaxHeight(body.Height)
 	rule := strings.Repeat("─", a.width)
@@ -162,9 +172,13 @@ func (a App) footer() string {
 	h := help.New()
 	h.SetWidth(a.width - 1)
 	bindings := a.keys.ShortHelp()
-	if a.help {
+	switch f, ok := a.views[a.active].(Focused); {
+	case a.help:
 		bindings = []key.Binding{a.keys.Back, a.keys.Quit}
-	} else {
+	case ok && f.Focused():
+		// The view takes every key but ctrl+c, so only that one is global.
+		bindings = append(a.views[a.active].ShortHelp(), a.keys.ForceQuit)
+	default:
 		bindings = append(a.views[a.active].ShortHelp(), bindings...)
 	}
 	return " " + h.ShortHelpView(bindings)

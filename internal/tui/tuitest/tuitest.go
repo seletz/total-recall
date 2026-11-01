@@ -4,6 +4,7 @@
 package tuitest
 
 import (
+	"bytes"
 	"io"
 	"strings"
 	"testing"
@@ -91,6 +92,18 @@ func Resize(tm *teatest.TestModel, width, height int) {
 	tm.Send(tea.WindowSizeMsg{Width: width, Height: height})
 }
 
+// WaitFor blocks until the program's output contains want, or fails the test
+// after Timeout. Use it before sending keys that depend on an earlier,
+// asynchronous step: the initial window size arrives from a goroutine, so a
+// Resize right after New may be processed before it; and results of
+// background commands show up only after they ran.
+func WaitFor(tb testing.TB, tm *teatest.TestModel, want string) {
+	tb.Helper()
+	teatest.WaitFor(tb, tm.Output(), func(out []byte) bool {
+		return bytes.Contains(out, []byte(want))
+	}, teatest.WithDuration(Timeout), teatest.WithCheckInterval(10*time.Millisecond))
+}
+
 // Final quits the program after all messages sent so far have been handled
 // and returns the final model.
 func Final(tb testing.TB, tm *teatest.TestModel) tea.Model {
@@ -120,6 +133,11 @@ func Frame(m tea.Model) string {
 
 // RequireOutput quits the program and compares the raw renderer output with
 // testdata/<test name>.golden. Update the files with go test -update.
+//
+// The terminal capability queries Bubble Tea sends at start-up (synchronized
+// output, unicode core, kitty keyboard) are removed first: the program writes
+// them from its own goroutine, so their position relative to the first frame
+// depends on scheduling and is not part of what a golden file should pin.
 func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 	tb.Helper()
 	_ = tm.Quit()
@@ -127,5 +145,14 @@ func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	teatest.RequireEqualOutput(tb, out)
+	teatest.RequireEqualOutput(tb, StripQueries(out))
+}
+
+// StripQueries removes the start-up capability queries from raw program
+// output; see RequireOutput.
+func StripQueries(out []byte) []byte {
+	for _, q := range []string{ansi.RequestModeSynchronizedOutput, ansi.RequestModeUnicodeCore, ansi.RequestKittyKeyboard} {
+		out = bytes.ReplaceAll(out, []byte(q), nil)
+	}
+	return out
 }
