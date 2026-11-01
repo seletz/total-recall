@@ -1,6 +1,6 @@
 # Spike: TUI
 
-Entwurf für eine Terminal-Oberfläche `total-recall tui`: interaktive Volltextsuche mit Vorschau und grafische Auswertung der Aktivität über die Zeit. Stand der Recherche: 1. November 2026. Ob der Spike übernommen wird, ist offen; er bleibt deshalb ein eigenständiges Unterkommando, das sich wieder entfernen lässt.
+Entwurf für eine Terminal-Oberfläche `total-recall tui`: interaktive Volltextsuche mit Vorschau und grafische Auswertung der Aktivität über die Zeit. Stand der Recherche: 1. November 2026. Ob der Spike übernommen wird, ist offen; er bleibt deshalb ein eigenständiges Unterkommando, das sich wieder entfernen lässt. Der Spike ist umgesetzt; das [Ergebnis](#ergebnis) mit Messwerten und Empfehlung steht am Ende, die Bedienung in [TUI](tui.md).
 
 ## Ziele
 
@@ -343,3 +343,157 @@ Manuell vor jedem Merge (Checkliste in der PR, lesend gegen die echte DB): Ghost
 - **Kitty-Keyboard-Protokoll.** Bubble Tea v2 kann es anfragen (`KeyboardEnhancements`); nötig ist es erst, wenn Tastenkombinationen wie ++shift+enter++ gebraucht werden. Im Spike aus.
 - **`stats` erweitern.** `Store.ActivitySeries` könnte `stats --period week --by project` versorgen und damit `monthly_stats.py` im Vault ersetzen. Kleiner Folgeschritt, nicht Teil des Spikes.
 - **Config.** Ein Abschnitt `[tui]` (`graphics = "auto"`, Standard-Zeitraum) ist leicht, aber vor der Übernahme unnötig. Im Spike nur Flags.
+
+## Ergebnis
+
+Stand 1. November 2026, nach dem Merge aller Teil-Issues des Meilensteins „Spike: TUI“ in `develop`. Benutzerdoku: [TUI](tui.md), Befehlsreferenz: [`tui`](befehle.md#tui).
+
+### Was funktioniert
+
+- **Stack wie entschieden.** Bubble Tea v2.1.1, Bubbles v2.2.1, Lip Gloss v2.0.6, ntcharts v2.9.0, chartpicture v2.9.0, go-analyze/charts v0.6.4, teatest v2 (Pseudo-Version, es gibt kein Tag). Alles reines Go, der statische Build mit `CGO_ENABLED=0` funktioniert. Ultraviolet (Renderer) ist als direkte Abhängigkeit dazugekommen, weil der Zellgrößen-Event dort definiert ist.
+- **Suche** mit Debounce (150 ms), Abbruch und Sequenznummern, Limit 200, Trefferliste mit Snippets, Vorschau des Austauschs um den Treffer (eigene Debounce 100 ms), Filter Actor, Zeitraum, Repo und Rohsyntax, Sprung in die Session.
+- **Session** als Viewport über `Store.Events`: Umbruch am Wortende, Hervorhebung der Suchwörter, `n`/`N`, Tool-Events ein- und ausblenden mit stabiler Position, Session-ID kopieren (OSC 52). Treffer auf Tool-Events blenden Tools automatisch ein.
+- **Statistik:** `Store.ActivitySeries` mit einer Abfrage und Bucketing in Go, Periode × Dimension, Zeitfenster verschieben und zoomen, drei Kennzahlen, gestapeltes Textchart mit stabilen Farben, Tabelle, Heatmap Wochentag × Stunde aus `Store.Stats`. Ergebnisse je Filterkombination gecacht.
+- **Kitty Graphics** über chartpicture: Sondierung, Zellgröße, PNG-Übertragung in 4096-Byte-Chunks, Unicode-Platzhalter, Löschen beim Umschalten, Entscheidungstabelle `Decide` als reine Funktion. Im Pseudo-Terminal mit nachgestellten Ghostty-Antworten läuft der ganze Pfad durch (siehe [Nicht geprüft](#nicht-gepruft-oder-nicht-umgesetzt)). Ein eigener Encoder (Plan B) war nicht nötig.
+- **Tests:** `go test ./...` und `go vet ./...` grün; Golden-Tests je Ansicht, Entscheidungstabellen, PNG-Dekodierung, Programmläufe mit teatest, CLI-Tests für `--help`, ungültige Flags und fehlende DB. `TestMain` in `internal/tui` und `internal/tui/stats` pinnt den prozessweiten Zustand des `picture`-Pakets, damit Goldens nicht vom Terminal abhängen, das `go test` ausführt.
+
+### Nicht geprüft oder nicht umgesetzt
+
+- **Manuelle Prüfung in echten Terminals steht aus.** Ghostty nativ, Ghostty in tmux mit und ohne Passthrough, Terminal.app, Fenster auf 80×24: die Checkliste aus PR [#38](https://github.com/seletz/total-recall/pull/38) ist offen. Der Bildpfad ist damit nur gegen nachgestellte Terminalantworten belegt, nicht gegen Ghostty selbst. Das ist die wichtigste Lücke vor einer Übernahme.
+- **ssh** und **kitty** (das Terminal) sind nicht ausprobiert. Über ssh fehlt normalerweise `COLORTERM`, ohne Truecolor gehen Platzhalter kaputt; dokumentiert, nicht getestet.
+- **Andere Terminals mit Kitty Graphics, aber ohne Platzhalter** (WezTerm, Konsole) bekommen Text, wie im Entwurf offen gelassen.
+- **Maus:** der Mausmodus ist nicht eingeschaltet; die Detailansicht würde Rad-Events verarbeiten, bekommt aber keine.
+- **Offene Fragen aus dem Entwurf** bleiben offen: Kennzahlen Dauer und Tokens, Config-Abschnitt `[tui]`, Kitty-Keyboard-Protokoll, Sprache der Oberfläche (Englisch wie vorgeschlagen).
+
+### Abweichungen vom Entwurf
+
+- **Fokus in der Suche.** Entwurf: ++tab++ wechselt immer zwischen Eingabe und Liste. Umgesetzt: ++tab++ geht Eingabe → Liste, ++esc++ Liste → Eingabe, und ++tab++ aus der Liste wechselt die Ansicht. Grund: die App fragt eine Ansicht nur mit einem `Focused() bool`, ob sie die Tastatur hält; ein Umschalter in beide Richtungen bräuchte einen reicheren Vertrag.
+- **Zeitfilter** der Suche startet bei `all`, nicht bei 90 Tagen. **Repo-Filter** wird mit ++enter++ übernommen, nicht beim Tippen.
+- **Detailansicht** ist eine Ebene über den Ansichten (die Suche bleibt darunter erhalten), kein dritter Tab. Status und Position stehen in der Trennlinie, nicht in der Fußzeile.
+- **Umbruch und Hervorhebung** macht die Session-Ansicht selbst: der Soft-Wrap des Bubbles-Viewports trennt mitten im Wort.
+- **Heatmap** nimmt die Kennzahl des Charts (events, human, sessions) und blendet sich aus, wenn der Körper zu niedrig ist; bei 80×24 fehlt der Platz. Die Statuszeile sagt es.
+- **Kitty:** Sondierung mit 250 ms Timeout statt DA1 als Abschluss (Verhalten der Bibliothek), Abfrage-ID der Bibliothek statt 31. Die Umgebungsvariablen entscheiden mit, nicht nur die Sondierung: Bild nur bei Ghostty oder kitty, weil andere Terminals zwar antworten, aber keine Platzhalter zeichnen. tmux ersetzt `TERM` und `TERM_PROGRAM`, deshalb zählen zusätzlich `TERM=xterm-ghostty` sowie `GHOSTTY_RESOURCES_DIR`/`GHOSTTY_BIN_DIR` im tmux-Server als Ghostty-Hinweis. Zwei Umwege statt Änderungen an chartpicture: das Bildmodell wird bei der Zellgrößen-Antwort neu gebaut (chartpicture nimmt die Zellgröße nur im Konstruktor), und die Setter des Chart-Containers geben `tea.Cmd` zurück, weil chartpicture außerhalb der Hauptschleife rendert.
+- **Projektnamen:** `project.Names` kann Verzeichnisse ohne Repository nicht mit `~` markieren; der Rohschlüssel sagt nicht, ob er Git-Root oder Arbeitsverzeichnis ist. Behoben wird das durch die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4).
+- **TopN** wird über das ganze Fenster berechnet, nicht je Periode (stabile Legende). Leere Zellen sind enthalten. Die Spalte `sessions` der Tabelle summiert die je Periode eindeutigen Sessions.
+
+### Messwerte
+
+Alle Messungen lesend gegen die echte Datenbank, darwin/arm64, Go 1.27.3, `CGO_ENABLED=0`; nur Zahlen, keine Inhalte. Datenbank: 680 MiB, 314 Sessions, 179.707 Events, Schema v3. Alle Abfragen mit `Europe/Berlin`. Angaben als Minimum und Median aus fünf Läufen, Startzeiten aus einem Pseudo-Terminal (`expect`) mit `--graphics text`.
+
+**Start der TUI**
+
+| Messung | Wert |
+|---|---|
+| Prozessstart bis erster Frame | 30 bis 36 ms |
+| Start mit `--query` (häufiges Wort) bis erste Treffer | 80 bis 120 ms, davon Abfrage 60 bis 90 ms |
+| Start in `stats` bis erstes Chart | 280 bis 300 ms, davon Abfrage 255 bis 280 ms |
+
+**`Store.Search`** (Limit 200, alle Treffer bei 200 abgeschnitten)
+
+| Begriff | ohne Zeitfilter (min / median) | letzte 90 Tage |
+|---|---|---|
+| häufiges Fachwort (z.B. `release`) | 76 / 176 ms | 71 / 96 ms |
+| sehr häufiges Wort (z.B. `test`) | 238 / 289 ms | 158 / 170 ms |
+| `error` | 62 / 145 ms | – |
+| `git` | 167 / 184 ms | – |
+| `config` | 110 / 116 ms | – |
+| Stoppwort (`the`) | 312 / 344 ms | – |
+
+**`Store.ActivitySeries`** (TopN 6)
+
+| Fenster | Buckets | min / median |
+|---|---|---|
+| Tag × Projekt, 28 Tage | 28 | 316 / 368 ms |
+| Woche × Agent, 16 Wochen | 16 | 341 / 424 ms |
+| Monat × Verzeichnis, 12 Monate | 12 | 366 / 443 ms |
+| Tag × Projekt, 224 Tage (achtfaches Fenster) | 224 | 369 / 454 ms |
+| Monat × Projekt, gesamter Bestand | 6 | 317 / 335 ms |
+
+Die Dauer hängt kaum vom Fenster ab: die Abfrage liest alle Events im Zeitraum, und der Bestand ist noch klein genug, dass ein Monat und ein Jahr ähnlich lange dauern. Der Entwurf hatte „unter 0,4 s“ angenommen; das trifft zu, aber ohne viel Luft. Die TUI zeigt die gemessene Dauer in der Statuszeile und cacht je Kombination.
+
+**`Store.Stats`** (Heatmap): 28 Tage 268 / 271 ms, 16 Wochen 300 / 306 ms, 12 Monate 300 / 320 ms.
+
+**`Store.Events`** (Vorschau und Detail): Sessions mit 8 bis 17 Nachrichten unter 1 ms. Größte Session im Bestand: 5.508 Nachrichten in 35 ms, mit Tools 27.978 Events in 71 ms.
+
+**Binärgröße** (`go build ./cmd/total-recall`, darwin/arm64)
+
+| Build | v0.1.1 | develop | Differenz |
+|---|---|---|---|
+| mit `-s -w` (wie Release und `mise run build`) | 8,55 MiB | 12,05 MiB | +3,50 MiB |
+| ohne Strip | 12,67 MiB | 17,21 MiB | +4,54 MiB |
+| Module in `go list -m all` | 34 | 69 | +35 |
+
+Der Bildpfad (chartpicture, go-analyze/charts mit eingebetteten Schriften) macht davon etwa ein Drittel aus.
+
+### Erkenntnisse aus den Tests
+
+- Golden-Tests mit teatest sind unzuverlässig, sobald sie auf Nachrichten oder auf Text in Bildschirmbereichen warten, die sich nicht ändern. Stabil ist: das Model direkt treiben, `tea.Cmd` synchron ausführen (Statistik und Session nach [#35](https://github.com/seletz/total-recall/issues/35)/[#36](https://github.com/seletz/total-recall/pull/36)) oder den Model-Zustand abfragen statt den Bildschirm.
+- `TestOutput` in `internal/tui` schlägt nur unter `-race` fehl (Timing des Renderers); CI läuft ohne `-race`.
+- Session- und Statistik-Tests haben je eine eigene Kopie eines `run`/`drive`-Helfers, der Kommandos synchron abarbeitet. Gehört nach `internal/tui/tuitest`.
+
+### Empfehlung
+
+**Übernehmen, mit Folgearbeiten.** Die Suche mit Vorschau und Sprung in die Session ist der Teil, den die CLI nicht ersetzen kann, und er ist fertig, schnell (Treffer in 100 bis 350 ms, Session-Detail unter 100 ms) und gut getestet. Die Statistik liefert in 0,3 bis 0,45 s, was `stats` heute nicht kann (Zeitreihe nach Projekt oder Agent), und `ActivitySeries` ist unabhängig von der TUI nützlich. Die Architektur hält, was der Entwurf versprach: alles unter `internal/tui`, der Rest des Programms an drei Stellen berührt, Ansichten in eigenen Paketen, die Grafikentscheidung als reine Funktion. Kosten: 3,5 MiB und 35 Module mehr, zwei Abhängigkeiten ohne Tag (Ultraviolet, teatest), eine Bibliothek mit API-Warnung (ntcharts).
+
+Die Übernahme sollte an zwei Bedingungen hängen: Erstens die manuelle Kitty-Checkliste aus PR #38 in Ghostty durchgehen. Scheitert der Bildpfad in der Praxis und lässt er sich nicht mit vertretbarem Aufwand reparieren, ist die Konsequenz nicht, die TUI zu verwerfen, sondern den Bildpfad: chartpicture, go-analyze/charts und `kitty.go` entfernen, Textcharts behalten, etwa 1 MiB sparen. Zweitens die Versionen gepinnt lassen und Updates der Charm-Module bewusst einspielen, weil Golden-Dateien sich mit dem Renderer ändern.
+
+Verwerfen wäre richtig, wenn die TUI nicht benutzt wird. Das lässt sich nach ein paar Wochen Gebrauch entscheiden; die [Entfernungsanleitung](#entfernungsanleitung) bleibt gültig.
+
+### Entfernungsanleitung
+
+Falls der Spike wieder herausgenommen wird:
+
+1. `internal/tui` komplett löschen, dazu `internal/cli/tui.go`.
+2. In `internal/cli/root.go` die Zeile `e.tuiCmd(),` aus der Befehlsliste entfernen; in `internal/cli/cli_test.go` die Tests für `tui --help` und die ungültigen `tui`-Aufrufe.
+3. `go mod tidy`. Damit verschwinden Bubble Tea, Bubbles, Lip Gloss, Ultraviolet, `x/ansi`, `x/exp/golden`, teatest, ntcharts, chartpicture, go-analyze/charts und colorprofile; kein anderes Paket benutzt sie.
+4. `docs/tui.md` löschen, den Eintrag in `zensical.toml` und den Abschnitt `tui` in `docs/befehle.md` entfernen. Diese Seite bleibt als Protokoll.
+5. Bleiben können `internal/store/activity.go` samt Tests und `internal/testfixture` (Aktivitäts-Fixture, `fixturedb`): additive Dateien ohne Abhängigkeiten nach außen, Grundlage für `stats --period/--by`. Wird die Projekt-Heuristik dafür gebraucht, `internal/tui/project` vorher nach `internal/project` verschieben.
+6. `go test ./...`, `go vet ./...`, `mise run docs:build`.
+
+### Vorschlag: `stats --period/--by`
+
+`Store.ActivitySeries` ist fertig und gemessen; `stats` kann es ohne TUI nutzen und damit `monthly_stats.py` im Vault ersetzen. Vorschlag:
+
+```sh
+total-recall stats --period week --by project --since 2026-08-01 --until 2026-10-31
+total-recall stats --period month --by agent --top 6 --json
+total-recall stats --month 2026-10 --period day --by directory
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--period day\|week\|month` | Perioden statt der heutigen Tagesliste; ohne `--by` eine Zeile je Periode mit Sessions, human, agent |
+| `--by project\|agent\|directory` | zusätzlich je Periode nach Dimension aufschlüsseln; setzt `--period` voraus (Default `day`) |
+| `--top N` | die N größten Werte der Dimension über den ganzen Zeitraum, der Rest als `other`; Default 0 = alle |
+
+Ohne die neuen Flags bleibt `stats` wie heute. Textausgabe im Langformat `PERIOD  KEY  SESSIONS  HUMAN  AGENT` (eine Zeile je Periode und Schlüssel, leere Zellen ausgelassen, `other` zuletzt), damit sie mit `sort` und `awk` weiterverarbeitet werden kann. JSON spiegelt `ActivitySeries`:
+
+```json
+{
+  "period": "week",
+  "by": "project",
+  "timezone": "Europe/Berlin",
+  "keys": ["webshop", "infra", "other"],
+  "buckets": [
+    {"start": "2026-10-04T22:00:00.000Z", "label": "2026-W41",
+     "cells": [{"key": "webshop", "sessions": 12, "human": 240, "agent": 4100}]}
+  ]
+}
+```
+
+Für `--by project` braucht `stats` die Namensbildung aus `internal/tui/project`, die dazu nach `internal/project` wandert; mit [#4](https://github.com/seletz/total-recall/issues/4) wird sie durch die dort definierte Zuordnung ersetzt, die Schnittstelle (Schlüssel → Name) bleibt. Für die Tabelle wäre zusätzlich eine über den Zeitraum eindeutige Session-Zählung je Schlüssel nützlich; das ist eine zweite Abfrage oder eine Erweiterung von `ActivitySeries`.
+
+### Folge-Issues (Vorschlag)
+
+Nicht angelegt, nur gelistet:
+
+1. **Kitty-Checkliste aus PR #38** in Ghostty (nativ, tmux mit/ohne Passthrough), Terminal.app und bei 80×24 durchgehen; Ergebnis hier nachtragen. Entscheidet über den Bildpfad.
+2. **`tuitest`-Helfer:** den doppelten `run`/`drive`-Helfer aus Session- und Statistik-Tests nach `internal/tui/tuitest` heben.
+3. **`TestOutput` unter `-race`** deterministisch machen oder CI mit `-race` laufen lassen.
+4. **Fokus-Vertrag:** ++tab++ in der Suche wie im Entwurf in beide Richtungen, dafür `Focused` um die Richtung erweitern; oder das heutige Verhalten als endgültig festschreiben.
+5. **Projektnamen mit `~`** für Verzeichnisse ohne Repository, sobald [#4](https://github.com/seletz/total-recall/issues/4) die Projekt-Ebene liefert; TUI als Konsument.
+6. **`stats --period/--by/--top`** wie oben, inklusive Ablösung von `monthly_stats.py`.
+7. **Eindeutige Sessions je Fenster** in der Statistik-Tabelle (Store-Erweiterung).
+8. **Config `[tui]`:** `graphics`, Standard-Zeitfilter der Suche (`all` oder 90 Tage), Startansicht.
+9. **Abhängigkeiten:** Ultraviolet und teatest auf getaggte Versionen heben, sobald es sie gibt; Charm-Updates mit Golden-Refresh als eigener Commit.
+10. **Heatmap bei 80×24:** statt ausblenden Chart und Heatmap abwechselnd zeigen oder den Körper scrollbar machen.
