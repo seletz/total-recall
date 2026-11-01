@@ -124,6 +124,7 @@ func NewRoot(app *App) *cobra.Command {
 		e.doctorCmd(),
 		e.configCmd(),
 		e.llmCmd(),
+		e.tuiCmd(),
 		versionCmd(),
 	)
 	return root
