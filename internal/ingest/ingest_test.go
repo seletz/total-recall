@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/seletz/total-recall/internal/gitinfo"
 	"github.com/seletz/total-recall/internal/harness"
@@ -342,5 +343,31 @@ func TestToolResultMaxBytesIsAdapterOption(t *testing.T) {
 	run(t, e, p)
 	if got := e.str(t, "SELECT text FROM events"); !strings.HasPrefix(got, "xxxxxxxxxx") || len(got) > 40 {
 		t.Errorf("text = %q", got)
+	}
+}
+
+func TestGitNegativeCacheExpires(t *testing.T) {
+	e := newEnv(t)
+	old := time.Now().Add(-2 * NegativeDirTTL)
+	for _, d := range []store.DirInfo{
+		{Cwd: "/w/alpha", ResolvedAt: old},                    // stale "not a repo": resolve again
+		{Cwd: "/w/fresh", ResolvedAt: time.Now()},             // fresh "not a repo": keep
+		{Cwd: "/w/wt", GitRoot: "/w/cached", ResolvedAt: old}, // positive: keep forever
+	} {
+		if err := e.st.PutDir(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := tf.WriteFile(t, e.projects, "-w/"+sid+".jsonl", tf.Join(
+		tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/alpha", "a"),
+		tf.User(tf.DemoSession2, "u2", "2026-10-01T10:00:00Z", "/w/fresh", "b"),
+		tf.User("33333333-3333-4333-8333-333333333333", "u3", "2026-10-01T10:00:00Z", "/w/wt", "c"),
+	))
+	run(t, e, p)
+	if e.git.calls["/w/alpha"] != 1 || e.git.calls["/w/fresh"] != 0 || e.git.calls["/w/wt"] != 0 {
+		t.Errorf("resolve calls = %v", e.git.calls)
+	}
+	if got := e.str(t, "SELECT git_root FROM dirs WHERE cwd = '/w/alpha'"); got != "/w/alpha" {
+		t.Errorf("re-resolved root = %q", got)
 	}
 }

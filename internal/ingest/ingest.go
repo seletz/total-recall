@@ -19,6 +19,11 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 )
 
+// NegativeDirTTL is how long a cached "not a git repository" result is
+// trusted before the directory is resolved again (positive results are kept
+// forever, they must survive deleted worktrees).
+const NegativeDirTTL = 7 * 24 * time.Hour
+
 // DefaultBatchSize is the number of events written per transaction.
 const DefaultBatchSize = 500
 
@@ -275,6 +280,9 @@ func (r *runner) dir(ctx context.Context, cwd string) (store.DirInfo, error) {
 	d, ok, err := r.deps.Store.Dir(ctx, cwd)
 	if err != nil {
 		return store.DirInfo{}, err
+	}
+	if ok && d.GitRoot == "" && time.Since(d.ResolvedAt) > NegativeDirTTL {
+		ok = false
 	}
 	if !ok {
 		info, gerr := r.deps.GitResolve(ctx, cwd)
