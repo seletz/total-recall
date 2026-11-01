@@ -1,14 +1,14 @@
- > the
+ > the                                                              actor: all  since: all  repo: *
 ─────────────────────────────────────────────────┬──────────────────────────────────────────────────
- 2026-01-11 19:00  c1c1c1c1-0003-4000-800…  human│
-  push the branch                                │
- 2026-01-08 17:30  a1a1a1a1-0006-4000-800…  human│
-  run the linter                                 │
- 2026-01-05 08:45  b2b2b2b2-0004-4000-800…  human│
-  plan the week                                  │
+ 2026-01-11 19:00  c1c1c1c1-0003-4000-800…  human│ (untitled)
+  push the branch                                │ claude:a1a1a1a1-0001-4000-8000-00000000…  o/alpha
+ 2026-01-08 17:30  a1a1a1a1-0006-4000-800…  human│ 2025-12-01 09:15 – 09:40 (25m)  main
+  run the linter                                 │──────────────────────────────────────────────────
+ 2026-01-05 08:45  b2b2b2b2-0004-4000-800…  human│── 09:40  human ◄
+  plan the week                                  │summarise the oldest one
  2026-01-02 15:00  d3d3d3d3-0003-4000-800…  human│
-  list the drafts                                │
- 2025-12-16 08:00  d3d3d3d3-0002-4000-800…  human│
+  list the drafts                                │── 09:40  agent
+ 2025-12-16 08:00  d3d3d3d3-0002-4000-800…  human│The oldest asks for log rotation.
   count the words                                │
  2025-12-04 20:30  Beta release             human│
   tag the release                                │

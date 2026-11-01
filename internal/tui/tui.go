@@ -5,7 +5,9 @@
 // Views live in their own packages (search, stats, …) and implement [View]
 // without importing this package. The app forwards key presses to the active
 // view and every other message to all views; the active view may claim the
-// keyboard with [Focused].
+// keyboard with [Focused]. The session detail is a layer above the views:
+// opened by the search view's OpenSession, closed by its Back, it replaces
+// the body while the search view keeps its state underneath.
 package tui
 
 import (
@@ -14,11 +16,12 @@ import (
 	"io"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/help"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/search"
+	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/stats"
 )
 
@@ -112,7 +115,8 @@ func New(opts Options) (App, error) {
 	if active < 0 {
 		return App{}, fmt.Errorf("unknown view %q (use %s or %s)", opts.Start, ViewSearch, ViewStats)
 	}
-	return App{opts: opts, views: views, active: active, keys: defaultKeyMap()}, nil
+	detail := session.New(opts.Store, opts.Location)
+	return App{opts: opts, views: views, active: active, detail: detail, keys: defaultKeyMap()}, nil
 }
 
 // Run starts the app on in/out and blocks until it quits.
@@ -126,11 +130,12 @@ func Run(ctx context.Context, opts Options, in io.Reader, out io.Writer) error {
 }
 
 // searchOptions is what the search view gets from the app options. A nil
-// store stays a nil Searcher, so the view can tell there is no database.
+// store stays a nil Searcher and Loader, so the view can tell there is no
+// database.
 func searchOptions(opts Options) search.Options {
 	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location}
 	if opts.Store != nil {
-		so.Searcher = opts.Store
+		so.Searcher, so.Loader = opts.Store, opts.Store
 	}
 	return so
 }

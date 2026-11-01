@@ -27,8 +27,9 @@ var (
 	faintStyle = lipgloss.NewStyle().Faint(true)
 )
 
-// View implements tea.Model: the input, a rule, the hit list beside the
-// (still empty) preview column, and the status line.
+// View implements tea.Model: the input with the filters on its right, a
+// rule, the hit list beside the preview column, and the status line (or
+// the repo filter being typed).
 func (m Model) View() tea.View {
 	if m.width == 0 || m.height == 0 {
 		return tea.NewView("")
@@ -39,15 +40,36 @@ func (m Model) View() tea.View {
 		return lipgloss.NewStyle().Width(w).Height(rows).MaxWidth(w).MaxHeight(rows).Render(s)
 	}
 	sep := strings.TrimSuffix(strings.Repeat("│\n", rows), "\n")
-	body := lipgloss.JoinHorizontal(lipgloss.Top, col(m.list(left, rows), left), sep, col("", right))
+	body := lipgloss.JoinHorizontal(lipgloss.Top, col(m.list(left, rows), left), sep, col(m.previewView(right, rows), right))
 	rule := strings.Repeat("─", left) + "┬" + strings.Repeat("─", right)
+	bottom := " " + m.status()
+	if m.focus == focusRepo {
+		bottom = " " + m.repoIn.View()
+	}
 	v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
-		" "+m.input.View(), rule, body, " "+m.status()))
-	if c := m.input.Cursor(); c != nil && m.focus == focusInput {
-		c.X++ // the space before the prompt
-		v.Cursor = c
+		m.inputLine(), rule, body, bottom))
+	switch m.focus {
+	case focusInput:
+		if c := m.input.Cursor(); c != nil {
+			c.X++ // the space before the prompt
+			v.Cursor = c
+		}
+	case focusRepo:
+		if c := m.repoIn.Cursor(); c != nil {
+			c.X++
+			c.Y = m.height - 1
+			v.Cursor = c
+		}
 	}
 	return v
+}
+
+// inputLine is the search input with the filter label right-aligned.
+func (m Model) inputLine() string {
+	left := " " + m.input.View()
+	label := faintStyle.Render(m.filters.label())
+	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(label)-1, 1)
+	return ansi.Truncate(left+strings.Repeat(" ", gap)+label+" ", m.width, "")
 }
 
 // columns splits the width into the list and the preview column, minus the
