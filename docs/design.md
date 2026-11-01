@@ -33,7 +33,7 @@
 | Logs (Hook-Fehler) | neben der DB, `total-recall.log` | |
 | Claude-Code-Transkripte | `~/.claude/projects/**/*.jsonl` (inkl. `<session>/subagents/**`) | `CLAUDE_CONFIG_DIR` |
 
-Die laufende DB liegt bewusst **nicht** in iCloud: SQLite-WAL-Dateien und iCloud-Sync vertragen sich nicht. `backup` schreibt per `VACUUM INTO` eine konsistente Kopie nach `~/Documents/total-recall/archive-YYYY-MM-DD.db`. Aufbewahrung: die letzten 7 Tageskopien plus die jeweils letzte Kopie jedes Monats.
+Die laufende DB liegt bewusst **nicht** in iCloud: SQLite-WAL-Dateien und iCloud-Sync vertragen sich nicht. `backup` schreibt per `VACUUM INTO` eine konsistente Kopie in eine Temporärdatei neben der DB, komprimiert sie mit gzip nach `~/Documents/total-recall/archive-YYYY-MM-DD.db.gz` (erst `.tmp`, dann atomares Umbenennen). Aufbewahrung: die letzten 7 Tageskopien plus die jeweils letzte Kopie jedes Monats; unkomprimierte `archive-YYYY-MM-DD.db` älterer Versionen zählen mit, eine vom selben Tag wird durch die `.gz` ersetzt. `restore BACKUP_FILE [--to PATH] [--force]` entpackt eine Kopie in eine Datenbankdatei (Default: die konfigurierte DB), prüft sie (Schema-Version, `PRAGMA quick_check`) und überschreibt ein bestehendes Ziel nur mit `--force`.
 
 ## Konfiguration
 
@@ -228,7 +228,8 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |
 | `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Basis für `monthly_stats.py` im Vault. |
 | `sql QUERY` | Read-only-SQL (DB mit `mode=ro` und `PRAGMA query_only`), Ausgabe Tabelle/JSON/CSV |
-| `backup` | `VACUUM INTO` + Aufbewahrung; `--if-older DURATION` |
+| `backup` | `VACUUM INTO` + gzip + Aufbewahrung; `--if-older DURATION` |
+| `restore BACKUP_FILE` | Backup (`.db.gz` oder alte `.db`) in eine DB-Datei entpacken; `--to PATH`, `--force` |
 | `hooks print --harness claude` | Hook-Konfiguration als JSON |
 | `llm --skill` | gibt den eingebetteten `SKILL.md` aus (Schema, Befehle, Beispiel-SQL), damit Agenten die Daten auswerten können |
 | `config show` / `config init` | wirksame Konfiguration / Vorlage schreiben |
