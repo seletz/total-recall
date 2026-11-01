@@ -6,9 +6,6 @@ Drei Wege führen zu Antworten:
 2. `search` für die Volltextsuche.
 3. `sql` für alles andere.
 
-!!! info "geplant"
-    Die Befehle auf dieser Seite sind noch in Arbeit. Die Beispiele zeigen, wie sie gedacht sind.
-
 ## Kennzahlen mit `stats`
 
 Ein Monat im Überblick:
@@ -39,7 +36,7 @@ total-recall search goreleaser
 total-recall search "iCloud" --actor human
 
 # Eine Phrase, eingeschränkt auf ein Repo und einen Zeitraum
-total-recall search '"VACUUM INTO"' --repo github.com/seletz/total-recall --since 2026-10-01
+total-recall search --raw '"VACUUM INTO"' --repo github.com/seletz/total-recall --since 2026-10-01
 ```
 
 Die Treffer zeigen Session, Zeit und einen Textausschnitt. Mit der Session-ID geht es weiter zu `show`.
@@ -52,7 +49,7 @@ Die Treffer zeigen Session, Zeit und einen Textausschnitt. Mit der Session-ID ge
 
 | Tabelle / View | Inhalt |
 |---|---|
-| `sessions` | eine Zeile je Session: Name, Repo, Branch, Start, Ende |
+| `sessions` | eine Zeile je Session: Name, Repo, Branch, Start, Ende. `display_name` ist der beste Titel: eigener Titel (`name`), sonst KI-Titel (`ai_title`), sonst `agent_name` |
 | `events` | eine Zeile je Nachricht, Tool-Aufruf oder Tool-Ergebnis |
 | `events_fts` | Volltextindex über `events.text` |
 | `exchanges` | je menschlicher Nachricht: die Anfrage und die letzte Antwort des Agenten |
@@ -104,7 +101,7 @@ LIMIT 30;
 Sessions, in denen ein Begriff vorkommt:
 
 ```sql
-SELECT s.id, s.name, s.started_at, count(*) AS treffer
+SELECT s.id, s.display_name, s.started_at, count(*) AS treffer
 FROM events_fts f
 JOIN events e   ON e.rowid = f.rowid
 JOIN sessions s ON s.id = e.session_id
@@ -125,7 +122,7 @@ ORDER BY ts;
 Wie lange liefen die Sessions der letzten Woche?
 
 ```sql
-SELECT name,
+SELECT display_name,
        round((julianday(ended_at) - julianday(started_at)) * 24 * 60) AS minuten
 FROM sessions
 WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days')

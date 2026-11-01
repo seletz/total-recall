@@ -8,9 +8,6 @@ Dafür bringt `total-recall` eine Anleitung mit, einen Skill im üblichen `SKILL
 total-recall llm --skill
 ```
 
-!!! info "geplant"
-    Der Befehl ist noch in Arbeit. Der Text selbst liegt schon im Repo unter `internal/skill/SKILL.md`.
-
 ## Was drinsteht
 
 Der Skill ist auf Englisch, weil er für Agenten gedacht ist. Er enthält:

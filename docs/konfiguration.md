@@ -79,7 +79,7 @@ resolve = true
 :   Zeitzone für Auswertungen. Bestimmt, wo ein Tag anfängt und aufhört, etwa in `stats` und in der View `daily_activity`. In der Datenbank selbst stehen alle Zeiten in UTC. Default: `Europe/Berlin`. Override: `--tz`.
 
 `log`
-:   Logdatei für Fehler aus Hook-Läufen. Leer heißt: `total-recall.log` neben der Datenbank.
+:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Die Datei wächst ohne Begrenzung; Fehler sollten selten sein.
 
 ### `[backup]`
 
@@ -93,7 +93,7 @@ resolve = true
 :   So viele Monatskopien bleiben erhalten. Eine Monatskopie ist die letzte Kopie eines Monats. `0` heißt: alle behalten.
 
 `min_interval`
-:   Mindestabstand für `backup --if-older`. Ist das letzte Backup jünger, passiert nichts. Format wie Go-Durations: `24h`, `90m`.
+:   Reserviert. Derzeit ungenutzt: `backup --if-older` braucht eine ausdrückliche Dauer, etwa `--if-older 24h` wie im Hook.
 
 ### `[redact]`
 
@@ -138,7 +138,7 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 ### `[git]`
 
 `resolve`
-:   Zu jedem Arbeitsverzeichnis Git-Root, Remote-URL und Branch ermitteln. Default: `true`.
+:   Zu jedem Arbeitsverzeichnis Git-Root und Remote-URL ermitteln. Default: `true`. Der Branch kommt aus dem Transkript. Das Ergebnis wird in der Tabelle `dirs` gespeichert, damit es nach dem Löschen eines Worktrees erhalten bleibt. Ein gelöschter Worktree unter `<repo>__worktrees/<name>` wird dem Repo `<repo>` daneben zugeordnet. „Kein Git-Repo“ wird nach 7 Tagen neu geprüft.
 
 ## Umgebungsvariablen
 
