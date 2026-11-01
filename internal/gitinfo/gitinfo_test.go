@@ -94,6 +94,8 @@ func TestResolve(t *testing.T) {
 		{"worktree", wt, Info{Toplevel: wt, Root: repo, RemoteURL: "https://github.com/example/demo", Branch: "feature/x", Dir: wt}},
 		{"missing dir inside repo", filepath.Join(repo, "sub", "gone", "x"), Info{Toplevel: repo, Root: repo, RemoteURL: "https://github.com/example/demo", Branch: "develop", Dir: filepath.Join(repo, "sub")}},
 		{"missing dir outside repo", gone, Info{}},
+		{"deleted sibling worktree <repo>__worktrees/<name>", filepath.Join(filepath.Dir(repo), "main__worktrees", "feature-y", "sub"),
+			Info{Toplevel: repo, Root: repo, RemoteURL: "https://github.com/example/demo", Branch: "develop", Dir: repo}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
