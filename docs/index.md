@@ -28,7 +28,7 @@ Claude Code löscht alte Transkripte. Der Schalter dafür heißt `cleanupPeriodD
 
 ## Stand
 
-!!! note "Im Aufbau"
-    Das Projekt ist in Arbeit. Befehle, die noch nicht fertig sind, sind auf der Seite [Befehle](befehle.md) als **geplant** markiert.
+!!! note "Version 0.1"
+    Alle Befehle auf der Seite [Befehle](befehle.md) sind umgesetzt. Unterstützt wird bisher nur Claude Code.
 
 Die verbindliche Spezifikation steht in [Design (Spezifikation)](design.md).

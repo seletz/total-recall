@@ -36,18 +36,28 @@ type Info struct {
 	Branch string
 }
 
+// WorktreeDirSuffix marks sibling worktree folders: worktrees of
+// <path>/<repo> living in <path>/<repo>__worktrees/<name> (worktrunk layout).
+const WorktreeDirSuffix = "__worktrees"
+
 // Resolve returns git facts for cwd. If cwd no longer exists (e.g. a deleted
-// worktree), the nearest existing ancestor directory is used instead.
+// worktree), the nearest existing ancestor directory is used instead. If
+// that is not inside a repository and cwd lies below a
+// "<repo>__worktrees" folder, the sibling "<repo>" is resolved instead.
 func Resolve(ctx context.Context, cwd string) (Info, error) {
 	if cwd == "" {
 		return Info{}, ErrNotRepo
 	}
-	dir := nearestExisting(filepath.Clean(cwd))
+	cwd = filepath.Clean(cwd)
+	dir := nearestExisting(cwd)
 	if dir == "" {
 		return Info{}, ErrNotRepo
 	}
 	top, err := git(ctx, dir, "rev-parse", "--show-toplevel")
 	if err != nil || top == "" {
+		if base := worktreeBase(cwd); base != "" {
+			return Resolve(ctx, base)
+		}
 		return Info{}, ErrNotRepo
 	}
 	info := Info{Dir: dir, Toplevel: top, Root: top}
@@ -76,6 +86,21 @@ func mainRoot(common, top string) string {
 		return root
 	}
 	return top
+}
+
+// worktreeBase returns "<path>/<repo>" for a path below
+// "<path>/<repo>__worktrees/", else "".
+func worktreeBase(p string) string {
+	for d := p; ; {
+		parent := filepath.Dir(d)
+		if parent == d {
+			return ""
+		}
+		if b := filepath.Base(d); strings.HasSuffix(b, WorktreeDirSuffix) && len(b) > len(WorktreeDirSuffix) {
+			return filepath.Join(parent, strings.TrimSuffix(b, WorktreeDirSuffix))
+		}
+		d = parent
+	}
 }
 
 func nearestExisting(dir string) string {

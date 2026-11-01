@@ -12,6 +12,7 @@ Harness-neutral archive of coding-agent sessions (Claude Code first) in a local 
 - Reading `~/.claude/projects` locally to learn the format is fine. Never write there.
 - Code, identifiers, comments, commit messages: English. User docs under `docs/` (Zensical): German.
 - Go doc comments on exported identifiers. Keep packages small, no global state except the harness registry.
+- DB schema: migrations in `internal/store/schema.go` are forward-only. **Never edit an existing migration; only append a new one.** `TestMigrateFromEveryVersion` checks every historical version migrates with data intact; add sample rows there if a migration touches data.
 - Commits are signed (1Password SSH). If signing fails, stop and report; do not commit unsigned.
 - Never mention Claude/AI in commits, PRs, issues.
 - Branch from `develop`, PR into `develop`. Conventional commit style (`feat(store): …`).

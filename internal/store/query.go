@@ -20,8 +20,10 @@ type SessionFilter struct {
 	Repo string
 	// Harness is an exact harness name.
 	Harness string
-	// Name is a case-insensitive substring of name or agent name.
+	// Name is a case-insensitive substring of name, AI title or agent name.
 	Name string
+	// TopLevel excludes subagent sessions (parent_id set).
+	TopLevel bool
 	// Limit caps the number of results; 0 = no limit.
 	Limit int
 }
@@ -83,10 +85,13 @@ func (f SessionFilter) where(eventTime bool) ([]string, []any) {
 		cond = append(cond, "s.harness = ?")
 		args = append(args, f.Harness)
 	}
+	if f.TopLevel {
+		cond = append(cond, "(s.parent_id IS NULL OR s.parent_id = '')")
+	}
 	if f.Name != "" {
-		cond = append(cond, `(s.name LIKE ? ESCAPE '\' OR s.agent_name LIKE ? ESCAPE '\')`)
+		cond = append(cond, `(s.name LIKE ? ESCAPE '\' OR s.ai_title LIKE ? ESCAPE '\' OR s.agent_name LIKE ? ESCAPE '\')`)
 		a := likeArg(f.Name)
-		args = append(args, a, a)
+		args = append(args, a, a, a)
 	}
 	return cond, args
 }
@@ -232,7 +237,7 @@ type SearchFilter struct {
 // SearchHit is one matching event.
 type SearchHit struct {
 	Event       model.Event
-	SessionName string // name, else agent name, else native ID
+	SessionName string // name, else AI title, else agent name, else native ID
 	Repo        string
 	Snippet     string
 	Rank        float64 // bm25, lower is better
@@ -266,7 +271,7 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 		cond = append(cond, "e.actor = ?")
 		args = append(args, f.Actor)
 	}
-	q := "SELECT " + prefixed(eventCols, "e") + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
+	q := "SELECT " + prefixed(eventCols, "e") + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
 		repoExpr + `, snippet(events_fts, 0, ?, ?, '…', 16), bm25(events_fts)
 		FROM events_fts
 		JOIN events e ON e.seq = events_fts.rowid

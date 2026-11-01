@@ -39,7 +39,7 @@ type DirInfo struct {
 //   - "first seen" fields (Cwd, GitRoot, GitRemoteURL) take new's value only
 //     if new started earlier; otherwise they only fill empty fields;
 //   - identity fields (Harness, NativeID, ParentID) are set once;
-//   - Name and AgentName: the last non-empty value written wins (titles can
+//   - Name, AITitle and AgentName: the last non-empty value written wins (titles can
 //     be renamed; the adapter decides what is authoritative).
 func mergeSession(old, new model.Session) model.Session {
 	m := old
@@ -78,6 +78,9 @@ func mergeSession(old, new model.Session) model.Session {
 	if new.Name != "" {
 		m.Name = new.Name
 	}
+	if new.AITitle != "" {
+		m.AITitle = new.AITitle
+	}
 	if new.AgentName != "" {
 		m.AgentName = new.AgentName
 	}
@@ -105,9 +108,17 @@ func splitID(id string) (harness, native string) {
 // session row; event timestamps always widen the session's start/end.
 // If src.Path is empty, no source row is written.
 func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []model.Session, events []model.Event) error {
+	_, err := s.WriteBatchN(ctx, src, sessions, events)
+	return err
+}
+
+// WriteBatchN is WriteBatch that also returns the number of events actually
+// inserted (events whose ID already existed are not counted).
+func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []model.Session, events []model.Event) (int, error) {
 	if s.readOnly {
-		return fmt.Errorf("store: read-only")
+		return 0, fmt.Errorf("store: read-only")
 	}
+	inserted := 0
 	incoming := map[string]model.Session{}
 	var order []string
 	add := func(ss model.Session) {
@@ -119,13 +130,13 @@ func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []mode
 	}
 	for _, ss := range sessions {
 		if ss.ID == "" {
-			return fmt.Errorf("store: session without ID")
+			return 0, fmt.Errorf("store: session without ID")
 		}
 		add(ss)
 	}
 	for _, e := range events {
 		if e.SessionID == "" || e.ID == "" {
-			return fmt.Errorf("store: event %q without ID or session", e.ID)
+			return 0, fmt.Errorf("store: event %q without ID or session", e.ID)
 		}
 		h, n := splitID(e.SessionID)
 		add(model.Session{ID: e.SessionID, Harness: h, NativeID: n, StartedAt: e.TS, EndedAt: e.TS})
@@ -133,17 +144,17 @@ func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []mode
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("store: begin: %w", err)
+		return 0, fmt.Errorf("store: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	for _, id := range order {
 		old, err := getSession(ctx, tx, id)
 		if err != nil && !errors.Is(err, ErrNotFound) {
-			return err
+			return 0, err
 		}
 		if err := putSession(ctx, tx, mergeSession(old, incoming[id])); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
@@ -153,7 +164,7 @@ func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []mode
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
-			return fmt.Errorf("store: prepare: %w", err)
+			return 0, fmt.Errorf("store: prepare: %w", err)
 		}
 		defer func() { _ = stmt.Close() }()
 		for _, e := range events {
@@ -165,10 +176,14 @@ func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []mode
 			if tsv == nil {
 				tsv = ""
 			}
-			if _, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
+			res, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
-				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw)); err != nil {
-				return fmt.Errorf("store: insert event %s: %w", e.ID, err)
+				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw))
+			if err != nil {
+				return 0, fmt.Errorf("store: insert event %s: %w", e.ID, err)
+			}
+			if n, err := res.RowsAffected(); err == nil {
+				inserted += int(n)
 			}
 		}
 	}
@@ -183,13 +198,13 @@ func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []mode
 			ON CONFLICT(path) DO UPDATE SET harness = excluded.harness, size = excluded.size,
 				mtime = excluded.mtime, "offset" = excluded."offset", ingested_at = excluded.ingested_at`,
 			src.Path, src.Harness, src.Size, formatTime(src.MTime), src.Offset, formatTime(at)); err != nil {
-			return fmt.Errorf("store: update source: %w", err)
+			return 0, fmt.Errorf("store: update source: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit: %w", err)
+		return 0, fmt.Errorf("store: commit: %w", err)
 	}
-	return nil
+	return inserted, nil
 }
 
 type queryer interface {
@@ -197,7 +212,7 @@ type queryer interface {
 }
 
 const sessionCols = `id, harness, harness_version, native_id, parent_id, name, agent_name, cwd,
-	git_root, git_remote_url, git_branch, model, started_at, ended_at`
+	git_root, git_remote_url, git_branch, model, started_at, ended_at, ai_title`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -205,12 +220,12 @@ type scanner interface{ Scan(dest ...any) error }
 func scanSession(sc scanner, extra ...any) (model.Session, error) {
 	var m model.Session
 	var ns [10]sql.NullString
-	var start, end sql.NullString
+	var start, end, aiTitle sql.NullString
 	dest := []any{&m.ID, &m.Harness}
 	for i := range ns {
 		dest = append(dest, &ns[i])
 	}
-	dest = append(dest, &start, &end)
+	dest = append(dest, &start, &end, &aiTitle)
 	dest = append(dest, extra...)
 	if err := sc.Scan(dest...); err != nil {
 		return m, err
@@ -218,6 +233,7 @@ func scanSession(sc scanner, extra ...any) (model.Session, error) {
 	m.HarnessVersion, m.NativeID, m.ParentID, m.Name, m.AgentName, m.Cwd = ns[0].String, ns[1].String, ns[2].String, ns[3].String, ns[4].String, ns[5].String
 	m.GitRoot, m.GitRemoteURL, m.GitBranch, m.Model = ns[6].String, ns[7].String, ns[8].String, ns[9].String
 	m.StartedAt, m.EndedAt = parseTime(start), parseTime(end)
+	m.AITitle = aiTitle.String
 	return m, nil
 }
 
@@ -234,15 +250,15 @@ func getSession(ctx context.Context, q queryer, id string) (model.Session, error
 
 func putSession(ctx context.Context, tx *sql.Tx, m model.Session) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET harness = excluded.harness, harness_version = excluded.harness_version,
 			native_id = excluded.native_id, parent_id = excluded.parent_id, name = excluded.name,
 			agent_name = excluded.agent_name, cwd = excluded.cwd, git_root = excluded.git_root,
 			git_remote_url = excluded.git_remote_url, git_branch = excluded.git_branch, model = excluded.model,
-			started_at = excluded.started_at, ended_at = excluded.ended_at`,
+			started_at = excluded.started_at, ended_at = excluded.ended_at, ai_title = excluded.ai_title`,
 		m.ID, m.Harness, nullStr(m.HarnessVersion), nullStr(m.NativeID), nullStr(m.ParentID), nullStr(m.Name),
 		nullStr(m.AgentName), nullStr(m.Cwd), nullStr(m.GitRoot), nullStr(m.GitRemoteURL), nullStr(m.GitBranch),
-		nullStr(m.Model), formatTime(m.StartedAt), formatTime(m.EndedAt))
+		nullStr(m.Model), formatTime(m.StartedAt), formatTime(m.EndedAt), nullStr(m.AITitle))
 	if err != nil {
 		return fmt.Errorf("store: upsert session %s: %w", m.ID, err)
 	}
