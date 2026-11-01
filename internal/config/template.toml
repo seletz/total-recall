@@ -1,0 +1,62 @@
+# total-recall configuration
+#
+# Location: ~/.config/total-recall/config.toml ($XDG_CONFIG_HOME is honoured),
+# override with --config or TOTAL_RECALL_CONFIG.
+# Precedence: flag > environment variable > this file > built-in default.
+# "~" and environment variables ($VAR, ${VAR}) are expanded in paths.
+# Unknown keys are an error, so typos do not go unnoticed.
+# `total-recall config show` prints the effective values and where each came from.
+
+# Path of the archive database. Default:
+#   macOS: ~/Library/Application Support/total-recall/archive.db
+#   Linux: $XDG_DATA_HOME/total-recall/archive.db (~/.local/share/...)
+# Keep it out of iCloud/Dropbox: SQLite WAL files and sync do not mix.
+# Override: --db, TOTAL_RECALL_DB.
+# db = "~/Library/Application Support/total-recall/archive.db"
+
+# Time zone for evaluations (stats, day boundaries). Override: --tz.
+timezone = "Europe/Berlin"
+
+# Log file for hook errors. Empty = total-recall.log next to the database.
+log = ""
+
+[backup]
+# Target directory for `total-recall backup` (VACUUM INTO archive-YYYY-MM-DD.db).
+# Override: --backup-dir, TOTAL_RECALL_BACKUP_DIR.
+dir = "~/Documents/total-recall"
+# Number of most recent daily copies to keep.
+keep_daily = 7
+# Number of monthly copies (newest file per month) to keep; 0 = keep all.
+keep_monthly = 0
+# Minimum age of the last backup for `backup --if-older` when no duration is given.
+min_interval = "24h"
+
+[redact]
+# Mask secrets in text and raw JSON before they are stored.
+enabled = true
+# Additional Go regular expressions to mask. With a capture group only group 1 is masked.
+extra_patterns = []
+# Go regular expressions; a candidate secret matching one of them is never masked.
+allow = []
+
+[ingest]
+# Tool results are truncated to this many bytes.
+tool_result_max_bytes = 4096
+# Keep the (redacted) original JSON line of every event.
+store_raw = true
+
+[harness.claude]
+enabled = true
+# Default: $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects.
+# projects_dir = "~/.claude/projects"
+# Record types to skip in addition to the built-in exclusions.
+skip_record_types = []
+
+[harness.claude.actors]
+# Additional message prefixes for actor classification.
+peer_prefixes = []
+automation_prefixes = ["Hourly ", "Weekend watch"]
+
+[git]
+# Resolve git root, remote URL and branch for session working directories.
+resolve = true
