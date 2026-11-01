@@ -1,0 +1,34 @@
+# total-recall
+
+`total-recall` sichert die Sessions deiner Coding-Agenten in einer lokalen SQLite-Datenbank. Zuerst Claude Code, später weitere Harnesses.
+
+## Warum
+
+Claude Code löscht alte Transkripte. Der Schalter dafür heißt `cleanupPeriodDays`. Was weg ist, ist weg. Damit verschwindet auch das Wissen darüber, was du wann mit welchem Agenten gemacht hast.
+
+`total-recall` liest die Transkripte laufend ein und hebt sie auf. Danach kannst du sie auswerten:
+
+- Was habe ich letzte Woche in Repo X gemacht?
+- Wie viele Sessions hatte ich im Oktober, und an welchen Tagen?
+- In welcher Session haben wir über Y entschieden?
+
+## Wie es funktioniert
+
+- **Hooks statt Daemon.** Claude Code ruft `total-recall` über Hooks auf, zum Beispiel am Ende jeder Antwort. Es läuft kein Hintergrunddienst.
+- **Inkrementell.** Jede Datei wird ab der Stelle gelesen, an der der letzte Lauf aufgehört hat.
+- **Nachlesen.** Beim Start einer Session wird alles nachgelesen, was bisher fehlt. So gehen auch Sessions nicht verloren, bei denen ein Hook ausgefallen ist.
+- **Lokal.** Die Datenbank liegt auf deinem Rechner. Geheimnisse werden vor dem Speichern maskiert. Details: [Datenschutz](datenschutz.md).
+- **Auswertbar.** Über die [Befehle](befehle.md), über Read-only-SQL und über einen eingebauten Skill für Agenten ([Für Agenten](agenten.md)).
+
+## Was es nicht tut
+
+- Es spielt nichts in laufende Sessions zurück.
+- Es gibt keine semantische Suche. Die Volltextsuche nutzt SQLite FTS5.
+- In Version 0.1 wird nur Claude Code unterstützt.
+
+## Stand
+
+!!! note "Im Aufbau"
+    Das Projekt ist in Arbeit. Befehle, die noch nicht fertig sind, sind auf der Seite [Befehle](befehle.md) als **geplant** markiert.
+
+Die verbindliche Spezifikation steht in [Design (Spezifikation)](design.md).
