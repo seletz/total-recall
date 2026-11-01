@@ -196,7 +196,7 @@ func TestParseSummaryLegacy(t *testing.T) {
 		t.Fatalf("records = %d", len(recs))
 	}
 	s := recs[0].Session
-	if s.ID != "claude:22222222-2222-4222-8222-222222222222" || s.Name != "Legacy summary title" || len(recs[0].Events) != 0 {
+	if s.ID != "claude:22222222-2222-4222-8222-222222222222" || s.AITitle != "Legacy summary title" || s.Name != "" || len(recs[0].Events) != 0 {
 		t.Errorf("summary record = %+v", recs[0])
 	}
 }
@@ -432,10 +432,25 @@ func TestSystemRecord(t *testing.T) {
 	}
 }
 
+func TestParseAITitle(t *testing.T) {
+	p := writeFile(t, "p/"+sid+".jsonl", `{"type":"ai-title","aiTitle":"Generated title","sessionId":"`+sid+`"}`+"\n"+
+		`{"type":"custom-title","customTitle":"Mine","sessionId":"`+sid+`"}`+"\n")
+	recs, _ := parseFile(t, New(""), p, 0)
+	if len(recs) != 2 {
+		t.Fatalf("records = %d", len(recs))
+	}
+	if s := recs[0].Session; s.AITitle != "Generated title" || s.Name != "" || len(recs[0].Events) != 0 {
+		t.Errorf("ai-title record = %+v", recs[0])
+	}
+	if s := recs[1].Session; s.Name != "Mine" || s.AITitle != "" {
+		t.Errorf("custom-title record = %+v", recs[1])
+	}
+}
+
 func TestSkippedRecordTypes(t *testing.T) {
 	types := []string{"attachment", "api-request", "api-request-blob", "api-request-shape", "bridge-session", "last-prompt",
 		"mode", "atis-latch", "permission-mode", "pr-link", "queue-operation", "file-history-snapshot", "file-history-delta",
-		"ai-title", "cost-state", "tools-used", "started", "result", "something-new"}
+		"cost-state", "tools-used", "started", "result", "something-new"}
 	for _, typ := range types {
 		t.Run(typ, func(t *testing.T) {
 			p := writeFile(t, "p/"+sid+".jsonl", `{"type":"`+typ+`","uuid":"z","sessionId":"`+sid+`","message":{"role":"user","content":"x"}}`+"\n")

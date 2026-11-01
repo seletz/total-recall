@@ -39,7 +39,7 @@ type DirInfo struct {
 //   - "first seen" fields (Cwd, GitRoot, GitRemoteURL) take new's value only
 //     if new started earlier; otherwise they only fill empty fields;
 //   - identity fields (Harness, NativeID, ParentID) are set once;
-//   - Name and AgentName: the last non-empty value written wins (titles can
+//   - Name, AITitle and AgentName: the last non-empty value written wins (titles can
 //     be renamed; the adapter decides what is authoritative).
 func mergeSession(old, new model.Session) model.Session {
 	m := old
@@ -77,6 +77,9 @@ func mergeSession(old, new model.Session) model.Session {
 
 	if new.Name != "" {
 		m.Name = new.Name
+	}
+	if new.AITitle != "" {
+		m.AITitle = new.AITitle
 	}
 	if new.AgentName != "" {
 		m.AgentName = new.AgentName
@@ -197,7 +200,7 @@ type queryer interface {
 }
 
 const sessionCols = `id, harness, harness_version, native_id, parent_id, name, agent_name, cwd,
-	git_root, git_remote_url, git_branch, model, started_at, ended_at`
+	git_root, git_remote_url, git_branch, model, started_at, ended_at, ai_title`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -205,12 +208,12 @@ type scanner interface{ Scan(dest ...any) error }
 func scanSession(sc scanner, extra ...any) (model.Session, error) {
 	var m model.Session
 	var ns [10]sql.NullString
-	var start, end sql.NullString
+	var start, end, aiTitle sql.NullString
 	dest := []any{&m.ID, &m.Harness}
 	for i := range ns {
 		dest = append(dest, &ns[i])
 	}
-	dest = append(dest, &start, &end)
+	dest = append(dest, &start, &end, &aiTitle)
 	dest = append(dest, extra...)
 	if err := sc.Scan(dest...); err != nil {
 		return m, err
@@ -218,6 +221,7 @@ func scanSession(sc scanner, extra ...any) (model.Session, error) {
 	m.HarnessVersion, m.NativeID, m.ParentID, m.Name, m.AgentName, m.Cwd = ns[0].String, ns[1].String, ns[2].String, ns[3].String, ns[4].String, ns[5].String
 	m.GitRoot, m.GitRemoteURL, m.GitBranch, m.Model = ns[6].String, ns[7].String, ns[8].String, ns[9].String
 	m.StartedAt, m.EndedAt = parseTime(start), parseTime(end)
+	m.AITitle = aiTitle.String
 	return m, nil
 }
 
@@ -234,15 +238,15 @@ func getSession(ctx context.Context, q queryer, id string) (model.Session, error
 
 func putSession(ctx context.Context, tx *sql.Tx, m model.Session) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET harness = excluded.harness, harness_version = excluded.harness_version,
 			native_id = excluded.native_id, parent_id = excluded.parent_id, name = excluded.name,
 			agent_name = excluded.agent_name, cwd = excluded.cwd, git_root = excluded.git_root,
 			git_remote_url = excluded.git_remote_url, git_branch = excluded.git_branch, model = excluded.model,
-			started_at = excluded.started_at, ended_at = excluded.ended_at`,
+			started_at = excluded.started_at, ended_at = excluded.ended_at, ai_title = excluded.ai_title`,
 		m.ID, m.Harness, nullStr(m.HarnessVersion), nullStr(m.NativeID), nullStr(m.ParentID), nullStr(m.Name),
 		nullStr(m.AgentName), nullStr(m.Cwd), nullStr(m.GitRoot), nullStr(m.GitRemoteURL), nullStr(m.GitBranch),
-		nullStr(m.Model), formatTime(m.StartedAt), formatTime(m.EndedAt))
+		nullStr(m.Model), formatTime(m.StartedAt), formatTime(m.EndedAt), nullStr(m.AITitle))
 	if err != nil {
 		return fmt.Errorf("store: upsert session %s: %w", m.ID, err)
 	}
