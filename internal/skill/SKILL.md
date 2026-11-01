@@ -21,7 +21,7 @@ Every read command accepts `--json`. Prefer `--json` and parse the output.
 | Command | Use it for |
 |---|---|
 | `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, recent errors. Check this first if results look empty. |
-| `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents]` | list sessions (newest first) with start, duration, display name, repo, branch, #human, #agent; subagent sessions only with `--subagents` |
+| `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents] [--all-sessions]` | list sessions (newest first) with start, duration, display name, repo, branch, #human, #agent; subagent sessions only with `--subagents`; sessions without events and start time only with `--all-sessions` |
 | `total-recall show SESSION --json [--all]` | conversation of one session (full id, native id or unique prefix); `--all` adds tool calls/results, automation, system events |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--raw] [--limit N]` | full-text search with snippets, best first (default 20 hits); all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`; default current month) | total, per day, per repo, and all 7x24 weekday x hour cells (local time): sessions, human and agent events |

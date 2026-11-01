@@ -407,3 +407,52 @@ func TestRawMaxBytes(t *testing.T) {
 		})
 	}
 }
+
+func TestRegit(t *testing.T) {
+	e := newEnv(t)
+	s2 := tf.DemoSession2
+	s3 := "33333333-3333-4333-8333-333333333333"
+	// Session 1 in /w/stale: not a repo at first ingest (cached negative).
+	// Session 2 in /w/alpha: a repo that later becomes unresolvable (deleted
+	// worktree): the cached positive result must survive.
+	// Session 3 in /w/moved: a repo whose remote changed.
+	e.git.infos["/w/moved"] = gitinfo.Info{Root: "/w/moved", RemoteURL: "https://github.com/o/old"}
+	p := tf.WriteFile(t, e.projects, "-w/"+sid+".jsonl", tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/stale", "a").JSON())
+	p2 := tf.WriteFile(t, e.projects, "-w/"+s2+".jsonl", tf.User(s2, "u2", "2026-10-01T10:00:00Z", "/w/alpha", "b").JSON())
+	p3 := tf.WriteFile(t, e.projects, "-w/"+s3+".jsonl", tf.User(s3, "u3", "2026-10-01T10:00:00Z", "/w/moved", "c").JSON())
+	run(t, e, p, p2, p3)
+	if got := e.str(t, "SELECT git_root FROM sessions WHERE native_id = '"+sid+"'"); got != "" {
+		t.Fatalf("precondition: git_root = %q", got)
+	}
+
+	e.git.infos["/w/stale"] = gitinfo.Info{Root: "/w/stale", RemoteURL: "https://github.com/o/stale"}
+	delete(e.git.infos, "/w/alpha")
+	e.git.infos["/w/moved"] = gitinfo.Info{Root: "/w/moved", RemoteURL: "https://github.com/o/new"}
+	e.git.calls = nil
+	sum, err := Regit(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Dirs != 3 || sum.Sessions != 2 {
+		t.Errorf("summary = %+v, want 3 dirs, 2 sessions updated", sum)
+	}
+	if e.git.calls["/w/stale"] != 1 || e.git.calls["/w/alpha"] != 1 {
+		t.Errorf("git calls = %v (regit must bypass the cache)", e.git.calls)
+	}
+	checks := map[string]string{
+		"SELECT git_remote_url FROM sessions WHERE native_id = '" + sid + "'": "https://github.com/o/stale",
+		"SELECT git_remote_url FROM sessions WHERE native_id = '" + s2 + "'":  "https://github.com/o/alpha",
+		"SELECT git_remote_url FROM sessions WHERE native_id = '" + s3 + "'":  "https://github.com/o/new",
+		"SELECT git_remote_url FROM dirs WHERE cwd = '/w/stale'":              "https://github.com/o/stale",
+		"SELECT git_remote_url FROM dirs WHERE cwd = '/w/alpha'":              "https://github.com/o/alpha",
+	}
+	for q, want := range checks {
+		if got := e.str(t, q); got != want {
+			t.Errorf("%s = %q, want %q", q, got, want)
+		}
+	}
+	// Idempotent.
+	if sum, err := Regit(ctx, e.deps); err != nil || sum.Sessions != 0 {
+		t.Errorf("second Regit = %+v %v", sum, err)
+	}
+}

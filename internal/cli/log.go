@@ -13,15 +13,31 @@ import (
 	"time"
 )
 
+// defaultLogMaxSize is the log size above which the file is rotated to
+// "<log>.1" (one old generation is kept).
+const defaultLogMaxSize = 5 << 20
+
 // logger appends timestamped lines to the log file (config.LogPath). Every
 // write opens and closes the file: hook runs are short and may run in
 // parallel, and O_APPEND keeps lines intact.
 type logger struct {
-	path string
-	now  func() time.Time
+	path    string
+	now     func() time.Time
+	maxSize int64
 }
 
-func newLogger(path string, now func() time.Time) *logger { return &logger{path: path, now: now} }
+func newLogger(path string, now func() time.Time) *logger {
+	return &logger{path: path, now: now, maxSize: defaultLogMaxSize}
+}
+
+// rotate renames the log to "<log>.1" (replacing an older one) once it
+// exceeds maxSize. Parallel writers may both rename; at worst a few lines
+// end up in the old generation.
+func (l *logger) rotate() {
+	if fi, err := os.Stat(l.path); err == nil && fi.Size() > l.maxSize {
+		_ = os.Rename(l.path, l.path+".1")
+	}
+}
 
 // Printf writes one line "<RFC3339 UTC> <LEVEL> <message>". Failures to log
 // are ignored: logging must never break a hook.
@@ -32,6 +48,7 @@ func (l *logger) Printf(level, format string, args ...any) {
 	if err := os.MkdirAll(filepath.Dir(l.path), 0o755); err != nil {
 		return
 	}
+	l.rotate()
 	f, err := os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return

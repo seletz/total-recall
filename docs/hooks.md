@@ -57,6 +57,8 @@ Ein Beispiel für das JSON, das Claude Code bei `Stop` schickt:
 }
 ```
 
+Bei `SubagentStop` kommen unter anderem `agent_id`, `agent_type` und `agent_transcript_path` dazu. `transcript_path` ist dann das Transkript der Haupt-Session, `agent_transcript_path` das des Subagents (`<session>/subagents/agent-<id>.jsonl`); `total-recall` liest beide. Die Feldnamen folgen der [Hooks-Referenz von Claude Code](https://code.claude.com/docs/en/hooks) (geprüft am 2026-11-01).
+
 Zum Ausprobieren ohne Claude Code: `total-recall ingest --hook < stop.json`.
 
 ## Warum `--detach`

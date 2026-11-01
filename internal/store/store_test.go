@@ -650,3 +650,26 @@ func TestRawTruncatedRoundTrip(t *testing.T) {
 		t.Errorf("untruncated rows = %d", n)
 	}
 }
+
+func TestSessionCwdsAndSetGit(t *testing.T) {
+	s, _ := openTestStore(t)
+	if err := s.WriteBatch(ctx, SourceState{}, []model.Session{
+		{ID: "claude:a", Harness: "claude", NativeID: "a", Cwd: "/w/a"},
+		{ID: "claude:b", Harness: "claude", NativeID: "b", Cwd: "/w/a", GitRoot: "/w/a", GitRemoteURL: "https://x/a"},
+		{ID: "claude:c", Harness: "claude", NativeID: "c", Cwd: "/w/c"},
+		{ID: "claude:d", Harness: "claude", NativeID: "d"},
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	cwds, err := s.SessionCwds(ctx)
+	if err != nil || strings.Join(cwds, ",") != "/w/a,/w/c" {
+		t.Errorf("SessionCwds = %v %v", cwds, err)
+	}
+	n, err := s.SetSessionGit(ctx, "/w/a", "/w/a", "https://x/a")
+	if err != nil || n != 1 {
+		t.Errorf("SetSessionGit = %d %v, want 1 (one session already up to date)", n, err)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM sessions WHERE git_remote_url = 'https://x/a'"); n != 2 {
+		t.Errorf("updated = %d", n)
+	}
+}
