@@ -69,6 +69,7 @@ Ein Hook darf Claude Code nie bremsen. `--detach` startet `total-recall` als los
 - Ein Fehler stoppt nie deine Session. Im Hook-Modus ist der Exit-Code immer 0.
 - Im Hook-Modus schreibt `total-recall` nichts auf stdout. Claude Code würde die Ausgabe eines `SessionStart`-Hooks sonst in den Kontext der Session übernehmen.
 - Fehler landen im Log `total-recall.log` neben der Datenbank, eine Zeile je Fehler: `2026-10-30T08:12:01Z ERROR hook Stop: …`. `total-recall status` zeigt die letzten.
+- Meldet Claude Code eine Transkript-Datei, die (noch) nicht existiert, ist das kein Fehler. Das passiert beim SessionStart einer neuen Session und beim SubagentStop interner Agenten ohne Transkript. Der Hook schreibt dann eine INFO-Zeile und liest den Rest. Taucht die Datei später auf, liest der nächste Hook sie ein.
 - Kaputtes oder unvollständiges Hook-JSON, eine fehlende Transkript-Datei oder eine Datenbank aus einer neueren `total-recall`-Version: alles landet als Fehler im Log, geschrieben wird dann nichts.
 
 Mit `--detach` übergibt der Hook das JSON in einer temporären Datei an den Hintergrundprozess. Der liest sie und löscht sie gleich wieder.
