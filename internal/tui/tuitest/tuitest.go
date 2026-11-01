@@ -30,13 +30,18 @@ var Now = time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
 // Clock is the injected clock for models that take one.
 func Clock() time.Time { return Now }
 
-// New starts m in a test program of Width×Height cells without colours. The
-// program is stopped when the test ends.
+// Environ is the environment of every test program. The renderer picks its
+// escape sequences from TERM, so it is fixed rather than inherited from the
+// machine running the tests.
+var Environ = []string{"TERM=xterm-256color"}
+
+// New starts m in a test program of Width×Height cells without colours and
+// with the fixed Environ. The program is stopped when the test ends.
 func New(tb testing.TB, m tea.Model, opts ...teatest.TestOption) *teatest.TestModel {
 	tb.Helper()
 	opts = append([]teatest.TestOption{
 		teatest.WithInitialTermSize(Width, Height),
-		teatest.WithProgramOptions(tea.WithColorProfile(colorprofile.NoTTY)),
+		teatest.WithProgramOptions(tea.WithColorProfile(colorprofile.NoTTY), tea.WithEnvironment(Environ)),
 	}, opts...)
 	tm := teatest.NewTestModel(tb, m, opts...)
 	tb.Cleanup(func() { tm.GetProgram().Kill() })
