@@ -11,16 +11,19 @@ type KeyMap struct {
 	Help   key.Binding
 	Back   key.Binding
 	Quit   key.Binding
+	// ForceQuit is the quit hint shown while a view holds the keyboard.
+	ForceQuit key.Binding
 }
 
 func defaultKeyMap() KeyMap {
 	return KeyMap{
-		Search: key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "search")),
-		Stats:  key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "stats")),
-		Next:   key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next view")),
-		Help:   key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Back:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		Quit:   key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Search:    key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "search")),
+		Stats:     key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "stats")),
+		Next:      key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next view")),
+		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		ForceQuit: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")),
 	}
 }
 

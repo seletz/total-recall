@@ -1,0 +1,30 @@
+ > the
+─────────────────────────────────────────────────┬──────────────────────────────────────────────────
+ 2026-01-11 19:00  c1c1c1c1-0003-4000-800…  human│
+  push the branch                                │
+ 2026-01-08 17:30  a1a1a1a1-0006-4000-800…  human│
+  run the linter                                 │
+ 2026-01-05 08:45  b2b2b2b2-0004-4000-800…  human│
+  plan the week                                  │
+ 2026-01-02 15:00  d3d3d3d3-0003-4000-800…  human│
+  list the drafts                                │
+ 2025-12-16 08:00  d3d3d3d3-0002-4000-800…  human│
+  count the words                                │
+ 2025-12-04 20:30  Beta release             human│
+  tag the release                                │
+ 2025-12-03 14:05  a1a1a1a1-0002-4000-800…  human│
+  run the tests                                  │
+ 2025-12-27 22:10  c1c1c1c1-0002-4000-800…  agent│
+  Only the docs update.                          │
+ 2025-12-23 09:30  b2b2b2b2-0003-4000-800…  human│
+  check the disk usage                           │
+ 2025-12-12 16:45  a1a1a1a1-0003-4000-800…  human│
+  explain the config loader                      │
+ 2025-12-09 10:00  b2b2b2b2-0002-4000-800…  agent│
+  The lint job failed.                           │
+ 2025-12-09 10:00  b2b2b2b2-0002-4000-800…  human│
+  show the failing job                           │
+▸2025-12-01 09:40  a1a1a1a1-0001-4000-800…  human│
+  summarise the oldest one                       │
+                                                 │
+ 19 hits (0 ms)

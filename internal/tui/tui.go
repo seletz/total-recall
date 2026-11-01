@@ -102,7 +102,7 @@ type Focused interface {
 // New builds the app for opts.
 func New(opts Options) (App, error) {
 	opts.defaults()
-	views := []View{search.New(), stats.New()}
+	views := []View{search.New(searchOptions(opts)), stats.New()}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -123,4 +123,14 @@ func Run(ctx context.Context, opts Options, in io.Reader, out io.Writer) error {
 	}
 	_, err = tea.NewProgram(app, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out)).Run()
 	return err
+}
+
+// searchOptions is what the search view gets from the app options. A nil
+// store stays a nil Searcher, so the view can tell there is no database.
+func searchOptions(opts Options) search.Options {
+	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location}
+	if opts.Store != nil {
+		so.Searcher = opts.Store
+	}
+	return so
 }
