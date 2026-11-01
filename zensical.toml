@@ -1,0 +1,79 @@
+[project]
+site_name = "total-recall"
+site_description = "Archiv für Sessions von Coding-Agenten in einer lokalen SQLite-Datenbank."
+site_author = "Stefan Eletzhofer"
+repo_url = "https://github.com/seletz/total-recall"
+copyright = "Copyright &copy; 2026 Stefan Eletzhofer"
+
+nav = [
+  { "Start" = "index.md" },
+  { "Installation" = "installation.md" },
+  { "Konfiguration" = "konfiguration.md" },
+  { "Hooks einrichten" = "hooks.md" },
+  { "Befehle" = "befehle.md" },
+  { "Auswertung" = "auswertung.md" },
+  { "Für Agenten" = "agenten.md" },
+  { "Datenschutz" = "datenschutz.md" },
+  { "Design (Spezifikation)" = "design.md" },
+]
+
+# Zensical replaces (does not merge) the default extension list when this key
+# is set, so everything in use is listed explicitly.
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+"pymdownx.betterem" = {}
+"pymdownx.details" = {}
+"pymdownx.inlinehilite" = {}
+"pymdownx.keys" = {}
+"pymdownx.magiclink" = {}
+"pymdownx.mark" = {}
+"pymdownx.smartsymbols" = {}
+"pymdownx.tasklist" = { custom_checkbox = true }
+
+[project.markdown_extensions.toc]
+permalink = true
+
+[project.markdown_extensions."pymdownx.highlight"]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions."pymdownx.superfences"]
+custom_fences = [{ name = "mermaid", class = "mermaid" }]
+
+[project.markdown_extensions."pymdownx.tabbed"]
+alternate_style = true
+combine_header_slug = true
+
+[project.theme]
+language = "de"
+# No instant navigation: Safari leaves the address bar on the old URL after
+# history.pushState.
+features = [
+    "content.code.annotate",
+    "content.code.copy",
+    "content.code.select",
+    "content.tabs.link",
+    "navigation.footer",
+    "navigation.top",
+    "navigation.tracking",
+    "search.highlight",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Dunkles Design"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Helles Design"
+
+[project.theme.icon]
+logo = "lucide/archive"

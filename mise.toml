@@ -1,7 +1,7 @@
 [tools]
 go = "latest"
 goreleaser = "latest"
-"go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint" = "latest"
+"go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint" = "2.15.0"
 uv = "latest"
 
 [env]
@@ -21,3 +21,21 @@ run = "go test ./..."
 [tasks.lint]
 description = "Run go vet and golangci-lint"
 run = ["go vet ./...", "golangci-lint run"]
+
+[tasks.release]
+description = "Create a new release (interactive semver bump, pushes the tag)"
+run = "scripts/release.sh"
+
+[tasks."uv:sync"]
+description = "Install the docs toolchain (Zensical) into .venv"
+run = "uv sync --locked"
+
+[tasks."docs:serve"]
+description = "Serve documentation locally with live reload"
+depends = ["uv:sync"]
+run = "uv run --locked zensical serve --open"
+
+[tasks."docs:build"]
+description = "Build documentation site (strict)"
+depends = ["uv:sync"]
+run = "uv run --locked zensical build --clean --strict"
