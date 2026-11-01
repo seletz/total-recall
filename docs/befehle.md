@@ -200,6 +200,25 @@ Die JSON-Ausgabe ist die Grundlage für `monthly_stats.py` im Vault:
 
 `by_weekday_hour` enthält immer alle 7 × 24 Zellen, `weekday` 0 ist Montag. `repo` ist die Remote-URL, sonst der Git-Root, sonst das Arbeitsverzeichnis.
 
+## `tui` { #tui }
+
+Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](tui.md).
+
+```sh
+total-recall tui                              # Suche
+total-recall tui stats                        # Statistik
+total-recall tui --query "goreleaser cask"    # Suche mit vorbelegtem Text
+total-recall tui stats --graphics text        # Chart als Text, keine Terminal-Abfrage
+```
+
+| Argument / Option | Bedeutung |
+|---|---|
+| `search` \| `stats` | Ansicht beim Start, Default `search` |
+| `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort |
+| `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty und kitty, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `auto` |
+
+Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`; die TUI ist ein Spike, siehe [Spike: TUI](spike-tui.md#ergebnis).
+
 ## `sql` { #sql }
 
 Führt eine SQL-Abfrage aus, nur lesend. Die Datenbank wird mit `mode=ro` und `PRAGMA query_only` geöffnet. Ändern ist nicht möglich.

@@ -12,6 +12,7 @@ nav = [
   { "Hooks einrichten" = "hooks.md" },
   { "Befehle" = "befehle.md" },
   { "Auswertung" = "auswertung.md" },
+  { "TUI" = "tui.md" },
   { "Für Agenten" = "agenten.md" },
   { "Datenschutz" = "datenschutz.md" },
   { "Design (Spezifikation)" = "design.md" },
