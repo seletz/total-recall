@@ -9,6 +9,10 @@
 // series are cached per filter combination, so switching back is instant.
 // The metric (events, human events, sessions) is a property of the chart
 // and never loads.
+//
+// The heatmap (weekday × hour, key h) is a second, optional chart below the
+// bar chart. Its data is a store.Stats of the window, loaded and cached the
+// same way, but only while the heatmap is on.
 package stats
 
 import (
@@ -37,9 +41,10 @@ const MinChartHeight = 8
 // line, the rule above the table and the status line.
 const chromeRows = 3
 
-// Loader loads activity series; *store.Store implements it.
+// Loader loads activity series and stats; *store.Store implements it.
 type Loader interface {
 	ActivitySeries(ctx context.Context, f store.ActivityFilter) (store.ActivitySeries, error)
+	Stats(ctx context.Context, f store.StatsFilter) (store.Stats, error)
 }
 
 // Options configure the view.
@@ -84,6 +89,33 @@ type resultMsg struct {
 	err    error
 }
 
+// heatFilter is one cache key of the heatmap: the window.
+type heatFilter struct {
+	since int64 // unix seconds
+	until int64
+}
+
+// heatResultMsg is the answer of one heatmap load; it is shown only when
+// seq is still the current heatmap sequence, and cached in any case.
+type heatResultMsg struct {
+	seq    uint64
+	filter heatFilter
+	stats  store.Stats
+	err    error
+}
+
+// heatmap is the state of the optional second chart.
+type heatmap struct {
+	on      bool
+	seq     uint64 // counts changes of the heatmap filter and its toggling
+	cancel  context.CancelFunc
+	cache   map[heatFilter]store.Stats
+	loaded  bool // stats holds the data of the current window
+	loading bool
+	stats   store.Stats
+	err     error
+}
+
 // Model is the stats view.
 type Model struct {
 	opts   Options
@@ -106,6 +138,8 @@ type Model struct {
 	took    time.Duration
 	err     error
 
+	heat heatmap
+
 	chart         Chart
 	initCmd       tea.Cmd // the first load, started by Init
 	width, height int
@@ -122,6 +156,7 @@ func New(opts Options) Model {
 		cache:  map[filter]store.ActivitySeries{},
 		colors: &chart.Colors{},
 		chart:  opts.Chart,
+		heat:   heatmap{cache: map[heatFilter]store.Stats{}},
 	}
 	// The first load is prepared here because Init cannot change the model:
 	// the command must carry the sequence number the model will compare
@@ -149,6 +184,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.key(msg)
 	case resultMsg:
 		return m.result(msg), nil
+	case heatResultMsg:
+		return m.heatResult(msg), nil
 	}
 	var cmd tea.Cmd
 	m.chart, cmd = m.chart.Update(msg)
@@ -185,8 +222,25 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.metric = (m.metric + 1) % 3
 		m.rebuild()
 		return m, nil
+	case key.Matches(msg, k.Heatmap):
+		return m.toggleHeatmap()
 	}
 	return m, nil
+}
+
+// toggleHeatmap switches the heatmap on, loading its data, or off,
+// cancelling a running load. The bar chart is resized either way.
+func (m Model) toggleHeatmap() (tea.Model, tea.Cmd) {
+	m.heat.on = !m.heat.on
+	var cmd tea.Cmd
+	if m.heat.on {
+		m, cmd = m.loadHeat()
+	} else {
+		m.heat.seq++
+		m.stopHeat()
+	}
+	m.chart.SetSize(m.chartSize())
+	return m, cmd
 }
 
 func (m Model) setPeriod(p store.Period) (tea.Model, tea.Cmd) {
@@ -209,7 +263,12 @@ func (m Model) setWindow(w Window) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.window = w
-	return m.load()
+	var cmd, heatCmd tea.Cmd
+	m, cmd = m.load()
+	if m.heat.on {
+		m, heatCmd = m.loadHeat()
+	}
+	return m, tea.Batch(cmd, heatCmd)
 }
 
 // filter is the cache key of the current state.
@@ -256,6 +315,63 @@ func (m *Model) stop() {
 	m.loading = false
 }
 
+// heatFilter is the heatmap cache key of the current window.
+func (m Model) heatFilter() heatFilter {
+	return heatFilter{since: m.window.Since().Unix(), until: m.window.Until().Unix()}
+}
+
+// loadHeat shows the cached stats of the current window, or starts loading
+// them. A running heatmap load is cancelled; its result would be stale.
+func (m Model) loadHeat() (Model, tea.Cmd) {
+	m.heat.seq++
+	m.stopHeat()
+	m.heat.err = nil
+	if m.opts.Loader == nil {
+		return m, nil
+	}
+	f := m.heatFilter()
+	if s, ok := m.heat.cache[f]; ok {
+		m.heat.stats, m.heat.loaded = s, true
+		return m, nil
+	}
+	m.heat.loaded, m.heat.loading = false, true
+	ctx, cancel := context.WithCancel(context.Background())
+	m.heat.cancel = cancel
+	seq, l := m.heat.seq, m.opts.Loader
+	sf := store.StatsFilter{Since: m.window.Since(), Until: m.window.Until(), Location: m.opts.Location}
+	return m, func() tea.Msg {
+		s, err := l.Stats(ctx, sf)
+		return heatResultMsg{seq: seq, filter: f, stats: s, err: err}
+	}
+}
+
+// stopHeat cancels the running heatmap load, if any.
+func (m *Model) stopHeat() {
+	if m.heat.cancel != nil {
+		m.heat.cancel()
+		m.heat.cancel = nil
+	}
+	m.heat.loading = false
+}
+
+// heatResult caches a successful answer and shows it when it is still
+// current.
+func (m Model) heatResult(msg heatResultMsg) Model {
+	if msg.err == nil {
+		m.heat.cache[msg.filter] = msg.stats
+	}
+	if msg.seq != m.heat.seq {
+		return m
+	}
+	m.heat.loading, m.heat.cancel = false, nil
+	m.heat.err = msg.err
+	if msg.err != nil {
+		return m
+	}
+	m.heat.stats, m.heat.loaded = msg.stats, true
+	return m
+}
+
 // result caches a successful answer and shows it when it is still current.
 func (m Model) result(msg resultMsg) Model {
 	if msg.err == nil {
@@ -286,23 +402,29 @@ func (m *Model) rebuild() {
 	m.chart.SetSize(m.chartSize())
 }
 
-// layout splits the body height between chart and table: the table gets
-// one line per series plus its header, the chart the rest, but never less
-// than MinChartHeight as long as the body allows it.
-func (m Model) layout() (chartH, tableH int) {
+// layout splits the body height between the chart, the heatmap and the
+// table: the heatmap, when on, takes its fixed height as long as the chart
+// keeps MinChartHeight beside it; the table gets one line per series plus
+// its header, but shrinks before the chart goes below MinChartHeight; the
+// chart gets the rest.
+func (m Model) layout() (chartH, heatH, tableH int) {
 	avail := max(m.height-chromeRows, 0)
+	if m.heat.on && avail-MinChartHeight >= chart.HeatmapHeight {
+		heatH = chart.HeatmapHeight
+		avail -= heatH
+	}
 	want := 0
 	if m.loaded && len(m.spec.Series) > 0 {
 		want = len(m.spec.Series) + 1
 	}
 	tableH = min(want, max(avail-MinChartHeight, 0))
-	return avail - tableH, tableH
+	return avail - tableH, heatH, tableH
 }
 
 // chartSize is the chart area: the body width less the indent, and the
 // chart rows of the layout.
 func (m Model) chartSize() (w, h int) {
-	chartH, _ := m.layout()
+	chartH, _, _ := m.layout()
 	return max(m.width-1, 0), chartH
 }
 
@@ -323,13 +445,16 @@ func (m Model) View() tea.View {
 	if m.width == 0 || m.height == 0 {
 		return tea.NewView("")
 	}
-	chartH, tableH := m.layout()
+	chartH, heatH, tableH := m.layout()
 	block := func(s string, h int) string {
 		return lipgloss.NewStyle().Width(m.width).Height(h).MaxWidth(m.width).MaxHeight(h).Render(s)
 	}
 	parts := []string{m.switches()}
 	if chartH > 0 {
 		parts = append(parts, block(m.chartView(chartH), chartH))
+	}
+	if heatH > 0 {
+		parts = append(parts, block(m.heatView(), heatH))
 	}
 	parts = append(parts, strings.Repeat("─", m.width))
 	if tableH > 0 {
@@ -386,8 +511,20 @@ func (m Model) hint() string {
 	return ""
 }
 
+// heatView is the heatmap area: the rendered heatmap, or the hint while
+// there is nothing to draw.
+func (m Model) heatView() string {
+	switch {
+	case m.heat.err != nil:
+		return " " + faintStyle.Render("The heatmap query failed; see the status line.")
+	case !m.heat.loaded:
+		return " " + faintStyle.Render("Loading heatmap…")
+	}
+	return indent(chart.RenderHeatmapText(m.heat.stats, m.metric, max(m.width-1, 0), chart.HeatmapHeight))
+}
+
 // status is the bottom line: the chart mode, the state of the load and
-// its duration.
+// its duration, and the state of the heatmap when it is on.
 func (m Model) status() string {
 	mode := m.chart.Mode()
 	switch {
@@ -401,7 +538,25 @@ func (m Model) status() string {
 		return mode
 	}
 	n := len(m.series.Buckets)
-	return fmt.Sprintf("%s · %d %ss · %d ms", mode, n, m.window.Period, m.took.Milliseconds())
+	return fmt.Sprintf("%s · %d %ss · %d ms%s", mode, n, m.window.Period, m.took.Milliseconds(), m.heatStatus())
+}
+
+// heatStatus is the heatmap's part of the status line: nothing while it is
+// off, otherwise its state, including that the body is too low for it.
+func (m Model) heatStatus() string {
+	if !m.heat.on {
+		return ""
+	}
+	_, heatH, _ := m.layout()
+	switch {
+	case m.heat.err != nil:
+		return " · heatmap error: " + m.heat.err.Error()
+	case heatH == 0:
+		return " · heatmap needs more rows"
+	case m.heat.loading:
+		return " · loading heatmap…"
+	}
+	return " · heatmap"
 }
 
 // indent prefixes every line of s with a space.

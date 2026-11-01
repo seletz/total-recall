@@ -14,7 +14,7 @@
              │ d days      p by project      [ earlier     1   search       ?   help │
              │ w weeks     a by agent        ] later       2   stats        esc back │
              │ m months    v by directory    - zoom out    tab next view    q   quit │
-             │ e metric                      + zoom in                               │
+             │ e metric    h heatmap         + zoom in                               │
              │                                                                       │
              │ esc or ? closes this help                                             │
              ╰───────────────────────────────────────────────────────────────────────╯
