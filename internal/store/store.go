@@ -30,14 +30,22 @@ const localTimeFormat = "2006-01-02T15:04:05.000-07:00"
 var (
 	ErrNotFound  = errors.New("store: not found")
 	ErrAmbiguous = errors.New("store: ambiguous reference")
+	// ErrSchemaTooNew means the database was migrated by a newer binary.
+	ErrSchemaTooNew = errors.New("store: database schema is newer than this binary supports")
 )
+
+// LatestSchemaVersion is the schema version this binary migrates to.
+func LatestSchemaVersion() int { return len(migrations) }
 
 // Store is an open archive database.
 type Store struct {
 	db       *sql.DB
+	path     string
 	loc      *time.Location
 	now      func() time.Time
+	logf     func(format string, args ...any)
 	readOnly bool
+	version  int // schema version found at open (read-only stores)
 }
 
 // Option configures Open.
@@ -47,11 +55,15 @@ type Option func(*Store)
 // daily_activity view). Default Europe/Berlin.
 func WithLocation(loc *time.Location) Option { return func(s *Store) { s.loc = loc } }
 
+// WithLogf sets a logger for notable events such as pre-migration backups.
+// Default: discard.
+func WithLogf(f func(format string, args ...any)) Option { return func(s *Store) { s.logf = f } }
+
 // WithClock sets the clock used for ingested_at. Default time.Now.
 func WithClock(now func() time.Time) Option { return func(s *Store) { s.now = now } }
 
 func newStore(opts []Option) *Store {
-	s := &Store{now: time.Now}
+	s := &Store{now: time.Now, logf: func(string, ...any) {}}
 	for _, o := range opts {
 		o(s)
 	}
@@ -89,7 +101,8 @@ func Open(path string, opts ...Option) (*Store, error) {
 	}
 	s := newStore(opts)
 	s.db = db
-	if err := s.migrate(context.Background()); err != nil {
+	s.path = path
+	if err := s.migrateTo(context.Background(), len(migrations)); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -116,21 +129,68 @@ func OpenReadOnly(path string, opts ...Option) (*Store, error) {
 	}
 	s := newStore(opts)
 	s.db = db
+	s.path = path
 	s.readOnly = true
+	v, err := s.SchemaVersion(context.Background())
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("store: open %s: schema version: %w", path, err)
+	}
+	if v > len(migrations) {
+		_ = db.Close()
+		return nil, fmt.Errorf("%w (database v%d, binary v%d)", ErrSchemaTooNew, v, len(migrations))
+	}
+	s.version = v
 	return s, nil
+}
+
+// SchemaWarning returns a hint for a read-only store whose database has an
+// older schema than this binary (queries may miss newer columns), else "".
+func (s *Store) SchemaWarning() string {
+	if !s.readOnly || s.version >= len(migrations) {
+		return ""
+	}
+	return fmt.Sprintf("database schema v%d is older than this binary (v%d); run a write command such as `total-recall ingest --all` to migrate",
+		s.version, len(migrations))
 }
 
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 
 // SchemaVersion returns the applied schema version.
+// A database without a schema_version table has version 0.
 func (s *Store) SchemaVersion(ctx context.Context) (int, error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").Scan(&n); err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, nil
+	}
 	var v int
 	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&v)
 	return v, err
 }
 
-func (s *Store) migrate(ctx context.Context) error {
+// preMigrationBackup writes a VACUUM INTO copy of a non-empty database at
+// version v to "<db>.pre-v<v>.bak" before pending migrations are applied.
+func (s *Store) preMigrationBackup(ctx context.Context, v int) error {
+	if v == 0 || s.path == "" {
+		return nil
+	}
+	dst := fmt.Sprintf("%s.pre-v%d.bak", s.path, v)
+	if err := os.Remove(dst); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("store: pre-migration backup: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", dst); err != nil {
+		return fmt.Errorf("store: pre-migration backup: %w", err)
+	}
+	s.logf("store: schema v%d -> v%d: backup written to %s", v, len(migrations), dst)
+	return nil
+}
+
+// migrateTo applies migrations up to version target (forward-only).
+func (s *Store) migrateTo(ctx context.Context, target int) error {
 	if _, err := s.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"); err != nil {
 		return fmt.Errorf("store: migrate: %w", err)
 	}
@@ -139,9 +199,14 @@ func (s *Store) migrate(ctx context.Context) error {
 		return fmt.Errorf("store: migrate: %w", err)
 	}
 	if v > len(migrations) {
-		return fmt.Errorf("store: database schema version %d is newer than this binary supports (%d)", v, len(migrations))
+		return fmt.Errorf("%w (database v%d, binary v%d)", ErrSchemaTooNew, v, len(migrations))
 	}
-	for i := v; i < len(migrations); i++ {
+	if v < target {
+		if err := s.preMigrationBackup(ctx, v); err != nil {
+			return err
+		}
+	}
+	for i := v; i < target; i++ {
 		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("store: migrate: %w", err)
