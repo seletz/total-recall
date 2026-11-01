@@ -1,0 +1,373 @@
+package ingest
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/seletz/total-recall/internal/gitinfo"
+	"github.com/seletz/total-recall/internal/harness"
+	"github.com/seletz/total-recall/internal/harness/claude"
+	"github.com/seletz/total-recall/internal/redact"
+	"github.com/seletz/total-recall/internal/store"
+	tf "github.com/seletz/total-recall/internal/testfixture"
+)
+
+var ctx = context.Background()
+
+const sid = tf.DemoSession1
+
+// fakeGit counts Resolve calls per cwd.
+type fakeGit struct {
+	mu    sync.Mutex
+	calls map[string]int
+	infos map[string]gitinfo.Info
+}
+
+func (g *fakeGit) resolve(_ context.Context, cwd string) (gitinfo.Info, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.calls == nil {
+		g.calls = map[string]int{}
+	}
+	g.calls[cwd]++
+	if i, ok := g.infos[cwd]; ok {
+		return i, nil
+	}
+	return gitinfo.Info{}, gitinfo.ErrNotRepo
+}
+
+type env struct {
+	dir      string
+	projects string
+	dbPath   string
+	st       *store.Store
+	git      *fakeGit
+	deps     Deps
+}
+
+func newEnv(t *testing.T) *env {
+	t.Helper()
+	dir := t.TempDir()
+	e := &env{dir: dir, projects: filepath.Join(dir, "projects"), dbPath: filepath.Join(dir, "db", "archive.db"),
+		git: &fakeGit{infos: map[string]gitinfo.Info{
+			"/w/alpha": {Root: "/w/alpha", Toplevel: "/w/alpha", RemoteURL: "https://github.com/o/alpha"},
+			"/w/wt":    {Root: "/w/main", Toplevel: "/w/wt", RemoteURL: "https://github.com/o/main"},
+		}}}
+	e.open(t)
+	return e
+}
+
+func (e *env) open(t *testing.T) {
+	t.Helper()
+	st, err := store.Open(e.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	e.st = st
+	e.deps = Deps{
+		Store:      st,
+		Adapters:   []harness.Adapter{claude.New(e.projects)},
+		StoreRaw:   true,
+		ResolveGit: true,
+		GitResolve: e.git.resolve,
+		LockDir:    filepath.Join(filepath.Dir(e.dbPath), "locks"),
+	}
+}
+
+func (e *env) count(t *testing.T, q string) int {
+	t.Helper()
+	_, rows, err := e.st.Query(ctx, q)
+	if err != nil {
+		t.Fatalf("%s: %v", q, err)
+	}
+	return int(rows[0][0].(int64))
+}
+
+func (e *env) str(t *testing.T, q string) string {
+	t.Helper()
+	_, rows, err := e.st.Query(ctx, q)
+	if err != nil {
+		t.Fatalf("%s: %v", q, err)
+	}
+	if len(rows) == 0 || rows[0][0] == nil {
+		return ""
+	}
+	return rows[0][0].(string)
+}
+
+func run(t *testing.T, e *env, paths ...string) Summary {
+	t.Helper()
+	sum, err := Run(ctx, e.deps, paths)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return sum
+}
+
+func TestAllDemoTree(t *testing.T) {
+	e := newEnv(t)
+	tf.Demo(t, e.dir)
+	sum, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Scanned != 4 || sum.Changed != 4 || len(sum.Errors) != 0 {
+		t.Errorf("summary = %+v", sum)
+	}
+	if got := e.count(t, "SELECT count(*) FROM events"); got != sum.Events || got != 9 {
+		t.Errorf("events = %d, summary %d, want 9", got, sum.Events)
+	}
+	if sum.Sessions != 3 {
+		t.Errorf("sessions touched = %d, want 3", sum.Sessions)
+	}
+	// The workflow journal yields no session but its offset is recorded.
+	if got := e.count(t, `SELECT count(*) FROM sources WHERE path LIKE '%journal.jsonl' AND "offset" > 0`); got != 1 {
+		t.Errorf("journal source rows = %d", got)
+	}
+	if got := e.str(t, "SELECT display_name FROM sessions WHERE native_id = '"+sid+"'"); got != "List files" {
+		t.Errorf("display name = %q", got)
+	}
+	if got := e.str(t, "SELECT git_remote_url FROM sessions WHERE native_id = '"+sid+"'"); got != "https://github.com/o/alpha" {
+		t.Errorf("git remote = %q", got)
+	}
+
+	again, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Events != 0 || again.Changed != 0 || again.Unchanged != 4 {
+		t.Errorf("second run = %+v", again)
+	}
+}
+
+func TestIncrementalPartialLine(t *testing.T) {
+	e := newEnv(t)
+	full := tf.Join(
+		tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", "first"),
+		tf.Assistant(sid, "u2", "2026-10-01T10:00:01Z", "/w/x", "second"),
+		tf.User(sid, "u3", "2026-10-01T10:00:02Z", "/w/x", "third"),
+	)
+	cut := len(full) - 20 // inside the last line
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", full[:cut])
+
+	if sum := run(t, e, p); sum.Events != 2 {
+		t.Fatalf("first run events = %d, want 2", sum.Events)
+	}
+	tf.AppendFile(t, p, full[cut:])
+	if sum := run(t, e, p); sum.Events != 1 {
+		t.Fatalf("second run events = %d, want 1", sum.Events)
+	}
+	if got := e.count(t, "SELECT count(*) FROM events"); got != 3 {
+		t.Errorf("events = %d", got)
+	}
+	if got := e.count(t, `SELECT "offset" FROM sources`); got != len(full) {
+		t.Errorf("offset = %d, want %d", got, len(full))
+	}
+}
+
+func TestTruncatedFileRestartsAndIsIdempotent(t *testing.T) {
+	e := newEnv(t)
+	content := tf.Join(
+		tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", "first"),
+		tf.Assistant(sid, "u2", "2026-10-01T10:00:01Z", "/w/x", "second"),
+	)
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", content)
+	run(t, e, p)
+
+	// Replaced by a shorter file with a new line: re-read from 0.
+	short := tf.User(sid, "n1", "2026-10-02T10:00:00Z", "/w/x", "new").JSON()
+	if err := os.WriteFile(p, []byte(short), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if sum := run(t, e, p); sum.Events != 1 {
+		t.Errorf("after truncation events = %d, want 1", sum.Events)
+	}
+	// Restore the original content: offset (short) < size, but re-reading the
+	// original lines must not duplicate anything.
+	if err := os.WriteFile(p, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, e, p)
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if sum := run(t, e, p); sum.Events != 0 {
+		t.Errorf("re-read of known lines inserted %d events", sum.Events)
+	}
+	if got := e.count(t, "SELECT count(*) FROM events"); got != 3 {
+		t.Errorf("events = %d, want 3", got)
+	}
+}
+
+func TestBatchingWritesEverything(t *testing.T) {
+	e := newEnv(t)
+	e.deps.BatchSize = 2
+	var lines []tf.Line
+	for i := range 7 {
+		lines = append(lines, tf.User(sid, "u"+string(rune('a'+i)), "2026-10-01T10:00:0"+string(rune('0'+i))+"Z", "/w/x", "msg"))
+	}
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", tf.Join(lines...))
+	if sum := run(t, e, p); sum.Events != 7 {
+		t.Errorf("events = %d, want 7", sum.Events)
+	}
+	if got := e.count(t, `SELECT "offset" FROM sources`); got != len(tf.Join(lines...)) {
+		t.Errorf("offset = %d", got)
+	}
+}
+
+func TestLockedFileIsSkipped(t *testing.T) {
+	e := newEnv(t)
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", "hi").JSON())
+	unlock, ok, err := lockFile(e.deps.LockDir, p)
+	if err != nil || !ok {
+		t.Fatalf("lockFile = %v, %v", ok, err)
+	}
+	sum := run(t, e, p)
+	if sum.Locked != 1 || sum.Events != 0 {
+		t.Errorf("summary while locked = %+v", sum)
+	}
+	unlock()
+	if sum := run(t, e, p); sum.Locked != 0 || sum.Events != 1 {
+		t.Errorf("summary after unlock = %+v", sum)
+	}
+}
+
+func TestRedactionAndStoreRaw(t *testing.T) {
+	secret := "ghp_" + strings.Repeat("aB3", 12)
+	tests := []struct {
+		name     string
+		redact   bool
+		storeRaw bool
+	}{
+		{"redacted with raw", true, true},
+		{"redacted without raw", true, false},
+		{"not redacted", false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEnv(t)
+			if tt.redact {
+				r, err := redact.New(redact.Options{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				e.deps.Redactor = r
+			}
+			e.deps.StoreRaw = tt.storeRaw
+			p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl",
+				tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", "my token is "+secret).JSON())
+			run(t, e, p)
+			text := e.str(t, "SELECT text FROM events")
+			raw := e.str(t, "SELECT raw FROM events")
+			if tt.redact == strings.Contains(text, secret) {
+				t.Errorf("text = %q", text)
+			}
+			if !tt.storeRaw {
+				if raw != "" {
+					t.Errorf("raw stored although store_raw=false: %q", raw)
+				}
+				return
+			}
+			if raw == "" || tt.redact == strings.Contains(raw, secret) {
+				t.Errorf("raw = %q", raw)
+			}
+		})
+	}
+}
+
+func TestGitInfoCache(t *testing.T) {
+	e := newEnv(t)
+	p := tf.WriteFile(t, e.projects, "-w-wt/"+sid+".jsonl", tf.Join(
+		tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/wt", "a"),
+		tf.Assistant(sid, "u2", "2026-10-01T10:00:01Z", "/w/wt", "b"),
+		tf.User(sid, "u3", "2026-10-01T10:00:02Z", "/w/none", "c"),
+	))
+	run(t, e, p)
+	if e.git.calls["/w/wt"] != 1 || e.git.calls["/w/none"] != 1 {
+		t.Errorf("resolve calls = %v", e.git.calls)
+	}
+	// Worktree: git_root is the main repository root.
+	if got := e.str(t, "SELECT git_root FROM sessions"); got != "/w/main" {
+		t.Errorf("git_root = %q", got)
+	}
+	if got := e.count(t, "SELECT count(*) FROM dirs"); got != 2 {
+		t.Errorf("dirs rows = %d", got)
+	}
+
+	// A new run (new process) uses the dirs table instead of git.
+	tf.AppendFile(t, p, tf.User(sid, "u4", "2026-10-01T10:00:03Z", "/w/wt", "d").JSON())
+	e.git.calls = nil
+	run(t, e, p)
+	if len(e.git.calls) != 0 {
+		t.Errorf("resolve calls with cache = %v", e.git.calls)
+	}
+
+	// git.resolve=false: no resolution at all.
+	e2 := newEnv(t)
+	e2.deps.ResolveGit = false
+	p2 := tf.WriteFile(t, e2.projects, "-w-wt/"+sid+".jsonl", tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/wt", "a").JSON())
+	run(t, e2, p2)
+	if len(e2.git.calls) != 0 || e2.str(t, "SELECT git_root FROM sessions") != "" {
+		t.Errorf("git resolved although disabled: %v", e2.git.calls)
+	}
+}
+
+func TestPerFileErrorsContinue(t *testing.T) {
+	e := newEnv(t)
+	good := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", "hi").JSON())
+	missing := filepath.Join(e.projects, "nope.jsonl")
+	sum := run(t, e, missing, good)
+	if len(sum.Errors) != 1 || sum.Errors[0].Path != missing || sum.Events != 1 {
+		t.Errorf("summary = %+v", sum)
+	}
+	if !errors.Is(sum.Errors[0].Err, os.ErrNotExist) {
+		t.Errorf("error = %v", sum.Errors[0].Err)
+	}
+}
+
+func TestToolResultMaxBytesIsAdapterOption(t *testing.T) {
+	// The orchestration passes events through unchanged in size; truncation is
+	// the adapter's job (configured via claude.WithToolResultMaxBytes).
+	e := newEnv(t)
+	e.deps.Adapters = []harness.Adapter{claude.New(e.projects, claude.WithToolResultMaxBytes(10))}
+	line := tf.Line{"type": "user", "uuid": "r1", "timestamp": "2026-10-01T10:00:00Z", "sessionId": sid, "cwd": "/w/x",
+		"message": map[string]any{"role": "user", "content": []any{map[string]any{"type": "tool_result", "content": strings.Repeat("x", 100)}}}}
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", line.JSON())
+	run(t, e, p)
+	if got := e.str(t, "SELECT text FROM events"); !strings.HasPrefix(got, "xxxxxxxxxx") || len(got) > 40 {
+		t.Errorf("text = %q", got)
+	}
+}
+
+func TestGitNegativeCacheExpires(t *testing.T) {
+	e := newEnv(t)
+	old := time.Now().Add(-2 * NegativeDirTTL)
+	for _, d := range []store.DirInfo{
+		{Cwd: "/w/alpha", ResolvedAt: old},                    // stale "not a repo": resolve again
+		{Cwd: "/w/fresh", ResolvedAt: time.Now()},             // fresh "not a repo": keep
+		{Cwd: "/w/wt", GitRoot: "/w/cached", ResolvedAt: old}, // positive: keep forever
+	} {
+		if err := e.st.PutDir(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := tf.WriteFile(t, e.projects, "-w/"+sid+".jsonl", tf.Join(
+		tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/alpha", "a"),
+		tf.User(tf.DemoSession2, "u2", "2026-10-01T10:00:00Z", "/w/fresh", "b"),
+		tf.User("33333333-3333-4333-8333-333333333333", "u3", "2026-10-01T10:00:00Z", "/w/wt", "c"),
+	))
+	run(t, e, p)
+	if e.git.calls["/w/alpha"] != 1 || e.git.calls["/w/fresh"] != 0 || e.git.calls["/w/wt"] != 0 {
+		t.Errorf("resolve calls = %v", e.git.calls)
+	}
+	if got := e.str(t, "SELECT git_root FROM dirs WHERE cwd = '/w/alpha'"); got != "/w/alpha" {
+		t.Errorf("re-resolved root = %q", got)
+	}
+}

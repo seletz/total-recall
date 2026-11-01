@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -476,5 +477,58 @@ func TestConcurrentWriters(t *testing.T) {
 	defer func() { _ = s.Close() }()
 	if n := countRows(t, s, "SELECT count(*) FROM events"); n != writers*batches {
 		t.Errorf("events = %d, want %d", n, writers*batches)
+	}
+}
+
+func TestDisplayNameAndAITitle(t *testing.T) {
+	tests := []struct {
+		name    string
+		batches []model.Session
+		want    string
+	}{
+		{"agent name only", []model.Session{{AgentName: "agent"}}, "agent"},
+		{"ai title beats agent name", []model.Session{{AgentName: "agent"}, {AITitle: "generated"}}, "generated"},
+		{"custom title beats ai title", []model.Session{{Name: "custom"}, {AITitle: "generated"}}, "custom"},
+		{"later ai title replaces earlier", []model.Session{{AITitle: "one"}, {AITitle: "two"}}, "two"},
+		{"nothing", []model.Session{{Cwd: "/w"}}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, _ := openTestStore(t)
+			for _, b := range tt.batches {
+				b.ID, b.Harness, b.NativeID = "claude:x", "claude", "x"
+				if err := s.WriteBatch(ctx, SourceState{}, []model.Session{b}, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var got sql.NullString
+			if err := s.db.QueryRowContext(ctx, "SELECT display_name FROM sessions WHERE id = 'claude:x'").Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got.String != tt.want {
+				t.Errorf("display_name = %q, want %q", got.String, tt.want)
+			}
+			si, err := s.Session(ctx, "claude:x")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if si.DisplayName() != tt.want {
+				t.Errorf("DisplayName() = %q, want %q", si.DisplayName(), tt.want)
+			}
+		})
+	}
+}
+
+func TestWriteBatchNCountsInserted(t *testing.T) {
+	s, _ := openTestStore(t)
+	evs := []model.Event{
+		ev("e1", "claude:s", "2026-10-01T10:00:00Z", model.ActorHuman, model.KindMessage, "user", "a"),
+		ev("e2", "claude:s", "2026-10-01T10:00:01Z", model.ActorAgent, model.KindMessage, "assistant", "b"),
+	}
+	for i, want := range []int{2, 0} {
+		n, err := s.WriteBatchN(ctx, SourceState{}, nil, evs)
+		if err != nil || n != want {
+			t.Errorf("run %d: WriteBatchN = %d, %v; want %d", i, n, err, want)
+		}
 	}
 }

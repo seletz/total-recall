@@ -1,0 +1,8 @@
+{
+  "session_id": "22222222-2222-4222-8222-222222222222",
+  "transcript_path": "{{PROJECTS}}/-w-beta/22222222-2222-4222-8222-222222222222.jsonl",
+  "cwd": "/w/beta",
+  "hook_event_name": "SessionEnd",
+  "reason": "prompt_input_exit",
+  "permission_mode": "default"
+}
