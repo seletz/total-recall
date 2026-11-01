@@ -518,3 +518,17 @@ func TestDisplayNameAndAITitle(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteBatchNCountsInserted(t *testing.T) {
+	s, _ := openTestStore(t)
+	evs := []model.Event{
+		ev("e1", "claude:s", "2026-10-01T10:00:00Z", model.ActorHuman, model.KindMessage, "user", "a"),
+		ev("e2", "claude:s", "2026-10-01T10:00:01Z", model.ActorAgent, model.KindMessage, "assistant", "b"),
+	}
+	for i, want := range []int{2, 0} {
+		n, err := s.WriteBatchN(ctx, SourceState{}, nil, evs)
+		if err != nil || n != want {
+			t.Errorf("run %d: WriteBatchN = %d, %v; want %d", i, n, err, want)
+		}
+	}
+}
