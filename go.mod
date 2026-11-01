@@ -18,6 +18,7 @@ require (
 )
 
 require (
+	github.com/NimbleMarkets/ntcharts/picture/chartpicture/v2 v2.9.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-udiff v0.4.1 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20261023060817-a45b7c86333f // indirect
