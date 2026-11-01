@@ -102,7 +102,7 @@ type Focused interface {
 // New builds the app for opts.
 func New(opts Options) (App, error) {
 	opts.defaults()
-	views := []View{search.New(searchOptions(opts)), stats.New()}
+	views := []View{search.New(searchOptions(opts)), stats.New(statsOptions(opts))}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -131,6 +131,16 @@ func searchOptions(opts Options) search.Options {
 	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location}
 	if opts.Store != nil {
 		so.Searcher = opts.Store
+	}
+	return so
+}
+
+// statsOptions is what the stats view gets from the app options; a nil store
+// stays a nil Loader.
+func statsOptions(opts Options) stats.Options {
+	so := stats.Options{Now: opts.Now, Location: opts.Location}
+	if opts.Store != nil {
+		so.Loader = opts.Store
 	}
 	return so
 }
