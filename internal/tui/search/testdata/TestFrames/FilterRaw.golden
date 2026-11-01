@@ -1,0 +1,30 @@
+ > release OR notes                                            actor: all  since: all  repo: *  raw
+─────────────────────────────────────────────────┬──────────────────────────────────────────────────
+ 2026-01-05 08:45  b2b2b2b2-0004-4000-800…  agent│ (untitled)
+  Start with the release notes.                  │ claude:b2b2b2b2-0004-4000-8000-000000000…  o/beta
+ 2025-12-04 20:30  Beta release             human│ 2026-01-05 08:45 – 08:45 (5s)  main
+  tag the release                                │──────────────────────────────────────────────────
+ 2025-12-16 08:00  d3d3d3d3-0002-4000-800…  agent│── 08:45  human
+  wc -w notes.md                                 │plan the week
+ 2025-12-06 11:00  d3d3d3d3-0001-4000-800…  agent│
+  Notes and a few drafts.                        │── 08:45  agent ◄
+                                                 │Start with the release notes.
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+ 4 hits (0 ms)

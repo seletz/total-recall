@@ -132,11 +132,11 @@ func (m Model) header() string {
 		first += strings.Repeat(" ", room-lipgloss.Width(id)+2) + faintStyle.Render(id) + " "
 	}
 
-	parts := []string{shortRepo(s.Repo())}
+	parts := []string{ShortRepo(s.Repo())}
 	if s.GitBranch != "" {
 		parts = append(parts, s.GitBranch)
 	}
-	parts = append(parts, timeSpan(s.StartedAt, s.EndedAt, m.loc),
+	parts = append(parts, TimeSpan(s.StartedAt, s.EndedAt, m.loc),
 		fmt.Sprintf("%d human  %d agent", s.HumanEvents, s.AgentEvents))
 	if s.ParentID != "" {
 		parts = append(parts, "parent "+s.ParentID)
@@ -170,9 +170,9 @@ func (m Model) rule() string {
 	return status + strings.Repeat("─", max(m.width-lipgloss.Width(status), 0))
 }
 
-// timeSpan formats start and end like "2026-10-31 22:10 – 23:02 (52m)"; the
+// TimeSpan formats start and end like "2026-10-31 22:10 – 23:02 (52m)"; the
 // end date is repeated when it differs from the start date.
-func timeSpan(start, end time.Time, loc *time.Location) string {
+func TimeSpan(start, end time.Time, loc *time.Location) string {
 	if start.IsZero() {
 		return ""
 	}
@@ -204,9 +204,9 @@ func duration(d time.Duration) string {
 	return fmt.Sprintf("%dd%02dh", int(d.Hours())/24, int(d.Hours())%24)
 }
 
-// shortRepo returns "owner/repo" for a remote URL, else the base name of a
+// ShortRepo returns "owner/repo" for a remote URL, else the base name of a
 // path.
-func shortRepo(repo string) string {
+func ShortRepo(repo string) string {
 	if repo == "" {
 		return ""
 	}
