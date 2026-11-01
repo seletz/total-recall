@@ -174,10 +174,6 @@ func TestHookContract(t *testing.T) {
 			func(e *testEnv, t *testing.T) string { return `{"session_id": "x", "transcript_path": ` }, nil, 0, 0, "invalid payload JSON"},
 		{"empty stdin",
 			func(e *testEnv, t *testing.T) string { return "" }, nil, 0, 0, "invalid payload JSON"},
-		{"transcript file does not exist",
-			func(e *testEnv, t *testing.T) string {
-				return `{"session_id":"x","transcript_path":"` + filepath.Join(e.projects, "gone.jsonl") + `","hook_event_name":"Stop"}`
-			}, nil, 0, 0, "gone.jsonl"},
 		{"database from a newer binary",
 			func(e *testEnv, t *testing.T) string { return e.hookPayload(t, "Stop") },
 			func(e *testEnv, t *testing.T) {
@@ -221,6 +217,57 @@ func TestHookContract(t *testing.T) {
 					t.Errorf("events = %d, want the 2 from setup", n)
 				}
 				return
+			}
+			if got := e.count(t, "SELECT count(*) FROM events"); got != tt.wantEvents {
+				t.Errorf("events = %d, want %d", got, tt.wantEvents)
+			}
+			if got := e.count(t, "SELECT count(*) FROM sessions"); got != tt.wantSess {
+				t.Errorf("sessions = %d, want %d", got, tt.wantSess)
+			}
+		})
+	}
+}
+
+// TestHookMissingTranscript covers #7: Claude Code fires hooks for files it
+// has not written (yet) — SessionStart of a brand-new session, SubagentStop of
+// internal agents without a transcript. That is expected, not an error: the
+// hook logs it at INFO and still ingests whatever exists.
+func TestHookMissingTranscript(t *testing.T) {
+	tests := []struct {
+		name       string
+		payload    func(e *testEnv) string
+		wantEvents int
+		wantSess   int
+		wantInfo   string
+	}{
+		{"Stop with missing transcript",
+			func(e *testEnv) string {
+				return `{"session_id":"x","transcript_path":"` + filepath.Join(e.projects, "gone.jsonl") + `","hook_event_name":"Stop"}`
+			}, 0, 0, "gone.jsonl"},
+		{"SubagentStop with missing agent transcript still ingests the session",
+			func(e *testEnv) string {
+				return `{"session_id":"` + tf.DemoSession1 + `","transcript_path":"` + filepath.Join(e.projects, "-w-alpha", tf.DemoSession1+".jsonl") +
+					`","hook_event_name":"SubagentStop","agent_id":"a99","agent_transcript_path":"` +
+					filepath.Join(e.projects, "-w-alpha", tf.DemoSession1, "subagents", "agent-a99.jsonl") + `"}`
+			}, 5, 1, "agent-a99.jsonl"},
+		{"SessionStart of a session not yet on disk still reads everything",
+			func(e *testEnv) string {
+				return `{"session_id":"new","transcript_path":"` + filepath.Join(e.projects, "-w-new", "new.jsonl") + `","hook_event_name":"SessionStart","source":"startup"}`
+			}, 9, 3, "new.jsonl"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			r := e.run(t, tt.payload(e), "ingest", "--hook")
+			if r.code != 0 {
+				t.Fatalf("exit code %d, want 0 (stderr %q)", r.code, r.stderr)
+			}
+			log := e.logText(t)
+			if strings.Contains(log, " ERROR ") {
+				t.Errorf("missing transcript logged as error:\n%s", log)
+			}
+			if !strings.Contains(log, " INFO ") || !strings.Contains(log, tt.wantInfo) {
+				t.Errorf("log lacks INFO line for %q:\n%s", tt.wantInfo, log)
 			}
 			if got := e.count(t, "SELECT count(*) FROM events"); got != tt.wantEvents {
 				t.Errorf("events = %d, want %d", got, tt.wantEvents)

@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -259,6 +261,13 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 	}
 	report := func(s ingest.Summary, err error) {
 		for _, fe := range s.Errors {
+			// The harness announces files it has not written (yet): a new
+			// session's SessionStart, internal agents without a transcript
+			// on SubagentStop. A later hook picks them up if they appear (#7).
+			if errors.Is(fe.Err, fs.ErrNotExist) {
+				log.Infof("hook %s: transcript not present, skipped: %s", p.HookEventName, fe.Path)
+				continue
+			}
 			log.Errorf("hook %s: %s: %v", p.HookEventName, fe.Path, fe.Err)
 		}
 		if err != nil {
