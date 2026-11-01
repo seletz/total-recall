@@ -1,12 +1,12 @@
- > release
+ > release                  actor: all  since: all  repo: *
 ─────────────────────────────┬──────────────────────────────
- 2025-12-04 20:30  Be…  human│
-  tag the release            │
- 2026-01-05 08:45  b2…  agent│
-  Start with the release not…│
+ 2025-12-04 20:30  Be…  human│ Beta release
+  tag the release            │ claude:b2b2b2b2-0001…  o/beta
+ 2026-01-05 08:45  b2…  agent│ 2025-12-04 20:30 – 20:30 (5s…
+  Start with the release not…│──────────────────────────────
+                             │── 20:30  human ◄
+                             │tag the release
                              │
-                             │
-                             │
-                             │
-                             │
+                             │── 20:30  agent
+                             │Tagged v0.2.0.
  2 hits (0 ms)
