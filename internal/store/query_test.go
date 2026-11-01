@@ -302,3 +302,18 @@ func TestStatus(t *testing.T) {
 		t.Errorf("status = %+v", st)
 	}
 }
+
+func TestSessionsTopLevel(t *testing.T) {
+	s, _ := openTestStore(t)
+	seed(t, s)
+	sub := model.Session{ID: "claude:agent-x", Harness: "claude", NativeID: "agent-x", ParentID: "claude:aaa111",
+		StartedAt: ts("2026-10-31T10:00:00Z"), EndedAt: ts("2026-10-31T10:05:00Z")}
+	if err := s.WriteBatch(ctx, SourceState{}, []model.Session{sub}, nil); err != nil {
+		t.Fatal(err)
+	}
+	all, _ := s.Sessions(ctx, SessionFilter{})
+	top, _ := s.Sessions(ctx, SessionFilter{TopLevel: true})
+	if len(all) != len(top)+1 || strings.Contains(ids(top), "agent-x") {
+		t.Errorf("all = %s, top = %s", ids(all), ids(top))
+	}
+}

@@ -22,6 +22,8 @@ type SessionFilter struct {
 	Harness string
 	// Name is a case-insensitive substring of name, AI title or agent name.
 	Name string
+	// TopLevel excludes subagent sessions (parent_id set).
+	TopLevel bool
 	// Limit caps the number of results; 0 = no limit.
 	Limit int
 }
@@ -82,6 +84,9 @@ func (f SessionFilter) where(eventTime bool) ([]string, []any) {
 	if f.Harness != "" {
 		cond = append(cond, "s.harness = ?")
 		args = append(args, f.Harness)
+	}
+	if f.TopLevel {
+		cond = append(cond, "(s.parent_id IS NULL OR s.parent_id = '')")
 	}
 	if f.Name != "" {
 		cond = append(cond, `(s.name LIKE ? ESCAPE '\' OR s.ai_title LIKE ? ESCAPE '\' OR s.agent_name LIKE ? ESCAPE '\')`)
