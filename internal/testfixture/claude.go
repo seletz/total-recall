@@ -134,3 +134,12 @@ func Demo(t testing.TB, dir string) string {
 	))
 	return projects
 }
+
+// ToolResult returns a user record carrying one tool_result block for the
+// tool_use with the given uuid. The adapter maps it to an actor "tool" event.
+func ToolResult(session, uuid, ts, cwd, toolUseUUID, output string) Line {
+	return Line{"type": "user", "uuid": uuid, "timestamp": ts, "sessionId": session, "cwd": cwd,
+		"gitBranch": "main", "version": "2.1.300",
+		"message": map[string]any{"role": "user",
+			"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "toolu_" + toolUseUUID, "content": output}}}}
+}
