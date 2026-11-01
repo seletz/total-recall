@@ -72,11 +72,12 @@ func (e *env) ingestCmd() *cobra.Command {
 // deps builds the ingest dependencies from the configuration.
 func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error) {
 	d := ingest.Deps{
-		Store:      st,
-		StoreRaw:   cfg.Ingest.StoreRaw,
-		ResolveGit: cfg.Git.Resolve,
-		LockDir:    filepath.Join(filepath.Dir(cfg.DB), "locks"),
-		Logf:       func(f string, a ...any) { log.Infof(f, a...) },
+		Store:       st,
+		StoreRaw:    cfg.Ingest.StoreRaw,
+		RawMaxBytes: cfg.Ingest.RawMaxBytes,
+		ResolveGit:  cfg.Git.Resolve,
+		LockDir:     filepath.Join(filepath.Dir(cfg.DB), "locks"),
+		Logf:        func(f string, a ...any) { log.Infof(f, a...) },
 	}
 	if cfg.Redact.Enabled {
 		r, err := redact.New(redact.Options{ExtraPatterns: cfg.Redact.ExtraPatterns, Allow: cfg.Redact.Allow})

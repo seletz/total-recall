@@ -77,7 +77,8 @@ All timestamps are UTC ISO 8601 TEXT, e.g. `2026-10-31T22:21:58.123Z`.
 | `model` | |
 | `tokens_in`, `tokens_out` | may be NULL |
 | `source_path`, `source_offset` | where the line came from |
-| `raw` | original JSON line, redacted |
+| `raw` | original JSON line, redacted; NULL if the line was larger than `ingest.raw_max_bytes` (default 16 KiB) or `store_raw` is off |
+| `raw_truncated` | 1 if `raw` was dropped because of its size (the `text` column is still filled) |
 
 ### Other tables and views
 

@@ -371,3 +371,39 @@ func TestGitNegativeCacheExpires(t *testing.T) {
 		t.Errorf("re-resolved root = %q", got)
 	}
 }
+
+func TestRawMaxBytes(t *testing.T) {
+	long := strings.Repeat("x", 300)
+	tests := []struct {
+		name          string
+		max           int
+		storeRaw      bool
+		wantRaw       bool
+		wantTruncated int
+	}{
+		{"unlimited", 0, true, true, 0},
+		{"over the cap", 200, true, false, 1},
+		{"under the cap", 4096, true, true, 0},
+		{"store_raw off is not truncation", 200, false, false, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEnv(t)
+			e.deps.RawMaxBytes = tt.max
+			e.deps.StoreRaw = tt.storeRaw
+			p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl",
+				tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", long).JSON())
+			run(t, e, p)
+			if got := e.str(t, "SELECT text FROM events"); got != long {
+				t.Errorf("text changed: %d bytes", len(got))
+			}
+			raw := e.str(t, "SELECT raw FROM events")
+			if (raw != "") != tt.wantRaw {
+				t.Errorf("raw = %q, want present=%v", raw, tt.wantRaw)
+			}
+			if n := e.count(t, "SELECT count(*) FROM events WHERE raw_truncated = 1"); n != tt.wantTruncated {
+				t.Errorf("raw_truncated rows = %d, want %d", n, tt.wantTruncated)
+			}
+		})
+	}
+}

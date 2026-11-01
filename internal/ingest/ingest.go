@@ -37,6 +37,9 @@ type Deps struct {
 	Redactor *redact.Redactor
 	// StoreRaw keeps Event.Raw; false drops it.
 	StoreRaw bool
+	// RawMaxBytes drops Event.Raw of lines longer than this many bytes and
+	// sets Event.RawTruncated instead; 0 = no limit.
+	RawMaxBytes int
 	// ResolveGit enables git info resolution for session working directories.
 	ResolveGit bool
 	// GitResolve resolves a cwd; default gitinfo.Resolve.
@@ -258,8 +261,11 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 	var rawIn, rawOut string
 	for _, e := range rec.Events {
 		r.sessions[e.SessionID] = true
-		if !r.deps.StoreRaw {
+		switch {
+		case !r.deps.StoreRaw:
 			e.Raw = ""
+		case r.deps.RawMaxBytes > 0 && len(e.Raw) > r.deps.RawMaxBytes:
+			e.Raw, e.RawTruncated = "", true
 		}
 		if rd := r.deps.Redactor; rd != nil {
 			e.Text = rd.Text(e.Text)

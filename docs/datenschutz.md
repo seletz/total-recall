@@ -16,7 +16,7 @@ Je **Event** (Nachricht, Tool-Aufruf, Tool-Ergebnis):
 - Zeitpunkt, Art, Rolle, Actor,
 - der lesbare Text. Tool-Ergebnisse werden auf 4 KiB gekürzt.
 - Tool-Name, Modell, Token-Zahlen,
-- die Original-JSON-Zeile (`raw`), ebenfalls maskiert. Abschaltbar mit `ingest.store_raw = false`.
+- die Original-JSON-Zeile (`raw`), ebenfalls maskiert. Abschaltbar mit `ingest.store_raw = false`; Zeilen über `ingest.raw_max_bytes` (Default 16 KiB) werden ohnehin nicht als `raw` gespeichert.
 
 Nicht gespeichert werden technische Records wie Anhänge, API-Requests oder Datei-Snapshots.
 
