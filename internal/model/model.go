@@ -33,7 +33,8 @@ type Session struct {
 	HarnessVersion string
 	NativeID       string
 	ParentID       string
-	Name           string
+	Name           string // explicit title (Claude: custom-title); authoritative
+	AITitle        string // harness-generated title (Claude: ai-title, legacy summary)
 	AgentName      string
 	Cwd            string
 	GitRoot        string
@@ -42,6 +43,18 @@ type Session struct {
 	Model          string
 	StartedAt      time.Time
 	EndedAt        time.Time
+}
+
+// DisplayName returns the best human-readable title: Name, else AITitle,
+// else AgentName (empty if none is known).
+func (s Session) DisplayName() string {
+	switch {
+	case s.Name != "":
+		return s.Name
+	case s.AITitle != "":
+		return s.AITitle
+	}
+	return s.AgentName
 }
 
 // Event is one normalized entry of a session transcript.

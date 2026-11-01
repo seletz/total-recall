@@ -131,4 +131,11 @@ FROM events e
 JOIN sessions s ON s.id = e.session_id
 GROUP BY day, e.session_id;
 `,
+	// 2: harness-generated titles (Claude ai-title) and a display name that
+	// prefers the explicit title, then the generated one, then the agent name.
+	`
+ALTER TABLE sessions ADD COLUMN ai_title TEXT;
+ALTER TABLE sessions ADD COLUMN display_name TEXT GENERATED ALWAYS AS
+	(COALESCE(NULLIF(name, ''), NULLIF(ai_title, ''), NULLIF(agent_name, ''))) VIRTUAL;
+`,
 }

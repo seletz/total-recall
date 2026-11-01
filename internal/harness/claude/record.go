@@ -20,7 +20,7 @@ const truncMark = " …[truncated]"
 // ingested lists the record types that produce records; everything else is skipped.
 var ingested = map[string]bool{
 	"user": true, "assistant": true, "system": true,
-	"custom-title": true, "agent-name": true, "summary": true,
+	"custom-title": true, "ai-title": true, "agent-name": true, "summary": true,
 }
 
 // rawRecord is the subset of a transcript line the adapter looks at.
@@ -42,6 +42,7 @@ type rawRecord struct {
 	Content          json.RawMessage `json:"content"` // system records
 	CustomTitle      string          `json:"customTitle"`
 	AgentName        string          `json:"agentName"`
+	AITitle          string          `json:"aiTitle"`
 	Summary          string          `json:"summary"`
 }
 
@@ -126,8 +127,11 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 		rec.Session.Name = r.CustomTitle
 	case "agent-name":
 		rec.Session.AgentName = r.AgentName
+	case "ai-title":
+		rec.Session.AITitle = r.AITitle
 	case "summary":
-		rec.Session.Name = r.Summary
+		// Legacy auto-generated title: same rank as ai-title, never overrides custom-title.
+		rec.Session.AITitle = r.Summary
 	case "system":
 		e := base
 		e.ID, e.Kind, e.Role, e.Actor = evID, model.KindSystem, "system", model.ActorAutomation
