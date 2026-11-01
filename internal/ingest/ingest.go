@@ -254,6 +254,8 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 		}
 		*sessions = append(*sessions, s)
 	}
+	// Events of one record usually share the raw line: redact it once.
+	var rawIn, rawOut string
 	for _, e := range rec.Events {
 		r.sessions[e.SessionID] = true
 		if !r.deps.StoreRaw {
@@ -262,8 +264,12 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 		if rd := r.deps.Redactor; rd != nil {
 			e.Text = rd.Text(e.Text)
 			if e.Raw != "" {
-				// Invalid JSON is still masked as plain text; keep that result.
-				e.Raw, _ = rd.JSON(e.Raw)
+				if e.Raw != rawIn {
+					rawIn = e.Raw
+					// Invalid JSON is still masked as plain text; keep that result.
+					rawOut, _ = rd.JSON(e.Raw)
+				}
+				e.Raw = rawOut
 			}
 		}
 		*events = append(*events, e)
