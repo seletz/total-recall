@@ -1,0 +1,76 @@
+version: 2
+
+project_name: total-recall
+
+before:
+  hooks:
+    - go mod tidy
+    - ./scripts/completions.sh
+
+builds:
+  - id: total-recall
+    main: ./cmd/total-recall
+    binary: total-recall
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/seletz/total-recall/internal/version.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - completions/*
+
+checksum:
+  name_template: "checksums-{{ .Tag }}.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  prerelease: auto
+
+homebrew_casks:
+  - name: total-recall
+    binaries:
+      - total-recall
+    repository:
+      owner: seletz
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Update {{ .ProjectName }} to {{ .Tag }}"
+    directory: Casks
+    homepage: "https://github.com/seletz/total-recall"
+    description: "Archive coding-agent sessions into a local SQLite database"
+    completions:
+      bash: completions/total-recall.bash
+      zsh: completions/_total-recall
+      fish: completions/total-recall.fish
+    # Strip the macOS quarantine attribute so the unsigned binary runs without a
+    # Gatekeeper prompt. GoReleaser renders `hooks.post.install` as the
+    # deprecated `postflight do` block, so the declarative `postflight_steps`
+    # stanza is emitted via `custom_block`. `{{staged_path}}` is a Homebrew
+    # install-time token; the braces are escaped to survive Go templating.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{" }}staged_path{{ "}}" }}/total-recall"]
+        end
+      end
