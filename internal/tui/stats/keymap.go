@@ -11,6 +11,7 @@ type KeyMap struct {
 	Earlier, Later            key.Binding
 	ZoomOut, ZoomIn           key.Binding
 	Metric                    key.Binding
+	Heatmap                   key.Binding
 	// Footer groups.
 	Period, Dimension, Range key.Binding
 }
@@ -28,15 +29,17 @@ func defaultKeyMap() KeyMap {
 		ZoomOut:   key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "zoom out")),
 		ZoomIn:    key.NewBinding(key.WithKeys("+", "="), key.WithHelp("+", "zoom in")),
 		Metric:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "metric")),
+		Heatmap:   key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "heatmap")),
 		Period:    key.NewBinding(key.WithKeys("d", "w", "m"), key.WithHelp("d/w/m", "period")),
 		Dimension: key.NewBinding(key.WithKeys("p", "a", "v"), key.WithHelp("p/a/v", "by")),
 		Range:     key.NewBinding(key.WithKeys("[", "]", "-", "+", "="), key.WithHelp("[ ] -/+", "range")),
 	}
 }
 
-// ShortHelp returns the grouped bindings for the footer. The metric key is
-// left out so the line fits beside the global keys in 100 columns; the
-// chart title names the active metric.
+// ShortHelp returns the grouped bindings for the footer. The metric and
+// heatmap keys are left out so the line fits beside the global keys in 100
+// columns; the chart title names the active metric, the status line the
+// heatmap.
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Period, k.Dimension, k.Range}
 }
@@ -45,7 +48,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Day, k.Week, k.Month, k.Metric},
-		{k.Project, k.Agent, k.Directory},
+		{k.Project, k.Agent, k.Directory, k.Heatmap},
 		{k.Earlier, k.Later, k.ZoomOut, k.ZoomIn},
 	}
 }
