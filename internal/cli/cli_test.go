@@ -508,7 +508,7 @@ func TestBackup(t *testing.T) {
 	}
 	e.mustRun(t, "ingest", "--all")
 	out := e.mustRun(t, "backup")
-	want := filepath.Join(e.backups, "archive-2026-10-20.db")
+	want := filepath.Join(e.backups, "archive-2026-10-20.db.gz")
 	if !strings.Contains(out, want) {
 		t.Errorf("backup = %q", out)
 	}
@@ -517,7 +517,7 @@ func TestBackup(t *testing.T) {
 	}
 	// The date uses the configured time zone: 23:30 UTC is the next day in Berlin.
 	e.now = time.Date(2026, 10, 21, 23, 30, 0, 0, time.UTC)
-	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db") {
+	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db.gz") {
 		t.Errorf("tz date = %q", out)
 	}
 	// --if-older compares with the newest copy's modification time (real clock).
@@ -534,6 +534,35 @@ func TestBackup(t *testing.T) {
 	}
 	if r := e.run(t, "", "backup", "--if-older", "soon"); r.code == 0 {
 		t.Error("invalid duration accepted")
+	}
+}
+
+func TestRestore(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	e.mustRun(t, "backup")
+	bak := filepath.Join(e.backups, "archive-2026-10-20.db.gz")
+	events := e.count(t, "SELECT count(*) FROM events")
+
+	// Default target is the configured database, which exists: refused.
+	if r := e.run(t, "", "restore", bak); r.code == 0 || !strings.Contains(r.stderr, "exists") {
+		t.Errorf("restore over live DB = %+v", r)
+	}
+	to := filepath.Join(e.dir, "restored", "archive.db")
+	out := e.mustRun(t, "restore", bak, "--to", to)
+	if !strings.Contains(out, to) {
+		t.Errorf("restore output = %q", out)
+	}
+	n := e.mustRun(t, "--db", to, "sql", "SELECT count(*) AS n FROM events", "--format", "csv")
+	if !strings.Contains(n, fmt.Sprint(events)) {
+		t.Errorf("restored events = %q, want %d", n, events)
+	}
+	if r := e.run(t, "", "restore", bak, "--to", to); r.code == 0 {
+		t.Error("second restore to the same path succeeded without --force")
+	}
+	e.mustRun(t, "restore", bak, "--to", to, "--force")
+	if r := e.run(t, "", "restore"); r.code == 0 {
+		t.Error("restore without argument succeeded")
 	}
 }
 

@@ -44,7 +44,7 @@ Eigene Muster und Ausnahmen: `[redact]` in der [Konfiguration](konfiguration.md#
 |---|---|
 | Datenbank | `~/Library/Application Support/total-recall/archive.db` |
 | Log | `total-recall.log` neben der Datenbank |
-| Backups | `~/Documents/total-recall/archive-YYYY-MM-DD.db` |
+| Backups | `~/Documents/total-recall/archive-YYYY-MM-DD.db.gz` |
 | Config | `~/.config/total-recall/config.toml` |
 
 Auf Linux liegt die Datenbank unter `$XDG_DATA_HOME/total-recall/`.
@@ -55,7 +55,7 @@ SQLite schreibt im WAL-Modus. Neben `archive.db` liegen dann `archive.db-wal` un
 
 ## Backups in iCloud
 
-`total-recall backup` schreibt mit `VACUUM INTO` eine **konsistente** Kopie in eine einzelne Datei. Die ist sicher für iCloud. Der Default-Ordner `~/Documents/total-recall` wird über iCloud Drive synchronisiert, wenn „Schreibtisch- & Dokumente-Ordner“ aktiv ist.
+`total-recall backup` schreibt mit `VACUUM INTO` eine **konsistente** Kopie, komprimiert sie mit gzip und legt sie als einzelne Datei ab. Die ist sicher für iCloud. Zurückholen mit [`total-recall restore`](befehle.md#restore). Der Default-Ordner `~/Documents/total-recall` wird über iCloud Drive synchronisiert, wenn „Schreibtisch- & Dokumente-Ordner“ aktiv ist.
 
 Aufbewahrt werden die letzten 7 Tageskopien und die letzte Kopie jedes Monats.
 

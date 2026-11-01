@@ -64,7 +64,7 @@ sessions              274
 events                158203
 sources               280
 last ingest (claude)  2026-11-01 14:59  (2m ago)
-last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db  (5h12m ago)
+last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.gz  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
 
 recent errors:
@@ -216,7 +216,9 @@ Schema und Beispiele: [Auswertung](auswertung.md) und `total-recall llm --skill`
 
 ## `backup` { #backup }
 
-Schreibt eine konsistente Kopie der Datenbank (`VACUUM INTO`) nach `<backup.dir>/archive-YYYY-MM-DD.db`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt.
+Schreibt eine konsistente, mit gzip komprimierte Kopie der Datenbank nach `<backup.dir>/archive-YYYY-MM-DD.db.gz`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt, auch eine unkomprimierte `archive-YYYY-MM-DD.db` älterer Versionen. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt; komprimierte und alte unkomprimierte Kopien zählen dabei gleich.
+
+Die Kopie entsteht per `VACUUM INTO` zuerst als Temporärdatei neben der Datenbank (nicht im Backup-Ordner, der von iCloud synchronisiert wird), wird dann komprimiert und erst zum Schluss unter ihrem endgültigen Namen abgelegt. Im Backup-Ordner liegt also nie eine halbe Kopie unter dem richtigen Namen.
 
 ```sh
 total-recall backup
@@ -225,13 +227,34 @@ total-recall backup --if-older 24h --detach   # aus einem Hook
 ```
 
 ```text
-backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db
+backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.gz
 ```
 
 | Option | Bedeutung |
 |---|---|
 | `--if-older DAUER` | nichts tun, wenn die neueste Kopie jünger ist (Go-Dauer: `24h`, `90m`) |
 | `--detach` | im Hintergrund laufen, sofort mit 0 zurückkehren; Ausgabe und Fehler ins Log |
+
+## `restore` { #restore }
+
+Stellt eine Backup-Kopie wieder her: entpackt `archive-YYYY-MM-DD.db.gz` (oder kopiert eine alte, unkomprimierte `.db`) in eine Datenbankdatei.
+
+```sh
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.gz --to /tmp/archive.db
+total-recall --db /tmp/archive.db sessions --limit 5     # Inhalt ansehen
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.gz --force   # laufende DB ersetzen
+```
+
+```text
+restored /Users/me/Documents/total-recall/archive-2026-11-01.db.gz to /tmp/archive.db
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--to PFAD` | Ziel; Default ist die konfigurierte Datenbank |
+| `--force` | eine bestehende Zieldatei ersetzen (samt `-wal`/`-shm`) |
+
+Ein bestehendes Ziel wird ohne `--force` nie überschrieben. Die Daten landen zuerst in einer Temporärdatei neben dem Ziel und werden geprüft (Schema-Version, `PRAGMA quick_check`); erst dann wird das Ziel ersetzt. Vor `--force` auf die laufende Datenbank: sicherstellen, dass gerade kein `ingest` läuft. Was seit dem Backup dazukam, liest das nächste `ingest --all` wieder ein, solange die Transkripte noch da sind.
 
 ## `hooks print` { #hooks-print }
 

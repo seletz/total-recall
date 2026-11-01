@@ -21,7 +21,7 @@ timezone = "Europe/Berlin"
 log = ""
 
 [backup]
-# Target directory for `total-recall backup` (VACUUM INTO archive-YYYY-MM-DD.db).
+# Target directory for `total-recall backup` (gzip-compressed archive-YYYY-MM-DD.db.gz).
 # Override: --backup-dir, TOTAL_RECALL_BACKUP_DIR.
 dir = "~/Documents/total-recall"
 # Number of most recent daily copies to keep.
