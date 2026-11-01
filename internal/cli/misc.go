@@ -21,10 +21,12 @@ func (e *env) backupCmd() *cobra.Command {
 	var detach bool
 	c := &cobra.Command{
 		Use:   "backup",
-		Short: "Write a consistent copy of the archive (VACUUM INTO) and prune old copies",
-		Long: `Write dir/archive-YYYY-MM-DD.db (date in the configured time zone) with
-VACUUM INTO, then keep the newest backup.keep_daily copies plus the newest copy
-of each month (backup.keep_monthly months, 0 = all).`,
+		Short: "Write a compressed, consistent copy of the archive and prune old copies",
+		Long: `Write dir/archive-YYYY-MM-DD.db.gz (date in the configured time zone): a
+VACUUM INTO copy, gzip-compressed. Then keep the newest backup.keep_daily copies
+plus the newest copy of each month (backup.keep_monthly months, 0 = all).
+Uncompressed copies (archive-YYYY-MM-DD.db) from older versions count alike.
+Restore a copy with "total-recall restore".`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := e.loadConfig()
@@ -82,6 +84,40 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 	}
 	_, _ = fmt.Fprintf(out, "backup written: %s\n", p)
 	return nil
+}
+
+// ---- restore ----
+
+func (e *env) restoreCmd() *cobra.Command {
+	var to string
+	var force bool
+	c := &cobra.Command{
+		Use:   "restore BACKUP_FILE",
+		Short: "Restore a backup copy (.db.gz or .db) into a database file",
+		Long: `Decompress BACKUP_FILE into a database file: --to PATH, default the
+configured database. An existing target is never replaced unless --force is
+given; then its -wal/-shm files are removed too, so stop running ingests first.
+The restored data is checked before the target is touched.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := e.loadConfig()
+			if err != nil {
+				return err
+			}
+			dst := to
+			if dst == "" {
+				dst = cfg.DB
+			}
+			if err := store.Restore(cmd.Context(), args[0], dst, force); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "restored %s to %s\n", args[0], dst)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&to, "to", "", "target database path (default: the configured database)")
+	c.Flags().BoolVar(&force, "force", false, "replace an existing target database")
+	return c
 }
 
 // ---- hooks ----

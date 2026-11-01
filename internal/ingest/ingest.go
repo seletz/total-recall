@@ -37,6 +37,9 @@ type Deps struct {
 	Redactor *redact.Redactor
 	// StoreRaw keeps Event.Raw; false drops it.
 	StoreRaw bool
+	// RawMaxBytes drops Event.Raw of lines longer than this many bytes and
+	// sets Event.RawTruncated instead; 0 = no limit.
+	RawMaxBytes int
 	// ResolveGit enables git info resolution for session working directories.
 	ResolveGit bool
 	// GitResolve resolves a cwd; default gitinfo.Resolve.
@@ -258,8 +261,11 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 	var rawIn, rawOut string
 	for _, e := range rec.Events {
 		r.sessions[e.SessionID] = true
-		if !r.deps.StoreRaw {
+		switch {
+		case !r.deps.StoreRaw:
 			e.Raw = ""
+		case r.deps.RawMaxBytes > 0 && len(e.Raw) > r.deps.RawMaxBytes:
+			e.Raw, e.RawTruncated = "", true
 		}
 		if rd := r.deps.Redactor; rd != nil {
 			e.Text = rd.Text(e.Text)
@@ -305,4 +311,64 @@ func (r *runner) dir(ctx context.Context, cwd string) (store.DirInfo, error) {
 	}
 	r.dirs[cwd] = d
 	return d, nil
+}
+
+// RegitSummary describes a Regit run.
+type RegitSummary struct {
+	Dirs     int // distinct session working directories looked at
+	Sessions int // sessions whose git info changed
+	Duration time.Duration
+}
+
+// Regit re-resolves git info for the working directory of every session,
+// bypassing the dirs cache, and updates the cache and the sessions. A
+// directory that no longer resolves (deleted worktree) or fails transiently
+// keeps its cached result. Use it when git info in the archive is stale,
+// e.g. after a remote was renamed or a resolution rule changed.
+func Regit(ctx context.Context, d Deps) (RegitSummary, error) {
+	r := newRun(d)
+	start := time.Now()
+	var sum RegitSummary
+	cwds, err := d.Store.SessionCwds(ctx)
+	if err != nil {
+		return sum, err
+	}
+	for _, cwd := range cwds {
+		if err := ctx.Err(); err != nil {
+			return sum, err
+		}
+		sum.Dirs++
+		cached, ok, err := d.Store.Dir(ctx, cwd)
+		if err != nil {
+			return sum, err
+		}
+		info, gerr := r.deps.GitResolve(ctx, cwd)
+		di := cached
+		switch {
+		case gerr == nil:
+			di = store.DirInfo{Cwd: cwd, GitRoot: info.Root, GitRemoteURL: info.RemoteURL}
+			if err := d.Store.PutDir(ctx, di); err != nil {
+				return sum, err
+			}
+		case errors.Is(gerr, gitinfo.ErrNotRepo):
+			if !ok || cached.GitRoot == "" {
+				di = store.DirInfo{Cwd: cwd}
+				if err := d.Store.PutDir(ctx, di); err != nil {
+					return sum, err
+				}
+			}
+		default:
+			r.deps.Logf("regit: git info for %s: %v", cwd, gerr)
+		}
+		if di.GitRoot == "" {
+			continue
+		}
+		n, err := d.Store.SetSessionGit(ctx, cwd, di.GitRoot, di.GitRemoteURL)
+		if err != nil {
+			return sum, err
+		}
+		sum.Sessions += int(n)
+	}
+	sum.Duration = time.Since(start)
+	return sum, nil
 }

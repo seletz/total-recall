@@ -374,14 +374,14 @@ func TestBackupRetention(t *testing.T) {
 		}
 		last = p
 	}
-	if filepath.Base(last) != "archive-2026-11-01.db" {
+	if filepath.Base(last) != "archive-2026-11-01.db.gz" {
 		t.Errorf("last backup = %s", last)
 	}
 	names := listBackups(t, dir)
 	want := []string{
-		"archive-2026-08-31.db", "archive-2026-09-30.db",
-		"archive-2026-10-26.db", "archive-2026-10-27.db", "archive-2026-10-28.db", "archive-2026-10-29.db",
-		"archive-2026-10-30.db", "archive-2026-10-31.db", "archive-2026-11-01.db",
+		"archive-2026-08-31.db.gz", "archive-2026-09-30.db.gz",
+		"archive-2026-10-26.db.gz", "archive-2026-10-27.db.gz", "archive-2026-10-28.db.gz", "archive-2026-10-29.db.gz",
+		"archive-2026-10-30.db.gz", "archive-2026-10-31.db.gz", "archive-2026-11-01.db.gz",
 	}
 	if strings.Join(names, " ") != strings.Join(want, " ") {
 		t.Errorf("kept:\n got %v\nwant %v", names, want)
@@ -394,12 +394,16 @@ func TestBackupRetention(t *testing.T) {
 	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:30:00Z"), 2, 2); err != nil {
 		t.Fatal(err)
 	}
-	want = []string{"archive-2026-10-31.db", "archive-2026-11-01.db"}
+	want = []string{"archive-2026-10-31.db.gz", "archive-2026-11-01.db.gz"}
 	if got := listBackups(t, dir); strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("kept with keep_monthly=2:\n got %v\nwant %v", got, want)
 	}
-	// A backup is a valid, complete database.
-	b, err := OpenReadOnly(filepath.Join(dir, "archive-2026-11-01.db"))
+	// A backup restores to a valid, complete database.
+	restored := filepath.Join(t.TempDir(), "restored.db")
+	if err := Restore(ctx, filepath.Join(dir, "archive-2026-11-01.db.gz"), restored, false); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	b, err := OpenReadOnly(restored)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,11 +413,110 @@ func TestBackupRetention(t *testing.T) {
 		t.Errorf("search in backup: %v %v", hits, err)
 	}
 	p, mt, err := LastBackup(dir)
-	if err != nil || filepath.Base(p) != "archive-2026-11-01.db" || mt.IsZero() {
+	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.gz" || mt.IsZero() {
 		t.Errorf("LastBackup = %q %v %v", p, mt, err)
 	}
 	if p, _, err := LastBackup(filepath.Join(t.TempDir(), "none")); err != nil || p != "" {
 		t.Errorf("LastBackup on missing dir = %q %v", p, err)
+	}
+}
+
+func TestBackupLegacyUncompressed(t *testing.T) {
+	s, _ := openTestStore(t)
+	dir := t.TempDir()
+	for _, n := range []string{"archive-2026-09-30.db", "archive-2026-10-30.db", "archive-2026-10-31.db", "archive-2026-11-01.db", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, _, err := LastBackup(dir)
+	if err != nil || filepath.Base(p) != "archive-2026-11-01.db" {
+		t.Errorf("LastBackup with legacy files = %q %v", p, err)
+	}
+	// Today's compressed backup replaces today's legacy copy; retention
+	// counts legacy and compressed copies alike.
+	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 2, 0); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"archive-2026-09-30.db", "archive-2026-10-31.db", "archive-2026-11-01.db.gz", "notes.txt"}
+	if got := listBackups(t, dir); strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("kept:\n got %v\nwant %v", got, want)
+	}
+	for _, n := range []string{".tmp"} {
+		if m, _ := filepath.Glob(filepath.Join(dir, "*"+n)); len(m) > 0 {
+			t.Errorf("temp files left: %v", m)
+		}
+	}
+}
+
+func TestRestore(t *testing.T) {
+	s, dbPath := openTestStore(t)
+	sess, evs := sampleBatch()
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	gz, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 7, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A legacy uncompressed copy restores too.
+	legacy := filepath.Join(dir, "archive-2026-10-01.db")
+	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", legacy); err != nil {
+		t.Fatal(err)
+	}
+	notDB := filepath.Join(dir, "garbage.db.gz")
+	if err := os.WriteFile(notDB, []byte("this is not a gzip file at all"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	existing := filepath.Join(t.TempDir(), "existing.db")
+	if err := os.WriteFile(existing, []byte("keep me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		src     string
+		dst     string
+		force   bool
+		wantErr string
+	}{
+		{"gzip to new path", gz, filepath.Join(t.TempDir(), "a", "new.db"), false, ""},
+		{"legacy to new path", legacy, filepath.Join(t.TempDir(), "new.db"), false, ""},
+		{"existing target refused", gz, existing, false, "exists"},
+		{"live database refused", gz, dbPath, false, "exists"},
+		{"not a backup", notDB, filepath.Join(t.TempDir(), "x.db"), false, "gzip"},
+		{"missing source", filepath.Join(dir, "nope.db.gz"), filepath.Join(t.TempDir(), "y.db"), false, "no such file"},
+		{"force replaces", gz, existing, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before, _ := os.ReadFile(tt.dst)
+			err := Restore(ctx, tt.src, tt.dst, tt.force)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Restore = %v, want error containing %q", err, tt.wantErr)
+				}
+				after, _ := os.ReadFile(tt.dst)
+				if string(before) != string(after) {
+					t.Errorf("target changed on error")
+				}
+				if m, _ := filepath.Glob(filepath.Join(filepath.Dir(tt.dst), "*.restore-*")); len(m) > 0 {
+					t.Errorf("temp files left: %v", m)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Restore: %v", err)
+			}
+			r, err := OpenReadOnly(tt.dst)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = r.Close() }()
+			if n := countRows(t, r, "SELECT count(*) FROM events"); n != len(evs) {
+				t.Errorf("events = %d", n)
+			}
+		})
 	}
 }
 
@@ -530,5 +633,43 @@ func TestWriteBatchNCountsInserted(t *testing.T) {
 		if err != nil || n != want {
 			t.Errorf("run %d: WriteBatchN = %d, %v; want %d", i, n, err, want)
 		}
+	}
+}
+
+func TestRawTruncatedRoundTrip(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess, evs := sampleBatch()
+	evs[2].Raw, evs[2].RawTruncated = "", true
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw_truncated = 1 AND raw IS NULL AND id = 'claude:e3'"); n != 1 {
+		t.Errorf("truncated rows = %d, want 1", n)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw_truncated = 0"); n != len(evs)-1 {
+		t.Errorf("untruncated rows = %d", n)
+	}
+}
+
+func TestSessionCwdsAndSetGit(t *testing.T) {
+	s, _ := openTestStore(t)
+	if err := s.WriteBatch(ctx, SourceState{}, []model.Session{
+		{ID: "claude:a", Harness: "claude", NativeID: "a", Cwd: "/w/a"},
+		{ID: "claude:b", Harness: "claude", NativeID: "b", Cwd: "/w/a", GitRoot: "/w/a", GitRemoteURL: "https://x/a"},
+		{ID: "claude:c", Harness: "claude", NativeID: "c", Cwd: "/w/c"},
+		{ID: "claude:d", Harness: "claude", NativeID: "d"},
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	cwds, err := s.SessionCwds(ctx)
+	if err != nil || strings.Join(cwds, ",") != "/w/a,/w/c" {
+		t.Errorf("SessionCwds = %v %v", cwds, err)
+	}
+	n, err := s.SetSessionGit(ctx, "/w/a", "/w/a", "https://x/a")
+	if err != nil || n != 1 {
+		t.Errorf("SetSessionGit = %d %v, want 1 (one session already up to date)", n, err)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM sessions WHERE git_remote_url = 'https://x/a'"); n != 2 {
+		t.Errorf("updated = %d", n)
 	}
 }

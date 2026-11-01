@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/harness/claude"
 	"github.com/seletz/total-recall/internal/ingest"
 	"github.com/seletz/total-recall/internal/redact"
@@ -29,7 +30,7 @@ type HookPayload struct {
 }
 
 func (e *env) ingestCmd() *cobra.Command {
-	var all, hook, detach bool
+	var all, hook, detach, regit bool
 	var payloadFile string
 	c := &cobra.Command{
 		Use:   "ingest [PATH...]",
@@ -41,14 +42,17 @@ func (e *env) ingestCmd() *cobra.Command {
   ingest --hook            read a hook JSON payload from stdin and ingest its
                            transcript; on SessionStart also --all. Exit code is
                            always 0, errors go to the log file.
+  ingest --regit           re-resolve git root and remote URL for the working
+                           directory of every session (bypassing the cache)
+                           and update the sessions; combinable with --all
   --detach                 continue in a detached background process and
                            return immediately`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if hook {
 				return e.runHook(cmd.Context(), detach, payloadFile)
 			}
-			if !all && len(args) == 0 {
-				return fmt.Errorf("ingest: give PATH arguments, --all or --hook")
+			if !all && !regit && len(args) == 0 {
+				return fmt.Errorf("ingest: give PATH arguments, --all, --regit or --hook")
 			}
 			cfg, err := e.loadConfig()
 			if err != nil {
@@ -57,12 +61,13 @@ func (e *env) ingestCmd() *cobra.Command {
 			if detach {
 				return e.app.StartDetached(childArgs(e.app.Args), cfg.LogPath())
 			}
-			return e.runIngest(cmd.Context(), cfg, args, all)
+			return e.runIngest(cmd.Context(), cfg, args, all, regit)
 		},
 	}
 	f := c.Flags()
 	f.BoolVar(&all, "all", false, "ingest all sources of all enabled harnesses")
 	f.BoolVar(&hook, "hook", false, "read hook JSON from stdin (always exits 0)")
+	f.BoolVar(&regit, "regit", false, "re-resolve git info of all sessions (for stale git info)")
 	f.BoolVar(&detach, "detach", false, "run in a detached background process and return immediately")
 	f.StringVar(&payloadFile, "hook-payload", "", "internal: read the hook payload from this file and delete it")
 	_ = f.MarkHidden("hook-payload")
@@ -72,11 +77,12 @@ func (e *env) ingestCmd() *cobra.Command {
 // deps builds the ingest dependencies from the configuration.
 func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error) {
 	d := ingest.Deps{
-		Store:      st,
-		StoreRaw:   cfg.Ingest.StoreRaw,
-		ResolveGit: cfg.Git.Resolve,
-		LockDir:    filepath.Join(filepath.Dir(cfg.DB), "locks"),
-		Logf:       func(f string, a ...any) { log.Infof(f, a...) },
+		Store:       st,
+		StoreRaw:    cfg.Ingest.StoreRaw,
+		RawMaxBytes: cfg.Ingest.RawMaxBytes,
+		ResolveGit:  cfg.Git.Resolve,
+		LockDir:     filepath.Join(filepath.Dir(cfg.DB), "locks"),
+		Logf:        func(f string, a ...any) { log.Infof(f, a...) },
 	}
 	if cfg.Redact.Enabled {
 		r, err := redact.New(redact.Options{ExtraPatterns: cfg.Redact.ExtraPatterns, Allow: cfg.Redact.Allow})
@@ -85,15 +91,22 @@ func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error)
 		}
 		d.Redactor = r
 	}
+	d.Adapters = adapters(cfg)
+	return d, nil
+}
+
+// adapters returns the enabled harness adapters configured from cfg.
+func adapters(cfg *config.Config) []harness.Adapter {
+	var out []harness.Adapter
 	if c := cfg.Harness.Claude; c.Enabled {
-		d.Adapters = append(d.Adapters, claude.New(c.ProjectsDir,
+		out = append(out, claude.New(c.ProjectsDir,
 			claude.WithToolResultMaxBytes(cfg.Ingest.ToolResultMaxBytes),
 			claude.WithPeerPrefixes(c.Actors.PeerPrefixes...),
 			claude.WithAutomationPrefixes(c.Actors.AutomationPrefixes...),
 			claude.WithSkipRecordTypes(c.SkipRecordTypes...),
 		))
 	}
-	return d, nil
+	return out
 }
 
 // openWrite opens the archive read-write (migrating it if needed).
@@ -102,7 +115,10 @@ func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
 		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
 }
 
-func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string, all bool) error {
+func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string, all, regit bool) error {
+	if regit && !cfg.Git.Resolve {
+		return fmt.Errorf("ingest --regit: git.resolve is disabled in the configuration")
+	}
 	log := newLogger(cfg.LogPath(), e.app.Now)
 	st, err := openWrite(cfg, log)
 	if err != nil {
@@ -129,8 +145,17 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 		}
 	}
 	out := e.out(cfg)
-	_, _ = fmt.Fprintf(out, "scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d sessions touched (%s)\n",
-		total.Scanned, total.Changed, total.Unchanged, total.Locked, total.Events, total.Sessions, total.Duration.Round(time.Millisecond))
+	if len(paths) > 0 || all {
+		_, _ = fmt.Fprintf(out, "scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d sessions touched (%s)\n",
+			total.Scanned, total.Changed, total.Unchanged, total.Locked, total.Events, total.Sessions, total.Duration.Round(time.Millisecond))
+	}
+	if regit {
+		rs, err := ingest.Regit(ctx, d)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(out, "regit: %d directories, %d sessions updated (%s)\n", rs.Dirs, rs.Sessions, rs.Duration.Round(time.Millisecond))
+	}
 	if len(total.Errors) > 0 {
 		w := e.app.Stderr
 		if e.g.detachedChild {

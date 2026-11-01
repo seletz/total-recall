@@ -33,6 +33,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 |---|---|
 | `--all` | alle Quellen aller aktiven Harnesses |
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
+| `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -43,6 +44,7 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 
 - `changed`: Dateien mit neuen Zeilen. `unchanged`: nichts Neues. `locked`: gerade von einem anderen Lauf gelesen, übersprungen.
 - Fehler je Datei stehen auf stderr; die übrigen Dateien werden trotzdem gelesen. Gab es Fehler, ist der Exit-Code 1.
+- Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
 
 Mehr dazu: [Hooks einrichten](hooks.md).
 
@@ -64,7 +66,7 @@ sessions              274
 events                158203
 sources               280
 last ingest (claude)  2026-11-01 14:59  (2m ago)
-last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db  (5h12m ago)
+last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.gz  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
 
 recent errors:
@@ -75,7 +77,7 @@ recent errors:
 
 ## `sessions` { #sessions }
 
-Listet Sessions, neueste zuerst. Subagent-Sessions sind ausgeblendet, außer mit `--subagents`.
+Listet Sessions, neueste zuerst. Subagent-Sessions sind ausgeblendet, außer mit `--subagents`. Ebenso Sessions ohne Events und ohne Startzeit (etwa wenn von einer Session nur ein Titel-Record gesehen wurde), außer mit `--all-sessions`.
 
 ```sh
 total-recall sessions --since 2026-10-01 --until 2026-10-31
@@ -98,6 +100,7 @@ START             DUR    ID        NAME                        REPO             
 | `--name TEXT` | Teilstring des Namens (eigener Titel, KI-Titel oder Agent-Name) |
 | `--limit N` | höchstens N Zeilen (0 = alle, Default) |
 | `--subagents` | Subagent-Sessions mit anzeigen |
+| `--all-sessions` | auch leere Sessions (keine Events, keine Startzeit) anzeigen |
 
 Spalten: `ID` ist ein Präfix der nativen Session-ID, das `show` versteht. `NAME` ist der eigene Titel (`/rename`), sonst der von Claude Code erzeugte Titel, sonst der Agent-Name. `REPO` ist `owner/repo` der Remote-URL, sonst der Ordnername. `HUMAN`/`AGENT` zählen Events nach Actor. `DUR` ist Ende minus Start, inklusive Pausen.
 
@@ -216,7 +219,9 @@ Schema und Beispiele: [Auswertung](auswertung.md) und `total-recall llm --skill`
 
 ## `backup` { #backup }
 
-Schreibt eine konsistente Kopie der Datenbank (`VACUUM INTO`) nach `<backup.dir>/archive-YYYY-MM-DD.db`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt.
+Schreibt eine konsistente, mit gzip komprimierte Kopie der Datenbank nach `<backup.dir>/archive-YYYY-MM-DD.db.gz`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt, auch eine unkomprimierte `archive-YYYY-MM-DD.db` älterer Versionen. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt; komprimierte und alte unkomprimierte Kopien zählen dabei gleich.
+
+Die Kopie entsteht per `VACUUM INTO` zuerst als Temporärdatei neben der Datenbank (nicht im Backup-Ordner, der von iCloud synchronisiert wird), wird dann komprimiert und erst zum Schluss unter ihrem endgültigen Namen abgelegt. Im Backup-Ordner liegt also nie eine halbe Kopie unter dem richtigen Namen.
 
 ```sh
 total-recall backup
@@ -225,13 +230,72 @@ total-recall backup --if-older 24h --detach   # aus einem Hook
 ```
 
 ```text
-backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db
+backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.gz
 ```
 
 | Option | Bedeutung |
 |---|---|
 | `--if-older DAUER` | nichts tun, wenn die neueste Kopie jünger ist (Go-Dauer: `24h`, `90m`) |
 | `--detach` | im Hintergrund laufen, sofort mit 0 zurückkehren; Ausgabe und Fehler ins Log |
+
+## `restore` { #restore }
+
+Stellt eine Backup-Kopie wieder her: entpackt `archive-YYYY-MM-DD.db.gz` (oder kopiert eine alte, unkomprimierte `.db`) in eine Datenbankdatei.
+
+```sh
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.gz --to /tmp/archive.db
+total-recall --db /tmp/archive.db sessions --limit 5     # Inhalt ansehen
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.gz --force   # laufende DB ersetzen
+```
+
+```text
+restored /Users/me/Documents/total-recall/archive-2026-11-01.db.gz to /tmp/archive.db
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--to PFAD` | Ziel; Default ist die konfigurierte Datenbank |
+| `--force` | eine bestehende Zieldatei ersetzen (samt `-wal`/`-shm`) |
+
+Ein bestehendes Ziel wird ohne `--force` nie überschrieben. Die Daten landen zuerst in einer Temporärdatei neben dem Ziel und werden geprüft (Schema-Version, `PRAGMA quick_check`); erst dann wird das Ziel ersetzt. Vor `--force` auf die laufende Datenbank: sicherstellen, dass gerade kein `ingest` läuft. Was seit dem Backup dazukam, liest das nächste `ingest --all` wieder ein, solange die Transkripte noch da sind.
+
+## `doctor` { #doctor }
+
+Prüft die Transkripte einer Harness auf Format-Drift: Hat Claude Code etwas Neues eingeführt, das `total-recall` noch nicht kennt? Gelesen wird nur, die Datenbank wird nicht geöffnet.
+
+```sh
+total-recall doctor                  # Claude Code
+total-recall doctor --json
+```
+
+```text
+harness claude: 291 sources, 650112 lines
+versions (newest first): 2.1.316 (8492), 2.1.314 (1826), 2.1.312 (60947), …
+
+unknown record types:
+  hologram-state                           12  first: /Users/me/.claude/projects/-Users-me-repo/9a1b….jsonl:41
+
+findings: the adapter may need an update (see docs: Hooks, "Nach einem Claude-Code-Update")
+```
+
+Gemeldet werden:
+
+| Befund | Bedeutung |
+|---|---|
+| unbekannte Record-Typen | weder eingelesen noch als bewusst übersprungen bekannt (`skip_record_types` aus der Config zählt als bekannt) |
+| unbekannte Content-Block-Typen | in `user`-/`assistant`-Nachrichten oder im Inhalt eines `tool_result`, z.B. `assistant/hologram` |
+| fehlende Felder | `timestamp`, `sessionId`, `uuid`, `cwd` bei `user`/`assistant`/`system`; `sessionId` bei Titel-Records |
+| kaputte Zeilen | vollständige Zeilen, die kein JSON-Objekt sind (eine halb geschriebene letzte Zeile zählt nicht) |
+| Versionen | die Claude-Code-Versionen in den Transkripten, neueste zuerst, mit Anzahl Zeilen |
+
+Je Befund steht die erste Fundstelle (`Datei:Zeile`) dabei. Inhalte werden nicht ausgegeben.
+
+| Option | Bedeutung |
+|---|---|
+| `--harness NAME` | zu prüfende Harness, Default `claude` |
+| `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`) |
+
+Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](hooks.md#nach-einem-claude-code-update).
 
 ## `hooks print` { #hooks-print }
 

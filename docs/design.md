@@ -30,10 +30,10 @@
 |---|---|---|
 | Datenbank | `~/Library/Application Support/total-recall/archive.db` (macOS), `$XDG_DATA_HOME/total-recall/archive.db` (Linux) | `--db`, `TOTAL_RECALL_DB` |
 | Backups | `~/Documents/total-recall/` (iCloud) | `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR` |
-| Logs (Hook-Fehler) | neben der DB, `total-recall.log` | |
+| Logs (Hook-Fehler) | neben der DB, `total-recall.log`; über 5 MiB wird es nach `total-recall.log.1` rotiert (eine alte Generation) | `log` |
 | Claude-Code-Transkripte | `~/.claude/projects/**/*.jsonl` (inkl. `<session>/subagents/**`) | `CLAUDE_CONFIG_DIR` |
 
-Die laufende DB liegt bewusst **nicht** in iCloud: SQLite-WAL-Dateien und iCloud-Sync vertragen sich nicht. `backup` schreibt per `VACUUM INTO` eine konsistente Kopie nach `~/Documents/total-recall/archive-YYYY-MM-DD.db`. Aufbewahrung: die letzten 7 Tageskopien plus die jeweils letzte Kopie jedes Monats.
+Die laufende DB liegt bewusst **nicht** in iCloud: SQLite-WAL-Dateien und iCloud-Sync vertragen sich nicht. `backup` schreibt per `VACUUM INTO` eine konsistente Kopie in eine Temporärdatei neben der DB, komprimiert sie mit gzip nach `~/Documents/total-recall/archive-YYYY-MM-DD.db.gz` (erst `.tmp`, dann atomares Umbenennen). Aufbewahrung: die letzten 7 Tageskopien plus die jeweils letzte Kopie jedes Monats; unkomprimierte `archive-YYYY-MM-DD.db` älterer Versionen zählen mit, eine vom selben Tag wird durch die `.gz` ersetzt. `restore BACKUP_FILE [--to PATH] [--force]` entpackt eine Kopie in eine Datenbankdatei (Default: die konfigurierte DB), prüft sie (Schema-Version, `PRAGMA quick_check`) und überschreibt ein bestehendes Ziel nur mit `--force`.
 
 ## Konfiguration
 
@@ -59,6 +59,7 @@ allow = []                       # Regexe, die nie maskiert werden
 
 [ingest]
 tool_result_max_bytes = 4096
+raw_max_bytes = 16384            # größere Zeilen: raw = NULL, raw_truncated = 1; 0 = unbegrenzt
 store_raw = true
 
 [harness.claude]
@@ -152,7 +153,8 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 | `model` | TEXT NULL | |
 | `tokens_in` / `tokens_out` | INTEGER NULL | |
 | `source_path` / `source_offset` | TEXT / INTEGER | Rückverweis |
-| `raw` | TEXT | Original-JSON der Zeile, redigiert (siehe unten) |
+| `raw` | TEXT NULL | Original-JSON der Zeile, redigiert (siehe unten); NULL, wenn die Zeile größer als `ingest.raw_max_bytes` ist |
+| `raw_truncated` | INTEGER | 1, wenn `raw` wegen der Größe weggelassen wurde (Migration 3); `text` bleibt wie sonst |
 
 `events_fts`: FTS5 über `text` (external content auf `events`, Trigger für insert).
 
@@ -177,7 +179,37 @@ Ein Assistant-Eintrag mit mehreren Content-Blöcken ergibt mehrere Events (`<uui
 
 ### Welche Claude-Records
 
-Eingelesen: `user`, `assistant`, `system`, `custom-title`, `ai-title`, `agent-name`, `summary`. Alle anderen (`attachment`, `api-request*`, `bridge-session`, `file-history-*`, `queue-operation`, `mode`, …) werden übersprungen, der Offset läuft trotzdem weiter. `custom-title`/`ai-title`/`agent-name`/`summary` erzeugen kein Event, sondern setzen Felder der Session (`summary` und `ai-title` → `ai_title`, damit ein eigener Titel nie überschrieben wird).
+Eingelesen: `user`, `assistant`, `system`, `custom-title`, `ai-title`, `agent-name`, `summary`. Alle anderen (`attachment`, `api-request*`, `bridge-session`, `file-history-*`, `queue-operation`, `mode`, …) werden übersprungen, der Offset läuft trotzdem weiter. Die Liste der bekannten, bewusst übersprungenen Typen steht im Adapter (`claude.SkippedRecordTypes`); `doctor` meldet Typen, die in keiner der beiden Listen stehen. `custom-title`/`ai-title`/`agent-name`/`summary` erzeugen kein Event, sondern setzen Felder der Session (`summary` und `ai-title` → `ai_title`, damit ein eigener Titel nie überschrieben wird).
+
+## Neue Harness anbinden
+
+Eine Harness bekommt ein Paket `internal/harness/<name>` mit einem Typ, der `harness.Adapter` erfüllt (`Name`, `Sources`, `Parse`), und wird in `internal/cli/ingest.go` (`deps`) samt eigenem Config-Abschnitt `[harness.<name>]` eingehängt. Alles andere (Redaction, Git-Info, Store, Locking, Offsets) ist gemeinsam.
+
+Den Vertrag prüft die Konformitäts-Suite `internal/harness/harnesstest`. Jeder Adapter ruft sie mit synthetischen Fixtures auf:
+
+```go
+func TestConformance(t *testing.T) {
+	harnesstest.Run(t, func(dir string) harness.Adapter { return New(dir) }, "testdata/projects")
+}
+```
+
+Die Suite kopiert die Fixtures je Prüfung in ein Temp-Verzeichnis und prüft:
+
+| Prüfung | Vertrag |
+|---|---|
+| Quellen | `Sources` ist deterministisch (gleiche Liste bei jedem Aufruf und jeder neuen Instanz), absolute Pfade, existierende Dateien, keine Duplikate |
+| Felder | jedes Event hat `ID` und `SessionID` mit Präfix `<Name()>:`, einen Zeitstempel, `Kind`, `Role` und `Actor` aus den Mengen in `internal/model`; Session- und Parent-IDs der Records tragen dasselbe Präfix |
+| IDs | Event-IDs sind über alle Quellen eindeutig und stabil über Läufe und Instanzen |
+| Offsets | `Parse` ab 0 liefert die Dateigröße; erneutes `Parse` ab diesem Offset liefert nichts und denselben Offset |
+| Halbe Zeile | eine unvollständige letzte Zeile wird nicht verbraucht (Offset = Anfang der Zeile) |
+| Zwei Hälften | Datei an einer Zeilengrenze oder mitten in einer Zeile kürzen, parsen, wieder vervollständigen, ab dem gelieferten Offset weiterparsen: zusammen dieselben Events wie in einem Durchgang |
+| Abbruch | mit abgebrochenem Kontext gibt `Parse` `context.Canceled` zurück und emittiert nichts; wird mitten im Lauf abgebrochen oder liefert `emit` einen Fehler, kommt der Fehler zurück, und ab dem gelieferten Offset geht nichts verloren und nichts doppelt |
+
+Token-Zahlen werden beim Hälften-Vergleich nicht verglichen: Claude Code wiederholt die Usage einer API-Antwort in jeder Block-Zeile, der Adapter zählt sie je `Parse`-Aufruf nur einmal. Wird zwischen zwei Blöcken derselben Antwort geteilt, kann die Usage doppelt erscheinen.
+
+Die Fixtures brauchen mindestens eine Quelle mit zwei Records, die Events erzeugen, und jede Quelle endet mit einem Zeilenumbruch. Die Suite testet sich selbst an einem Spielzeug-Adapter mit absichtlich eingebauten Fehlern.
+
+Für die Format-Drift-Prüfung (`total-recall doctor`) implementiert ein Adapter zusätzlich `harness.FormatChecker`; die bekannten Record- und Block-Typen exportiert er, damit Parser und Prüfung dieselben Listen benutzen.
 
 ## Redaction
 
@@ -189,7 +221,7 @@ Vor dem Schreiben werden `text` und `raw` maskiert (`«redacted:<art>»`): Priva
 
 ## Ingest, Hooks, Nebenläufigkeit
 
-- `ingest [PATH…]`: einzelne Dateien. `ingest --all`: alle Quellen aller Adapter (= Nachlesen). `ingest --hook`: liest Hook-JSON von stdin (`transcript_path`, `session_id`, `cwd`, `hook_event_name`), liest diese Datei ein, und bei `SessionStart` zusätzlich `--all`.
+- `ingest [PATH…]`: einzelne Dateien. `ingest --all`: alle Quellen aller Adapter (= Nachlesen). `ingest --regit`: Git-Info für das `cwd` jeder Session neu auflösen (am `dirs`-Cache vorbei), `dirs` und `sessions.git_root`/`git_remote_url` aktualisieren; löst sich ein `cwd` nicht mehr auf, bleibt der gecachte Treffer. `ingest --hook`: liest Hook-JSON von stdin (`transcript_path`, `session_id`, `cwd`, `hook_event_name`), liest diese Datei ein, und bei `SessionStart` zusätzlich `--all`.
 - `--detach`: startet sich selbst als losgelösten Hintergrundprozess (neue Session-ID, stdin-Daten als Argument/Tempdatei) und kehrt sofort mit Exit 0 zurück. Hooks dürfen die Harness nie bremsen oder blockieren; Fehler gehen ins Log, Exit-Code im Hook-Modus ist immer 0.
 - SQLite im WAL-Modus, `busy_timeout` 10 s. Je Quelldatei ein Lock (Lockfile in `locks/` neben der DB, `flock` ohne Warten: eine gesperrte Datei wird übersprungen), damit zwei parallele Läufe dieselbe Datei nicht doppelt lesen. Events sind ohnehin idempotent (`INSERT … ON CONFLICT DO NOTHING`).
 - Geschrieben wird in Batches (500 Events) je Transaktion, zusammen mit dem Offset der ersten noch nicht geschriebenen Zeile. Ein Absturz verliert und verdoppelt daher nichts.
@@ -221,13 +253,15 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 |---|---|
 | `ingest` | siehe oben |
 | `status` | DB-Pfad, Größe, Anzahl Sessions/Events, letzter Ingest je Harness, letzte Fehler aus dem Log, letztes Backup |
-| `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
+| `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions), `--all-sessions` (sonst ohne Sessions ohne Events und Startzeit); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools) |
 | `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |
 | `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Basis für `monthly_stats.py` im Vault. |
 | `sql QUERY` | Read-only-SQL (DB mit `mode=ro` und `PRAGMA query_only`), Ausgabe Tabelle/JSON/CSV |
-| `backup` | `VACUUM INTO` + Aufbewahrung; `--if-older DURATION` |
+| `backup` | `VACUUM INTO` + gzip + Aufbewahrung; `--if-older DURATION` |
+| `restore BACKUP_FILE` | Backup (`.db.gz` oder alte `.db`) in eine DB-Datei entpacken; `--to PATH`, `--force` |
 | `hooks print --harness claude` | Hook-Konfiguration als JSON |
+| `doctor [--harness claude] [--json]` | Format-Drift prüfen, nur lesend, ohne DB: unbekannte Record-Typen (weder eingelesen noch bekannt übersprungen), unbekannte Content-Block-Typen, fehlende erwartete Felder (`timestamp`, `sessionId`, `uuid`, `cwd` je Typ), kaputte Zeilen, gesehene Harness-Versionen (neueste zuerst). Exit 0 = sauber, 2 = Befunde. Die bekannten Listen exportiert der Adapter; Parser und Prüfung teilen sie. |
 | `llm --skill` | gibt den eingebetteten `SKILL.md` aus (Schema, Befehle, Beispiel-SQL), damit Agenten die Daten auswerten können |
 | `config show` / `config init` | wirksame Konfiguration / Vorlage schreiben |
 | `version` | |

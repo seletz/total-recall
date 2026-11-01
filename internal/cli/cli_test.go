@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
 	tf "github.com/seletz/total-recall/internal/testfixture"
@@ -508,7 +509,7 @@ func TestBackup(t *testing.T) {
 	}
 	e.mustRun(t, "ingest", "--all")
 	out := e.mustRun(t, "backup")
-	want := filepath.Join(e.backups, "archive-2026-10-20.db")
+	want := filepath.Join(e.backups, "archive-2026-10-20.db.gz")
 	if !strings.Contains(out, want) {
 		t.Errorf("backup = %q", out)
 	}
@@ -517,7 +518,7 @@ func TestBackup(t *testing.T) {
 	}
 	// The date uses the configured time zone: 23:30 UTC is the next day in Berlin.
 	e.now = time.Date(2026, 10, 21, 23, 30, 0, 0, time.UTC)
-	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db") {
+	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db.gz") {
 		t.Errorf("tz date = %q", out)
 	}
 	// --if-older compares with the newest copy's modification time (real clock).
@@ -534,6 +535,108 @@ func TestBackup(t *testing.T) {
 	}
 	if r := e.run(t, "", "backup", "--if-older", "soon"); r.code == 0 {
 		t.Error("invalid duration accepted")
+	}
+}
+
+func TestRestore(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	e.mustRun(t, "backup")
+	bak := filepath.Join(e.backups, "archive-2026-10-20.db.gz")
+	events := e.count(t, "SELECT count(*) FROM events")
+
+	// Default target is the configured database, which exists: refused.
+	if r := e.run(t, "", "restore", bak); r.code == 0 || !strings.Contains(r.stderr, "exists") {
+		t.Errorf("restore over live DB = %+v", r)
+	}
+	to := filepath.Join(e.dir, "restored", "archive.db")
+	out := e.mustRun(t, "restore", bak, "--to", to)
+	if !strings.Contains(out, to) {
+		t.Errorf("restore output = %q", out)
+	}
+	n := e.mustRun(t, "--db", to, "sql", "SELECT count(*) AS n FROM events", "--format", "csv")
+	if !strings.Contains(n, fmt.Sprint(events)) {
+		t.Errorf("restored events = %q, want %d", n, events)
+	}
+	if r := e.run(t, "", "restore", bak, "--to", to); r.code == 0 {
+		t.Error("second restore to the same path succeeded without --force")
+	}
+	e.mustRun(t, "restore", bak, "--to", to, "--force")
+	if r := e.run(t, "", "restore"); r.code == 0 {
+		t.Error("restore without argument succeeded")
+	}
+}
+
+func TestSessionsHidesEmpty(t *testing.T) {
+	e := newTestEnv(t)
+	tf.WriteFile(t, e.projects, "-w-delta/44444444-4444-4444-8444-444444444444.jsonl",
+		tf.CustomTitle("44444444-4444-4444-8444-444444444444", "title only").JSON())
+	e.mustRun(t, "ingest", "--all")
+	list := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json"))
+	for _, s := range list {
+		if s.DisplayName == "title only" {
+			t.Errorf("empty session listed: %+v", s)
+		}
+	}
+	all := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json", "--all-sessions"))
+	if len(all) != len(list)+1 {
+		t.Errorf("--all-sessions: %d sessions, want %d", len(all), len(list)+1)
+	}
+}
+
+func TestIngestRegit(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if r := e.run(t, "", "ingest", "--regit"); r.code == 0 || !strings.Contains(r.stderr, "git.resolve") {
+		t.Errorf("regit with git.resolve=false = %+v", r)
+	}
+	b, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(e.configPath, []byte(strings.Replace(string(b), "resolve = false", "resolve = true", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := e.mustRun(t, "ingest", "--regit")
+	if !strings.Contains(out, "regit: 2 directories") || strings.Contains(out, "scanned") {
+		t.Errorf("regit output = %q", out)
+	}
+	if out := e.mustRun(t, "ingest", "--all", "--regit"); !strings.Contains(out, "scanned") || !strings.Contains(out, "regit:") {
+		t.Errorf("ingest --all --regit output = %q", out)
+	}
+}
+
+func TestDoctor(t *testing.T) {
+	e := newTestEnv(t)
+	r := e.run(t, "", "doctor")
+	if r.code != 0 || !strings.Contains(r.stdout, "no unknown") {
+		t.Fatalf("doctor on clean fixtures = %+v", r)
+	}
+	if _, err := os.Stat(e.db); err == nil {
+		t.Error("doctor created the database")
+	}
+	tf.WriteFile(t, e.projects, "-w-gamma/33333333-3333-4333-8333-333333333333.jsonl", tf.Join(
+		tf.Line{"type": "brand-new", "sessionId": "x"},
+		tf.Line{"type": "assistant", "uuid": "d1", "timestamp": "2026-10-07T10:00:00Z", "sessionId": "x", "cwd": "/w",
+			"version": "2.1.999", "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "hologram"}}}},
+	))
+	r = e.run(t, "", "doctor", "--json")
+	if r.code != 2 {
+		t.Fatalf("doctor with drift: exit %d, want 2\n%s%s", r.code, r.stdout, r.stderr)
+	}
+	reps := decode[[]harness.FormatReport](t, r.stdout)
+	if len(reps) != 1 || reps[0].UnknownRecordTypes["brand-new"] == nil || reps[0].UnknownBlockTypes["assistant/hologram"] == nil {
+		t.Errorf("report = %+v", reps)
+	}
+	if len(reps[0].Versions) == 0 || reps[0].Versions[0].Version != "2.1.999" {
+		t.Errorf("versions = %+v", reps[0].Versions)
+	}
+	r = e.run(t, "", "doctor")
+	if r.code != 2 || !strings.Contains(r.stdout, "brand-new") || !strings.Contains(r.stdout, "assistant/hologram") {
+		t.Errorf("doctor text = %+v", r)
+	}
+	if r := e.run(t, "", "doctor", "--harness", "nope"); r.code != 1 {
+		t.Errorf("unknown harness: %+v", r)
 	}
 }
 

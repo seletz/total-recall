@@ -51,7 +51,7 @@ func TestDefaults(t *testing.T) {
 			}
 			if c.Timezone != "Europe/Berlin" || c.Backup.KeepDaily != 7 || c.Backup.KeepMonthly != 0 ||
 				c.Backup.MinInterval.Duration != 24*time.Hour || !c.Redact.Enabled ||
-				c.Ingest.ToolResultMaxBytes != 4096 || !c.Ingest.StoreRaw || !c.Harness.Claude.Enabled || !c.Git.Resolve {
+				c.Ingest.ToolResultMaxBytes != 4096 || c.Ingest.RawMaxBytes != 16384 || !c.Ingest.StoreRaw || !c.Harness.Claude.Enabled || !c.Git.Resolve {
 				t.Errorf("unexpected defaults: %+v", c)
 			}
 			if c.Backup.Dir != "/home/u/Documents/total-recall" {
@@ -188,6 +188,7 @@ func TestLoadErrors(t *testing.T) {
 		{"bad timezone", "timezone = \"Mars/Base\"\n", "timezone"},
 		{"bad duration", "[backup]\nmin_interval = \"soon\"\n", "min_interval"},
 		{"negative keep", "[backup]\nkeep_daily = -1\n", "keep_daily"},
+		{"negative raw max", "[ingest]\nraw_max_bytes = -1\n", "raw_max_bytes"},
 		{"bad regex", "[redact]\nextra_patterns = [\"(\"]\n", "extra_patterns"},
 		{"bad allow regex", "[redact]\nallow = [\"[\"]\n", "allow"},
 		{"wrong type", "[git]\nresolve = \"yes\"\n", "resolve"},
@@ -269,7 +270,7 @@ func TestEntries(t *testing.T) {
 		got[e.Key] = e
 	}
 	for _, k := range []string{"db", "timezone", "log", "backup.dir", "backup.keep_daily", "backup.keep_monthly", "backup.min_interval",
-		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.store_raw",
+		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.raw_max_bytes", "ingest.store_raw",
 		"harness.claude.enabled", "harness.claude.projects_dir", "harness.claude.skip_record_types",
 		"harness.claude.actors.peer_prefixes", "harness.claude.actors.automation_prefixes", "git.resolve"} {
 		if _, ok := got[k]; !ok {

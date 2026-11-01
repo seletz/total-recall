@@ -317,3 +317,24 @@ func TestSessionsTopLevel(t *testing.T) {
 		t.Errorf("all = %s, top = %s", ids(all), ids(top))
 	}
 }
+
+func TestSessionsHideEmpty(t *testing.T) {
+	s, _ := openTestStore(t)
+	seed(t, s)
+	// A title-only session (no events, no start) and a session with a start
+	// time but no events.
+	if err := s.WriteBatch(ctx, SourceState{}, []model.Session{
+		{ID: "claude:empty", Harness: "claude", NativeID: "empty", Name: "only a title"},
+		{ID: "claude:timed", Harness: "claude", NativeID: "timed", StartedAt: ts("2026-08-01T10:00:00Z"), EndedAt: ts("2026-08-01T10:00:00Z")},
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	all, _ := s.Sessions(ctx, SessionFilter{})
+	hidden, _ := s.Sessions(ctx, SessionFilter{HideEmpty: true})
+	if !strings.Contains(ids(all), "claude:empty") {
+		t.Errorf("all = %s", ids(all))
+	}
+	if got, want := ids(hidden), "claude:aaa111,claude:aab222,other:ccc333,claude:timed"; got != want {
+		t.Errorf("HideEmpty = %s, want %s", got, want)
+	}
+}

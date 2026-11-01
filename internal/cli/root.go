@@ -75,6 +75,10 @@ func Main(app *App) int {
 	root := NewRoot(app)
 	root.SetArgs(app.Args)
 	if err := root.Execute(); err != nil {
+		var ec exitCode
+		if errors.As(err, &ec) {
+			return int(ec)
+		}
 		if !errors.Is(err, errSilent) {
 			_, _ = fmt.Fprintln(app.Stderr, "total-recall:", err)
 		}
@@ -115,7 +119,9 @@ func NewRoot(app *App) *cobra.Command {
 		e.statsCmd(),
 		e.sqlCmd(),
 		e.backupCmd(),
+		e.restoreCmd(),
 		e.hooksCmd(),
+		e.doctorCmd(),
 		e.configCmd(),
 		e.llmCmd(),
 		versionCmd(),
@@ -160,6 +166,12 @@ func childArgs(args []string, extra ...string) []string {
 	out = append(out, "--detached-child")
 	return append(out, extra...)
 }
+
+// exitCode is returned by a command that has reported its result and wants
+// a specific process exit code (e.g. doctor: 2 = findings).
+type exitCode int
+
+func (c exitCode) Error() string { return fmt.Sprintf("exit code %d", int(c)) }
 
 // errSilent signals a failure that has already been reported.
 var errSilent = errors.New("failed")

@@ -52,6 +52,7 @@ allow = []                       # Regexe, die nie maskiert werden
 
 [ingest]
 tool_result_max_bytes = 4096
+raw_max_bytes = 16384
 store_raw = true
 
 [harness.claude]
@@ -79,7 +80,7 @@ resolve = true
 :   Zeitzone für Auswertungen. Bestimmt, wo ein Tag anfängt und aufhört, etwa in `stats` und in der View `daily_activity`. In der Datenbank selbst stehen alle Zeiten in UTC. Default: `Europe/Berlin`. Override: `--tz`.
 
 `log`
-:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Die Datei wächst ohne Begrenzung; Fehler sollten selten sein.
+:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
 
 ### `[backup]`
 
@@ -110,6 +111,9 @@ resolve = true
 
 `tool_result_max_bytes`
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
+
+`raw_max_bytes`
+:   Obergrenze für die Original-JSON-Zeile. Ist eine Zeile größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. `0` heißt: keine Grenze. Default: 16384 Bytes.
 
 `store_raw`
 :   Die Original-JSON-Zeile jedes Events (maskiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung. Default: `true`.
