@@ -8,16 +8,16 @@
 
 
 
-                                   ╭───────────────────────────╮
-                                   │ keys: stats               │
-                                   │                           │
-                                   │ 1   search       ?   help │
-                                   │ 2   stats        esc back │
-                                   │ tab next view    q   quit │
-                                   │                           │
-                                   │ esc or ? closes this help │
-                                   ╰───────────────────────────╯
-
+             ╭───────────────────────────────────────────────────────────────────────╮
+             │ keys: stats                                                           │
+             │                                                                       │
+             │ d days      p by project      [ earlier     1   search       ?   help │
+             │ w weeks     a by agent        ] later       2   stats        esc back │
+             │ m months    v by directory    - zoom out    tab next view    q   quit │
+             │ e metric                      + zoom in                               │
+             │                                                                       │
+             │ esc or ? closes this help                                             │
+             ╰───────────────────────────────────────────────────────────────────────╯
 
 
 
