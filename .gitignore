@@ -1,0 +1,7 @@
+/total-recall
+/dist/
+/site/
+*.db
+*.db-wal
+*.db-shm
+.env

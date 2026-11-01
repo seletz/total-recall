@@ -1,0 +1,23 @@
+[tools]
+go = "latest"
+goreleaser = "latest"
+"go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint" = "latest"
+uv = "latest"
+
+[env]
+CGO_ENABLED = "0"
+
+[tasks.build]
+description = "Build the CLI binary"
+run = """
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o total-recall ./cmd/total-recall
+"""
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
+
+[tasks.lint]
+description = "Run go vet and golangci-lint"
+run = ["go vet ./...", "golangci-lint run"]
