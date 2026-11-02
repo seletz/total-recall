@@ -13,6 +13,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
 // Open asks the view to show a session. SessionID is anything
@@ -78,15 +79,16 @@ type Model struct {
 	notice  string
 }
 
-// New returns the view reading from st and showing times in loc.
-func New(st *store.Store, loc *time.Location) Model {
+// New returns the view reading from st and showing times in loc, with the
+// effective key bindings km (nil means the defaults).
+func New(st *store.Store, loc *time.Location, km keys.Map) Model {
 	if loc == nil {
 		loc = time.UTC
 	}
-	keys := defaultKeyMap()
+	k := newKeyMap(km)
 	vp := viewport.New()
-	vp.KeyMap = keys.viewportKeys()
-	return Model{st: st, loc: loc, keys: keys, vp: vp, hit: -1, current: -1}
+	vp.KeyMap = k.viewportKeys()
+	return Model{st: st, loc: loc, keys: k, vp: vp, hit: -1, current: -1}
 }
 
 // Title implements tui.View.

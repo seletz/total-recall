@@ -177,6 +177,9 @@ type ConfigJSON struct {
 	FileOrigin string        `json:"file_origin"`
 	Loaded     bool          `json:"loaded"`
 	Values     []ConfigValue `json:"values"`
+	// Problems are the errors of the tables that are checked when used
+	// ([work], [tui], [keys]); the command exits non-zero when there are any.
+	Problems []string `json:"problems,omitempty"`
 }
 
 // ConfigValue is one effective value.
@@ -203,8 +206,18 @@ func (e *env) configCmd() *cobra.Command {
 				out.Values = append(out.Values, ConfigValue{Key: en.Key, Value: en.Value, Origin: string(en.Origin)})
 			}
 			out.Values = append(out.Values, ConfigValue{Key: "log (effective)", Value: cfg.LogPath(), Origin: string(cfg.Origin("log"))})
+			problems := cfg.Problems()
+			for _, p := range problems {
+				out.Problems = append(out.Problems, p.Error())
+			}
 			if asJSON {
-				return writeJSON(cmd.OutOrStdout(), out)
+				if err := writeJSON(cmd.OutOrStdout(), out); err != nil {
+					return err
+				}
+				if len(problems) > 0 {
+					return errSilent
+				}
+				return nil
 			}
 			state := "not found, defaults apply"
 			if cfg.Loaded {
@@ -216,7 +229,17 @@ func (e *env) configCmd() *cobra.Command {
 			for _, v := range out.Values {
 				rows = append(rows, []string{v.Key, v.Value, v.Origin})
 			}
-			return table(w, []string{"KEY", "VALUE", "ORIGIN"}, rows)
+			if err := table(w, []string{"KEY", "VALUE", "ORIGIN"}, rows); err != nil {
+				return err
+			}
+			if len(problems) == 0 {
+				return nil
+			}
+			_, _ = fmt.Fprintln(w, "\nproblems (checked when a command uses the table; hooks and ingest are not affected):")
+			for _, p := range problems {
+				_, _ = fmt.Fprintf(w, "  %s\n", p)
+			}
+			return errSilent
 		},
 	}
 	show.Flags().BoolVar(&asJSON, "json", false, "output JSON")

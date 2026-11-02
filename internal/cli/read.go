@@ -536,6 +536,10 @@ named in the HOLIDAY column.`,
 					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "stats: --human-only is deprecated: human messages are counted by default, --all-events counts everything")
 				}
 				humanOnly = (cfg.Work.HumanOnly() || humanOnly) && !allEvents
+				work, err := workHours(cfg)
+				if err != nil {
+					return err
+				}
 				since, until, err := workdayRange(rng, month, sinceArg, untilArg, e.app.Now(), loc, cfg.DayStartOffset())
 				if err != nil {
 					return err
@@ -554,7 +558,7 @@ named in the HOLIDAY column.`,
 				}
 				r := workdayReport{
 					days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
-					work: workHours(cfg), hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
+					work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
 				}
 				if asJSON {
 					return writeJSON(cmd.OutOrStdout(), r.json())

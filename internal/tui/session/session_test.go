@@ -41,7 +41,7 @@ func drive(t *testing.T, st *store.Store, open Open, steps []string) Model {
 			msgs = append(msgs, tuitest.Key(s))
 		}
 	}
-	return tuitest.Drive(t, New(st, testfixture.ActivityLocation), msgs...).(Model)
+	return tuitest.Drive(t, New(st, testfixture.ActivityLocation, nil), msgs...).(Model)
 }
 
 func sessionID(native string) string { return "claude:" + native }
@@ -144,7 +144,7 @@ func TestFrames(t *testing.T) {
 
 func TestEscSendsBack(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	m := New(st, time.UTC)
+	m := New(st, time.UTC, nil)
 	_, cmd := m.Update(tuitest.Key("esc"))
 	if cmd == nil {
 		t.Fatal("esc returned no command")
@@ -158,7 +158,7 @@ func TestEscSendsBack(t *testing.T) {
 // runs a real program, since the sequence is written by the renderer.
 func TestCopyWritesOSC52(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	tm := tuitest.New(t, New(st, testfixture.ActivityLocation))
+	tm := tuitest.New(t, New(st, testfixture.ActivityLocation, nil))
 	id := sessionID(testfixture.ActivitySessionBeta1)
 	tm.Send(Open{SessionID: id})
 	// The header shows the ID once the session is loaded; y is ignored
@@ -177,7 +177,7 @@ func TestCopyWritesOSC52(t *testing.T) {
 // first load arrives last and must not replace the second session.
 func TestStaleLoadDiscarded(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	m := New(st, time.UTC)
+	m := New(st, time.UTC, nil)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	first := sessionID(testfixture.ActivitySessionBeta1)
 	second := sessionID(testfixture.ActivitySessionGamma1)
@@ -193,7 +193,7 @@ func TestStaleLoadDiscarded(t *testing.T) {
 }
 
 func TestHelp(t *testing.T) {
-	m := New(nil, time.UTC)
+	m := New(nil, time.UTC, nil)
 	if m.Title() != "session" {
 		t.Errorf("Title = %q", m.Title())
 	}
