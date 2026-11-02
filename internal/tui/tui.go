@@ -80,6 +80,9 @@ type Options struct {
 	// Work is the working time of the activity view; the zero value shows
 	// neither core hours nor a target.
 	Work store.WorkHours
+	// Home is the home directory, shown as "~" in project names of
+	// directories without a repository; empty keeps full paths.
+	Home string
 }
 
 func (o *Options) defaults() {
@@ -154,7 +157,7 @@ func searchOptions(opts Options) search.Options {
 // statsOptions is what the stats view gets from the app options; a nil store
 // stays a nil Loader.
 func statsOptions(opts Options) stats.Options {
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}

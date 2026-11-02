@@ -2,10 +2,10 @@
 // the activity dimension project: a session's git root, else its working
 // directory. The functions are pure; they never touch the file system.
 //
-// The heuristic is the one of docs/spike-tui.md: the base name of the git
-// root; without a repository the base name of the directory marked with "~";
-// and when two keys share a base name, as many parent directories as it
-// takes to tell them apart.
+// The heuristic follows docs/spike-tui.md: the base name of the git root,
+// and when two roots share a base name, as many parent directories as it
+// takes to tell them apart. A working directory without a repository is
+// shown as a path, with the home directory abbreviated to "~".
 package project
 
 import (
@@ -13,34 +13,26 @@ import (
 	"strings"
 )
 
-// Name returns the project name of a session. A session inside a repository
-// is named after the base name of gitRoot, so sessions in a worktree (which
-// the store already resolves to the main repository) share the name of the
-// repository. Without a repository the base name of cwd is used, marked with
-// a leading "~". Both empty gives "".
-func Name(gitRoot, cwd string) string {
-	switch {
-	case gitRoot != "":
-		return filepath.Base(filepath.Clean(gitRoot))
-	case cwd != "":
-		return "~" + filepath.Base(filepath.Clean(cwd))
-	}
-	return ""
-}
-
 // Names maps every key of a series to a unique project name. A key is the
 // path of a git root or, for sessions outside a repository, of a working
-// directory; since the key alone does not tell which, no "~" marker is
-// added. Names that collide, like /w/dipa and /w/dipa/dipa, grow by one
-// parent directory at a time (dipa/dipa, w/dipa) until they are unique; a
-// key that runs out of parents keeps its full path. Keys that are not paths,
-// such as the store's "other", map to themselves. Duplicate keys are mapped
-// once, an empty key maps to "".
-func Names(keys []string) map[string]string {
+// directory; dirs lists the keys of the latter kind (store.ActivitySeries
+// reports them). Repository names that collide, like /w/dipa and
+// /w/dipa/dipa, grow by one parent directory at a time (dipa/dipa, w/dipa)
+// until they are unique; a key that runs out of parents keeps its full
+// path. Directories in dirs are named by their path, abbreviated with
+// Tilde(path, home); they never collide with repository names because the
+// path form keeps its leading "/" or "~". Keys that are not paths, such as
+// the store's "other", map to themselves. Duplicate keys are mapped once, an
+// empty key maps to "".
+func Names(keys []string, dirs []string, home string) map[string]string {
 	type entry struct {
 		parts []string // path components, root first
 		depth int      // components used for the name, counted from the end
 		full  bool     // all components used and still ambiguous: use the key
+	}
+	isDir := make(map[string]bool, len(dirs))
+	for _, d := range dirs {
+		isDir[d] = true
 	}
 	entries := map[string]*entry{}
 	out := make(map[string]string, len(keys))
@@ -48,8 +40,15 @@ func Names(keys []string) map[string]string {
 		if _, dup := entries[k]; dup {
 			continue
 		}
-		if k == "" {
+		if _, dup := out[k]; dup {
+			continue
+		}
+		switch {
+		case k == "":
 			out[k] = ""
+			continue
+		case isDir[k]:
+			out[k] = Tilde(k, home)
 			continue
 		}
 		clean := filepath.Clean(k)
@@ -94,4 +93,30 @@ func Names(keys []string) map[string]string {
 		out[k] = name(k, e)
 	}
 	return out
+}
+
+// Tilde returns path with the home directory replaced by "~": home itself
+// becomes "~", a path below it "~/rest". Trailing slashes on either side do
+// not matter. Paths outside home, relative paths and an empty path are
+// returned cleaned but otherwise unchanged; an empty home or the root
+// directory as home never abbreviates.
+func Tilde(path, home string) string {
+	if path == "" {
+		return ""
+	}
+	p := filepath.Clean(path)
+	if home == "" {
+		return p
+	}
+	h := filepath.Clean(home)
+	if h == "/" {
+		return p
+	}
+	switch {
+	case p == h:
+		return "~"
+	case strings.HasPrefix(p, h+"/"):
+		return "~" + p[len(h):]
+	}
+	return p
 }
