@@ -1,6 +1,6 @@
 // Package tui is the interactive terminal UI of total-recall (spike): an app
-// shell that hosts the search and stats views, switches between them and
-// shows a help overlay built from their key maps.
+// shell that hosts the search, stats and activity views, switches between
+// them and shows a help overlay built from their key maps.
 //
 // Views live in their own packages (search, stats, …) and implement [View]
 // without importing this package. The app forwards key presses to the active
@@ -14,12 +14,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/stats"
@@ -50,9 +52,13 @@ func ParseGraphics(s string) (Graphics, error) {
 
 // View names, the argument of `total-recall tui [view]`.
 const (
-	ViewSearch = "search"
-	ViewStats  = "stats"
+	ViewSearch   = "search"
+	ViewStats    = "stats"
+	ViewActivity = "activity"
 )
+
+// ViewNames lists the views in tab order.
+var ViewNames = []string{ViewSearch, ViewStats, ViewActivity}
 
 // Options configure the app.
 type Options struct {
@@ -62,13 +68,15 @@ type Options struct {
 	Location *time.Location
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
-	// Start is the view shown first (ViewSearch or ViewStats); empty means
-	// search.
+	// Start is the view shown first (one of ViewNames); empty means search.
 	Start string
 	// Query is the initial search text.
 	Query string
 	// Graphics is the chart mode; empty means auto.
 	Graphics Graphics
+	// DayStart is the day boundary of the activity view as an offset from
+	// local midnight (4h = 04:00); zero means midnight.
+	DayStart time.Duration
 }
 
 func (o *Options) defaults() {
@@ -105,7 +113,7 @@ type Focused interface {
 // New builds the app for opts.
 func New(opts Options) (App, error) {
 	opts.defaults()
-	views := []View{search.New(searchOptions(opts)), stats.New(statsOptions(opts))}
+	views := []View{search.New(searchOptions(opts)), stats.New(statsOptions(opts)), activity.New(activityOptions(opts))}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -113,7 +121,7 @@ func New(opts Options) (App, error) {
 		}
 	}
 	if active < 0 {
-		return App{}, fmt.Errorf("unknown view %q (use %s or %s)", opts.Start, ViewSearch, ViewStats)
+		return App{}, fmt.Errorf("unknown view %q (use %s)", opts.Start, strings.Join(ViewNames, ", "))
 	}
 	detail := session.New(opts.Store, opts.Location)
 	return App{opts: opts, views: views, active: active, detail: detail, keys: defaultKeyMap()}, nil
@@ -148,4 +156,14 @@ func statsOptions(opts Options) stats.Options {
 		so.Loader = opts.Store
 	}
 	return so
+}
+
+// activityOptions is what the activity view gets from the app options; a
+// nil store stays a nil Loader.
+func activityOptions(opts Options) activity.Options {
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart}
+	if opts.Store != nil {
+		ao.Loader = opts.Store
+	}
+	return ao
 }

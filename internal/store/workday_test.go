@@ -206,9 +206,9 @@ func TestDayOf(t *testing.T) {
 		{"2026-03-29T00:30:00Z", 4 * time.Hour, "2026-03-28"}, // 01:30 CET
 		{"2026-03-28T23:00:00Z", 0, "2026-03-29"},             // 00:00 CET, midnight boundary
 		{"2026-03-28T22:59:59Z", 0, "2026-03-28"},
-		{"2026-10-25T01:30:00Z", 4 * time.Hour, "2026-10-24"}, // 02:30 CET, after the clock went back
-		{"2026-10-25T02:00:00Z", 4 * time.Hour, "2026-10-24"}, // 03:00 CET, still before the boundary
-		{"2026-10-25T03:00:00Z", 4 * time.Hour, "2026-10-25"}, // 04:00 CET
+		{"2026-10-25T01:30:00Z", 4 * time.Hour, "2026-10-24"},                 // 02:30 CET, after the clock went back
+		{"2026-10-25T02:00:00Z", 4 * time.Hour, "2026-10-24"},                 // 03:00 CET, still before the boundary
+		{"2026-10-25T03:00:00Z", 4 * time.Hour, "2026-10-25"},                 // 04:00 CET
 		{"2026-06-01T09:00:00Z", 11*time.Hour + 30*time.Minute, "2026-05-31"}, // 11:00 CEST before 11:30
 	}
 	for _, tt := range tests {
