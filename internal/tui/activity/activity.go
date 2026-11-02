@@ -4,6 +4,15 @@
 // boundary, the clock times and the span as text, and for a week or a
 // month a total line.
 //
+// Each day is measured against the configured working time
+// (store.WorkHours): the core hours are a band with lines at its start and
+// end on the day's axis, the bar is split into activity within the core
+// hours, before or after them, and after midnight, the span is rated
+// against the daily target and its difference shown per day and, as a
+// balance, in the total line. Weekends have no target and their own
+// colour. Colours follow the terminal background (tea.BackgroundColorMsg);
+// every coloured element also differs in glyph, so NO_COLOR stays legible.
+//
 // Every change of window or counting mode loads a store.Workday as a
 // command; results carry the sequence number of the change they belong
 // to, so a slow answer to an older change is dropped. Loaded days are
@@ -14,7 +23,6 @@ package activity
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -47,6 +55,9 @@ type Options struct {
 	// DayStart is the wall-clock time at which a day begins, as an offset
 	// from midnight (4h = 04:00); zero means midnight.
 	DayStart time.Duration
+	// Work is the working time the days are measured against; the zero
+	// value shows neither core hours nor a target.
+	Work store.WorkHours
 }
 
 func (o *Options) defaults() {
@@ -94,6 +105,8 @@ type Model struct {
 	offset        int // first visible day row
 	initCmd       tea.Cmd
 	width, height int
+	dark          bool // terminal background; true until the terminal answers
+	styles        styles
 }
 
 // New returns the view for opts: the week containing now, human and agent
@@ -105,6 +118,8 @@ func New(opts Options) Model {
 		keys:   defaultKeyMap(),
 		window: window.Single(store.PeriodWeek, opts.Now(), opts.Location),
 		cache:  map[filter][]store.Workday{},
+		dark:   true,
+		styles: newStyles(true),
 	}
 	m, m.initCmd = m.load()
 	return m
@@ -113,8 +128,9 @@ func New(opts Options) Model {
 // Title implements tui.View.
 func (Model) Title() string { return "activity" }
 
-// Init implements tea.Model: it starts the first load.
-func (m Model) Init() tea.Cmd { return m.initCmd }
+// Init implements tea.Model: it starts the first load and asks the
+// terminal for its background colour.
+func (m Model) Init() tea.Cmd { return tea.Batch(m.initCmd, tea.RequestBackgroundColor) }
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -127,6 +143,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.key(msg)
 	case resultMsg:
 		return m.result(msg), nil
+	case tea.BackgroundColorMsg:
+		m.dark = msg.IsDark()
+		m.styles = newStyles(m.dark)
+		return m, nil
 	}
 	return m, nil
 }
@@ -265,11 +285,7 @@ func (m *Model) clampOffset() {
 	m.offset = max(0, min(m.offset, len(m.days)-m.rowsAvail()))
 }
 
-var (
-	activeStyle = lipgloss.NewStyle().Reverse(true)
-	faintStyle  = lipgloss.NewStyle().Faint(true)
-	boldStyle   = lipgloss.NewStyle().Bold(true)
-)
+var activeStyle = lipgloss.NewStyle().Reverse(true)
 
 // ShortHelp implements help.KeyMap.
 func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
@@ -289,7 +305,7 @@ func (m Model) View() tea.View {
 	// day rows fill rowsAvail, the rest is padded.
 	pad := m.rowsAvail()
 	if hint := m.hint(); hint != "" {
-		parts = append(parts, " "+faintStyle.Render(hint))
+		parts = append(parts, " "+m.styles.faint.Render(hint))
 	} else {
 		l := m.layout()
 		parts = append(parts, line(" "+l.header()))
@@ -375,17 +391,29 @@ func (m Model) hint() string {
 	return ""
 }
 
-// total is the sum line of a week or a month.
+// total is the sum line of a week or a month: the days with activity and
+// the sum of their spans, and with working time the target of the active
+// weekdays and the balance against it, coloured by its rating.
 func (m Model) total() string {
 	if !m.loaded {
 		return ""
 	}
-	span, active := store.WorkdayTotal(m.days)
-	days := "days"
-	if active == 1 {
-		days = "day"
+	st, b := m.styles, m.opts.Work.Balance(m.days)
+	s := st.label.Render("total:") + fmt.Sprintf(" %s with activity, %s", plural(b.Active, "day"), st.bold.Render(store.FormatSpan(b.Span)))
+	if m.opts.Work.IsZero() {
+		return s
 	}
-	return fmt.Sprintf("total: %d %s with activity, %s", active, days, formatSpan(span))
+	target := fmt.Sprintf("target %s (%s × %s)", store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(m.opts.Work.Target))
+	balance := st.rating(m.opts.Work.RateBalance(b)).Bold(true).Render(store.FormatDiff(b.Balance))
+	return s + st.faint.Render(" · "+target+" · ") + "balance " + balance
+}
+
+// plural formats n with the singular or plural noun: "1 day", "3 days".
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // status is the bottom line: the state of the load and its duration, and
@@ -408,29 +436,37 @@ func (m Model) status() string {
 	return s
 }
 
-// layout is the column widths of the rows for the current data and width.
+// layout is the column widths of the rows for the current data and width,
+// with the working time and the styles the rows are drawn with.
 type layout struct {
 	loc         *time.Location
 	dayStart    time.Duration
-	first, last int // widths of the clock columns
-	bar         int // width of the time axis, 0 when there is no room
+	work        store.WorkHours
+	styles      styles
+	first, last int  // widths of the clock columns
+	diff        bool // the difference column is shown (there is a target)
+	bar         int  // width of the time axis, 0 when there is no room
 }
 
 // Fixed columns: "Mon 2006-01-02", the span ("12h34m" at most, right
-// aligned) and two spaces between every column.
+// aligned), the difference ("+12h34m") and two spaces between every column.
 const (
 	dateWidth = 14
 	spanWidth = 6
+	diffWidth = 7
 	gap       = 2
 )
 
 func (m Model) layout() layout {
-	l := layout{loc: m.opts.Location, dayStart: m.opts.DayStart, first: 5, last: 5}
+	l := layout{loc: m.opts.Location, dayStart: m.opts.DayStart, work: m.opts.Work, styles: m.styles, first: 5, last: 5, diff: !m.opts.Work.IsZero()}
 	for _, d := range m.days {
 		l.first = max(l.first, len([]rune(d.FirstClock(l.loc))))
 		l.last = max(l.last, len([]rune(d.LastClock(l.loc))))
 	}
 	fixed := 1 + dateWidth + gap + l.first + gap + l.last + gap + spanWidth + gap
+	if l.diff {
+		fixed += diffWidth + gap
+	}
 	if bar := m.width - fixed - 1; bar >= MinBarWidth {
 		l.bar = bar
 	}
@@ -439,11 +475,14 @@ func (m Model) layout() layout {
 
 // header is the column header with the hour labels of the time axis.
 func (l layout) header() string {
-	s := faintStyle.Render(pad("day", dateWidth) + "  " + pad("first", l.first) + "  " + pad("last", l.last) + "  " + lpad("span", spanWidth))
-	if l.bar > 0 {
-		s += "  " + faintStyle.Render(l.axis())
+	s := pad("day", dateWidth) + "  " + pad("first", l.first) + "  " + pad("last", l.last) + "  " + lpad("span", spanWidth)
+	if l.diff {
+		s += "  " + lpad("diff", diffWidth)
 	}
-	return s
+	if l.bar > 0 {
+		s += "  " + l.axis()
+	}
+	return l.styles.faint.Render(s)
 }
 
 // axis labels the time axis every four hours from the day boundary.
@@ -465,52 +504,42 @@ func (l layout) axis() string {
 	return string(cells)
 }
 
-// row renders one day: weekday and date, first, last, span and the bar.
+// row renders one day: weekday and date, first, last, span, the
+// difference to the target and the bar. A day without activity is faint,
+// a weekend in the weekend colour, the span and the difference of a
+// weekday in the colour of their rating.
 func (l layout) row(d store.Workday) string {
-	first, last, span := "-", "-", "-"
+	st := l.styles
+	first, last, span, diff := "-", "-", "-", "-"
 	if d.Active() {
-		first, last, span = d.FirstClock(l.loc), d.LastClock(l.loc), formatSpan(d.Span())
+		first, last, span = d.FirstClock(l.loc), d.LastClock(l.loc), store.FormatSpan(d.Span())
+	}
+	if v, ok := l.work.Diff(d); ok {
+		diff = store.FormatDiff(v)
 	}
 	date := d.Day.Format("Mon 2006-01-02")
-	if !d.Active() {
-		date = faintStyle.Render(date)
+	var text lipgloss.Style
+	switch {
+	case !d.Active():
+		text = st.faint
+	case store.IsWeekend(d.Day):
+		text = st.weekendText
+	default:
+		text = st.rating(l.work.Rate(d))
 	}
-	s := date + "  " + pad(first, l.first) + "  " + pad(last, l.last) + "  " + lpad(span, spanWidth)
+	if store.IsWeekend(d.Day) && d.Active() {
+		date = st.weekendText.Render(date)
+	} else if !d.Active() {
+		date = st.faint.Render(date)
+	}
+	s := date + "  " + pad(first, l.first) + "  " + pad(last, l.last) + "  " + text.Render(lpad(span, spanWidth))
+	if l.diff {
+		s += "  " + text.Render(lpad(diff, diffWidth))
+	}
 	if l.bar > 0 {
-		s += "  " + l.barOf(d)
+		s += "  " + l.renderBar(l.cells(d))
 	}
 	return s
-}
-
-// barOf draws the day's span on the time axis: the axis runs from the
-// day boundary to the next one (24 hours, 23 or 25 on a DST change) and
-// the bar covers the cells from the first to the last activity, at least
-// one cell.
-func (l layout) barOf(d store.Workday) string {
-	cells := []rune(strings.Repeat("·", l.bar))
-	if d.Active() {
-		start := store.DayBoundary(d.Day, l.dayStart)
-		total := store.DayBoundary(d.Day.AddDate(0, 0, 1), l.dayStart).Sub(start).Seconds()
-		pos := func(t time.Time) float64 { return min(max(t.Sub(start).Seconds()/total, 0), 1) }
-		a := min(int(pos(d.First)*float64(l.bar)), l.bar-1)
-		b := min(max(int(math.Ceil(pos(d.Last)*float64(l.bar))), a+1), l.bar)
-		for i := a; i < b; i++ {
-			cells[i] = '█'
-		}
-		return faintStyle.Render(string(cells[:a])) + boldStyle.Render(string(cells[a:b])) + faintStyle.Render(string(cells[b:]))
-	}
-	return faintStyle.Render(string(cells))
-}
-
-// formatSpan formats a span compactly: "5s", "25m", "3h05m".
-func formatSpan(d time.Duration) string {
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // pad right-pads s with spaces to n cells; lpad left-pads.

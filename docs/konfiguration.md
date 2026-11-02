@@ -51,6 +51,12 @@ enabled = true
 extra_patterns = []              # zusätzliche Go-Regexe
 allow = []                       # Regexe, die nie maskiert werden
 
+[work]
+hours = "09:00-17:00"            # Kernzeit (stats --workday, TUI activity)
+target = "8h"                    # Tagessoll an Werktagen, Wochenende ohne Soll
+daily_low = "6h"                 # Spanne darunter: unter Soll
+daily_high = "9h"                # Spanne darüber: deutlich über Soll
+
 [ingest]
 tool_result_max_bytes = 4096
 raw_max_bytes = 16384
@@ -142,6 +148,19 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 
 `automation_prefixes`
 :   Nachrichten, die mit einem dieser Texte beginnen, gelten als `automation`. Beispiel: geplante Prompts wie „Hourly …“.
+
+### `[work]` { #work }
+
+Normalarbeitszeit für die Aktivität je Tag ([`stats --workday`](befehle.md#stats-workday), TUI-Ansicht „activity“).
+
+`hours`
+:   Kernzeit als `HH:MM-HH:MM` (Ortszeit des Kalendertags, Beginn vor Ende, nicht vor `day_start`). Die TUI zeigt sie als Band auf der Zeitachse und färbt Aktivität davor und danach als früh bzw. spät. Default: `09:00-17:00`.
+
+`target`
+:   Tagessoll an Werktagen (Montag bis Freitag); das Wochenende hat keines. Die Spanne eines Tags mit Aktivität wird daran gemessen, die Summenzeile einer Woche oder eines Monats gegen Soll × Werktage mit Aktivität. Default: `8h`.
+
+`daily_low`, `daily_high`
+:   Eine Spanne unter `daily_low` gilt als unter Soll, über `daily_high` als deutlich darüber, dazwischen als im Rahmen; danach färbt die TUI Spanne und Differenz. Für den Saldo einer Woche oder eines Monats wird die Toleranz mit den Werktagen multipliziert. Default: `6h` und `9h`.
 
 ### `[git]`
 

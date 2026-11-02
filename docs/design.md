@@ -58,6 +58,12 @@ enabled = true
 extra_patterns = []              # zusätzliche Go-Regexe
 allow = []                       # Regexe, die nie maskiert werden
 
+[work]
+hours = "09:00-17:00"            # Kernzeit (stats --workday, TUI activity)
+target = "8h"                    # Tagessoll an Werktagen, Wochenende ohne Soll
+daily_low = "6h"                 # Spanne darunter: unter Soll
+daily_high = "9h"                # Spanne darüber: deutlich über Soll
+
 [ingest]
 tool_result_max_bytes = 4096
 raw_max_bytes = 16384            # größere Zeilen: raw = NULL, raw_truncated = 1; 0 = unbegrenzt
@@ -258,7 +264,7 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions), `--all-sessions` (sonst ohne Sessions ohne Events und Startzeit); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools) |
 | `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |
-| `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Mit `--period day\|week\|month`, `--by project\|agent\|directory`, `--top N` stattdessen eine Zeitreihe Periode × Schlüssel aus `store.ActivitySeries` (Text im Langformat, JSON), Ersatz für `monthly_stats.py` im Vault; Projektnamen aus `internal/project`. Mit `--workday` je Tag die erste und letzte Aktivität und die Spanne (`store.Workday`), Zeitraum `--range today\|this-week\|last-week\|this-month\|last-month` oder `--since/--until`/`--month`, `--human-only`; ein Tag beginnt um `day_start` (Default 04:00 Ortszeit), Aktivität davor zählt zum Vortag (`01:30 (+1)`). Dieselben Daten zeigt die TUI im Reiter `activity`. |
+| `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Mit `--period day\|week\|month`, `--by project\|agent\|directory`, `--top N` stattdessen eine Zeitreihe Periode × Schlüssel aus `store.ActivitySeries` (Text im Langformat, JSON), Ersatz für `monthly_stats.py` im Vault; Projektnamen aus `internal/project`. Mit `--workday` je Tag die erste und letzte Aktivität und die Spanne (`store.Workday`), Zeitraum `--range today\|this-week\|last-week\|this-month\|last-month` oder `--since/--until`/`--month`, `--human-only`; ein Tag beginnt um `day_start` (Default 04:00 Ortszeit), Aktivität davor zählt zum Vortag (`01:30 (+1)`). Je Tag die Differenz der Spanne zum Tagessoll aus `[work]` (`store.WorkHours`: Soll nur an Werktagen mit Aktivität, Wochenende ohne Soll, Tage ohne Aktivität zählen nicht), in der Summe Soll × Werktage und Saldo; JSON in Sekunden. Dieselben Daten zeigt die TUI im Reiter `activity`, dort mit der Kernzeit als Band auf der Zeitachse, Balkensegmenten innerhalb/außerhalb/nach Mitternacht und Farben nach Bewertung gegen `daily_low`/`daily_high`. |
 | `sql QUERY` | Read-only-SQL (DB mit `mode=ro` und `PRAGMA query_only`), Ausgabe Tabelle/JSON/CSV |
 | `backup` | `VACUUM INTO` + gzip + Aufbewahrung; `--if-older DURATION` |
 | `restore BACKUP_FILE` | Backup (`.db.gz` oder alte `.db`) in eine DB-Datei entpacken; `--to PATH`, `--force` |
