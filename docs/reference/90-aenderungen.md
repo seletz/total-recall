@@ -28,6 +28,7 @@ Eine Vollbild-Oberfläche im Terminal, nur lesend. Bedienung: [TUI](30-tui.md).
 - [`stats --period day|week|month --by project|agent|directory --top N`](10-befehle.md#stats-period): eine Zeitreihe als Text oder JSON, Ersatz für externe Auswertungsskripte.
 - [`stats --workday`](10-befehle.md#stats-workday): erste und letzte Aktivität je Tag mit Spanne, Soll, Differenz, Feiertagen und Saldo; `--range today|this-week|last-week|this-month|last-month`, `--all-events`, JSON.
 - `config show` listet die Tastenbelegung als `keys.<aktion>` und meldet Probleme in `[work]`, `[tui]` und `[keys]`; `doctor` meldet sie als Befund.
+- [`status`](10-befehle.md#status) zeigt nur noch Fehler der letzten 24 Stunden, mit lokaler Zeit und Alter; ältere erscheinen als Anzahl, `--all-errors` listet sie. Hook-Zeilen über noch nicht vorhandene Transkripte zählen nicht mehr als Fehler. In der JSON-Ausgabe ist `recent_errors` jetzt eine Liste von Objekten (`at`, `message`), neu sind `errors_window`, `errors_since`, `recent_errors_total` und `older_errors`.
 
 ### Konfiguration
 

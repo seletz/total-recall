@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ type testEnv struct {
 	detached                                    [][]string
 	now                                         time.Time
 	home                                        string // App.Home; empty means dir
+	width                                       int    // App.TerminalWidth; 0 = stdout is no terminal
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -87,6 +89,7 @@ func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 			e.detached = append(e.detached, args)
 			return nil
 		},
+		TerminalWidth: func() int { return e.width },
 	}
 	code := Main(app)
 	return result{code: code, stdout: out.String(), stderr: errb.String()}
@@ -403,7 +406,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 	byName := map[string]SessionJSON{}
 	for _, s := range sessions {
-		byName[s.DisplayName] = s
+		byName[string(s.DisplayName)] = s
 	}
 	s1, s2 := byName["List files"], byName["Beta work"]
 	if s1.HumanEvents != 2 || s1.AgentEvents != 3 || s1.NativeID != tf.DemoSession1 || s1.DurationSeconds != 5405 {
@@ -524,7 +527,13 @@ func TestStatus(t *testing.T) {
 		t.Errorf("status without DB = %+v", r)
 	}
 	e.mustRun(t, "ingest", "--all")
-	newLogger(e.log, time.Now).Errorf("hook Stop: boom")
+	// Three days ago: an old error and a missing-transcript error, which
+	// never counts. Three hours ago: a fresh error.
+	at := func(d time.Duration) func() time.Time { return func() time.Time { return e.now.Add(d) } }
+	newLogger(e.log, at(-72*time.Hour)).Errorf("hook Stop: /p/a.jsonl: permission denied")
+	newLogger(e.log, at(-71*time.Hour)).Errorf("hook SubagentStop: /p/b.jsonl: stat /p/b.jsonl: no such file or directory")
+	newLogger(e.log, at(-3*time.Hour)).Infof("hook SubagentStop: transcript not present, skipped: /p/c.jsonl")
+	newLogger(e.log, at(-3*time.Hour)).Errorf("hook Stop: boom")
 	s := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
 	if s.Sessions != 3 || s.Events != 9 || s.Sources != 4 || s.DB != e.db || s.DBSizeBytes == 0 {
 		t.Errorf("status = %+v", s)
@@ -532,14 +541,52 @@ func TestStatus(t *testing.T) {
 	if s.SchemaVersion != store.LatestSchemaVersion() || s.BinarySchemaVersion != store.LatestSchemaVersion() {
 		t.Errorf("schema versions = %d/%d", s.SchemaVersion, s.BinarySchemaVersion)
 	}
-	if s.LastIngest["claude"] == "" || len(s.RecentErrors) != 1 || !strings.Contains(s.RecentErrors[0], "boom") {
+	if s.LastIngest["claude"] == "" {
 		t.Errorf("status = %+v", s)
 	}
+	if s.ErrorsWindow != "24h" || string(s.ErrorsSince) != isoTime(e.now.Add(-24*time.Hour)) || s.OlderErrors != 1 || s.RecentErrorsTotal != 1 {
+		t.Errorf("error window = %+v", s)
+	}
+	if len(s.RecentErrors) != 1 || s.RecentErrors[0].Message != "hook Stop: boom" || string(s.RecentErrors[0].At) != isoTime(e.now.Add(-3*time.Hour)) {
+		t.Errorf("recent errors = %+v", s.RecentErrors)
+	}
 	out := e.mustRun(t, "status")
-	for _, want := range []string{e.db, "schema", "last ingest (claude)", "none in", "boom"} {
+	for _, want := range []string{e.db, "schema", "last ingest (claude)", "none in", "recent errors (last 24h", "2026-10-20 11:00  (3h00m ago)  hook Stop: boom", "older errors: 1", "--all-errors"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "permission denied") || strings.Contains(out, "no such file") {
+		t.Errorf("status shows old or skipped errors:\n%s", out)
+	}
+	// --all-errors lifts the window; missing transcripts stay hidden.
+	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json", "--all-errors"))
+	if s.ErrorsWindow != "" || s.ErrorsSince != "" || s.OlderErrors != 0 || s.RecentErrorsTotal != 2 || len(s.RecentErrors) != 2 || s.RecentErrors[0].Message != "hook Stop: /p/a.jsonl: permission denied" {
+		t.Errorf("--all-errors = %+v", s)
+	}
+	out = e.mustRun(t, "status", "--all-errors")
+	if !strings.Contains(out, "errors (all): 2") || !strings.Contains(out, "permission denied") || strings.Contains(out, "older errors") {
+		t.Errorf("--all-errors text:\n%s", out)
+	}
+	// --errors caps the listed lines, the totals stay.
+	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json", "--all-errors", "--errors", "1"))
+	if s.RecentErrorsTotal != 2 || len(s.RecentErrors) != 1 || s.RecentErrors[0].Message != "hook Stop: boom" {
+		t.Errorf("--errors 1 = %+v", s)
+	}
+	if out := e.mustRun(t, "status", "--all-errors", "--errors", "1"); !strings.Contains(out, "errors (all): 2, newest 1 shown") {
+		t.Errorf("--errors 1 text:\n%s", out)
+	}
+	// Without errors in the window the text says so.
+	if err := os.Remove(e.log); err != nil {
+		t.Fatal(err)
+	}
+	newLogger(e.log, at(-72*time.Hour)).Errorf("hook Stop: old")
+	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
+	if len(s.RecentErrors) != 0 || s.RecentErrorsTotal != 0 || s.OlderErrors != 1 {
+		t.Errorf("only old = %+v", s)
+	}
+	if out := e.mustRun(t, "status"); !strings.Contains(out, "recent errors (last 24h, since 2026-10-19 14:00): none") || !strings.Contains(out, "older errors: 1") {
+		t.Errorf("only old text:\n%s", out)
 	}
 }
 
@@ -700,7 +747,7 @@ func TestConfigCommands(t *testing.T) {
 	}
 	origins := map[string]string{}
 	for _, v := range c.Values {
-		origins[v.Key] = v.Origin + "=" + v.Value
+		origins[v.Key] = v.Origin + "=" + string(v.Value)
 	}
 	if origins["db"] != "file="+e.db || !strings.HasPrefix(origins["redact.enabled"], "default=") {
 		t.Errorf("origins = %v", origins)
@@ -896,5 +943,182 @@ func TestDeferredConfigErrors(t *testing.T) {
 	}
 	if reps := decode[[]harness.FormatReport](t, r.stdout); len(reps) != 1 {
 		t.Errorf("doctor --json reports = %+v", reps)
+	}
+}
+
+// TestShowWindow covers --since/--until (local time per config), --limit,
+// --offset and --from-event of show. Demo session 1 has four conversation
+// events at 08:00:00Z, 08:00:02Z, 09:30:00Z and 09:30:05Z, i.e. 10:00 and
+// 11:30 in Europe/Berlin (CEST).
+func TestShowWindow(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	type showOut struct {
+		Session SessionJSON `json:"session"`
+		Events  []EventJSON `json:"events"`
+	}
+	full := decode[showOut](t, e.mustRun(t, "show", tf.DemoSession1, "--json"))
+	if len(full.Events) != 4 {
+		t.Fatalf("show = %d events", len(full.Events))
+	}
+	third := full.Events[2].ID
+	tests := []struct {
+		name string
+		args []string
+		want []string // event texts
+	}{
+		{"since at first event (local)", []string{"--since", "2026-10-05T10:00"}, []string{"please list the files", "There are two files.", "thanks, now count the lines", "Forty-two lines."}},
+		{"since after first pair", []string{"--since", "2026-10-05T10:01"}, []string{"thanks, now count the lines", "Forty-two lines."}},
+		{"since with space", []string{"--since", "2026-10-05 11:30"}, []string{"thanks, now count the lines", "Forty-two lines."}},
+		{"since RFC 3339 UTC", []string{"--since", "2026-10-05T09:30:00Z"}, []string{"thanks, now count the lines", "Forty-two lines."}},
+		{"until exclusive", []string{"--until", "2026-10-05T11:30"}, []string{"please list the files", "There are two files."}},
+		{"until date is whole day", []string{"--until", "2026-10-05"}, []string{"please list the files", "There are two files.", "thanks, now count the lines", "Forty-two lines."}},
+		{"until before session", []string{"--until", "2026-10-04"}, []string{}},
+		{"since and until", []string{"--since", "2026-10-05T10:00:01", "--until", "2026-10-05T11:30:01"}, []string{"There are two files.", "thanks, now count the lines"}},
+		{"limit", []string{"--limit", "1"}, []string{"please list the files"}},
+		{"limit and offset", []string{"--limit", "2", "--offset", "1"}, []string{"There are two files.", "thanks, now count the lines"}},
+		{"offset only", []string{"--offset", "3"}, []string{"Forty-two lines."}},
+		{"offset past end", []string{"--offset", "9"}, []string{}},
+		{"from event", []string{"--from-event", third}, []string{"thanks, now count the lines", "Forty-two lines."}},
+		{"from event with limit", []string{"--from-event", third, "--limit", "1"}, []string{"thanks, now count the lines"}},
+		{"from event and until", []string{"--from-event", third, "--until", "2026-10-05T11:30:05"}, []string{"thanks, now count the lines"}},
+		{"since with all", []string{"--all", "--since", "2026-10-05T10:00:01", "--until", "2026-10-05T10:01"}, []string{"ls", "There are two files."}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"show", tf.DemoSession1[:8], "--json"}, tt.args...)
+			sh := decode[showOut](t, e.mustRun(t, args...))
+			if sh.Session.ID != "claude:"+tf.DemoSession1 {
+				t.Errorf("session = %s", sh.Session.ID)
+			}
+			got := make([]string, 0, len(sh.Events))
+			for _, ev := range sh.Events {
+				got = append(got, string(ev.Text))
+			}
+			if strings.Join(got, "|") != strings.Join(tt.want, "|") {
+				t.Errorf("events = %q, want %q", got, tt.want)
+			}
+			// The text output lists the same events.
+			text := e.mustRun(t, append([]string{"show", tf.DemoSession1[:8]}, tt.args...)...)
+			if n := strings.Count(text, "\n── "); n != len(tt.want) {
+				t.Errorf("text output has %d events, want %d:\n%s", n, len(tt.want), text)
+			}
+		})
+	}
+	// An empty window is an empty list, not null.
+	if out := e.mustRun(t, "show", tf.DemoSession1[:8], "--json", "--until", "2026-10-04"); !strings.Contains(out, `"events": []`) {
+		t.Errorf("empty window = %s", out)
+	}
+	bad := []struct {
+		name string
+		args []string
+		msg  string
+	}{
+		{"bad since", []string{"--since", "yesterday"}, "invalid time"},
+		{"bad until", []string{"--until", "2026-13-01"}, "invalid time"},
+		{"negative offset", []string{"--offset", "-1"}, "--offset"},
+		{"negative limit", []string{"--limit", "-1"}, "--limit"},
+		{"unknown event", []string{"--from-event", "claude:nope"}, "no event"},
+		{"from-event with bad since", []string{"--from-event", third, "--since", "x"}, "invalid time"},
+	}
+	for _, tt := range bad {
+		t.Run(tt.name, func(t *testing.T) {
+			r := e.run(t, "", append([]string{"show", tf.DemoSession1[:8]}, tt.args...)...)
+			if r.code == 0 || !strings.Contains(r.stderr, tt.msg) {
+				t.Errorf("%v = exit %d, stderr %q, want %q", tt.args, r.code, r.stderr, tt.msg)
+			}
+		})
+	}
+	if r := e.run(t, "", "show", tf.DemoSession2[:8], "--from-event", third); r.code == 0 || !strings.Contains(r.stderr, "no event") {
+		t.Errorf("from-event of another session = %+v", r)
+	}
+}
+
+// TestShowHint checks the stderr hint for an unbounded show of a large
+// session, and that no hint appears when the output is bounded.
+func TestShowHint(t *testing.T) {
+	e := newTestEnv(t)
+	const big = "33333333-3333-4333-8333-333333333333"
+	var lines []tf.Line
+	for i := 0; i <= showHintEvents; i++ {
+		lines = append(lines, tf.User(big, fmt.Sprintf("u%d", i), time.Date(2026, 10, 7, 8, 0, i, 0, time.UTC).Format("2006-01-02T15:04:05.000Z"), "/w/big", fmt.Sprintf("message %d", i)))
+	}
+	tf.WriteFile(t, e.projects, "-w-big/"+big+".jsonl", tf.Join(lines...))
+	e.mustRun(t, "ingest", "--all")
+	tests := []struct {
+		name string
+		args []string
+		hint bool
+	}{
+		{"unbounded", nil, true},
+		{"unbounded json", []string{"--json"}, true},
+		{"limit", []string{"--limit", "10"}, false},
+		{"since", []string{"--since", "2026-10-07"}, false},
+		{"until", []string{"--until", "2026-10-07T10:00"}, false},
+		{"from event", []string{"--from-event", "claude:u0"}, false},
+		{"small session", []string{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := big
+			if tt.name == "small session" {
+				id = tf.DemoSession1
+			}
+			r := e.run(t, "", append([]string{"show", id}, tt.args...)...)
+			if r.code != 0 {
+				t.Fatalf("exit %d: %s", r.code, r.stderr)
+			}
+			if got := strings.Contains(r.stderr, "--limit"); got != tt.hint {
+				t.Errorf("hint = %v, want %v (stderr %q)", got, tt.hint, r.stderr)
+			}
+			if tt.hint && !strings.Contains(r.stderr, strconv.Itoa(showHintEvents+1)) {
+				t.Errorf("hint lacks the event count: %q", r.stderr)
+			}
+			if tt.name == "unbounded" && strings.Count(r.stdout, "\n── ") != showHintEvents+1 {
+				t.Errorf("unbounded show is not complete: %d events", strings.Count(r.stdout, "\n── "))
+			}
+		})
+	}
+}
+
+// TestSearchSession covers search --session with full IDs and prefixes.
+func TestSearchSession(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	tests := []struct {
+		name, session string
+		query         []string
+		want          int
+		wantSession   string
+	}{
+		{"full id", "claude:" + tf.DemoSession2, []string{"release"}, 2, "claude:" + tf.DemoSession2},
+		{"native id", tf.DemoSession2, []string{"release"}, 2, "claude:" + tf.DemoSession2},
+		{"prefix", tf.DemoSession2[:4], []string{"release"}, 2, "claude:" + tf.DemoSession2},
+		{"prefix of other session", tf.DemoSession1[:4], []string{"release"}, 0, ""},
+		{"prefix with filters", tf.DemoSession1[:4], []string{"files", "--actor", "human"}, 1, "claude:" + tf.DemoSession1},
+		{"subagent", "agent-a01", []string{"counted"}, 1, "claude:agent-a01"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"search", "--json", "--session", tt.session}, tt.query...)
+			hits := decode[[]HitJSON](t, e.mustRun(t, args...))
+			if len(hits) != tt.want {
+				t.Fatalf("hits = %+v, want %d", hits, tt.want)
+			}
+			for _, h := range hits {
+				if h.SessionID != tt.wantSession {
+					t.Errorf("hit in %s, want %s", h.SessionID, tt.wantSession)
+				}
+			}
+		})
+	}
+	if r := e.run(t, "", "search", "release", "--session", "claude:"); r.code == 0 || !strings.Contains(r.stderr, "more than one session") {
+		t.Errorf("ambiguous prefix = %+v", r)
+	}
+	if r := e.run(t, "", "search", "release", "--session", "zzz"); r.code == 0 || !strings.Contains(r.stderr, "no session") {
+		t.Errorf("unknown session = %+v", r)
+	}
+	if out := e.mustRun(t, "search", "release", "--session", tf.DemoSession2[:8]); !strings.Contains(out, "Beta work") {
+		t.Errorf("table = %q", out)
 	}
 }

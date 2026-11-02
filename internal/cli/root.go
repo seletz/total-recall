@@ -35,6 +35,10 @@ type App struct {
 	// from the caller, with stdout/stderr appended to logPath. Default:
 	// startDetached (os/exec with Setsid).
 	StartDetached func(args []string, logPath string) error
+	// TerminalWidth returns the width of the terminal Stdout is attached
+	// to, or 0 when it is not a terminal (table cells are then never cut).
+	// Default: terminalWidth(Stdout).
+	TerminalWidth func() int
 }
 
 func (a *App) defaults() {
@@ -56,6 +60,9 @@ func (a *App) defaults() {
 	if a.StartDetached == nil {
 		a.StartDetached = startDetached
 	}
+	if a.TerminalWidth == nil {
+		a.TerminalWidth = func() int { return terminalWidth(a.Stdout) }
+	}
 }
 
 // globals are the persistent flags.
@@ -69,18 +76,24 @@ type globals struct {
 	detachedChild bool
 }
 
-// Main runs the CLI with args and returns the process exit code.
+// Main runs the CLI with args and returns the process exit code. An error
+// goes to stderr; when a JSON format was requested it is also written to
+// stdout as an ErrorJSON object, so a consumer of stdout never sees nothing.
 func Main(app *App) int {
 	app.defaults()
-	root := NewRoot(app)
+	root, e := newRoot(app)
 	root.SetArgs(app.Args)
 	if err := root.Execute(); err != nil {
 		var ec exitCode
 		if errors.As(err, &ec) {
 			return int(ec)
 		}
-		if !errors.Is(err, errSilent) {
-			_, _ = fmt.Fprintln(app.Stderr, "total-recall:", err)
+		if errors.Is(err, errSilent) {
+			return 1
+		}
+		_, _ = fmt.Fprintln(app.Stderr, "total-recall:", err)
+		if e.jsonErrors || jsonRequested(app.Args) {
+			writeJSONError(app.Stdout, err)
 		}
 		return 1
 	}
@@ -89,6 +102,12 @@ func Main(app *App) int {
 
 // NewRoot builds the command tree.
 func NewRoot(app *App) *cobra.Command {
+	root, _ := newRoot(app)
+	return root
+}
+
+// newRoot builds the command tree and returns the run's environment.
+func newRoot(app *App) (*cobra.Command, *env) {
 	app.defaults()
 	g := &globals{}
 	root := &cobra.Command{
@@ -101,6 +120,7 @@ func NewRoot(app *App) *cobra.Command {
 	root.SetIn(app.Stdin)
 	root.SetOut(app.Stdout)
 	root.SetErr(app.Stderr)
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usage(err) })
 	pf := root.PersistentFlags()
 	pf.StringVar(&g.config, "config", "", "config file (default ~/.config/total-recall/config.toml, env TOTAL_RECALL_CONFIG)")
 	pf.StringVar(&g.db, "db", "", "database path (env TOTAL_RECALL_DB)")
@@ -127,23 +147,28 @@ func NewRoot(app *App) *cobra.Command {
 		e.tuiCmd(),
 		versionCmd(),
 	)
-	return root
+	return root, e
 }
 
 // env is shared by all commands of one run.
 type env struct {
 	app *App
 	g   *globals
+	// jsonErrors is set by a read command that resolved a JSON format:
+	// Main then reports an error as JSON on stdout too.
+	jsonErrors bool
 }
 
-// loadConfig loads the effective configuration with the global flags.
+// loadConfig loads the effective configuration with the global flags. Its
+// errors are of kind config.
 func (e *env) loadConfig() (*config.Config, error) {
-	return config.Load(config.Options{
+	cfg, err := config.Load(config.Options{
 		ConfigFile: e.g.config,
 		Flags:      config.Flags{DB: e.g.db, BackupDir: e.g.backupDir, Timezone: e.g.tz},
 		Home:       e.app.Home,
 		Getenv:     e.app.Getenv,
 	})
+	return cfg, errKind(ErrKindConfig, err)
 }
 
 // out returns where normal output goes: stdout, or the log in a detached child.

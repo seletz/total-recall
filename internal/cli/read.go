@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -19,7 +20,14 @@ import (
 
 // ---- status ----
 
-// StatusJSON is the --json output of status.
+// StatusJSON is the JSON output of status. Every key is always present;
+// LastBackup and LastBackupAt are null without a backup.
+//
+// Errors come from the log file. RecentErrors lists the ERROR lines of the
+// window ErrorsWindow (default "24h"; ErrorsSince is its start), oldest
+// first, capped by --errors; RecentErrorsTotal is the count in the window,
+// OlderErrors the count before it. With --all-errors the window is null and
+// OlderErrors 0. Lines that only report a missing transcript never count.
 type StatusJSON struct {
 	DB                  string            `json:"db"`
 	DBSizeBytes         int64             `json:"db_size_bytes"`
@@ -30,99 +38,162 @@ type StatusJSON struct {
 	Sources             int               `json:"sources"`
 	LastIngest          map[string]string `json:"last_ingest"`
 	BackupDir           string            `json:"backup_dir"`
-	LastBackup          string            `json:"last_backup,omitempty"`
-	LastBackupAt        string            `json:"last_backup_at,omitempty"`
+	LastBackup          NullString        `json:"last_backup"`
+	LastBackupAt        NullString        `json:"last_backup_at"`
 	Log                 string            `json:"log"`
-	RecentErrors        []string          `json:"recent_errors"`
+	ErrorsWindow        NullString        `json:"errors_window"`
+	ErrorsSince         NullString        `json:"errors_since"`
+	RecentErrors        []StatusError     `json:"recent_errors"`
+	RecentErrorsTotal   int               `json:"recent_errors_total"`
+	OlderErrors         int               `json:"older_errors"`
 }
 
+// StatusError is one error line in StatusJSON.RecentErrors. At is null
+// when the line has no timestamp.
+type StatusError struct {
+	At      NullString `json:"at"`
+	Message string     `json:"message"`
+}
+
+// statusErrorWindow is the age up to which status lists log errors. A
+// fixed window is predictable and independent of whether hooks ran since;
+// "since the last ingest" would hide an error minutes before a successful
+// run and would differ per harness.
+const statusErrorWindow = 24 * time.Hour
+
+// statusErrorWindowLabel names statusErrorWindow in the output.
+const statusErrorWindowLabel = "24h"
+
 func (e *env) statusCmd() *cobra.Command {
-	var asJSON bool
+	var of outputFlags
 	var nErrors int
+	var allErrors bool
 	c := &cobra.Command{
 		Use:   "status",
 		Short: "Show archive location, size, counts, last ingest, last backup and recent errors",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := e.loadConfig()
-			if err != nil {
-				return err
-			}
-			st, err := e.openRead(cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = st.Close() }()
-			ctx := cmd.Context()
-			s, err := st.Status(ctx)
-			if err != nil {
-				return err
-			}
-			v, err := st.SchemaVersion(ctx)
-			if err != nil {
-				return err
-			}
-			out := StatusJSON{DB: cfg.DB, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(),
-				Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
-				BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []string{}}
-			for _, suffix := range []string{"", "-wal"} {
-				if fi, err := os.Stat(cfg.DB + suffix); err == nil {
-					out.DBSizeBytes += fi.Size()
-				}
-			}
-			for h, t := range s.LastIngest {
-				out.LastIngest[h] = isoTime(t)
-			}
-			bp, bt, err := store.LastBackup(cfg.Backup.Dir)
-			if err != nil {
-				return err
-			}
-			out.LastBackup, out.LastBackupAt = bp, isoTime(bt)
-			if errs, err := lastErrors(cfg.LogPath(), nErrors); err == nil && errs != nil {
-				out.RecentErrors = errs
-			}
-			if asJSON {
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			now, loc := e.app.Now(), cfg.Location()
-			w := cmd.OutOrStdout()
-			rows := [][]string{
-				{"database", cfg.DB},
-				{"size", fmt.Sprintf("%.1f MiB", float64(out.DBSizeBytes)/(1<<20))},
-				{"schema", fmt.Sprintf("v%d (binary supports v%d)", v, out.BinarySchemaVersion)},
-				{"sessions", strconv.Itoa(s.Sessions)},
-				{"events", strconv.Itoa(s.Events)},
-				{"sources", strconv.Itoa(s.Sources)},
-			}
-			harnesses := make([]string, 0, len(s.LastIngest))
-			for h := range s.LastIngest {
-				harnesses = append(harnesses, h)
-			}
-			sort.Strings(harnesses)
-			for _, h := range harnesses {
-				t := s.LastIngest[h]
-				rows = append(rows, []string{"last ingest (" + h + ")", localTime(t, loc) + "  (" + age(now, t) + ")"})
-			}
-			if bp == "" {
-				rows = append(rows, []string{"last backup", "none in " + cfg.Backup.Dir})
-			} else {
-				rows = append(rows, []string{"last backup", bp + "  (" + age(now, bt) + ")"})
-			}
-			rows = append(rows, []string{"log", cfg.LogPath()})
-			if err := table(w, nil, rows); err != nil {
-				return err
-			}
-			if len(out.RecentErrors) > 0 {
-				_, _ = fmt.Fprintln(w, "\nrecent errors:")
-				for _, l := range out.RecentErrors {
-					_, _ = fmt.Fprintln(w, "  "+l)
-				}
-			}
-			return nil
-		},
+		Long: `Show the state of the archive. Errors are the ERROR lines of the log from
+the last 24h; older ones appear only as a count. --all-errors lists every
+error of the log regardless of age (without a cap unless --errors is set).
+Lines about transcripts that did not exist yet never count as errors.`,
+		Args: usageArgs(cobra.NoArgs),
 	}
-	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
-	c.Flags().IntVar(&nErrors, "errors", 5, "number of recent error lines from the log")
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		st, err := e.openRead(cfg)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = st.Close() }()
+		ctx := cmd.Context()
+		s, err := st.Status(ctx)
+		if err != nil {
+			return err
+		}
+		v, err := st.SchemaVersion(ctx)
+		if err != nil {
+			return err
+		}
+		now, loc := e.app.Now(), cfg.Location()
+		out := StatusJSON{DB: cfg.DB, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(),
+			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
+			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
+		for _, suffix := range []string{"", "-wal"} {
+			if fi, err := os.Stat(cfg.DB + suffix); err == nil {
+				out.DBSizeBytes += fi.Size()
+			}
+		}
+		for h, t := range s.LastIngest {
+			out.LastIngest[h] = isoTime(t)
+		}
+		bp, bt, err := store.LastBackup(cfg.Backup.Dir)
+		if err != nil {
+			return err
+		}
+		out.LastBackup, out.LastBackupAt = NullString(bp), NullString(isoTime(bt))
+
+		var since time.Time
+		cap := nErrors
+		if allErrors {
+			if !cmd.Flags().Changed("errors") {
+				cap = 0
+			}
+		} else {
+			since = now.Add(-statusErrorWindow)
+			out.ErrorsWindow = statusErrorWindowLabel
+			out.ErrorsSince = NullString(isoTime(since))
+		}
+		all, err := readErrors(cfg.LogPath())
+		if err != nil {
+			return err
+		}
+		recent, older := splitErrors(all, since)
+		out.RecentErrorsTotal, out.OlderErrors = len(recent), older
+		if cap > 0 && len(recent) > cap {
+			recent = recent[len(recent)-cap:]
+		}
+		for _, le := range recent {
+			out.RecentErrors = append(out.RecentErrors, StatusError{At: NullString(isoTime(le.At)), Message: le.Message})
+		}
+		if o.format.IsJSON() {
+			return o.object(out)
+		}
+		w := o.w
+		rows := [][]string{
+			{"database", cfg.DB},
+			{"size", fmt.Sprintf("%.1f MiB", float64(out.DBSizeBytes)/(1<<20))},
+			{"schema", fmt.Sprintf("v%d (binary supports v%d)", v, out.BinarySchemaVersion)},
+			{"sessions", strconv.Itoa(s.Sessions)},
+			{"events", strconv.Itoa(s.Events)},
+			{"sources", strconv.Itoa(s.Sources)},
+		}
+		harnesses := make([]string, 0, len(s.LastIngest))
+		for h := range s.LastIngest {
+			harnesses = append(harnesses, h)
+		}
+		sort.Strings(harnesses)
+		for _, h := range harnesses {
+			t := s.LastIngest[h]
+			rows = append(rows, []string{"last ingest (" + h + ")", localTime(t, loc) + "  (" + age(now, t) + ")"})
+		}
+		if bp == "" {
+			rows = append(rows, []string{"last backup", "none in " + cfg.Backup.Dir})
+		} else {
+			rows = append(rows, []string{"last backup", bp + "  (" + age(now, bt) + ")"})
+		}
+		rows = append(rows, []string{"log", cfg.LogPath()})
+		if err := o.table(nil, rows); err != nil {
+			return err
+		}
+		head := "errors (all)"
+		if !allErrors {
+			head = fmt.Sprintf("recent errors (last %s, since %s)", out.ErrorsWindow, localTime(since, loc))
+		}
+		count := "none"
+		if out.RecentErrorsTotal > 0 {
+			count = strconv.Itoa(out.RecentErrorsTotal)
+			if len(recent) < out.RecentErrorsTotal {
+				count += fmt.Sprintf(", newest %d shown", len(recent))
+			}
+		}
+		_, _ = fmt.Fprintf(w, "\n%s: %s\n", head, count)
+		for _, le := range recent {
+			stamp := "(no timestamp)"
+			if !le.At.IsZero() {
+				stamp = localTime(le.At, loc) + "  (" + age(now, le.At) + ")"
+			}
+			_, _ = fmt.Fprintf(w, "  %s  %s\n", stamp, le.Message)
+		}
+		if older > 0 {
+			_, _ = fmt.Fprintf(w, "older errors: %d (not shown; status --all-errors lists them, log: %s)\n", older, cfg.LogPath())
+		}
+		return nil
+	})
+	of.register(c)
+	c.Flags().IntVar(&nErrors, "errors", 5, "number of error lines to list (newest; 0 = all)")
+	c.Flags().BoolVar(&allErrors, "all-errors", false, "list errors of any age, not only the last 24h")
 	return c
 }
 
@@ -156,36 +227,38 @@ func (f *filterFlags) filter(loc *time.Location) (store.SessionFilter, error) {
 	return store.SessionFilter{Since: since, Until: until, Repo: f.repo, Harness: f.harness, Name: f.name, Limit: f.limit}, nil
 }
 
-// SessionJSON is a session in JSON output.
+// SessionJSON is a session in JSON output. Every key is always present;
+// a NullString without a value is null.
 type SessionJSON struct {
-	ID              string `json:"id"`
-	Harness         string `json:"harness"`
-	NativeID        string `json:"native_id"`
-	ParentID        string `json:"parent_id,omitempty"`
-	DisplayName     string `json:"display_name"`
-	Name            string `json:"name,omitempty"`
-	AITitle         string `json:"ai_title,omitempty"`
-	AgentName       string `json:"agent_name,omitempty"`
-	Cwd             string `json:"cwd"`
-	GitRoot         string `json:"git_root,omitempty"`
-	GitRemoteURL    string `json:"git_remote_url,omitempty"`
-	Repo            string `json:"repo"`
-	GitBranch       string `json:"git_branch,omitempty"`
-	Model           string `json:"model,omitempty"`
-	HarnessVersion  string `json:"harness_version,omitempty"`
-	StartedAt       string `json:"started_at"`
-	EndedAt         string `json:"ended_at"`
-	DurationSeconds int64  `json:"duration_seconds"`
-	HumanEvents     int    `json:"human_events"`
-	AgentEvents     int    `json:"agent_events"`
-	Events          int    `json:"events"`
+	ID              string     `json:"id"`
+	Harness         string     `json:"harness"`
+	NativeID        string     `json:"native_id"`
+	ParentID        NullString `json:"parent_id"`
+	DisplayName     NullString `json:"display_name"`
+	Name            NullString `json:"name"`
+	AITitle         NullString `json:"ai_title"`
+	AgentName       NullString `json:"agent_name"`
+	Cwd             NullString `json:"cwd"`
+	GitRoot         NullString `json:"git_root"`
+	GitRemoteURL    NullString `json:"git_remote_url"`
+	Repo            NullString `json:"repo"`
+	GitBranch       NullString `json:"git_branch"`
+	Model           NullString `json:"model"`
+	HarnessVersion  NullString `json:"harness_version"`
+	StartedAt       NullString `json:"started_at"`
+	EndedAt         NullString `json:"ended_at"`
+	DurationSeconds int64      `json:"duration_seconds"`
+	HumanEvents     int        `json:"human_events"`
+	AgentEvents     int        `json:"agent_events"`
+	Events          int        `json:"events"`
 }
 
 func sessionJSON(s store.SessionInfo) SessionJSON {
-	return SessionJSON{ID: s.ID, Harness: s.Harness, NativeID: s.NativeID, ParentID: s.ParentID,
-		DisplayName: s.DisplayName(), Name: s.Name, AITitle: s.AITitle, AgentName: s.AgentName,
-		Cwd: s.Cwd, GitRoot: s.GitRoot, GitRemoteURL: s.GitRemoteURL, Repo: s.Repo(), GitBranch: s.GitBranch,
-		Model: s.Model, HarnessVersion: s.HarnessVersion, StartedAt: isoTime(s.StartedAt), EndedAt: isoTime(s.EndedAt),
+	return SessionJSON{ID: s.ID, Harness: s.Harness, NativeID: s.NativeID, ParentID: NullString(s.ParentID),
+		DisplayName: NullString(s.DisplayName()), Name: NullString(s.Name), AITitle: NullString(s.AITitle), AgentName: NullString(s.AgentName),
+		Cwd: NullString(s.Cwd), GitRoot: NullString(s.GitRoot), GitRemoteURL: NullString(s.GitRemoteURL), Repo: NullString(s.Repo()),
+		GitBranch: NullString(s.GitBranch), Model: NullString(s.Model), HarnessVersion: NullString(s.HarnessVersion),
+		StartedAt: NullString(isoTime(s.StartedAt)), EndedAt: NullString(isoTime(s.EndedAt)),
 		DurationSeconds: int64(s.EndedAt.Sub(s.StartedAt).Seconds()),
 		HumanEvents:     s.HumanEvents, AgentEvents: s.AgentEvents, Events: s.Events}
 }
@@ -204,50 +277,51 @@ func shortID(s model.Session) string {
 
 func (e *env) sessionsCmd() *cobra.Command {
 	var f filterFlags
-	var asJSON, subagents, allSessions bool
+	var of outputFlags
+	var subagents, allSessions bool
 	c := &cobra.Command{
 		Use:   "sessions",
 		Short: "List sessions (newest first)",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := e.loadConfig()
-			if err != nil {
-				return err
-			}
-			sf, err := f.filter(cfg.Location())
-			if err != nil {
-				return err
-			}
-			sf.TopLevel = !subagents
-			sf.HideEmpty = !allSessions
-			st, err := e.openRead(cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = st.Close() }()
-			list, err := st.Sessions(cmd.Context(), sf)
-			if err != nil {
-				return err
-			}
-			if asJSON {
-				out := make([]SessionJSON, 0, len(list))
-				for _, s := range list {
-					out = append(out, sessionJSON(s))
-				}
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			loc := cfg.Location()
-			rows := make([][]string, 0, len(list))
-			for _, s := range list {
-				rows = append(rows, []string{localTime(s.StartedAt, loc), duration(s.EndedAt.Sub(s.StartedAt)),
-					shortID(s.Session), clip(s.DisplayName(), 40), shortRepo(s.Repo()), clip(s.GitBranch, 24),
-					strconv.Itoa(s.HumanEvents), strconv.Itoa(s.AgentEvents)})
-			}
-			return table(cmd.OutOrStdout(), []string{"START", "DUR", "ID", "NAME", "REPO", "BRANCH", "HUMAN", "AGENT"}, rows)
-		},
+		Args:  usageArgs(cobra.NoArgs),
 	}
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		sf, err := f.filter(cfg.Location())
+		if err != nil {
+			return err
+		}
+		sf.TopLevel = !subagents
+		sf.HideEmpty = !allSessions
+		st, err := e.openRead(cfg)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = st.Close() }()
+		list, err := st.Sessions(cmd.Context(), sf)
+		if err != nil {
+			return err
+		}
+		if o.format.IsJSON() {
+			out := make([]SessionJSON, 0, len(list))
+			for _, s := range list {
+				out = append(out, sessionJSON(s))
+			}
+			return writeList(o, out)
+		}
+		loc := cfg.Location()
+		rows := make([][]string, 0, len(list))
+		for _, s := range list {
+			rows = append(rows, []string{localTime(s.StartedAt, loc), duration(s.EndedAt.Sub(s.StartedAt)),
+				shortID(s.Session), s.DisplayName(), shortRepo(s.Repo()), s.GitBranch,
+				strconv.Itoa(s.HumanEvents), strconv.Itoa(s.AgentEvents)})
+		}
+		return o.table([]string{"START", "DUR", "ID", "NAME", "REPO", "BRANCH", "HUMAN", "AGENT"}, rows)
+	})
 	f.register(c, 0)
-	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	of.register(c)
 	c.Flags().BoolVar(&subagents, "subagents", false, "include subagent sessions")
 	c.Flags().BoolVar(&allSessions, "all-sessions", false, "include sessions without events and start time (e.g. only a title was seen)")
 	return c
@@ -255,166 +329,236 @@ func (e *env) sessionsCmd() *cobra.Command {
 
 // ---- show ----
 
-// EventJSON is an event in JSON output (without the raw line).
+// EventJSON is an event in JSON output (without the raw line). Every key
+// is always present; a NullString without a value is null, token counts
+// without a value are 0.
 type EventJSON struct {
-	ID        string `json:"id"`
-	TS        string `json:"ts"`
-	Kind      string `json:"kind"`
-	Role      string `json:"role"`
-	Actor     string `json:"actor"`
-	Text      string `json:"text"`
-	ToolName  string `json:"tool_name,omitempty"`
-	Model     string `json:"model,omitempty"`
-	TokensIn  int64  `json:"tokens_in,omitempty"`
-	TokensOut int64  `json:"tokens_out,omitempty"`
+	ID        string     `json:"id"`
+	TS        string     `json:"ts"`
+	Kind      string     `json:"kind"`
+	Role      NullString `json:"role"`
+	Actor     string     `json:"actor"`
+	Text      NullString `json:"text"`
+	ToolName  NullString `json:"tool_name"`
+	Model     NullString `json:"model"`
+	TokensIn  int64      `json:"tokens_in"`
+	TokensOut int64      `json:"tokens_out"`
+}
+
+func eventJSON(ev model.Event) EventJSON {
+	return EventJSON{ID: ev.ID, TS: isoTime(ev.TS), Kind: string(ev.Kind),
+		Role: NullString(ev.Role), Actor: string(ev.Actor), Text: NullString(ev.Text), ToolName: NullString(ev.ToolName),
+		Model: NullString(ev.Model), TokensIn: ev.TokensIn, TokensOut: ev.TokensOut}
+}
+
+// ShowJSON is the JSON output of show: the session and its events. With
+// jsonl only the events are written, one per line.
+type ShowJSON struct {
+	Session SessionJSON `json:"session"`
+	Events  []EventJSON `json:"events"`
+}
+
+// showHintEvents is the number of events above which an unbounded show
+// prints a hint on stderr on how to bound the output.
+const showHintEvents = 2000
+
+// findSession resolves a session reference (full ID, native ID or unique
+// prefix) with user-facing errors.
+func findSession(ctx context.Context, st *store.Store, ref string) (store.SessionInfo, error) {
+	s, err := st.FindSession(ctx, ref)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return s, errKind(ErrKindNotFound, fmt.Errorf("no session matches %q", ref))
+	case errors.Is(err, store.ErrAmbiguous):
+		return s, errKind(ErrKindAmbiguous, fmt.Errorf("%q matches more than one session; use a longer prefix", ref))
+	}
+	return s, err
 }
 
 func (e *env) showCmd() *cobra.Command {
-	var asJSON, all bool
+	var of outputFlags
+	var all bool
+	var since, until, fromEvent string
+	var limit, offset int
 	c := &cobra.Command{
 		Use:   "show SESSION",
 		Short: "Show the conversation of one session (full ID, native ID or unique prefix)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := e.loadConfig()
-			if err != nil {
-				return err
-			}
-			st, err := e.openRead(cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = st.Close() }()
-			s, err := st.FindSession(cmd.Context(), args[0])
-			switch {
-			case errors.Is(err, store.ErrNotFound):
-				return fmt.Errorf("no session matches %q", args[0])
-			case errors.Is(err, store.ErrAmbiguous):
-				return fmt.Errorf("%q matches more than one session; use a longer prefix", args[0])
-			case err != nil:
-				return err
-			}
-			evs, err := st.Events(cmd.Context(), s.ID, all)
-			if err != nil {
-				return err
-			}
-			if asJSON {
-				out := struct {
-					Session SessionJSON `json:"session"`
-					Events  []EventJSON `json:"events"`
-				}{Session: sessionJSON(s), Events: make([]EventJSON, 0, len(evs))}
-				for _, ev := range evs {
-					out.Events = append(out.Events, EventJSON{ID: ev.ID, TS: isoTime(ev.TS), Kind: string(ev.Kind),
-						Role: ev.Role, Actor: string(ev.Actor), Text: ev.Text, ToolName: ev.ToolName, Model: ev.Model,
-						TokensIn: ev.TokensIn, TokensOut: ev.TokensOut})
-				}
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			loc := cfg.Location()
-			w := cmd.OutOrStdout()
-			name := s.DisplayName()
-			if name == "" {
-				name = "(untitled)"
-			}
-			_, _ = fmt.Fprintf(w, "%s\n%s\n", name, s.ID)
-			hdr := [][]string{
-				{"time", localTime(s.StartedAt, loc) + " – " + localTime(s.EndedAt, loc) + "  (" + duration(s.EndedAt.Sub(s.StartedAt)) + ")"},
-				{"repo", s.Repo()},
-				{"branch", s.GitBranch},
-				{"cwd", s.Cwd},
-			}
-			if s.ParentID != "" {
-				hdr = append(hdr, []string{"parent", s.ParentID})
-			}
-			if err := table(w, nil, hdr); err != nil {
-				return err
-			}
-			for _, ev := range evs {
-				label := string(ev.Actor)
-				if ev.Kind == model.KindToolUse {
-					label = "tool_use " + ev.ToolName
-				} else if ev.Kind != model.KindMessage {
-					label += " (" + string(ev.Kind) + ")"
-				}
-				_, _ = fmt.Fprintf(w, "\n── %s  %s\n%s\n", ev.TS.In(loc).Format("2006-01-02 15:04:05"), label, strings.TrimRight(ev.Text, "\n"))
-			}
-			return nil
-		},
+		Long: `Show the conversation of one session. Without bounds the whole session is
+printed; --since/--until (local time, same formats as search), --limit with
+--offset, or --from-event EVENT_ID (e.g. from a search hit) select a window.
+Events are in session order; --offset and --limit apply after the time
+window.`,
+		Args: usageArgs(cobra.ExactArgs(1)),
 	}
-	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		loc := cfg.Location()
+		f := store.EventFilter{All: all, FromEvent: fromEvent, Limit: limit, Offset: offset}
+		if f.Since, err = parseTimeArg(since, loc, false); err != nil {
+			return err
+		}
+		if f.Until, err = parseTimeArg(until, loc, true); err != nil {
+			return err
+		}
+		if limit < 0 {
+			return usagef("--limit must not be negative")
+		}
+		if offset < 0 {
+			return usagef("--offset must not be negative")
+		}
+		st, err := e.openRead(cfg)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = st.Close() }()
+		s, err := findSession(cmd.Context(), st, args[0])
+		if err != nil {
+			return err
+		}
+		evs, err := st.EventWindow(cmd.Context(), s.ID, f)
+		if errors.Is(err, store.ErrNotFound) {
+			return errKind(ErrKindNotFound, fmt.Errorf("no event %q in session %s", fromEvent, s.ID))
+		}
+		if err != nil {
+			return err
+		}
+		bounded := since != "" || until != "" || limit > 0 || fromEvent != ""
+		if !bounded && len(evs) > showHintEvents {
+			_, _ = fmt.Fprintf(e.app.Stderr, "show: %d events; bound the output with --since/--until, --limit (and --offset) or --from-event EVENT_ID\n", len(evs))
+		}
+		if o.format.IsJSON() {
+			out := ShowJSON{Session: sessionJSON(s), Events: make([]EventJSON, 0, len(evs))}
+			for _, ev := range evs {
+				out.Events = append(out.Events, eventJSON(ev))
+			}
+			if o.format == FormatJSONL {
+				return writeList(o, out.Events)
+			}
+			return o.object(out)
+		}
+		w := o.w
+		name := s.DisplayName()
+		if name == "" {
+			name = "(untitled)"
+		}
+		_, _ = fmt.Fprintf(w, "%s\n%s\n", name, s.ID)
+		hdr := [][]string{
+			{"time", localTime(s.StartedAt, loc) + " – " + localTime(s.EndedAt, loc) + "  (" + duration(s.EndedAt.Sub(s.StartedAt)) + ")"},
+			{"repo", s.Repo()},
+			{"branch", s.GitBranch},
+			{"cwd", s.Cwd},
+		}
+		if s.ParentID != "" {
+			hdr = append(hdr, []string{"parent", s.ParentID})
+		}
+		if err := table(w, nil, hdr); err != nil {
+			return err
+		}
+		for _, ev := range evs {
+			label := string(ev.Actor)
+			if ev.Kind == model.KindToolUse {
+				label = "tool_use " + ev.ToolName
+			} else if ev.Kind != model.KindMessage {
+				label += " (" + string(ev.Kind) + ")"
+			}
+			_, _ = fmt.Fprintf(w, "\n── %s  %s\n%s\n", ev.TS.In(loc).Format("2006-01-02 15:04:05"), label, strings.TrimRight(ev.Text, "\n"))
+		}
+		return nil
+	})
+	of.register(c)
 	c.Flags().BoolVar(&all, "all", false, "include tool calls/results, automation, system and meta events")
+	c.Flags().StringVar(&since, "since", "", "from this time (YYYY-MM-DD or YYYY-MM-DDTHH:MM, local time)")
+	c.Flags().StringVar(&until, "until", "", "until this time; a date includes the whole day")
+	c.Flags().IntVar(&limit, "limit", 0, "maximum number of events (0 = all)")
+	c.Flags().IntVar(&offset, "offset", 0, "skip the first N events of the window (paging with --limit)")
+	c.Flags().StringVar(&fromEvent, "from-event", "", "start at this event ID (inclusive), e.g. event_id of a search hit")
 	return c
 }
 
 // ---- search ----
 
-// HitJSON is a search hit in JSON output.
+// HitJSON is a search hit in JSON output. Every key is always present; a
+// NullString without a value is null.
 type HitJSON struct {
-	SessionID   string  `json:"session_id"`
-	SessionName string  `json:"session_name"`
-	Repo        string  `json:"repo"`
-	EventID     string  `json:"event_id"`
-	TS          string  `json:"ts"`
-	Actor       string  `json:"actor"`
-	Kind        string  `json:"kind"`
-	Snippet     string  `json:"snippet"`
-	Rank        float64 `json:"rank"`
+	SessionID   string     `json:"session_id"`
+	SessionName NullString `json:"session_name"`
+	Repo        NullString `json:"repo"`
+	EventID     string     `json:"event_id"`
+	TS          string     `json:"ts"`
+	Actor       string     `json:"actor"`
+	Kind        string     `json:"kind"`
+	Snippet     NullString `json:"snippet"`
+	Rank        float64    `json:"rank"`
 }
 
 func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
-	var asJSON, raw bool
-	var actor string
+	var of outputFlags
+	var raw bool
+	var actor, session string
 	c := &cobra.Command{
 		Use:   "search QUERY",
 		Short: "Full-text search over event text (FTS5) with snippets",
 		Long: `Full-text search over event text. By default every word must occur
 (words are quoted, so special characters are safe). With --raw the query is
 passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := e.loadConfig()
-			if err != nil {
-				return err
-			}
-			sf, err := f.filter(cfg.Location())
-			if err != nil {
-				return err
-			}
-			st, err := e.openRead(cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = st.Close() }()
-			hits, err := st.Search(cmd.Context(), strings.Join(args, " "), store.SearchFilter{SessionFilter: sf, Actor: actor, Raw: raw})
-			if err != nil {
-				return err
-			}
-			if asJSON {
-				out := make([]HitJSON, 0, len(hits))
-				for _, h := range hits {
-					out = append(out, HitJSON{SessionID: h.Event.SessionID, SessionName: h.SessionName, Repo: h.Repo,
-						EventID: h.Event.ID, TS: isoTime(h.Event.TS), Actor: string(h.Event.Actor), Kind: string(h.Event.Kind),
-						Snippet: h.Snippet, Rank: h.Rank})
-				}
-				return writeJSON(cmd.OutOrStdout(), out)
-			}
-			w := cmd.OutOrStdout()
-			loc := cfg.Location()
-			for _, h := range hits {
-				_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  [%s]\n    %s\n", localTime(h.Event.TS, loc), clip(h.SessionName, 40),
-					shortRepo(h.Repo), h.Event.SessionID, h.Event.Actor, clip(h.Snippet, 200))
-			}
-			if len(hits) == 0 {
-				_, _ = fmt.Fprintln(e.app.Stderr, "no matches")
-			}
-			return nil
-		},
+		Args: usageArgs(cobra.MinimumNArgs(1)),
 	}
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		sf, err := f.filter(cfg.Location())
+		if err != nil {
+			return err
+		}
+		st, err := e.openRead(cfg)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = st.Close() }()
+		var sessionID string
+		if session != "" {
+			s, err := findSession(cmd.Context(), st, session)
+			if err != nil {
+				return err
+			}
+			sessionID = s.ID
+		}
+		hits, err := st.Search(cmd.Context(), strings.Join(args, " "), store.SearchFilter{SessionFilter: sf, SessionID: sessionID, Actor: actor, Raw: raw})
+		if err != nil {
+			return errKind(ErrKindSQL, err)
+		}
+		if o.format.IsJSON() {
+			out := make([]HitJSON, 0, len(hits))
+			for _, h := range hits {
+				out = append(out, HitJSON{SessionID: h.Event.SessionID, SessionName: NullString(h.SessionName), Repo: NullString(h.Repo),
+					EventID: h.Event.ID, TS: isoTime(h.Event.TS), Actor: string(h.Event.Actor), Kind: string(h.Event.Kind),
+					Snippet: NullString(h.Snippet), Rank: h.Rank})
+			}
+			return writeList(o, out)
+		}
+		w := o.w
+		loc := cfg.Location()
+		for _, h := range hits {
+			// The snippet line is indented by four spaces.
+			_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  [%s]\n    %s\n", localTime(h.Event.TS, loc), o.cell(h.SessionName, 40),
+				shortRepo(h.Repo), h.Event.SessionID, h.Event.Actor, o.cell(h.Snippet, o.width-4))
+		}
+		if len(hits) == 0 {
+			_, _ = fmt.Fprintln(e.app.Stderr, "no matches")
+		}
+		return nil
+	})
 	f.register(c, 20)
-	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	of.register(c)
 	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*)")
 	c.Flags().StringVar(&actor, "actor", "", "only events of this actor: human, agent, peer, automation, tool")
+	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix)")
 	return c
 }
 
@@ -427,10 +571,11 @@ type ActivityJSON struct {
 	Agent    int `json:"agent"`
 }
 
-// StatsJSON is the --json output of stats.
+// StatsJSON is the JSON output of stats. Every key is always present; a
+// NullString without a value is null.
 type StatsJSON struct {
-	Since    string       `json:"since"`
-	Until    string       `json:"until"`
+	Since    NullString   `json:"since"`
+	Until    NullString   `json:"until"`
 	Timezone string       `json:"timezone"`
 	Total    ActivityJSON `json:"total"`
 	ByDay    []struct {
@@ -438,7 +583,7 @@ type StatsJSON struct {
 		ActivityJSON
 	} `json:"by_day"`
 	ByRepo []struct {
-		Repo string `json:"repo"`
+		Repo NullString `json:"repo"`
 		ActivityJSON
 	} `json:"by_repo"`
 	// ByWeekdayHour has all 7×24 cells; weekday 0 = Monday.
@@ -457,7 +602,7 @@ func act(a store.Activity) ActivityJSON {
 }
 
 func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
-	out := StatsJSON{Since: isoTime(since), Until: isoTime(until), Timezone: tz, Total: act(s.Total)}
+	out := StatsJSON{Since: NullString(isoTime(since)), Until: NullString(isoTime(until)), Timezone: tz, Total: act(s.Total)}
 	out.ByDay = make([]struct {
 		Day string `json:"day"`
 		ActivityJSON
@@ -469,14 +614,14 @@ func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
 		}{d.Day, act(d.Activity)})
 	}
 	out.ByRepo = make([]struct {
-		Repo string `json:"repo"`
+		Repo NullString `json:"repo"`
 		ActivityJSON
 	}, 0, len(s.ByRepo))
 	for _, r := range s.ByRepo {
 		out.ByRepo = append(out.ByRepo, struct {
-			Repo string `json:"repo"`
+			Repo NullString `json:"repo"`
 			ActivityJSON
-		}{r.Repo, act(r.Activity)})
+		}{NullString(r.Repo), act(r.Activity)})
 	}
 	for d := range 7 {
 		for h := range 24 {
@@ -494,7 +639,8 @@ func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
 func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
-	var asJSON, workday, humanOnly, allEvents bool
+	var of outputFlags
+	var workday, humanOnly, allEvents bool
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, or first/last activity per day",
@@ -520,89 +666,89 @@ daily target of the [work] config (default 8h): DIFF is the span minus the
 target, the total line balances all spans against target × workdays of the
 range (up to today). Holidays come from the configured Bundesland and are
 named in the HOLIDAY column.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := e.loadConfig()
+		Args: usageArgs(cobra.NoArgs),
+	}
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		loc := cfg.Location()
+		series := period != "" || by != "" || cmd.Flags().Changed("top")
+		if err := checkWorkdayFlags(workday, series, rng, humanOnly || allEvents, period, by); err != nil {
+			return err
+		}
+		if workday {
+			if cmd.Flags().Changed("human-only") {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "stats: --human-only is deprecated: human messages are counted by default, --all-events counts everything")
+			}
+			humanOnly = (cfg.Work.HumanOnly() || humanOnly) && !allEvents
+			work, err := workHours(cfg)
 			if err != nil {
 				return err
 			}
-			loc := cfg.Location()
-			series := period != "" || by != "" || cmd.Flags().Changed("top")
-			if err := checkWorkdayFlags(workday, series, rng, humanOnly || allEvents, period, by); err != nil {
-				return err
-			}
-			if workday {
-				if cmd.Flags().Changed("human-only") {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "stats: --human-only is deprecated: human messages are counted by default, --all-events counts everything")
-				}
-				humanOnly = (cfg.Work.HumanOnly() || humanOnly) && !allEvents
-				work, err := workHours(cfg)
-				if err != nil {
-					return err
-				}
-				since, until, err := workdayRange(rng, month, sinceArg, untilArg, e.app.Now(), loc, cfg.DayStartOffset())
-				if err != nil {
-					return err
-				}
-				st, err := e.openRead(cfg)
-				if err != nil {
-					return err
-				}
-				defer func() { _ = st.Close() }()
-				cal := holidays(cfg)
-				days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
-					Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal,
-				})
-				if err != nil {
-					return err
-				}
-				r := workdayReport{
-					days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
-					work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
-				}
-				if asJSON {
-					return writeJSON(cmd.OutOrStdout(), r.json())
-				}
-				return r.table(cmd.OutOrStdout())
-			}
-			since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
+			since, until, err := workdayRange(rng, month, sinceArg, untilArg, e.app.Now(), loc, cfg.DayStartOffset())
 			if err != nil {
 				return err
-			}
-			var opts seriesOptions
-			if series {
-				if opts, err = parseSeriesOptions(period, by, top); err != nil {
-					return err
-				}
 			}
 			st, err := e.openRead(cfg)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = st.Close() }()
-			if series {
-				as, err := st.ActivitySeries(cmd.Context(), store.ActivityFilter{
-					Since: since, Until: until, Location: loc,
-					Period: opts.period, Dimension: opts.by, TopN: opts.top,
-				})
-				if err != nil {
-					return err
-				}
-				if asJSON {
-					return writeJSON(cmd.OutOrStdout(), seriesJSON(as, opts, keyNames(as, opts, ""), since, until, cfg.Timezone))
-				}
-				return writeSeriesTable(cmd.OutOrStdout(), seriesJSON(as, opts, keyNames(as, opts, cfg.Home), since, until, cfg.Timezone))
-			}
-			s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
+			cal := holidays(cfg)
+			days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
+				Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal,
+			})
 			if err != nil {
 				return err
 			}
-			if asJSON {
-				return writeJSON(cmd.OutOrStdout(), statsJSON(s, since, until, cfg.Timezone))
+			r := workdayReport{
+				days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
+				work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
 			}
-			return writeStatsTable(cmd.OutOrStdout(), s, since, until, loc)
-		},
-	}
+			if o.format.IsJSON() {
+				return o.object(r.json())
+			}
+			return r.table(o.w)
+		}
+		since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
+		if err != nil {
+			return err
+		}
+		var opts seriesOptions
+		if series {
+			if opts, err = parseSeriesOptions(period, by, top); err != nil {
+				return err
+			}
+		}
+		st, err := e.openRead(cfg)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = st.Close() }()
+		if series {
+			as, err := st.ActivitySeries(cmd.Context(), store.ActivityFilter{
+				Since: since, Until: until, Location: loc,
+				Period: opts.period, Dimension: opts.by, TopN: opts.top,
+			})
+			if err != nil {
+				return err
+			}
+			if o.format.IsJSON() {
+				return o.object(seriesJSON(as, opts, keyNames(as, opts, ""), since, until, cfg.Timezone))
+			}
+			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home), since, until, cfg.Timezone))
+		}
+		s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
+		if err != nil {
+			return err
+		}
+		if o.format.IsJSON() {
+			return o.object(statsJSON(s, since, until, cfg.Timezone))
+		}
+		return writeStatsTable(o.w, s, since, until, loc)
+	})
 	c.Flags().StringVar(&month, "month", "", "month YYYY-MM (default: current month)")
 	c.Flags().StringVar(&sinceArg, "since", "", "from this time (instead of --month)")
 	c.Flags().StringVar(&untilArg, "until", "", "until this time; a date includes the whole day")
@@ -614,7 +760,7 @@ named in the HOLIDAY column.`,
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
 	_ = c.Flags().MarkHidden("human-only")
-	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	of.register(c)
 	return c
 }
 
@@ -624,15 +770,15 @@ named in the HOLIDAY column.`,
 func checkWorkdayFlags(workday, series bool, rng string, humanOnly bool, period, by string) error {
 	switch {
 	case !workday && rng != "":
-		return fmt.Errorf("--range requires --workday")
+		return usagef("--range requires --workday")
 	case !workday && humanOnly:
-		return fmt.Errorf("--all-events requires --workday")
+		return usagef("--all-events requires --workday")
 	case workday && period != "":
-		return fmt.Errorf("--workday cannot be combined with --period")
+		return usagef("--workday cannot be combined with --period")
 	case workday && by != "":
-		return fmt.Errorf("--workday cannot be combined with --by")
+		return usagef("--workday cannot be combined with --by")
 	case workday && series:
-		return fmt.Errorf("--workday cannot be combined with --top")
+		return usagef("--workday cannot be combined with --top")
 	}
 	return nil
 }
@@ -644,7 +790,7 @@ func workdayRange(rng, month, sinceArg, untilArg string, now time.Time, loc *tim
 	explicit := month != "" || sinceArg != "" || untilArg != ""
 	switch {
 	case rng != "" && explicit:
-		return time.Time{}, time.Time{}, fmt.Errorf("use either --range or --month/--since/--until")
+		return time.Time{}, time.Time{}, usagef("use either --range or --month/--since/--until")
 	case rng != "":
 		return rangeBounds(rng, now, loc, dayStart)
 	case explicit:
@@ -656,7 +802,7 @@ func workdayRange(rng, month, sinceArg, untilArg string, now time.Time, loc *tim
 // statsPeriod resolves --month or --since/--until; default the month of now.
 func statsPeriod(month, sinceArg, untilArg string, now time.Time, loc *time.Location) (time.Time, time.Time, error) {
 	if month != "" && (sinceArg != "" || untilArg != "") {
-		return time.Time{}, time.Time{}, fmt.Errorf("use either --month or --since/--until")
+		return time.Time{}, time.Time{}, usagef("use either --month or --since/--until")
 	}
 	if sinceArg != "" || untilArg != "" {
 		since, err := parseTimeArg(sinceArg, loc, false)
@@ -672,7 +818,7 @@ func statsPeriod(month, sinceArg, untilArg string, now time.Time, loc *time.Loca
 	} else {
 		t, err := time.ParseInLocation("2006-01", month, loc)
 		if err != nil {
-			return t, t, fmt.Errorf("invalid --month %q (use YYYY-MM)", month)
+			return t, t, usagef("invalid --month %q (use YYYY-MM)", month)
 		}
 		start = t
 	}
@@ -728,39 +874,31 @@ func writeStatsTable(w io.Writer, s store.Stats, since, until time.Time, loc *ti
 // ---- sql ----
 
 func (e *env) sqlCmd() *cobra.Command {
-	var format string
-	var asJSON bool
+	var of outputFlags
 	c := &cobra.Command{
 		Use:   "sql QUERY",
-		Short: "Run a read-only SQL query (table, JSON or CSV output)",
+		Short: "Run a read-only SQL query (table, JSON, JSONL or CSV output)",
 		Long: `Run SQL against the archive. The database is opened with mode=ro and
 PRAGMA query_only, so writes are impossible. Schema: total-recall llm --skill.`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if asJSON {
-				format = "json"
-			}
-			if format != "table" && format != "json" && format != "csv" {
-				return fmt.Errorf("invalid --format %q (table, json, csv)", format)
-			}
-			cfg, err := e.loadConfig()
-			if err != nil {
-				return err
-			}
-			st, err := e.openRead(cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = st.Close() }()
-			cols, rows, err := st.Query(cmd.Context(), args[0])
-			if err != nil {
-				return err
-			}
-			return writeRows(cmd.OutOrStdout(), format, cols, rows)
-		},
+		Args: usageArgs(cobra.ExactArgs(1)),
 	}
-	c.Flags().StringVar(&format, "format", "table", "output format: table, json, csv")
-	c.Flags().BoolVar(&asJSON, "json", false, "shortcut for --format json")
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		st, err := e.openRead(cfg)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = st.Close() }()
+		cols, rows, err := st.Query(cmd.Context(), args[0])
+		if err != nil {
+			return errKind(ErrKindSQL, err)
+		}
+		return writeRows(o, cols, rows)
+	})
+	of.register(c, FormatCSV)
 	return c
 }
 
@@ -776,11 +914,12 @@ func cell(v any) string {
 	return fmt.Sprint(v)
 }
 
-// writeRows prints query results; JSON objects keep the column order.
-func writeRows(w io.Writer, format string, cols []string, rows [][]any) error {
-	switch format {
-	case "csv":
-		cw := csv.NewWriter(w)
+// writeRows prints query results; JSON objects keep the column order and
+// SQL NULL is null.
+func writeRows(o *output, cols []string, rows [][]any) error {
+	switch o.format {
+	case FormatCSV:
+		cw := csv.NewWriter(o.w)
 		_ = cw.Write(cols)
 		for _, r := range rows {
 			rec := make([]string, len(r))
@@ -791,22 +930,22 @@ func writeRows(w io.Writer, format string, cols []string, rows [][]any) error {
 		}
 		cw.Flush()
 		return cw.Error()
-	case "json":
+	case FormatJSON, FormatJSONL:
 		out := make([]orderedRow, 0, len(rows))
 		for _, r := range rows {
 			out = append(out, orderedRow{cols: cols, vals: r})
 		}
-		return writeJSON(w, out)
+		return writeList(o, out)
 	}
 	srows := make([][]string, 0, len(rows))
 	for _, r := range rows {
 		rec := make([]string, len(r))
 		for i, v := range r {
-			rec[i] = clip(cell(v), 80)
+			rec[i] = cell(v)
 		}
 		srows = append(srows, rec)
 	}
-	return table(w, cols, srows)
+	return o.table(cols, srows)
 }
 
 // orderedRow marshals as a JSON object with keys in column order.

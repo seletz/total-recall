@@ -6,6 +6,10 @@ icon: lucide/archive
 
 `total-recall` sichert die Sessions deiner Coding-Agenten in einer lokalen SQLite-Datenbank. Zuerst Claude Code, später weitere Harnesses.
 
+![Die TUI: Volltextsuche mit Vorschau](assets/screenshots/search.png)
+
+*Die [TUI](reference/30-tui.md): Volltextsuche mit Vorschau, dazu Statistik und Aktivität je Tag*
+
 ## Warum
 
 Claude Code löscht alte Transkripte. Der Schalter dafür heißt `cleanupPeriodDays`. Was weg ist, ist weg. Damit verschwindet auch das Wissen darüber, was du wann mit welchem Agenten gemacht hast.

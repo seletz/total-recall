@@ -17,7 +17,7 @@ const doctorFindings = exitCode(2)
 
 func (e *env) doctorCmd() *cobra.Command {
 	var name string
-	var asJSON bool
+	var of outputFlags
 	c := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check the harness transcripts for format drift (read-only)",
@@ -29,63 +29,63 @@ Problems in the config tables that are only checked when used ([work],
 [tui], [keys]) are reported first.
 
 Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := e.loadConfig()
+		Args: usageArgs(cobra.NoArgs),
+	}
+	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		var checkers []harness.FormatChecker
+		for _, a := range adapters(cfg) {
+			if name != "" && a.Name() != name {
+				continue
+			}
+			if fc, ok := a.(harness.FormatChecker); ok {
+				checkers = append(checkers, fc)
+			}
+		}
+		if len(checkers) == 0 {
+			return usagef("doctor: no enabled harness %q with a format check (supported: claude)", name)
+		}
+		reports := make([]harness.FormatReport, 0, len(checkers))
+		problems := cfg.Problems()
+		clean := len(problems) == 0
+		if len(problems) > 0 {
+			w := o.w
+			if o.format.IsJSON() {
+				w = o.errw
+			}
+			_, _ = fmt.Fprintln(w, "config problems (hooks and ingest are not affected, tui and stats --workday fail):")
+			for _, p := range problems {
+				_, _ = fmt.Fprintf(w, "  %s\n", p)
+			}
+			_, _ = fmt.Fprintln(w)
+		}
+		for _, fc := range checkers {
+			r, err := fc.CheckFormat(cmd.Context())
 			if err != nil {
 				return err
 			}
-			var checkers []harness.FormatChecker
-			for _, a := range adapters(cfg) {
-				if name != "" && a.Name() != name {
-					continue
-				}
-				if fc, ok := a.(harness.FormatChecker); ok {
-					checkers = append(checkers, fc)
-				}
+			reports = append(reports, r)
+			clean = clean && r.Clean()
+		}
+		if o.format.IsJSON() {
+			if err := writeList(o, reports); err != nil {
+				return err
 			}
-			if len(checkers) == 0 {
-				return fmt.Errorf("doctor: no enabled harness %q with a format check (supported: claude)", name)
+		} else {
+			for _, r := range reports {
+				printFormatReport(o.w, r)
 			}
-			reports := make([]harness.FormatReport, 0, len(checkers))
-			problems := cfg.Problems()
-			clean := len(problems) == 0
-			if len(problems) > 0 {
-				w := cmd.OutOrStdout()
-				if asJSON {
-					w = cmd.ErrOrStderr()
-				}
-				_, _ = fmt.Fprintln(w, "config problems (hooks and ingest are not affected, tui and stats --workday fail):")
-				for _, p := range problems {
-					_, _ = fmt.Fprintf(w, "  %s\n", p)
-				}
-				_, _ = fmt.Fprintln(w)
-			}
-			for _, fc := range checkers {
-				r, err := fc.CheckFormat(cmd.Context())
-				if err != nil {
-					return err
-				}
-				reports = append(reports, r)
-				clean = clean && r.Clean()
-			}
-			if asJSON {
-				if err := writeJSON(cmd.OutOrStdout(), reports); err != nil {
-					return err
-				}
-			} else {
-				for _, r := range reports {
-					printFormatReport(cmd.OutOrStdout(), r)
-				}
-			}
-			if !clean {
-				return doctorFindings
-			}
-			return nil
-		},
-	}
+		}
+		if !clean {
+			return doctorFindings
+		}
+		return nil
+	})
 	c.Flags().StringVar(&name, "harness", "claude", "harness to check")
-	c.Flags().BoolVar(&asJSON, "json", false, "output JSON (a list of reports)")
+	of.register(c)
 	return c
 }
 
