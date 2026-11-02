@@ -30,6 +30,7 @@ type testEnv struct {
 	detached                                    [][]string
 	now                                         time.Time
 	home                                        string // App.Home; empty means dir
+	width                                       int    // App.TerminalWidth; 0 = stdout is no terminal
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -88,6 +89,7 @@ func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 			e.detached = append(e.detached, args)
 			return nil
 		},
+		TerminalWidth: func() int { return e.width },
 	}
 	code := Main(app)
 	return result{code: code, stdout: out.String(), stderr: errb.String()}
@@ -404,7 +406,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 	byName := map[string]SessionJSON{}
 	for _, s := range sessions {
-		byName[s.DisplayName] = s
+		byName[string(s.DisplayName)] = s
 	}
 	s1, s2 := byName["List files"], byName["Beta work"]
 	if s1.HumanEvents != 2 || s1.AgentEvents != 3 || s1.NativeID != tf.DemoSession1 || s1.DurationSeconds != 5405 {
@@ -701,7 +703,7 @@ func TestConfigCommands(t *testing.T) {
 	}
 	origins := map[string]string{}
 	for _, v := range c.Values {
-		origins[v.Key] = v.Origin + "=" + v.Value
+		origins[v.Key] = v.Origin + "=" + string(v.Value)
 	}
 	if origins["db"] != "file="+e.db || !strings.HasPrefix(origins["redact.enabled"], "default=") {
 		t.Errorf("origins = %v", origins)
@@ -947,7 +949,7 @@ func TestShowWindow(t *testing.T) {
 			}
 			got := make([]string, 0, len(sh.Events))
 			for _, ev := range sh.Events {
-				got = append(got, ev.Text)
+				got = append(got, string(ev.Text))
 			}
 			if strings.Join(got, "|") != strings.Join(tt.want, "|") {
 				t.Errorf("events = %q, want %q", got, tt.want)
