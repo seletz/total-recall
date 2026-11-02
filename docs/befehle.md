@@ -113,6 +113,9 @@ total-recall show 9a1b2c3d                      # Präfix aus `sessions`
 total-recall show claude:9a1b2c3d-…             # volle ID
 total-recall show 9a1b2c3d --all                # inklusive Tool-Aufrufe, Ergebnisse, Automatik
 total-recall show 9a1b2c3d --json
+total-recall show 9a1b2c3d --since 2026-10-31T20:00 --until 2026-10-31T21:00   # Zeitfenster, lokale Zeit
+total-recall show 9a1b2c3d --limit 50 --offset 100                             # blättern
+total-recall show 9a1b2c3d --from-event claude:7c0d…#0 --limit 20              # ab einem Treffer aus `search`
 ```
 
 ```text
@@ -130,7 +133,17 @@ Bitte richte goreleaser mit einem Homebrew-Cask ein.
 Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
 ```
 
+| Option | Bedeutung |
+|---|---|
+| `--all` | auch Tool-Aufrufe und -Ergebnisse, Automatik, System- und Meta-Events |
+| `--since T` / `--until T` | nur Events in diesem Zeitfenster; Formate und Semantik wie bei `search`: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM`, `YYYY-MM-DD HH:MM` oder RFC 3339, lokale Zeit gemäß `timezone`; ein reines Datum bei `--until` schließt den ganzen Tag ein |
+| `--limit N` | höchstens N Events (0 = alle, Default) |
+| `--offset N` | die ersten N Events des Fensters überspringen (Blättern mit `--limit`) |
+| `--from-event ID` | ab diesem Event (einschließlich), z. B. `event_id` eines Treffers aus `search` |
+
 Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein eindeutiges Präfix davon angegeben werden. Ohne `--all` zeigt `show` nur Nachrichten von Mensch, Agent und anderen Agenten (`peer`).
+
+Die Filter wirken in dieser Reihenfolge: erst `--all`, dann das Zeitfenster und `--from-event`, dann `--offset` und `--limit`. Ohne Grenzen bleibt die Ausgabe vollständig; bei mehr als 2000 Events steht ein Hinweis auf stderr, wie sich die Ausgabe begrenzen lässt. Mit `--from-event` und einem Event, das ohne `--all` nicht sichtbar ist (etwa ein Tool-Ergebnis), beginnt die Ausgabe bei der nächsten Nachricht. Ein leeres Fenster liefert mit `--json` eine leere Liste `"events": []`.
 
 ## `search` { #search }
 
@@ -141,6 +154,7 @@ total-recall search goreleaser
 total-recall search backup retention --since 2026-10-01      # beide Wörter müssen vorkommen
 total-recall search --raw 'cask AND (homebrew OR tap)'       # FTS5-Syntax
 total-recall search redaction --actor human --repo seletz/total-recall --json
+total-recall search backup --session 9a1b2c3d                # nur in dieser Session
 ```
 
 ```text
@@ -152,6 +166,7 @@ total-recall search redaction --actor human --repo seletz/total-recall --json
 |---|---|
 | Filter wie `sessions` | `--since`/`--until` gelten hier für die Zeit des Events |
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
+| `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
 | `--limit N` | höchstens N Treffer (Default 20, 0 = alle) |
 

@@ -202,16 +202,69 @@ func scanEvent(sc scanner, extra ...any) (model.Event, error) {
 	return e, nil
 }
 
+// EventFilter narrows the events of a session (EventWindow). Zero fields do
+// not filter.
+type EventFilter struct {
+	// All includes tool calls/results, automation, system and meta events.
+	// Otherwise only the conversation is returned: messages (kind=message)
+	// from human, agent and peer actors.
+	All bool
+	// Since/Until select events with Since <= ts < Until.
+	Since, Until time.Time
+	// FromEvent starts at this event (inclusive, exact ID) in session order.
+	// The event must belong to the session, else ErrNotFound. It need not
+	// be part of the conversation: without All, a tool event as FromEvent
+	// starts at the next message.
+	FromEvent string
+	// Offset skips the first Offset events after the other filters.
+	Offset int
+	// Limit caps the number of events; 0 = no limit.
+	Limit int
+}
+
 // Events returns the events of a session in order. Without all, only the
 // conversation is returned: messages (kind=message) from human, agent and
 // peer actors; no tool calls/results, automation, system or meta entries.
 func (s *Store) Events(ctx context.Context, sessionID string, all bool) ([]model.Event, error) {
+	return s.EventWindow(ctx, sessionID, EventFilter{All: all})
+}
+
+// EventWindow returns the events of a session in order (ts, then ingest
+// order) that match f.
+func (s *Store) EventWindow(ctx context.Context, sessionID string, f EventFilter) ([]model.Event, error) {
 	q := "SELECT " + eventCols + " FROM events WHERE session_id = ?"
-	if !all {
+	args := []any{sessionID}
+	if !f.All {
 		q += " AND kind = 'message' AND actor IN ('human', 'agent', 'peer')"
 	}
+	if !f.Since.IsZero() {
+		q += " AND ts >= ?"
+		args = append(args, formatTime(f.Since))
+	}
+	if !f.Until.IsZero() {
+		q += " AND ts < ?"
+		args = append(args, formatTime(f.Until))
+	}
+	if f.FromEvent != "" {
+		var n int
+		if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM events WHERE id = ? AND session_id = ?", f.FromEvent, sessionID).Scan(&n); err != nil {
+			return nil, fmt.Errorf("store: events: %w", err)
+		}
+		if n == 0 {
+			return nil, ErrNotFound
+		}
+		q += " AND (ts, seq) >= (SELECT ts, seq FROM events WHERE id = ?)"
+		args = append(args, f.FromEvent)
+	}
 	q += " ORDER BY ts, seq"
-	rows, err := s.db.QueryContext(ctx, q, sessionID)
+	if f.Limit > 0 || f.Offset > 0 {
+		limit := f.Limit
+		if limit <= 0 {
+			limit = -1 // SQLite: no limit, but OFFSET needs a LIMIT clause
+		}
+		q += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, max(f.Offset, 0))
+	}
+	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: events: %w", err)
 	}
@@ -231,6 +284,8 @@ func (s *Store) Events(ctx context.Context, sessionID string, all bool) ([]model
 type SearchFilter struct {
 	// SessionFilter filters by session; Since/Until apply to the event time.
 	SessionFilter
+	// SessionID restricts the search to one session (exact ID).
+	SessionID string
 	// Actor is an exact actor (human, agent, peer, automation, tool).
 	Actor string
 	// Raw passes the query to FTS5 unchanged (AND/OR/NOT, "phrases", prefix*).
@@ -276,6 +331,10 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 	if f.Actor != "" {
 		cond = append(cond, "e.actor = ?")
 		args = append(args, f.Actor)
+	}
+	if f.SessionID != "" {
+		cond = append(cond, "e.session_id = ?")
+		args = append(args, f.SessionID)
 	}
 	q := "SELECT " + prefixed(eventCols, "e") + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
 		repoExpr + `, snippet(events_fts, 0, ?, ?, '…', 16), bm25(events_fts)
