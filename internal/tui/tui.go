@@ -77,6 +77,9 @@ type Options struct {
 	// DayStart is the day boundary of the activity view as an offset from
 	// local midnight (4h = 04:00); zero means midnight.
 	DayStart time.Duration
+	// Home is the home directory, shown as "~" in project names of
+	// directories without a repository; empty keeps full paths.
+	Home string
 }
 
 func (o *Options) defaults() {
@@ -151,7 +154,7 @@ func searchOptions(opts Options) search.Options {
 // statsOptions is what the stats view gets from the app options; a nil store
 // stays a nil Loader.
 func statsOptions(opts Options) stats.Options {
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}

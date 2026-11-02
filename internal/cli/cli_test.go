@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -24,6 +25,7 @@ type testEnv struct {
 	dir, projects, db, log, backups, configPath string
 	detached                                    [][]string
 	now                                         time.Time
+	home                                        string // App.Home; empty means dir
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -70,7 +72,7 @@ func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 		Stdout: &out,
 		Stderr: &errb,
 		Args:   args,
-		Home:   e.dir,
+		Home:   cmp.Or(e.home, e.dir),
 		Getenv: func(k string) string {
 			if k == "TOTAL_RECALL_CONFIG" {
 				return e.configPath

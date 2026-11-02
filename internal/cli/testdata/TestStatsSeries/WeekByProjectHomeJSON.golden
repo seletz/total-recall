@@ -1,0 +1,146 @@
+{
+  "since": "2025-11-30T23:00:00.000Z",
+  "until": "2026-01-11T23:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "period": "week",
+  "by": "project",
+  "keys": [
+    "alpha",
+    "beta",
+    "/w/gamma"
+  ],
+  "buckets": [
+    {
+      "start": "2025-11-30T23:00:00.000Z",
+      "label": "2025-W49",
+      "sessions": 5,
+      "human": 5,
+      "agent": 10,
+      "cells": [
+        {
+          "key": "alpha",
+          "sessions": 3,
+          "human": 3,
+          "agent": 7
+        },
+        {
+          "key": "beta",
+          "sessions": 1,
+          "human": 1,
+          "agent": 2
+        },
+        {
+          "key": "/w/gamma",
+          "sessions": 1,
+          "human": 1,
+          "agent": 1
+        }
+      ]
+    },
+    {
+      "start": "2025-12-07T23:00:00.000Z",
+      "label": "2025-W50",
+      "sessions": 3,
+      "human": 4,
+      "agent": 6,
+      "cells": [
+        {
+          "key": "alpha",
+          "sessions": 2,
+          "human": 2,
+          "agent": 3
+        },
+        {
+          "key": "beta",
+          "sessions": 1,
+          "human": 2,
+          "agent": 3
+        }
+      ]
+    },
+    {
+      "start": "2025-12-14T23:00:00.000Z",
+      "label": "2025-W51",
+      "sessions": 2,
+      "human": 4,
+      "agent": 7,
+      "cells": [
+        {
+          "key": "alpha",
+          "sessions": 1,
+          "human": 3,
+          "agent": 5
+        },
+        {
+          "key": "/w/gamma",
+          "sessions": 1,
+          "human": 1,
+          "agent": 2
+        }
+      ]
+    },
+    {
+      "start": "2025-12-21T23:00:00.000Z",
+      "label": "2025-W52",
+      "sessions": 2,
+      "human": 2,
+      "agent": 3,
+      "cells": [
+        {
+          "key": "alpha",
+          "sessions": 1,
+          "human": 1,
+          "agent": 1
+        },
+        {
+          "key": "beta",
+          "sessions": 1,
+          "human": 1,
+          "agent": 2
+        }
+      ]
+    },
+    {
+      "start": "2025-12-28T23:00:00.000Z",
+      "label": "2026-W01",
+      "sessions": 2,
+      "human": 3,
+      "agent": 5,
+      "cells": [
+        {
+          "key": "alpha",
+          "sessions": 1,
+          "human": 2,
+          "agent": 3
+        },
+        {
+          "key": "/w/gamma",
+          "sessions": 1,
+          "human": 1,
+          "agent": 2
+        }
+      ]
+    },
+    {
+      "start": "2026-01-04T23:00:00.000Z",
+      "label": "2026-W02",
+      "sessions": 3,
+      "human": 4,
+      "agent": 6,
+      "cells": [
+        {
+          "key": "alpha",
+          "sessions": 2,
+          "human": 3,
+          "agent": 5
+        },
+        {
+          "key": "beta",
+          "sessions": 1,
+          "human": 1,
+          "agent": 1
+        }
+      ]
+    }
+  ]
+}
