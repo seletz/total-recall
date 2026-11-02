@@ -2,6 +2,7 @@
 site_name = "total-recall"
 site_description = "Archiv für Sessions von Coding-Agenten in einer lokalen SQLite-Datenbank."
 site_author = "Stefan Eletzhofer"
+site_url = "https://seletz.github.io/total-recall/"
 repo_url = "https://github.com/seletz/total-recall"
 copyright = "Copyright &copy; 2026 Stefan Eletzhofer"
 
