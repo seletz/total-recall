@@ -40,6 +40,10 @@ description = "Serve documentation locally with live reload"
 depends = ["uv:sync"]
 run = "uv run --locked zensical serve --open"
 
+[tasks."docs:screenshots"]
+description = "Render the TUI screenshots for the docs from an anonymized copy of the archive and a synthetic demo archive"
+run = "go run ./tools/screenshots -out docs/assets/screenshots"
+
 [tasks."docs:build"]
 description = "Build documentation site (strict)"
 depends = ["uv:sync"]
