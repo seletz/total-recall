@@ -23,7 +23,7 @@ total-recall tui stats --graphics text    # Chart als Text, kein Bild
 
 Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
 
-Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Zeichen breit. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap blendet sich aus.
+Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Zeichen breit. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap wechselt in ein kompaktes Layout und blendet sich darunter aus.
 
 ## Aufbau
 
@@ -205,7 +205,21 @@ Die Dimensionen:
      00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23
 ```
 
-Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mindesthöhe (Terminal unter 25 Zeilen, etwa 80×24), bleibt sie ausgeblendet und die Statuszeile sagt `heatmap needs more rows`.
+Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mindesthöhe von acht Zeilen, wechselt sie in ein **kompaktes Layout** mit neun Zeilen: die Stundenbeschriftung rückt in die Achsenzeile, die Legende der Schattierungen von leer bis Maximum (`░▒▓█`) steht im Titel. Bei 80×24 passen so Chart und Heatmap untereinander; die Tabelle bleibt dafür ausgeblendet. In beiden Layouts werden die Zellen schmaler, bis jede Stunde eine Spalte hat, dann steht nur noch jede zweite Stunde dran.
+
+```text
+ events by weekday × hour · ░▒▓█ · max 412
+ Mon│                        ░░░▒▒▒▓▓▓███▓▓▓▒▒▒▓▓▓▓▓▓▒▒▒░░░         ░░░
+ Tue│                     ░░░▒▒▒▓▓▓▓▓▓▒▒▒   ▓▓▓███▓▓▓▒▒▒░░░
+ Wed│                           ▒▒▒▓▓▓▓▓▓   ▒▒▒▒▒▒▓▓▓▒▒▒         ░░░▒▒▒░░░
+ Thu│                        ░░░▒▒▒▒▒▒▓▓▓      ▓▓▓███▓▓▓▒▒▒░░░
+ Fri│                           ░░░▒▒▒▒▒▒░░░   ▒▒▒▒▒▒░░░
+ Sat│                              ░░░░░░         ░░░▒▒▒░░░
+ Sun│                                                ░░░░░░      ▒▒▒░░░
+    ╵00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+```
+
+Reichen auch neun Zeilen nicht (Terminal unter 24 Zeilen), bleibt die Heatmap ausgeblendet und die Statuszeile sagt `heatmap needs more rows`.
 
 ## Aktivität
 
