@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"errors"
+	"image/color"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -115,6 +116,47 @@ func TestMidnightDayStart(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Work: work})
 	m = drive(t, m, "l")
+	golden.RequireEqual(t, tuitest.Frame(m))
+}
+
+// TestColors pins the escape sequences of the coloured frames: the bar
+// segments, the band and its lines, the ratings of span and difference,
+// the weekend rows and the total line, on a dark and on a light background
+// (the terminal's answer arrives as tea.BackgroundColorMsg). Last month
+// holds every edge case of the fixture; the sizes are large enough for all
+// of its rows.
+func TestColors(t *testing.T) {
+	tests := []struct {
+		name string
+		bg   color.Color
+		size tea.WindowSizeMsg
+		keys []string
+	}{
+		{"LastMonthDark", color.Black, tea.WindowSizeMsg{Width: 110, Height: 40}, []string{"m", "l"}},
+		{"LastMonthLight", color.White, tea.WindowSizeMsg{Width: 110, Height: 40}, []string{"m", "l"}},
+		{"LastWeekDark", color.Black, bodySize, []string{"l"}},
+		{"ThisWeekDefaultIsDark", nil, bodySize, nil},
+	}
+	st, _ := fixturedb.Activity(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msgs := []tea.Msg{tt.size}
+			if tt.bg != nil {
+				msgs = append(msgs, tea.BackgroundColorMsg{Color: tt.bg})
+			}
+			msgs = append(msgs, tuitest.Keys(tt.keys...)...)
+			m := tuitest.Drive(t, newModel(t, st), msgs...).(Model)
+			golden.RequireEqual(t, []byte(m.View().Content))
+		})
+	}
+}
+
+// TestNoWorkHours renders last month without working time: no difference
+// column, no band, plain bars, the total without a balance.
+func TestNoWorkHours(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour})
+	m = drive(t, m, "m", "l")
 	golden.RequireEqual(t, tuitest.Frame(m))
 }
 
