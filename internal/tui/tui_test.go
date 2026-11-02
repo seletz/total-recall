@@ -59,15 +59,21 @@ func TestFrames(t *testing.T) {
 		// cycles the focus within the search view and never switches views.
 		{"Start", "", nil},
 		{"StartStats", "stats", nil},
+		{"StartActivity", "activity", nil},
 		{"TypedIntoSearch", "", []string{"2", "q", "?"}},
 		{"Key2", "", []string{"tab", "2"}},
 		{"Key1AfterStats", "stats", []string{"1"}},
+		{"Key3", "", []string{"tab", "3"}},
+		{"Key2AfterActivity", "activity", []string{"2"}},
+		{"Key1AfterActivity", "activity", []string{"1"}},
+		{"TabInActivityIgnored", "activity", []string{"tab"}},
 		{"TabCyclesFocus", "", []string{"tab", "tab"}},
 		{"TabTabThen2IsText", "", []string{"tab", "tab", "2"}},
 		{"TabInStatsIgnored", "stats", []string{"tab"}},
 		{"ShiftTabToList", "", []string{"shift+tab", "2"}},
 		{"HelpOpen", "", []string{"tab", "?"}},
 		{"HelpOpenStats", "stats", []string{"?"}},
+		{"HelpOpenActivity", "activity", []string{"?"}},
 		{"HelpToggleOff", "", []string{"tab", "?", "?"}},
 		{"HelpEscCloses", "", []string{"tab", "?", "esc"}},
 		{"HelpSwallowsKeys", "", []string{"tab", "?", "2", "tab"}},
@@ -113,6 +119,7 @@ func TestQuit(t *testing.T) {
 	}{
 		{"q from list", []string{"tab", "q"}},
 		{"q from stats", []string{"tab", "2", "q"}},
+		{"q from activity", []string{"tab", "3", "q"}},
 		{"ctrl+c", []string{"ctrl+c"}},
 		{"ctrl+c in search input", []string{"x", "ctrl+c"}},
 		{"ctrl+c in help", []string{"tab", "?", "ctrl+c"}},
@@ -144,6 +151,30 @@ func TestSearchWiring(t *testing.T) {
 	final := tuitest.Final(t, tm).(App)
 	frame := tuitest.Frame(final)
 	for _, want := range []string{"> release", "no database"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("frame lacks %q:\n%s", want, frame)
+		}
+	}
+}
+
+// TestActivityWiring checks that New hands store, clock and day boundary to
+// the activity view: with the day beginning at 04:00 the fixture's New
+// Year's Eve session is one day ending past midnight.
+func TestActivityWiring(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	now := time.Date(2026, 1, 11, 12, 0, 0, 0, testfixture.ActivityLocation)
+	app, err := New(Options{Store: st, Start: ViewActivity, Location: testfixture.ActivityLocation,
+		Now: func() time.Time { return now }, DayStart: 4 * time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm := tuitest.New(t, app)
+	tuitest.WaitFor(t, tm, "total:")
+	tuitest.Press(tm, "l")
+	tuitest.WaitFor(t, tm, "last week")
+	final := tuitest.Final(t, tm).(App)
+	frame := tuitest.Frame(final)
+	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "total: 2 days with activity, 25m"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}
