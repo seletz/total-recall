@@ -2,9 +2,11 @@ package chart
 
 import (
 	"context"
+	"image/color"
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 
@@ -151,5 +153,36 @@ func TestRenderHeatmapTextCompactColours(t *testing.T) {
 	}
 	if !strings.Contains(out, "█") {
 		t.Error("no cell at full intensity")
+	}
+}
+
+// TestHeatScaleFor checks the two scales: four colours each, the light one
+// darkening and the dark one brightening from cool to hot, so the hottest
+// cells stand out against either background.
+func TestHeatScaleFor(t *testing.T) {
+	lum := func(c color.Color) uint32 {
+		r, g, b, _ := c.RGBA()
+		return r + g + b
+	}
+	for _, tt := range []struct {
+		name   string
+		dark   bool
+		darker bool // each step darker than the one before
+	}{{"light", false, true}, {"dark", true, false}} {
+		t.Run(tt.name, func(t *testing.T) {
+			scale := HeatScaleFor(tt.dark)
+			if len(scale) != len(heatRunes) {
+				t.Fatalf("%d colours, want %d", len(scale), len(heatRunes))
+			}
+			for i := 1; i < len(scale); i++ {
+				if (lum(scale[i]) < lum(scale[i-1])) != tt.darker {
+					t.Errorf("step %d: luminance %d after %d, darker %v", i, lum(scale[i]), lum(scale[i-1]), tt.darker)
+				}
+			}
+		})
+	}
+	out := RenderHeatmap(fixtureStats(t), MetricEvents, 80, 10, HeatScaleDark)
+	if !strings.Contains(out, lipgloss.NewStyle().Foreground(HeatScaleDark[3]).Background(HeatScaleDark[3]).Render("█")) {
+		t.Errorf("dark heatmap lacks a hottest cell in HeatScaleDark[3]:\n%q", out)
 	}
 }

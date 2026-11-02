@@ -11,6 +11,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // Chrome rows: header line and rule above the body, rule and footer below.
@@ -33,15 +34,19 @@ type App struct {
 	help       bool
 	width      int
 	height     int
+	// th is the theme of the chrome; dark until the terminal answers the
+	// background colour query of Init.
+	th theme.Theme
 }
 
-// Init starts every view.
+// Init starts every view and asks the terminal for its background colour;
+// the answer reaches every view through Update.
 func (a App) Init() tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(a.views)+1)
+	cmds := make([]tea.Cmd, 0, len(a.views)+2)
 	for _, v := range a.views {
 		cmds = append(cmds, v.Init())
 	}
-	return tea.Batch(append(cmds, a.detail.Init())...)
+	return tea.Batch(append(cmds, a.detail.Init(), tea.RequestBackgroundColor)...)
 }
 
 // Update handles global keys and forwards the rest: key presses to the active
@@ -67,6 +72,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case session.Back:
 		a.showDetail = false
 		return a, nil
+	case tea.BackgroundColorMsg:
+		a.th = theme.New(msg.IsDark())
+		return a, a.broadcast(msg)
 	default:
 		return a, a.broadcast(msg)
 	}
@@ -206,38 +214,35 @@ func (a App) View() tea.View {
 		v.Cursor = &c
 	}
 	bodyStyle := lipgloss.NewStyle().Width(body.Width).Height(body.Height).MaxWidth(body.Width).MaxHeight(body.Height)
-	rule := strings.Repeat("─", a.width)
+	rule := a.th.Rule.Render(strings.Repeat("─", a.width))
 	v.Content = lipgloss.JoinVertical(lipgloss.Left,
 		a.header(), rule, bodyStyle.Render(content), rule, a.footer())
 	return v
 }
 
-var (
-	titleStyle     = lipgloss.NewStyle().Bold(true)
-	activeTabStyle = lipgloss.NewStyle().Reverse(true)
-	faintStyle     = lipgloss.NewStyle().Faint(true)
-)
-
-// header is the program name on the left and the view tabs on the right; the
-// active tab is marked with brackets so it reads without colour. While the
+// header is the program name on the left, in the gradient of the theme,
+// and the view tabs on the right; the active tab is marked with brackets
+// on the accent background, so it reads without colour too. While the
 // detail is shown its title follows the active tab.
 func (a App) header() string {
-	left := titleStyle.Render(" total-recall")
+	left := " " + a.th.Gradient("total-recall")
 	right := strings.Join(a.tabs(), " ") + " "
 	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	return left + strings.Repeat(" ", gap) + right
 }
 
-// tabs renders the view tabs of the header.
+// tabs renders the view tabs of the header: the number of an inactive tab
+// in the accent, the active tab in brackets on the accent background.
 func (a App) tabs() []string {
 	tabs := make([]string, len(a.views))
 	for i, v := range a.views {
-		t := " " + itoa(i+1) + " " + v.Title() + " "
-		if i == a.active {
-			t = activeTabStyle.Render("[" + strings.TrimSpace(t) + "]")
-			if a.showDetail {
-				t += " › " + a.detail.Title()
-			}
+		if i != a.active {
+			tabs[i] = " " + a.th.Mark.Render(itoa(i+1)) + " " + v.Title() + " "
+			continue
+		}
+		t := a.th.Active.Render("[" + itoa(i+1) + " " + v.Title() + "]")
+		if a.showDetail {
+			t += a.th.AccentText.Render(" › " + a.detail.Title())
 		}
 		tabs[i] = t
 	}
@@ -266,6 +271,7 @@ func (a App) tabAt(x int) int {
 // as well.
 func (a App) footer() string {
 	h := help.New()
+	h.Styles = a.th.Help()
 	h.SetWidth(a.width - 1)
 	bindings := a.keys.ShortHelp()
 	switch f, ok := a.current().(Focused); {
@@ -281,15 +287,16 @@ func (a App) footer() string {
 }
 
 // helpView renders every binding of the current view and the app as a
-// centred panel.
+// centred panel with a rounded border in the accent colour.
 func (a App) helpView() string {
 	h := help.New()
+	h.Styles = a.th.Help()
 	h.ShowAll = true
 	groups := append(a.current().FullHelp(), a.keys.FullHelp()...)
 	panel := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("keys: "+a.current().Title()), "", h.FullHelpView(groups), "",
-		faintStyle.Render(a.keys.Back.Help().Key+" or "+a.keys.Help.Help().Key+" closes this help"))
-	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Render(panel)
+		a.th.Title.Render("keys: "+a.current().Title()), "", h.FullHelpView(groups), "",
+		a.th.Muted.Render(a.keys.Back.Help().Key+" or "+a.keys.Help.Help().Key+" closes this help"))
+	box := a.th.Border.Border(lipgloss.RoundedBorder()).Padding(0, 1).Render(panel)
 	body := a.bodySize()
 	return lipgloss.Place(body.Width, body.Height, lipgloss.Center, lipgloss.Center, box)
 }

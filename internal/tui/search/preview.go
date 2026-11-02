@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/model"
@@ -203,8 +202,6 @@ func indexOf(events []model.Event, id string) int {
 	return -1
 }
 
-var nameStyle = lipgloss.NewStyle().Bold(true)
-
 // markText is appended to the separator of the hit, like in the detail view.
 const markText = " ◄"
 
@@ -221,9 +218,9 @@ func (m Model) previewView(w, rows int) string {
 	case h == nil || m.opts.Loader == nil || w <= 0:
 		return ""
 	case p.eventID != h.Event.ID:
-		return " " + faintStyle.Render("loading…")
+		return " " + m.th.Muted.Render("loading…")
 	case p.err != nil:
-		return " " + ansi.Truncate("error: "+p.err.Error(), max(w-1, 0), "…")
+		return " " + m.th.Error.Render(ansi.Truncate("error: "+p.err.Error(), max(w-1, 0), "…"))
 	}
 	head, body, hitLine := m.previewLines(w)
 	if avail := rows - len(head); len(body) > avail && avail > 0 {
@@ -285,8 +282,8 @@ func (m *Model) scrollPreview(delta int) {
 	p.scrolled, p.scroll = true, min(max(off+delta, 0), limit)
 }
 
-// previewHead is the session head: name, ID and repo, time span and branch,
-// then a rule.
+// previewHead is the session head: the name in the title style, ID and
+// repo muted, time span and branch, then a rule.
 func (m Model) previewHead(w int) []string {
 	s := m.preview.session
 	name := s.DisplayName()
@@ -305,25 +302,20 @@ func (m Model) previewHead(w int) []string {
 		third += "  " + s.GitBranch
 	}
 	return []string{
-		" " + nameStyle.Render(cut(name)),
-		" " + faintStyle.Render(cut(second)),
+		" " + m.th.Title.Render(cut(name)),
+		" " + m.th.Muted.Render(cut(second)),
 		" " + cut(third),
-		strings.Repeat("─", w),
+		m.th.Rule.Render(strings.Repeat("─", w)),
 	}
 }
 
-// previewEvent renders one event: its separator (time and actor, the hit
-// marked) and the text wrapped to w with the terms highlighted.
+// previewEvent renders one event: its separator (time muted, the actor in
+// its colour, the hit marked) and the text wrapped to w with the terms
+// highlighted.
 func (m Model) previewEvent(e model.Event, hit bool, ts []string, w int) []string {
-	label := string(e.Actor)
-	if e.Kind == model.KindToolUse {
-		label = "tool_use " + e.ToolName
-	} else if e.Kind != model.KindMessage {
-		label += " (" + string(e.Kind) + ")"
-	}
-	sep := faintStyle.Render(ansi.Truncate("── "+e.TS.In(m.opts.Location).Format("15:04")+"  "+label, w, ""))
+	sep := session.Separator(m.th, e.TS.In(m.opts.Location).Format("15:04"), e, w)
 	if hit {
-		sep += nameStyle.Render(markText)
+		sep += m.th.Mark.Render(markText)
 	}
 	out := []string{sep}
 	text := strings.ReplaceAll(strings.TrimRight(e.Text, "\n"), "\t", "    ")
@@ -339,23 +331,7 @@ func (m Model) previewEvent(e model.Event, hit bool, ts []string, w int) []strin
 		for next < len(matches) && matches[next].Line == i {
 			next++
 		}
-		out = append(out, highlightLine(line, matches[start:next]))
+		out = append(out, session.HighlightLine(line, matches[start:next], -1, session.LineStyles{Match: m.th.Match}))
 	}
 	return out
-}
-
-// highlightLine styles the matched ranges of line.
-func highlightLine(line string, ms []session.Match) string {
-	if len(ms) == 0 {
-		return line
-	}
-	var b strings.Builder
-	pos := 0
-	for _, m := range ms {
-		b.WriteString(line[pos:m.Start])
-		b.WriteString(hitStyle.Render(line[m.Start:m.End]))
-		pos = m.End
-	}
-	b.WriteString(line[pos:])
-	return b.String()
 }

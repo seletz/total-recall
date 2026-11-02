@@ -32,9 +32,10 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Z
 
 Alle Ansichten teilen denselben Rahmen:
 
-- **Kopfzeile:** links der Programmname, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
-- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`). Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
-- **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
+- **Kopfzeile:** links der Programmname in einem Farbverlauf, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
+- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
+- **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt, in einem abgerundeten Rahmen in der Akzentfarbe. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
+- **Farben:** alle Ansichten teilen ein Theme, siehe [Farben](#farben).
 - **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
 
 ```text
@@ -56,6 +57,25 @@ Alle Ansichten teilen denselben Rahmen:
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  esc back • q quit
 ```
+
+## Farben
+
+Alle Ansichten zeichnen mit demselben Theme. Die Farbtöne sind die Reihenfarben der Statistik-Charts; das Theme weist ihnen Rollen zu:
+
+| Rolle | Farbe | Wo |
+|---|---|---|
+| Akzent | Blau | Programmname (Verlauf von Blau über Türkis nach Violett), aktiver Tab und aktive Umschalter (weiß auf Blau), Trennlinien, Rahmen der Hilfe, Tasten der Fußzeile, Überschriften, Spaltenköpfe, Markierungen `▸` und `◄` |
+| Mensch | Orange | Actor `human` in Trefferliste, Vorschau und Session, Zähler im Session-Kopf, Kachel `human` |
+| Agent | Blau | Actor `agent`, Zähler, Kachel `agent` |
+| Peer | Violett | Actor `peer` |
+| Tool | Türkis | Trennzeilen von Tool-Aufrufen und -Ergebnissen; ihr Text ist gedämpft |
+| Treffer | Gelb | Suchwörter in Textausschnitt, Vorschau und Session (fett und unterstrichen); der gewählte Treffer ist invertiert |
+| Auswahl | Hinterlegung | der markierte Treffer, solange die Liste den Fokus hat |
+| Bewertung | Türkis, Grün, Orange | Spanne und Saldo der Aktivität unter, im und über dem Rahmen |
+| Wochenende, Feiertag | Violett, Magenta | Zeilen und Namen in Aktivität und Statistik |
+| Fehler | Rot | Fehlermeldungen in den Statuszeilen |
+
+Das Theme folgt dem Terminalhintergrund: beim Start fragt die TUI das Terminal nach seiner Hintergrundfarbe; auf hellem Hintergrund werden die Farben abgedunkelt, die Heatmap läuft dort von Hellblau nach Blau, auf dunklem von Dunkelblau nach Hellblau. Bis die Antwort kommt, gilt das dunkle Theme. Mit `NO_COLOR` oder in einem Terminal ohne Farben bleibt alles lesbar: jede farbige Stelle unterscheidet sich auch in Zeichen, Schriftschnitt oder Position (Klammern um den aktiven Tab, `▸` und `◄`, Unterstreichung der Treffer, Schattierungen in Heatmap und Aktivitätsbalken).
 
 ## Maus
 
@@ -98,10 +118,10 @@ Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. 
 ```
 
 - **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer werden geholt; die Statuszeile sagt `200 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
-- **Trefferliste** links, zwei Zeilen je Treffer: Zeit, Session-Name und Actor, darunter der Textausschnitt mit hervorgehobenen Suchwörtern. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist er zusätzlich invertiert.
-- **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe): der Session-Kopf (Name, ID und Repo, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Der Treffer-Event ist mit `◄` markiert, die Suchwörter sind unterstrichen. Trifft die Suche einen Tool-Aufruf, lädt die Vorschau den vollen Verlauf inklusive Tools.
+- **Trefferliste** links, zwei Zeilen je Treffer: Zeit (gedämpft), Session-Name und Actor (in seiner Farbe, siehe [Farben](#farben)), darunter der Textausschnitt mit den Suchwörtern gelb, fett und unterstrichen. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist seine Kopfzeile zusätzlich hinterlegt.
+- **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe): der Session-Kopf (Name in der Akzentfarbe, ID und Repo gedämpft, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Die Trennzeilen nennen Zeit und Actor in seiner Farbe, der Treffer-Event ist mit `◄` markiert, die Suchwörter sind hervorgehoben wie in der Liste. Trifft die Suche einen Tool-Aufruf, lädt die Vorschau den vollen Verlauf inklusive Tools.
 - **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die markierte Session (auch direkt aus der Eingabe). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
-- **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), sonst `type to search`, `searching…`, `no hits` oder die Fehlermeldung.
+- **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), sonst `type to search`, `searching…` mit einem drehenden Spinner davor, solange die Abfrage läuft, `no hits` oder die Fehlermeldung.
 
 ### Fokus
 
@@ -113,7 +133,7 @@ Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und d
 - Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1`, `2`, `3`, `?`, `q`.
 - Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
 - Die **Maus** folgt derselben Ordnung: ein Klick auf einen Treffer gibt der Liste den Fokus, ein Klick auf die Eingabezeile der Eingabe; das Rad ändert den Fokus nicht. Solange der Repo-Filter offen ist, tut die Maus nichts.
-- Sichtbar ist der Fokus am Cursor und an der Markierung: in der Eingabe und im Repo-Filter steht der Cursor des Terminals im Feld; hat die Liste den Fokus, ist der markierte Treffer invertiert. Das `▸` vor dem markierten Treffer bleibt in jedem Fall, weil ++enter++ ihn aus beiden Elementen öffnet und die Vorschau ihn zeigt. Die Fußzeile nennt die Tasten des fokussierten Elements.
+- Sichtbar ist der Fokus am Cursor und an der Markierung: in der Eingabe und im Repo-Filter steht der Cursor des Terminals im Feld; hat die Liste den Fokus, ist der markierte Treffer hinterlegt. Das `▸` vor dem markierten Treffer bleibt in jedem Fall, weil ++enter++ ihn aus beiden Elementen öffnet und die Vorschau ihn zeigt. Die Fußzeile nennt die Tasten des fokussierten Elements.
 
 Der Fokus bleibt beim Wechsel der Ansicht und beim Öffnen einer Session erhalten; ++esc++ aus der Session führt dorthin zurück, wo man war.
 
@@ -158,9 +178,9 @@ Good. Tag v0.1.0 and run the release.
  ↑↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • esc back • 1 search • …
 ```
 
-- **Kopf:** Name und volle Session-ID, darunter Repo, Branch, Zeitraum mit Dauer, Anzahl menschlicher und Agenten-Events, bei Subagent-Sessions die Eltern-ID. In schmalen Fenstern gewinnt der Name, die ID wird gekürzt.
-- **Trennlinie mit Status:** der oberste sichtbare Event (`3/17 events`), der gewählte Treffer (`hit 1/4`), `tools`, wenn Tool-Events eingeblendet sind, und kurz `copied` nach dem Kopieren.
-- **Verlauf** wie `show`: eine Trennzeile je Event mit Zeit und Actor, Tool-Aufrufe mit dem Werkzeugnamen, Text am Wortende umbrochen. Die Suchwörter sind unterstrichen, der gewählte Treffer ist invertiert, der markierte Event trägt `◄`. Beim Öffnen steht der Treffer-Event oben; ist er ein Tool-Event, werden Tools automatisch eingeblendet.
+- **Kopf:** Name (Akzentfarbe) und volle Session-ID (gedämpft), darunter Repo, Branch, Zeitraum mit Dauer, Anzahl menschlicher und Agenten-Events in den Farben der Actors, bei Subagent-Sessions die Eltern-ID. In schmalen Fenstern gewinnt der Name, die ID wird gekürzt.
+- **Trennlinie mit Status:** der oberste sichtbare Event (`3/17 events`), der gewählte Treffer (`hit 1/4`), die Position im Verlauf, wenn er länger als das Fenster ist (`top`, `42%`, `bot`), `tools`, wenn Tool-Events eingeblendet sind, und kurz `copied` nach dem Kopieren.
+- **Verlauf** wie `show`: eine Trennzeile je Event mit Zeit (gedämpft) und Actor in seiner Farbe, Tool-Aufrufe mit dem Werkzeugnamen in Türkis und gedämpftem Text, damit sie hinter dem Gespräch zurücktreten; Text am Wortende umbrochen. Die Suchwörter sind gelb, fett und unterstrichen, der gewählte Treffer ist invertiert, der markierte Event trägt `◄`. Beim Öffnen steht der Treffer-Event oben; ist er ein Tool-Event, werden Tools automatisch eingeblendet.
 - **Blättern** mit ++up++/++down++, ++pgup++/++pgdn++ oder dem Mausrad (drei Zeilen je Schritt).
 - `n`/`N` springen zum nächsten/vorigen Treffer, am Ende wieder von vorn. `T` blendet Tool-Aufrufe, Ergebnisse und Automatik ein und aus (wie `show --all`); die Position bleibt am markierten Event. `y` kopiert die Session-ID über OSC 52 in die Zwischenablage, für `show`, `sql` oder Agenten.
 
@@ -170,6 +190,7 @@ Good. Tag v0.1.0 and run the release.
  total-recall                                                                   1 search  [2 stats]
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  period: [day] week month  by: [project] agent directory                     2026-10-05 – 2026-11-01
+ ▎66 913 events  ▎3 411 human  ▎63 502 agent  ▎116 sessions  ▎27/28 days active
  events
   4000 ┤                                                    ··
        │                                                 ·· ░░             ·· ··
@@ -196,9 +217,10 @@ Good. Tag v0.1.0 and run the release.
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](konfiguration.md#tui).
+- **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
 - **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
-- **Tabelle:** dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
+- **Tabelle** (Spaltenköpfe in der Akzentfarbe): dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
 
 Die Dimensionen:
@@ -211,7 +233,7 @@ Die Dimensionen:
 
 ### Heatmap
 
-`h` blendet unter dem Chart die Heatmap Wochentag × Stunde für das Zeitfenster ein (Daten wie `stats`, Kennzahl wie das Chart). Je dunkler die Zelle, desto näher am Maximum, das der Titel nennt; leere Zellen bleiben frei.
+`h` blendet unter dem Chart die Heatmap Wochentag × Stunde für das Zeitfenster ein (Daten wie `stats`, Kennzahl wie das Chart). Je voller die Zelle (`░▒▓█`), desto näher am Maximum, das der Titel nennt; die Farbe läuft dazu von blass nach kräftig, auf dunklem Hintergrund von Dunkel- nach Hellblau, auf hellem umgekehrt. Leere Zellen bleiben frei.
 
 ```text
  events by weekday × hour · max 412
@@ -276,7 +298,7 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 - **Feiertage** kommen aus `bundesland` in [`[work]`](konfiguration.md#work) (Standard Baden-Württemberg, unbekannt oder leer: nur die bundesweiten). Ein Feiertag ist magenta: Datum, Spanne und Balken; die Zeitachse hat kein Band, und der Name steht auf ihr, links vorn oder hinter dem Balken, wo Platz ist. Ein Feiertag am Wochenende zählt als Feiertag. Die Statuszeile zählt die Feiertage des Fensters.
 - **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
 - **Kennzahlen** unter der Linie bei Woche und Monat: Median, Mittelwert, Minimum und Maximum von erster Aktivität, letzter Aktivität (als Uhrzeit, nach Mitternacht mit `(+1)`) und Spanne über die Tage mit Aktivität; die Spannen sind nach der Tagesbewertung gefärbt. `s` blendet den Block aus und ein; er weicht von selbst, wenn sonst weniger als drei Tageszeilen blieben.
-- **Farben** folgen dem Terminalhintergrund (hell oder dunkel, Abfrage beim Start) und kommen aus der Palette der Statistik-Charts; Magenta ist den Feiertagen vorbehalten.
+- **Farben** kommen aus dem gemeinsamen [Theme](#farben) und folgen damit dem Terminalhintergrund; Magenta ist den Feiertagen vorbehalten.
 - **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
 
 Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er (und mit ihm der Feiertagsname auf der Achse), die Uhrzeiten, Spanne und Differenz bleiben. Die Kopfzeile wird bei schmalen Fenstern rechts abgeschnitten (`…`); die Feiertage stehen dann noch in den Zeilen.

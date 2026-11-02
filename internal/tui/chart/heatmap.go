@@ -80,13 +80,27 @@ func HeatmapLayoutFor(w, h int) HeatmapLayout {
 	return HeatmapFull
 }
 
-// HeatScale is the colour scale of the heatmap from cool to hot: four
-// shades of the first Palette colour, so the heatmap matches the bar chart.
+// HeatScale is the colour scale of the heatmap from cool to hot on a light
+// background: four shades from a pale tint to the first Palette colour, so
+// the hottest cells match the bar chart.
 var HeatScale = []color.Color{
 	lipgloss.Color("#c6d5e6"),
 	lipgloss.Color("#94afd0"),
 	lipgloss.Color("#6b93bb"),
 	Palette[0],
+}
+
+// HeatScaleDark is the scale on a dark background: the same hue from a dim
+// blue to a bright one, so the hottest cells shine instead of fading into
+// the background.
+var HeatScaleDark = lipgloss.Blend1D(len(HeatScale), lipgloss.Color("#2b4a6e"), lipgloss.Color("#9ccbf5"))
+
+// HeatScaleFor returns the scale for a dark or a light background.
+func HeatScaleFor(dark bool) []color.Color {
+	if dark {
+		return HeatScaleDark
+	}
+	return HeatScale
 }
 
 // heatRunes are the cell characters per HeatScale index, so the intensity
@@ -117,6 +131,13 @@ var (
 // layout drops the axis row and shows the shades as a legend in the title
 // instead. For HeatmapNone the result is "".
 func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
+	return RenderHeatmap(stats, metric, w, h, HeatScale)
+}
+
+// RenderHeatmap is RenderHeatmapText with the colour scale of the cells
+// given, from cool to hot (see HeatScaleFor); the scale must hold one
+// colour per shade character, four.
+func RenderHeatmap(stats store.Stats, metric Metric, w, h int, scale []color.Color) string {
 	layout := HeatmapLayoutFor(w, h)
 	if layout == HeatmapNone {
 		return ""
@@ -134,7 +155,7 @@ func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
 		heatmap.WithXLabels(hourLabels),
 		heatmap.WithYLabels(weekdayLabels),
 		heatmap.WithCellSize(1, 1),
-		heatmap.WithColorScale(HeatScale),
+		heatmap.WithColorScale(scale),
 		heatmap.WithValueRange(0, max(maxValue, 1)),
 	)
 	// Y counts up from the bottom; Monday is the top row.
@@ -149,21 +170,21 @@ func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
 
 	title := fmt.Sprintf("%s by weekday × hour · max %.0f", metric, maxValue)
 	if layout == HeatmapFull {
-		decorate(&hm)
+		decorate(&hm, scale)
 		return ansi.Truncate(title, w, "…") + "\n" + hm.View()
 	}
-	decorateCompact(&hm)
-	title = fmt.Sprintf("%s by weekday × hour · %s · max %.0f", metric, heatLegend(), maxValue)
+	decorateCompact(&hm, scale)
+	title = fmt.Sprintf("%s by weekday × hour · %s · max %.0f", metric, heatLegend(scale), maxValue)
 	view := hm.View()
 	view = view[:strings.LastIndex(view, "\n")]
 	return ansi.Truncate(title, w, "…") + "\n" + view
 }
 
-// heatLegend is the colour ramp as one shade character per HeatScale index,
+// heatLegend is the colour ramp as one shade character per scale index,
 // each in its colour, for the title of the compact layout.
-func heatLegend() string {
+func heatLegend(scale []color.Color) string {
 	var b strings.Builder
-	for i, c := range HeatScale {
+	for i, c := range scale {
 		b.WriteString(lipgloss.NewStyle().Foreground(c).Render(string(heatRunes[i])))
 	}
 	return b.String()
@@ -172,14 +193,14 @@ func heatLegend() string {
 // decorate moves the hour labels down to the last row, draws the axes in
 // the row and column the heatmap leaves blank and gives every coloured
 // cell the shade character of its scale index in the same colour.
-func decorate(hm *heatmap.Model) {
+func decorate(hm *heatmap.Model, scale []color.Color) {
 	o := hm.Origin()
 	for x := 0; x < hm.Width(); x++ {
 		p := canvas.Point{X: x, Y: o.Y}
 		hm.Canvas.SetCell(canvas.Point{X: x, Y: o.Y + 1}, hm.Canvas.Cell(p))
 		hm.Canvas.SetRune(p, ' ')
 	}
-	shade(hm)
+	shade(hm, scale)
 	hm.Canvas.SetRune(o, '┼')
 	for x := o.X + 1; x < hm.Width(); x++ {
 		hm.Canvas.SetRune(canvas.Point{X: x, Y: o.Y}, '─')
@@ -189,14 +210,14 @@ func decorate(hm *heatmap.Model) {
 // decorateCompact leaves the hour labels in the axis row, closes the
 // vertical axis below the last weekday with a tick and gives every coloured
 // cell the shade character of its scale index in the same colour.
-func decorateCompact(hm *heatmap.Model) {
-	shade(hm)
+func decorateCompact(hm *heatmap.Model, scale []color.Color) {
+	shade(hm, scale)
 	hm.Canvas.SetRune(hm.Origin(), '╵')
 }
 
 // shade draws the vertical axis left of the grid and gives every coloured
 // cell the shade character of its scale index in the same colour.
-func shade(hm *heatmap.Model) {
+func shade(hm *heatmap.Model, scale []color.Color) {
 	o := hm.Origin()
 	top := o.Y - hm.GraphHeight()
 	for y := top; y < o.Y; y++ {
@@ -207,20 +228,20 @@ func shade(hm *heatmap.Model) {
 			if st == nil {
 				continue
 			}
-			if i := scaleIndex(st.GetBackground()); i >= 0 {
-				hm.Canvas.SetRuneWithStyle(p, heatRunes[i], st.Foreground(HeatScale[i]))
+			if i := scaleIndex(st.GetBackground(), scale); i >= 0 {
+				hm.Canvas.SetRuneWithStyle(p, heatRunes[i], st.Foreground(scale[i]))
 			}
 		}
 	}
 }
 
-// scaleIndex is the index of c in HeatScale, or -1.
-func scaleIndex(c color.Color) int {
+// scaleIndex is the index of c in scale, or -1.
+func scaleIndex(c color.Color, scale []color.Color) int {
 	if c == nil {
 		return -1
 	}
 	r, g, b, a := c.RGBA()
-	for i, s := range HeatScale {
+	for i, s := range scale {
 		if sr, sg, sb, sa := s.RGBA(); sr == r && sg == g && sb == b && sa == a {
 			return i
 		}

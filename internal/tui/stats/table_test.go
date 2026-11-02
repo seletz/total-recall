@@ -8,6 +8,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // TestTableSessions checks the two session columns: sessions is the
@@ -42,7 +43,7 @@ func TestTableSessions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.period.String(), func(t *testing.T) {
 			spec := chart.FromSeries(series, tt.period, chart.MetricEvents, map[string]string{"/w/a": "a", "/w/b": "b"})
-			lines := strings.Split(strings.TrimRight(ansi.Strip(newTable(spec, series, tt.period, store.DimProject, 80).View()), "\n"), "\n")
+			lines := strings.Split(strings.TrimRight(ansi.Strip(newTable(theme.New(true), spec, series, tt.period, store.DimProject, 80).View()), "\n"), "\n")
 			if len(lines) != 3 {
 				t.Fatalf("got %d lines, want 3:\n%s", len(lines), strings.Join(lines, "\n"))
 			}

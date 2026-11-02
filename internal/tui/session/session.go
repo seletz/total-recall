@@ -14,6 +14,7 @@ import (
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // Open asks the view to show a session. SessionID is anything
@@ -49,6 +50,9 @@ type Model struct {
 	loc  *time.Location
 	keys KeyMap
 	vp   viewport.Model
+	// th is the theme; dark until the terminal answers the app's
+	// background colour query.
+	th theme.Theme
 
 	width, height int
 
@@ -88,7 +92,7 @@ func New(st *store.Store, loc *time.Location, km keys.Map) Model {
 	k := newKeyMap(km)
 	vp := viewport.New()
 	vp.KeyMap = k.viewportKeys()
-	return Model{st: st, loc: loc, keys: k, vp: vp, hit: -1, current: -1}
+	return Model{st: st, loc: loc, keys: k, vp: vp, hit: -1, current: -1, th: theme.New(true)}
 }
 
 // Title implements tui.View.
@@ -135,6 +139,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.key(msg)
 	case tea.MouseWheelMsg:
 		m.vp, _ = m.vp.Update(msg)
+	case tea.BackgroundColorMsg:
+		m.th = theme.New(msg.IsDark())
+		m.render()
 	}
 	return m, nil
 }
