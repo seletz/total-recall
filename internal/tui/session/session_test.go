@@ -20,54 +20,28 @@ import (
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
-// run executes cmd synchronously and feeds every message it produces back
-// into m, so a test can drive the view without a program: a load command
-// yields its result right away, a load that triggers another (tools switched
-// on for a tool event) is followed to the end, batches are unpacked.
-func run(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
-	t.Helper()
-	if cmd == nil {
-		return m
-	}
-	switch msg := cmd().(type) {
-	case nil:
-		return m
-	case tea.BatchMsg:
-		for _, c := range msg {
-			m = run(t, m, c)
-		}
-		return m
-	default:
-		var next tea.Cmd
-		m, next = m.Update(msg)
-		return run(t, m, next)
-	}
-}
-
 // drive starts a view on st at the test terminal size and applies the steps
-// in order, running every command to completion. Steps are key names (see
-// tuitest.Key), "open" (send open) and "resize:W:H".
+// in order, running every command to completion (see tuitest.Drive): a load
+// that triggers another (tools switched on for a tool event) is followed to
+// the end. Steps are key names (see tuitest.Key), "open" (send open) and
+// "resize:W:H".
 func drive(t *testing.T, st *store.Store, open Open, steps []string) Model {
 	t.Helper()
-	var m tea.Model = New(st, testfixture.ActivityLocation)
-	m = run(t, m, m.Init())
-	m, _ = m.Update(tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height})
+	msgs := []tea.Msg{tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}}
 	for _, s := range steps {
-		var cmd tea.Cmd
 		switch {
 		case s == "open":
-			m, cmd = m.Update(open)
+			msgs = append(msgs, open)
 		case strings.HasPrefix(s, "resize:"):
 			f := strings.Split(s, ":")
 			w, _ := strconv.Atoi(f[1])
 			h, _ := strconv.Atoi(f[2])
-			m, cmd = m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+			msgs = append(msgs, tea.WindowSizeMsg{Width: w, Height: h})
 		default:
-			m, cmd = m.Update(tuitest.Key(s))
+			msgs = append(msgs, tuitest.Key(s))
 		}
-		m = run(t, m, cmd)
 	}
-	return m.(Model)
+	return tuitest.Drive(t, New(st, testfixture.ActivityLocation), msgs...).(Model)
 }
 
 func sessionID(native string) string { return "claude:" + native }
