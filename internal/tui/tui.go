@@ -28,6 +28,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/stats"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // Graphics selects how charts are drawn; the stats view owns the type.
@@ -168,7 +169,7 @@ func New(opts Options) (App, error) {
 		return App{}, fmt.Errorf("unknown view %q (use %s)", opts.Start, strings.Join(ViewNames, ", "))
 	}
 	detail := session.New(opts.Store, opts.Location, opts.Keys)
-	return App{opts: opts, views: views, active: active, detail: detail, keys: newKeyMap(opts.Keys)}, nil
+	return App{opts: opts, views: views, active: active, detail: detail, keys: newKeyMap(opts.Keys), th: theme.New(true)}, nil
 }
 
 // Run starts the app on in/out and blocks until it quits.

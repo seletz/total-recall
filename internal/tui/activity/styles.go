@@ -1,19 +1,19 @@
 package activity
 
 import (
-	"image/color"
-
 	"charm.land/lipgloss/v2"
 
 	"github.com/seletz/total-recall/internal/store"
-	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
-// styles are the colours of the view for one background. The bars, the
-// ratings and the weekend take their colours from chart.Palette, so the
-// views of the TUI look alike; on a light background they are darkened
-// for contrast. Everything coloured also differs in glyph or position, so
-// the view stays readable without colours.
+// styles are the colours of the view for one background, derived from the
+// theme: the bar segments take the series colours of the charts by role
+// (core hours blue, outside orange, night red, weekend purple, holiday
+// magenta), the ratings the theme's under/on/over colours. The band of the
+// core hours is the view's own: a tinted background with a dim line.
+// Everything coloured also differs in glyph or position, so the view stays
+// readable without colours.
 type styles struct {
 	// Bar segments.
 	core, outside, night, weekend, holiday lipgloss.Style
@@ -25,54 +25,33 @@ type styles struct {
 	// for the name on the axis.
 	under, on, over, weekendText, holidayText, holidayName lipgloss.Style
 	// Chrome.
-	faint, bold, label lipgloss.Style
+	faint, bold, label, active lipgloss.Style
 }
 
-// Palette colours by role (see chart.Palette).
-var (
-	colorBlue   = chart.Palette[0]
-	colorOrange = chart.Palette[1]
-	colorGreen  = chart.Palette[2]
-	colorRed    = chart.Palette[3]
-	colorPurple = chart.Palette[4]
-	colorTeal   = chart.Palette[5]
-	// colorMagenta marks public holidays; it is no series colour, so it
-	// stands apart from the weekend purple.
-	colorMagenta = lipgloss.Color("#e377c2")
-)
-
-// newStyles returns the styles for a dark or a light background.
-func newStyles(dark bool) styles {
-	// tone adapts a palette colour to the background: as is on dark,
-	// darkened on light.
-	tone := func(c color.Color) color.Color {
-		if dark {
-			return c
-		}
-		return lipgloss.Darken(c, 0.25)
-	}
-	ld := lipgloss.LightDark(dark)
-	fg := func(c color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
+// newStyles returns the styles for th.
+func newStyles(th theme.Theme) styles {
+	ld := lipgloss.LightDark(th.Dark)
 	bandBG := ld(lipgloss.Color("#e3ecf7"), lipgloss.Color("#1b2938"))
 	bandFG := ld(lipgloss.Color("#9fb8d4"), lipgloss.Color("#3a5b82"))
 	return styles{
-		core:        fg(tone(colorBlue)),
-		outside:     fg(tone(colorOrange)),
-		night:       fg(tone(colorRed)),
-		weekend:     fg(tone(colorPurple)),
-		holiday:     fg(tone(colorMagenta)),
-		empty:       lipgloss.NewStyle().Faint(true),
-		band:        fg(bandFG).Background(bandBG),
-		line:        fg(tone(colorBlue)).Background(bandBG),
-		under:       fg(tone(colorTeal)),
-		on:          fg(tone(colorGreen)),
-		over:        fg(tone(colorOrange)),
-		weekendText: fg(tone(colorPurple)),
-		holidayText: fg(tone(colorMagenta)),
-		holidayName: fg(tone(colorMagenta)).Italic(true),
-		faint:       lipgloss.NewStyle().Faint(true),
-		bold:        lipgloss.NewStyle().Bold(true),
-		label:       lipgloss.NewStyle().Bold(true).Foreground(tone(colorBlue)),
+		core:        lipgloss.NewStyle().Foreground(th.Accent),
+		outside:     lipgloss.NewStyle().Foreground(th.Over),
+		night:       lipgloss.NewStyle().Foreground(th.Warn),
+		weekend:     th.WeekendText,
+		holiday:     th.HolidayText,
+		empty:       th.Muted,
+		band:        lipgloss.NewStyle().Foreground(bandFG).Background(bandBG),
+		line:        lipgloss.NewStyle().Foreground(th.Accent).Background(bandBG),
+		under:       lipgloss.NewStyle().Foreground(th.Under),
+		on:          lipgloss.NewStyle().Foreground(th.On),
+		over:        lipgloss.NewStyle().Foreground(th.Over),
+		weekendText: th.WeekendText,
+		holidayText: th.HolidayText,
+		holidayName: th.HolidayText.Italic(true),
+		faint:       th.Muted,
+		bold:        th.Strong,
+		label:       th.Label,
+		active:      th.Active,
 	}
 }
 

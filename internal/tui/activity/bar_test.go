@@ -8,6 +8,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // stripANSI removes the escape sequences.
@@ -95,7 +96,7 @@ func TestCaption(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := layout{loc: loc, dayStart: 4 * time.Hour, work: work, bar: 24, styles: newStyles(true)}
+			l := layout{loc: loc, dayStart: 4 * time.Hour, work: work, bar: 24, styles: newStyles(theme.New(true))}
 			cells := l.cells(tt.day)
 			got := l.renderBar(cells, l.caption(cells, tt.day))
 			if plain := stripANSI(got); plain != tt.want {
