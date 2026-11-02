@@ -1,4 +1,8 @@
-package stats
+// Package window is the range of whole periods a TUI view shows: Count
+// periods of a store.Period, the last of which contains an anchor instant.
+// The stats view shows a default window of many periods and zooms, the
+// activity view a single period; both shift with the same rules.
+package window
 
 import (
 	"time"
@@ -39,10 +43,16 @@ type Window struct {
 	Count  int
 }
 
-// NewWindow returns the default window of p that ends with the period
-// containing now, in loc.
-func NewWindow(p store.Period, now time.Time, loc *time.Location) Window {
+// New returns the default window of p that ends with the period containing
+// now, in loc.
+func New(p store.Period, now time.Time, loc *time.Location) Window {
 	return Window{Period: p, Anchor: now.In(loc), Count: DefaultCount(p)}
+}
+
+// Single returns the window of exactly the one period of p containing now,
+// in loc.
+func Single(p store.Period, now time.Time, loc *time.Location) Window {
+	return Window{Period: p, Anchor: now.In(loc), Count: 1}
 }
 
 // Last is the start of the last period.
@@ -94,6 +104,11 @@ func (w Window) Zoom(n int) Window {
 // containing the anchor.
 func (w Window) WithPeriod(p store.Period) Window {
 	return Window{Period: p, Anchor: w.Anchor, Count: DefaultCount(p)}
+}
+
+// WithSinglePeriod switches to the one period of p containing the anchor.
+func (w Window) WithSinglePeriod(p store.Period) Window {
+	return Window{Period: p, Anchor: w.Anchor, Count: 1}
 }
 
 // Equal reports whether both windows show the same periods.

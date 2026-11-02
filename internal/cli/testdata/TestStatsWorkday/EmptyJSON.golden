@@ -1,0 +1,97 @@
+{
+  "since": "2026-03-02T03:00:00.000Z",
+  "until": "2026-03-09T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "human_only": false,
+  "days": [
+    {
+      "day": "2026-03-02",
+      "weekday": "Mon",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-03-03",
+      "weekday": "Tue",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-03-04",
+      "weekday": "Wed",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-03-05",
+      "weekday": "Thu",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-03-06",
+      "weekday": "Fri",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-03-07",
+      "weekday": "Sat",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-03-08",
+      "weekday": "Sun",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    }
+  ],
+  "total": {
+    "days": 0,
+    "span_seconds": 0
+  }
+}

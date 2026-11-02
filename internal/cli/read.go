@@ -492,19 +492,28 @@ func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
 }
 
 func (e *env) statsCmd() *cobra.Command {
-	var month, sinceArg, untilArg, period, by string
+	var month, sinceArg, untilArg, period, by, rng string
 	var top int
-	var asJSON bool
+	var asJSON, workday, humanOnly bool
 	c := &cobra.Command{
 		Use:   "stats",
-		Short: "Activity per day, per repo and per weekday×hour, or per period × project/agent/directory",
+		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, or first/last activity per day",
 		Long: `Counts sessions, human and agent events in a time range, per local day, per
 repository and per weekday × hour. Default range: the current month.
 
 With --period or --by the output is a time series instead: one row per
 period (day, week or month, local time) and, with --by, per project, agent
 type (main or subagent) or working directory. --top N keeps the N largest
-keys over the whole range and folds the rest into "other".`,
+keys over the whole range and folds the rest into "other".
+
+With --workday the output is the first and the last activity per day (for
+filling in forgotten clock-ins): one row per day with the local clock times
+and the elapsed span, plus a total. A day begins at the configured day_start
+(default 04:00): activity before it counts for the previous day and is shown
+as e.g. "01:30 (+1)". The range comes from --range today|this-week|last-week|
+this-month|last-month (relative to now, weeks start on Monday), from
+--since/--until or --month; default this-week. --human-only counts only
+human messages.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := e.loadConfig()
@@ -512,11 +521,35 @@ keys over the whole range and folds the rest into "other".`,
 				return err
 			}
 			loc := cfg.Location()
+			series := period != "" || by != "" || cmd.Flags().Changed("top")
+			if err := checkWorkdayFlags(workday, series, rng, humanOnly, period, by); err != nil {
+				return err
+			}
+			if workday {
+				since, until, err := workdayRange(rng, month, sinceArg, untilArg, e.app.Now(), loc, cfg.DayStartOffset())
+				if err != nil {
+					return err
+				}
+				st, err := e.openRead(cfg)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = st.Close() }()
+				days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
+					Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly,
+				})
+				if err != nil {
+					return err
+				}
+				if asJSON {
+					return writeJSON(cmd.OutOrStdout(), workdayJSON(days, since, until, loc, cfg.Timezone, cfg.DayStart, humanOnly))
+				}
+				return writeWorkdayTable(cmd.OutOrStdout(), days, since, until, loc, cfg.DayStart, humanOnly)
+			}
 			since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
 			if err != nil {
 				return err
 			}
-			series := period != "" || by != "" || cmd.Flags().Changed("top")
 			var opts seriesOptions
 			if series {
 				if opts, err = parseSeriesOptions(period, by, top); err != nil {
@@ -558,8 +591,46 @@ keys over the whole range and folds the rest into "other".`,
 	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
 	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent or directory (implies --period day)")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
+	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
+	c.Flags().StringVar(&rng, "range", "", "with --workday: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
+	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only")
 	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return c
+}
+
+// checkWorkdayFlags rejects flag combinations across the three modes of
+// stats: --range and --human-only belong to --workday, which excludes the
+// series flags.
+func checkWorkdayFlags(workday, series bool, rng string, humanOnly bool, period, by string) error {
+	switch {
+	case !workday && rng != "":
+		return fmt.Errorf("--range requires --workday")
+	case !workday && humanOnly:
+		return fmt.Errorf("--human-only requires --workday")
+	case workday && period != "":
+		return fmt.Errorf("--workday cannot be combined with --period")
+	case workday && by != "":
+		return fmt.Errorf("--workday cannot be combined with --by")
+	case workday && series:
+		return fmt.Errorf("--workday cannot be combined with --top")
+	}
+	return nil
+}
+
+// workdayRange resolves the range of --workday: --range, else --month or
+// --since/--until, else this week. Bounds are day boundaries (see
+// rangeBounds and workdayBounds).
+func workdayRange(rng, month, sinceArg, untilArg string, now time.Time, loc *time.Location, dayStart time.Duration) (time.Time, time.Time, error) {
+	explicit := month != "" || sinceArg != "" || untilArg != ""
+	switch {
+	case rng != "" && explicit:
+		return time.Time{}, time.Time{}, fmt.Errorf("use either --range or --month/--since/--until")
+	case rng != "":
+		return rangeBounds(rng, now, loc, dayStart)
+	case explicit:
+		return workdayBounds(month, sinceArg, untilArg, loc, dayStart)
+	}
+	return rangeBounds("this-week", now, loc, dayStart)
 }
 
 // statsPeriod resolves --month or --since/--until; default the month of now.
