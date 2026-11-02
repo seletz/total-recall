@@ -53,7 +53,7 @@ func (m Model) ts(ev model.Event) string { return ev.TS.In(m.loc).Format("2006-0
 // render styles the lines and hands them to the viewport: separators with
 // the time muted and the actor in its colour (see Separator), the marked
 // event's separator with mark, the text of tool events muted, hits in the
-// match style, the selected hit in the selection style. A separator that
+// match style, the selected hit reversed. A separator that
 // holds a match keeps the plain, muted rendering, so the match shows. The
 // scroll offset is kept.
 func (m *Model) render() {
@@ -68,7 +68,7 @@ func (m *Model) render() {
 		for next < len(m.matches) && m.matches[next].Line == i {
 			next++
 		}
-		st := LineStyles{Match: m.th.Match, Selected: m.th.Selected}
+		st := LineStyles{Match: m.th.Match, Selected: m.th.SelectedMatch}
 		switch {
 		case event >= 0 && m.eventAt[event] == i && start == next:
 			out[i] = Separator(m.th, m.ts(m.events[event]), m.events[event], max(m.width, 1))

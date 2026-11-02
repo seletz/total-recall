@@ -140,6 +140,7 @@ func TestStylesReadWithoutColour(t *testing.T) {
 	}{
 		{"match", th.Match.GetBold() && th.Match.GetUnderline()},
 		{"selected", th.Selected.GetBold()},
+		{"selected match", th.SelectedMatch.GetReverse() && th.SelectedMatch.GetBold()},
 		{"active", th.Active.GetBold()},
 		{"title", th.Title.GetBold()},
 		{"muted", th.Muted.GetFaint()},

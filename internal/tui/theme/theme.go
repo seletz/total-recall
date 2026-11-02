@@ -52,9 +52,10 @@ type Theme struct {
 	// separators, Border the rounded border of panels.
 	Title, Label, Strong, Muted, Rule, Border lipgloss.Style
 	// Active is an active tab or toggle (accent background), Mark the
-	// marker glyphs ▸ and ◄, Match a search match, Selected the selected
-	// match and the marked row of a focused list.
-	Active, Mark, Match, Selected lipgloss.Style
+	// marker glyphs ▸ and ◄, Match a search match, SelectedMatch the
+	// selected match (reversed, so it stands out without colour too) and
+	// Selected the marked row of a focused list (selection background).
+	Active, Mark, Match, SelectedMatch, Selected lipgloss.Style
 	// AccentText is plain text in the accent colour; Error an error.
 	AccentText, Error lipgloss.Style
 	// Figure is a key figure (tiles of the stats view, spans of the
@@ -96,6 +97,7 @@ func New(dark bool) Theme {
 	t.Active = lipgloss.NewStyle().Background(t.Accent).Foreground(lipgloss.Color("#ffffff")).Bold(true)
 	t.Mark = fg(t.Accent).Bold(true)
 	t.Match = fg(t.Highlight).Bold(true).Underline(true)
+	t.SelectedMatch = t.Match.Reverse(true)
 	t.Selected = lipgloss.NewStyle().Background(t.Selection).Bold(true)
 	t.AccentText = fg(t.Accent)
 	t.Error = fg(t.Warn)

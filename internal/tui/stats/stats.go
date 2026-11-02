@@ -549,9 +549,9 @@ func (m Model) tiles() string {
 	for _, b := range m.series.Buckets {
 		sum := 0
 		for _, c := range b.Cells {
-			human += c.Activity.Human
-			agent += c.Activity.Agent
-			sum += c.Activity.Human + c.Activity.Agent
+			human += c.Human
+			agent += c.Agent
+			sum += c.Human + c.Agent
 		}
 		if sum > 0 {
 			active++

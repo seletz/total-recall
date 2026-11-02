@@ -1,12 +1,15 @@
 package tui
 
 import (
+	"bytes"
+	"image/color"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/testfixture"
@@ -442,5 +445,76 @@ func TestStartOptions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestColors pins the escape sequences of representative frames of the app
+// on a dark and on a light background (the terminal's answer arrives as
+// tea.BackgroundColorMsg and reaches every view): the search with hits and
+// the preview, the stats with the tiles, the chart and the table, the
+// activity week and the session detail. The app is driven synchronously
+// against the Activity fixture, so every load has landed in the frame.
+func TestColors(t *testing.T) {
+	tests := []struct {
+		name  string
+		start string
+		bg    color.Color
+		keys  []string
+	}{
+		{"SearchDark", "", color.Black, []string{"tab"}},
+		{"SearchLight", "", color.White, []string{"tab"}},
+		{"StatsDark", ViewStats, color.Black, nil},
+		{"StatsLight", ViewStats, color.White, nil},
+		{"ActivityDark", ViewActivity, color.Black, []string{"l"}},
+		{"DetailDark", "", color.Black, []string{"enter"}},
+		{"HelpDark", ViewStats, color.Black, []string{"?"}},
+	}
+	st, _ := fixturedb.Activity(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			now := time.Date(2026, 1, 11, 12, 0, 0, 0, testfixture.ActivityLocation)
+			app, err := New(Options{Store: st, Start: tt.start, Query: "release", Now: func() time.Time { return now },
+				Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, HumanOnly: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			msgs := []tea.Msg{tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}, tea.BackgroundColorMsg{Color: tt.bg}}
+			msgs = append(msgs, tuitest.Keys(tt.keys...)...)
+			m := tuitest.Drive(t, app, msgs...)
+			golden.RequireEqual(t, []byte(m.View().Content))
+		})
+	}
+}
+
+// TestNoColor checks that the themed frame survives a colourless terminal:
+// written through the colour profile NO_COLOR selects, the escape
+// sequences carry no colours while the glyphs that mark the active tab,
+// the marked hit and the matches stay.
+func TestNoColor(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	app, err := New(Options{Store: st, Query: "release", Now: tuitest.Clock, Location: testfixture.ActivityLocation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := tuitest.Drive(t, app, tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}, tea.BackgroundColorMsg{Color: color.Black}, tuitest.Key("tab"))
+	profile := colorprofile.Env([]string{"TERM=xterm-256color", "NO_COLOR=1"})
+	if profile >= colorprofile.ANSI {
+		t.Fatalf("NO_COLOR selects profile %v, want a colourless one", profile)
+	}
+	var buf bytes.Buffer
+	w := colorprofile.Writer{Forward: &buf, Profile: profile}
+	if _, err := w.Write([]byte(m.View().Content)); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, bad := range []string{"38;2;", "48;2;", "38;5;", "48;5;"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("colourless output carries %q", bad)
+		}
+	}
+	for _, want := range []string{"[1 search]", "▸", "◄", "release"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("colourless output lacks %q", want)
+		}
 	}
 }
