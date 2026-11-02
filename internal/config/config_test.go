@@ -186,6 +186,9 @@ func TestLoadErrors(t *testing.T) {
 		{"unknown table", "[nope]\nx = 1\n", "nope"},
 		{"bad toml", "db = \n", "toml"},
 		{"bad timezone", "timezone = \"Mars/Base\"\n", "timezone"},
+		{"bad day start", "day_start = \"4am\"\n", "day_start"},
+		{"day start out of range", "day_start = \"24:00\"\n", "day_start"},
+		{"day start seconds", "day_start = \"04:00:00\"\n", "day_start"},
 		{"bad duration", "[backup]\nmin_interval = \"soon\"\n", "min_interval"},
 		{"negative keep", "[backup]\nkeep_daily = -1\n", "keep_daily"},
 		{"negative raw max", "[ingest]\nraw_max_bytes = -1\n", "raw_max_bytes"},
@@ -260,6 +263,40 @@ func TestLocation(t *testing.T) {
 	}
 }
 
+// TestDayStart checks the parsed day boundary: the default 04:00, a value
+// from the file and midnight.
+func TestDayStart(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    time.Duration
+		wantStr string
+	}{
+		{"default", "", 4 * time.Hour, "04:00"},
+		{"file", "day_start = \"05:30\"\n", 5*time.Hour + 30*time.Minute, "05:30"},
+		{"midnight", "day_start = \"00:00\"\n", 0, "00:00"},
+		{"one digit hour", "day_start = \"3:15\"\n", 3*time.Hour + 15*time.Minute, "3:15"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)}
+			if tt.content != "" {
+				opts.ConfigFile = writeFile(t, t.TempDir(), "c.toml", tt.content)
+			}
+			c, err := Load(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := c.DayStartOffset(); got != tt.want {
+				t.Errorf("DayStartOffset = %s, want %s", got, tt.want)
+			}
+			if c.DayStart != tt.wantStr {
+				t.Errorf("DayStart = %q, want %q", c.DayStart, tt.wantStr)
+			}
+		})
+	}
+}
+
 func TestEntries(t *testing.T) {
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(map[string]string{"TOTAL_RECALL_DB": "/env/db"})})
 	if err != nil {
@@ -269,7 +306,7 @@ func TestEntries(t *testing.T) {
 	for _, e := range c.Entries() {
 		got[e.Key] = e
 	}
-	for _, k := range []string{"db", "timezone", "log", "backup.dir", "backup.keep_daily", "backup.keep_monthly", "backup.min_interval",
+	for _, k := range []string{"db", "timezone", "day_start", "log", "backup.dir", "backup.keep_daily", "backup.keep_monthly", "backup.min_interval",
 		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.raw_max_bytes", "ingest.store_raw",
 		"harness.claude.enabled", "harness.claude.projects_dir", "harness.claude.skip_record_types",
 		"harness.claude.actors.peer_prefixes", "harness.claude.actors.automation_prefixes", "git.resolve"} {
