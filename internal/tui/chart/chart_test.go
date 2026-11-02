@@ -323,8 +323,8 @@ func TestRenderText(t *testing.T) {
 		w, h int
 	}{
 		{"days", daySpec(), 80, 12},
-		{"weeks top2", FromSeries(weeks, store.PeriodWeek, MetricEvents, project.Names(weeks.Keys)), 80, 12},
-		{"months sessions", FromSeries(months, store.PeriodMonth, MetricSessions, project.Names(months.Keys)), 80, 12},
+		{"weeks top2", FromSeries(weeks, store.PeriodWeek, MetricEvents, project.Names(weeks.Keys, nil, "")), 80, 12},
+		{"months sessions", FromSeries(months, store.PeriodMonth, MetricSessions, project.Names(months.Keys, nil, "")), 80, 12},
 		{"narrow", daySpec(), 40, 8},
 		{"too many bars are clipped", daySpec(), 30, 8},
 		{"empty", Spec{Title: "events"}, 80, 12},

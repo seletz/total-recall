@@ -7,7 +7,7 @@
   "keys": [
     "alpha",
     "beta",
-    "gamma"
+    "/w/gamma"
   ],
   "buckets": [
     {
@@ -30,7 +30,7 @@
           "agent": 2
         },
         {
-          "key": "gamma",
+          "key": "/w/gamma",
           "sessions": 1,
           "human": 1,
           "agent": 1
@@ -72,7 +72,7 @@
           "agent": 5
         },
         {
-          "key": "gamma",
+          "key": "/w/gamma",
           "sessions": 1,
           "human": 1,
           "agent": 2
@@ -114,7 +114,7 @@
           "agent": 3
         },
         {
-          "key": "gamma",
+          "key": "/w/gamma",
           "sessions": 1,
           "human": 1,
           "agent": 2

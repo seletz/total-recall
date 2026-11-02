@@ -67,6 +67,10 @@ func (d *Duration) UnmarshalText(b []byte) error {
 type Config struct {
 	DB       string `toml:"db"`
 	Timezone string `toml:"timezone"`
+	// DayStart is the wall-clock time ("HH:MM") at which a day begins for
+	// the first/last activity per day (stats --workday, TUI activity):
+	// events before it count for the previous day.
+	DayStart string `toml:"day_start"`
 	Log      string `toml:"log"`
 	Backup   Backup `toml:"backup"`
 	Redact   Redact `toml:"redact"`
@@ -82,10 +86,17 @@ type Config struct {
 	PathOrigin Origin `toml:"-"`
 	// Loaded is true when Path existed and was read.
 	Loaded bool `toml:"-"`
+	// Home is the home directory the paths were expanded with (Options.Home
+	// or os.UserHomeDir()); display code abbreviates it to "~".
+	Home string `toml:"-"`
 
-	origins map[string]Origin
-	loc     *time.Location
+	origins  map[string]Origin
+	loc      *time.Location
+	dayStart time.Duration
 }
+
+// DefaultDayStart is the built-in day boundary for the activity per day.
+const DefaultDayStart = "04:00"
 
 // Backup configures `total-recall backup`.
 type Backup struct {
@@ -163,6 +174,7 @@ var keys = []struct {
 }{
 	{"db", func(c *Config) string { return c.DB }},
 	{"timezone", func(c *Config) string { return c.Timezone }},
+	{"day_start", func(c *Config) string { return c.DayStart }},
 	{"log", func(c *Config) string { return c.Log }},
 	{"backup.dir", func(c *Config) string { return c.Backup.Dir }},
 	{"backup.keep_daily", func(c *Config) string { return strconv.Itoa(c.Backup.KeepDaily) }},
@@ -192,7 +204,7 @@ func formatList(l []string) string {
 
 // defaults returns the built-in configuration for the given platform.
 func defaults(goos, home string, getenv func(string) string) *Config {
-	c := &Config{Timezone: "Europe/Berlin"}
+	c := &Config{Timezone: "Europe/Berlin", DayStart: DefaultDayStart}
 	if goos == "darwin" {
 		c.DB = filepath.Join(home, "Library", "Application Support", "total-recall", "archive.db")
 	} else {
@@ -248,6 +260,7 @@ func Load(opts Options) (*Config, error) {
 	expand := func(p string) string { return ExpandPath(p, opts.Home, opts.Getenv) }
 
 	c := defaults(opts.GOOS, opts.Home, opts.Getenv)
+	c.Home = opts.Home
 	c.origins = map[string]Origin{}
 
 	switch {
@@ -327,6 +340,11 @@ func (c *Config) validate() error {
 		return fmt.Errorf("config: timezone %q: %w", c.Timezone, err)
 	}
 	c.loc = loc
+	d, err := parseClock(c.DayStart)
+	if err != nil {
+		return fmt.Errorf("config: day_start %q: %w", c.DayStart, err)
+	}
+	c.dayStart = d
 	if c.Backup.KeepDaily < 0 {
 		return fmt.Errorf("config: backup.keep_daily must be >= 0")
 	}
@@ -368,6 +386,20 @@ func (c *Config) Entries() []Entry {
 	}
 	return out
 }
+
+// parseClock parses "HH:MM" (hour 0-23, minute 0-59) as an offset from
+// midnight.
+func parseClock(s string) (time.Duration, error) {
+	var h, m int
+	if _, err := fmt.Sscanf(s, "%d:%d", &h, &m); err != nil || strings.Count(s, ":") != 1 || h < 0 || h > 23 || m < 0 || m > 59 {
+		return 0, fmt.Errorf("want HH:MM between 00:00 and 23:59")
+	}
+	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute, nil
+}
+
+// DayStartOffset returns the configured day boundary as an offset from
+// local midnight (04:00 = 4h).
+func (c *Config) DayStartOffset() time.Duration { return c.dayStart }
 
 // Location returns the configured time zone.
 func (c *Config) Location() *time.Location {

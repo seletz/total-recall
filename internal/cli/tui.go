@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -11,10 +13,11 @@ import (
 func (e *env) tuiCmd() *cobra.Command {
 	var query, graphics string
 	c := &cobra.Command{
-		Use:   "tui [search|stats]",
-		Short: "Interactive search and activity charts (spike)",
+		Use:   "tui [search|stats|activity]",
+		Short: "Interactive search, activity charts and first/last activity per day (spike)",
 		Long: `tui opens the archive read-only in a full-screen terminal UI with a live
-search view and an activity statistics view. The optional argument selects
+search view, an activity statistics view and a view of the first and the
+last activity per day (see stats --workday). The optional argument selects
 the view shown first.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -26,8 +29,8 @@ the view shown first.`,
 			if len(args) == 1 {
 				start = args[0]
 			}
-			if start != tui.ViewSearch && start != tui.ViewStats {
-				return fmt.Errorf("unknown view %q (use %s or %s)", start, tui.ViewSearch, tui.ViewStats)
+			if !slices.Contains(tui.ViewNames, start) {
+				return fmt.Errorf("unknown view %q (use %s)", start, strings.Join(tui.ViewNames, ", "))
 			}
 			cfg, err := e.loadConfig()
 			if err != nil {
@@ -39,7 +42,7 @@ the view shown first.`,
 			}
 			defer func() { _ = st.Close() }()
 			opts := tui.Options{Store: st, Location: cfg.Location(), Now: e.app.Now,
-				Start: start, Query: query, Graphics: g}
+				Start: start, Query: query, Graphics: g, DayStart: cfg.DayStartOffset(), Home: cfg.Home}
 			return tui.Run(cmd.Context(), opts, e.app.Stdin, e.app.Stdout)
 		},
 	}

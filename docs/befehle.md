@@ -159,7 +159,7 @@ Ohne `--raw` wird jedes Wort in Anführungszeichen gesetzt. Dann müssen alle W�
 
 ## `stats` { #stats }
 
-Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
+Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
 
 ```sh
 total-recall stats                                   # aktueller Monat
@@ -214,7 +214,7 @@ total-recall stats --period month --since 2026-01-01          # nur je Monat, oh
 | Option | Bedeutung |
 |---|---|
 | `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0 |
-| `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots, sonst des Verzeichnisses; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
+| `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
 | `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
 
 Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt.
@@ -223,6 +223,7 @@ Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie 
 PERIOD    KEY           SESSIONS  HUMAN  AGENT
 2026-W40  total-recall  12        240    4100
 2026-W40  infra         3         31     410
+2026-W40  ~/notes       2         18     95
 2026-W41  total-recall  9         180    3300
 ```
 
@@ -250,20 +251,77 @@ JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in
 }
 ```
 
+### Arbeitszeit: `--workday` { #stats-workday }
+
+Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität** und die Spanne dazwischen: ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde. Dieselbe Ansicht hat die [TUI](tui.md#aktivitat) als Reiter „activity“.
+
+```sh
+total-recall stats --workday                          # diese Woche
+total-recall stats --workday --range last-week
+total-recall stats --workday --range last-month --json
+total-recall stats --workday --since 2026-10-01 --until 2026-10-15 --human-only
+```
+
+```text
+2026-10-26 04:00 – 2026-11-02 03:59 (Europe/Berlin, day starts 04:00, human and agent events)
+
+DATE        DAY  FIRST  LAST        SPAN
+2026-10-26  Mon  08:12  18:40       10h28m
+2026-10-27  Tue  09:03  01:30 (+1)  16h27m
+2026-10-28  Wed  -      -           -
+2026-10-29  Thu  07:55  17:10       9h15m
+…
+
+total: 5 days with activity, 41h40m
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--range today\|this-week\|last-week\|this-month\|last-month` | Zeitraum relativ zu jetzt. Wochen sind ISO-Wochen ab Montag. Nur mit `--workday`, nicht zusammen mit `--since`/`--until`/`--month` |
+| `--since`, `--until`, `--month` | wie oben; ein Datum meint den ganzen Tag ab der Tagesgrenze, `--until` einschließlich. Ohne Zeitraum gilt `this-week` |
+| `--human-only` | nur eigene Nachrichten zählen (sonst wie die Aktivitätsstatistik: eigene Nachrichten und Agent-Events) |
+
+**Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
+
+JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_local`, `last_local`, mit `(+1)`), die Spanne in Sekunden und die Zähler. Ein Tag ohne Aktivität hat leere Zeiten und Nullen.
+
+```json
+{
+  "since": "2026-10-26T03:00:00.000Z",
+  "until": "2026-11-02T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "human_only": false,
+  "days": [
+    {
+      "day": "2026-10-27", "weekday": "Tue",
+      "first": "2026-10-27T08:03:00.000Z", "last": "2026-10-28T00:30:00.000Z",
+      "first_local": "09:03", "last_local": "01:30 (+1)",
+      "span_seconds": 59220,
+      "sessions": 3, "human": 41, "agent": 902
+    }
+  ],
+  "total": {"days": 5, "span_seconds": 150000}
+}
+```
+
+`--workday` lässt sich nicht mit `--period`, `--by` oder `--top` kombinieren.
+
 ## `tui` { #tui }
 
-Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](tui.md).
+Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap, erste und letzte Aktivität je Tag. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](tui.md).
 
 ```sh
 total-recall tui                              # Suche
 total-recall tui stats                        # Statistik
+total-recall tui activity                     # erste und letzte Aktivität je Tag
 total-recall tui --query "goreleaser cask"    # Suche mit vorbelegtem Text
 total-recall tui stats --graphics text        # Chart als Text, keine Terminal-Abfrage
 ```
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` | Ansicht beim Start, Default `search` |
+| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort |
 | `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty und kitty, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `auto` |
 

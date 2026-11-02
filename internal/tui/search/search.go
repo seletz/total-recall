@@ -146,7 +146,8 @@ func New(opts Options) Model {
 func (Model) Title() string { return "search" }
 
 // Focused implements tui.Focused: true while the search input or the repo
-// filter has the focus.
+// filter has the focus. Tab and shift+tab are handled by the view in every
+// focus state, so they cycle input ↔ list and never reach the app.
 func (m Model) Focused() bool { return m.focus != focusList }
 
 // Init implements tea.Model: with an initial query, the first search runs

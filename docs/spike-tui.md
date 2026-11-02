@@ -368,13 +368,13 @@ Stand 1. November 2026, nach dem Merge aller Teil-Issues des Meilensteins „Spi
 
 ### Abweichungen vom Entwurf
 
-- **Fokus in der Suche.** Entwurf: ++tab++ wechselt immer zwischen Eingabe und Liste. Umgesetzt: ++tab++ geht Eingabe → Liste, ++esc++ Liste → Eingabe, und ++tab++ aus der Liste wechselt die Ansicht. Grund: die App fragt eine Ansicht nur mit einem `Focused() bool`, ob sie die Tastatur hält; ein Umschalter in beide Richtungen bräuchte einen reicheren Vertrag.
+- **Fokus in der Suche.** Entwurf: ++tab++ wechselt immer zwischen Eingabe und Liste. Im Spike ging ++tab++ nur Eingabe → Liste und wechselte aus der Liste die Ansicht, weil die App ++tab++ selbst als „nächste Ansicht“ belegt hatte. Mit [#46](https://github.com/seletz/total-recall/issues/46) gilt der Entwurf: ++tab++/++shift+tab++ wechseln in beide Richtungen und bleiben in der Suche; dafür hat die App ++tab++ aufgegeben, Ansichten wechseln nur `1`/`2`. Der Vertrag steht in [TUI](tui.md#fokus).
 - **Zeitfilter** der Suche startet bei `all`, nicht bei 90 Tagen. **Repo-Filter** wird mit ++enter++ übernommen, nicht beim Tippen.
 - **Detailansicht** ist eine Ebene über den Ansichten (die Suche bleibt darunter erhalten), kein dritter Tab. Status und Position stehen in der Trennlinie, nicht in der Fußzeile.
 - **Umbruch und Hervorhebung** macht die Session-Ansicht selbst: der Soft-Wrap des Bubbles-Viewports trennt mitten im Wort.
 - **Heatmap** nimmt die Kennzahl des Charts (events, human, sessions) und blendet sich aus, wenn der Körper zu niedrig ist; bei 80×24 fehlt der Platz. Die Statuszeile sagt es.
 - **Kitty:** Sondierung mit 250 ms Timeout statt DA1 als Abschluss (Verhalten der Bibliothek), Abfrage-ID der Bibliothek statt 31. Die Umgebungsvariablen entscheiden mit, nicht nur die Sondierung: Bild nur bei Ghostty oder kitty, weil andere Terminals zwar antworten, aber keine Platzhalter zeichnen. tmux ersetzt `TERM` und `TERM_PROGRAM`, deshalb zählen zusätzlich `TERM=xterm-ghostty` sowie `GHOSTTY_RESOURCES_DIR`/`GHOSTTY_BIN_DIR` im tmux-Server als Ghostty-Hinweis. Zwei Umwege statt Änderungen an chartpicture: das Bildmodell wird bei der Zellgrößen-Antwort neu gebaut (chartpicture nimmt die Zellgröße nur im Konstruktor), und die Setter des Chart-Containers geben `tea.Cmd` zurück, weil chartpicture außerhalb der Hauptschleife rendert.
-- **Projektnamen:** `project.Names` kann Verzeichnisse ohne Repository nicht mit `~` markieren; der Rohschlüssel sagt nicht, ob er Git-Root oder Arbeitsverzeichnis ist. Behoben wird das durch die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4).
+- **Projektnamen:** `project.Names` konnte Verzeichnisse ohne Repository zunächst nicht mit `~` markieren; der Rohschlüssel sagt nicht, ob er Git-Root oder Arbeitsverzeichnis ist. Seit [#53](https://github.com/seletz/total-recall/issues/53) meldet `store.ActivitySeries` diese Schlüssel in `Dirs`; sie erscheinen als Pfad mit `~` für das Home-Verzeichnis (`~/notes`) statt mit dem Präfix `~vault` des Entwurfs.
 - **TopN** wird über das ganze Fenster berechnet, nicht je Periode (stabile Legende). Leere Zellen sind enthalten. Die Spalte `sessions` der Tabelle summiert die je Periode eindeutigen Sessions.
 
 ### Messwerte
@@ -491,8 +491,8 @@ Nicht angelegt, nur gelistet:
 1. **Kitty-Checkliste aus PR #38** in Ghostty (nativ, tmux mit/ohne Passthrough), Terminal.app und bei 80×24 durchgehen; Ergebnis hier nachtragen. Entscheidet über den Bildpfad.
 2. **`tuitest`-Helfer:** den doppelten `run`/`drive`-Helfer aus Session- und Statistik-Tests nach `internal/tui/tuitest` heben.
 3. **`TestOutput` unter `-race`** deterministisch machen oder CI mit `-race` laufen lassen.
-4. **Fokus-Vertrag:** ++tab++ in der Suche wie im Entwurf in beide Richtungen, dafür `Focused` um die Richtung erweitern; oder das heutige Verhalten als endgültig festschreiben.
-5. **Projektnamen mit `~`** für Verzeichnisse ohne Repository, sobald [#4](https://github.com/seletz/total-recall/issues/4) die Projekt-Ebene liefert; TUI als Konsument.
+4. **Fokus-Vertrag:** erledigt mit [#46](https://github.com/seletz/total-recall/issues/46), siehe [Abweichungen](#abweichungen-vom-entwurf) und [TUI](tui.md#fokus).
+5. **Projektnamen mit `~`** für Verzeichnisse ohne Repository: erledigt mit [#53](https://github.com/seletz/total-recall/issues/53) (Pfad mit `~` für das Home-Verzeichnis), siehe [Abweichungen](#abweichungen-vom-entwurf); die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt die Heuristik später.
 6. **`stats --period/--by/--top`** wie oben, inklusive Ablösung von `monthly_stats.py`.
 7. **Eindeutige Sessions je Fenster** in der Statistik-Tabelle (Store-Erweiterung).
 8. **Config `[tui]`:** `graphics`, Standard-Zeitfilter der Suche (`all` oder 90 Tage), Startansicht.

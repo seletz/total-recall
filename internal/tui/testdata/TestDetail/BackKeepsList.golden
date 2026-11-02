@@ -1,4 +1,4 @@
- total-recall                                                                  [1 search]  2 stats
+ total-recall                                                     [1 search]  2 stats   3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  > release                                                          actor: all  since: all  repo: *
 ─────────────────────────────────────────────────┬──────────────────────────────────────────────────
@@ -27,4 +27,4 @@
                                                  │
  2 hits (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • esc input • 1 search • 2 stats …
+ ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stats…

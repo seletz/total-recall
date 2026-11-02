@@ -29,6 +29,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/window"
 )
 
 // TopN is how many dimension values the chart stacks; the rest is "other".
@@ -61,6 +62,9 @@ type Options struct {
 	// plain TextChart that never touches the terminal; auto, text or kitty
 	// mean a KittyChart starting in that mode (see NewKittyChart).
 	Graphics Graphics
+	// Home is the home directory, abbreviated to "~" in the project names
+	// of directories without a repository; empty keeps full paths.
+	Home string
 }
 
 func (o *Options) defaults() {
@@ -128,7 +132,7 @@ type Model struct {
 	opts   Options
 	keys   KeyMap
 	dim    store.Dimension
-	window Window
+	window window.Window
 	metric chart.Metric
 
 	// seq counts changes of the filter; results carry the value they were
@@ -159,7 +163,7 @@ func New(opts Options) Model {
 	m := Model{
 		opts:   opts,
 		keys:   defaultKeyMap(),
-		window: NewWindow(store.PeriodDay, opts.Now(), opts.Location),
+		window: window.New(store.PeriodDay, opts.Now(), opts.Location),
 		cache:  map[filter]store.ActivitySeries{},
 		colors: &chart.Colors{},
 		chart:  opts.Chart,
@@ -270,7 +274,7 @@ func (m Model) setDimension(d store.Dimension) (tea.Model, tea.Cmd) {
 	return m.load()
 }
 
-func (m Model) setWindow(w Window) (tea.Model, tea.Cmd) {
+func (m Model) setWindow(w window.Window) (tea.Model, tea.Cmd) {
 	if w.Equal(m.window) {
 		return m, nil
 	}
@@ -407,7 +411,7 @@ func (m *Model) rebuild() tea.Cmd {
 	if !m.loaded {
 		return nil
 	}
-	names := project.Names(m.series.Keys)
+	names := project.Names(m.series.Keys, m.series.Dirs, m.opts.Home)
 	m.spec = m.colors.Assign(chart.FromSeries(m.series, m.window.Period, m.metric, names))
 	return tea.Batch(m.chart.SetSpec(m.spec), m.chart.SetSize(m.chartSize()))
 }

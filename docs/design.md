@@ -44,6 +44,7 @@ Eine TOML-Datei für alles: `~/.config/total-recall/config.toml` (`$XDG_CONFIG_H
 
 db = "~/Library/Application Support/total-recall/archive.db"
 timezone = "Europe/Berlin"      # für Auswertungen (stats, Tagesgrenzen)
+day_start = "04:00"              # Tagesgrenze für die Aktivität je Tag (stats --workday, TUI)
 log = ""                         # leer = neben der DB
 
 [backup]
@@ -88,7 +89,7 @@ internal/harness/claude   Adapter Claude Code (JSONL)
 internal/gitinfo          cwd -> git root, remote URL, branch (mit Cache)
 internal/redact           Maskieren von Geheimnissen
 internal/store            SQLite: Schema, Migrationen, Upserts, Abfragen, Backup
-internal/project          Projektname aus Git-Root bzw. Verzeichnis (reine Funktionen; `stats --by project`, TUI)
+internal/project          Projektname aus Git-Root bzw. Verzeichnis, Home als `~` (reine Funktionen; `stats --by project`, TUI)
 internal/ingest           Orchestrierung: Quellen finden, Offsets, Locking, Store schreiben
 internal/skill            eingebetteter SKILL.md für `llm --skill`
 internal/config           TOML laden, Defaults, Env/Flag-Overrides, Pfad-Expansion
@@ -257,7 +258,7 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions), `--all-sessions` (sonst ohne Sessions ohne Events und Startzeit); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools) |
 | `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |
-| `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Mit `--period day\|week\|month`, `--by project\|agent\|directory`, `--top N` stattdessen eine Zeitreihe Periode × Schlüssel aus `store.ActivitySeries` (Text im Langformat, JSON), Ersatz für `monthly_stats.py` im Vault; Projektnamen aus `internal/project`. |
+| `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Mit `--period day\|week\|month`, `--by project\|agent\|directory`, `--top N` stattdessen eine Zeitreihe Periode × Schlüssel aus `store.ActivitySeries` (Text im Langformat, JSON), Ersatz für `monthly_stats.py` im Vault; Projektnamen aus `internal/project`. Mit `--workday` je Tag die erste und letzte Aktivität und die Spanne (`store.Workday`), Zeitraum `--range today\|this-week\|last-week\|this-month\|last-month` oder `--since/--until`/`--month`, `--human-only`; ein Tag beginnt um `day_start` (Default 04:00 Ortszeit), Aktivität davor zählt zum Vortag (`01:30 (+1)`). Dieselben Daten zeigt die TUI im Reiter `activity`. |
 | `sql QUERY` | Read-only-SQL (DB mit `mode=ro` und `PRAGMA query_only`), Ausgabe Tabelle/JSON/CSV |
 | `backup` | `VACUUM INTO` + gzip + Aufbewahrung; `--if-older DURATION` |
 | `restore BACKUP_FILE` | Backup (`.db.gz` oder alte `.db`) in eine DB-Datei entpacken; `--to PATH`, `--force` |

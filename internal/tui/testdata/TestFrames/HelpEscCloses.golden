@@ -1,4 +1,4 @@
- total-recall                                                                  [1 search]  2 stats
+ total-recall                                                     [1 search]  2 stats   3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  > type to search                                                   actor: all  since: all  repo: *
 ─────────────────────────────────────────────────┬──────────────────────────────────────────────────
@@ -27,4 +27,4 @@
                                                  │
  no database
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • esc input • 1 search • 2 stats …
+ ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stats…

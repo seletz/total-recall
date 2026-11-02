@@ -76,6 +76,7 @@ func TestActivitySeries(t *testing.T) {
 		name    string
 		f       ActivityFilter
 		keys    []string
+		dirs    []string            // keys without a repository
 		labels  []string            // all bucket labels in order
 		cells   map[string][]string // label -> non-zero cells
 		wantErr bool
@@ -112,6 +113,7 @@ func TestActivitySeries(t *testing.T) {
 			f: ActivityFilter{Since: ts("2025-12-22T00:00:00Z"), Until: ts("2026-01-04T23:00:00Z"),
 				Location: loc, Period: PeriodWeek, Dimension: DimProject},
 			keys:   []string{"/w/docs"},
+			dirs:   []string{"/w/docs"},
 			labels: []string{"2025-W52", "2026-W01"},
 			cells: map[string][]string{
 				"2025-W52": {"/w/docs:1/1/0"},
@@ -198,6 +200,9 @@ func TestActivitySeries(t *testing.T) {
 			}
 			if strings.Join(got.Keys, ",") != strings.Join(tt.keys, ",") {
 				t.Errorf("keys = %q, want %q", got.Keys, tt.keys)
+			}
+			if strings.Join(got.Dirs, ",") != strings.Join(tt.dirs, ",") {
+				t.Errorf("dirs = %q, want %q", got.Dirs, tt.dirs)
 			}
 			var labels []string
 			for _, b := range got.Buckets {
@@ -342,6 +347,43 @@ func TestParsePeriodDimension(t *testing.T) {
 		got, err := ParseDimension(tt.in)
 		if (err != nil) != tt.wantErr || got != tt.want {
 			t.Errorf("ParseDimension(%q) = %v, %v; want %v, err %v", tt.in, got, err, tt.want, tt.wantErr)
+		}
+	}
+}
+
+// TestActivitySeriesDirs checks that a project key is reported in Dirs only
+// when no session has it as git root: a directory that later became a
+// repository counts as a repository.
+func TestActivitySeriesDirs(t *testing.T) {
+	s, _ := openTestStore(t)
+	sessions := []model.Session{
+		{ID: "claude:d1", Harness: "claude", NativeID: "d1", Cwd: "/w/notes",
+			StartedAt: ts("2026-03-01T10:00:00Z"), EndedAt: ts("2026-03-01T10:05:00Z")},
+		{ID: "claude:d2", Harness: "claude", NativeID: "d2", Cwd: "/w/later",
+			StartedAt: ts("2026-03-01T11:00:00Z"), EndedAt: ts("2026-03-01T11:05:00Z")},
+		{ID: "claude:d3", Harness: "claude", NativeID: "d3", Cwd: "/w/later/sub", GitRoot: "/w/later",
+			StartedAt: ts("2026-03-02T11:00:00Z"), EndedAt: ts("2026-03-02T11:05:00Z")},
+	}
+	evs := []model.Event{
+		ev("claude:d1-1", "claude:d1", "2026-03-01T10:00:00Z", model.ActorHuman, model.KindMessage, "user", "a"),
+		ev("claude:d2-1", "claude:d2", "2026-03-01T11:00:00Z", model.ActorHuman, model.KindMessage, "user", "b"),
+		ev("claude:d3-1", "claude:d3", "2026-03-02T11:00:00Z", model.ActorHuman, model.KindMessage, "user", "c"),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/d.jsonl", Harness: "claude", Offset: 1}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []Dimension{DimProject, DimDirectory, DimAgent} {
+		got, err := s.ActivitySeries(ctx, ActivityFilter{Since: ts("2026-03-01T00:00:00Z"), Until: ts("2026-03-03T00:00:00Z"),
+			Location: time.UTC, Period: PeriodDay, Dimension: d})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []string
+		if d == DimProject {
+			want = []string{"/w/notes"}
+		}
+		if strings.Join(got.Dirs, ",") != strings.Join(want, ",") {
+			t.Errorf("%s: dirs = %q, want %q", d, got.Dirs, want)
 		}
 	}
 }

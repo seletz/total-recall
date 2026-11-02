@@ -1,8 +1,7 @@
- total-recall                                                                   1 search  [2 stats]
+ total-recall                                                      1 search   2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- period: [day] week month  by: [project] agent directory                     2026-09-23 – 2026-10-20
- No activity between 2026-09-23 – 2026-10-20.
-
+ period: day [week] month  count: [all] human        this week · 2026-W43 · 2026-10-19 – 2026-10-25
+ No database open.
 
 
 
@@ -25,6 +24,7 @@
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- text chart (kitty: not detected) · 28 days · 0 ms
+
+ no database
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • p/a/v by • [ ] -/+ range • 1 search • 2 stats • tab next view • ? help • q quit
+ d/w/m period • [ ] earlier/later • c/l this/last • h human only • 1 search • 2 stats • 3 activity …
