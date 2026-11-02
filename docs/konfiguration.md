@@ -37,6 +37,7 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 db = "~/Library/Application Support/total-recall/archive.db"
 timezone = "Europe/Berlin"      # für Auswertungen (stats, Tagesgrenzen)
+day_start = "04:00"              # Tagesgrenze für die Aktivität je Tag
 log = ""                         # leer = neben der DB
 
 [backup]
@@ -78,6 +79,9 @@ resolve = true
 
 `timezone`
 :   Zeitzone für Auswertungen. Bestimmt, wo ein Tag anfängt und aufhört, etwa in `stats` und in der View `daily_activity`. In der Datenbank selbst stehen alle Zeiten in UTC. Default: `Europe/Berlin`. Override: `--tz`.
+
+`day_start` { #day_start }
+:   Uhrzeit (`HH:MM`, Ortszeit), zu der ein Tag für die erste und letzte Aktivität je Tag beginnt ([`stats --workday`](befehle.md#stats-workday), TUI-Ansicht „activity“). Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt. `00:00` ist die Kalendermitternacht. Default: `04:00`. Wirkt nicht auf `stats` ohne `--workday` und nicht auf `daily_activity`.
 
 `log`
 :   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
