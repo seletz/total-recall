@@ -1,0 +1,20 @@
+ period: [day] week month  by: [project] agent di…
+ events
+ 8 ┤   █
+   │   █                    ▄
+   │ ▄ █    ▄       ▄ ▄     █  ▄
+   │ █ █    █   █   ███  █  █  █
+ 0 ┼──────────────────────────────────────────────
+    15 18 21 24 27 30 02 05 08 11
+ ██ alpha  ██ ~/gamma  ██ beta
+ events by weekday × hour · ░▒▓█ · max 8
+ Mon│               ▒▒
+ Tue│               ▒▒▒▒
+ Wed│                                           ▒▒
+ Thu│▒▒                      ██      ▓▓
+ Fri│                            ▒▒
+ Sat│                                         ▒▒
+ Sun│                                    ▒▒
+    ╵00  02  04 06  08  10  12 14  16  18  20 22
+──────────────────────────────────────────────────
+ text chart · 28 days · 0 ms · heatmap
