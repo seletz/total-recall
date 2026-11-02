@@ -12,3 +12,7 @@ PERIOD    KEY      SESSIONS  HUMAN  AGENT
 2026-W01  ~/gamma  1         1      2
 2026-W02  alpha    2         3      5
 2026-W02  beta     1         1      1
+total     alpha    10        14     24
+total     beta     4         5      8
+total     ~/gamma  3         3      5
+total     *        17        22     37

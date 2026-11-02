@@ -104,6 +104,59 @@ func TestStatsSeriesCounts(t *testing.T) {
 	for k, c := range got {
 		t.Errorf("unexpected cell %s = %+v", k, c)
 	}
+	// Over the whole range every session counts once, while the per-week
+	// cells above count A5 (2026-W01) and the week-spanning sessions of the
+	// fixture once per week. Alpha includes the subagent.
+	var totalKeys []string
+	for _, c := range out.ByKey {
+		totalKeys = append(totalKeys, c.Key)
+	}
+	if strings.Join(totalKeys, ",") != strings.Join(out.Keys, ",") {
+		t.Errorf("by_key keys = %v, want %v", totalKeys, out.Keys)
+	}
+	var wantTotal ActivityJSON
+	for i, tot := range tf.ActivityTotals {
+		want := ActivityJSON{Sessions: tot.Sessions, Human: tot.Human, Agent: tot.Agent}
+		if tot.Project == tf.ActivityAlpha {
+			want.Sessions++
+			want.Agent += tf.ActivitySubagentCount.Agent
+		}
+		if i < len(out.ByKey) && out.ByKey[i].ActivityJSON != want {
+			t.Errorf("by_key[%d] %s = %+v, want %+v", i, names[tot.Project], out.ByKey[i].ActivityJSON, want)
+		}
+		wantTotal.Sessions += want.Sessions
+		wantTotal.Human += want.Human
+		wantTotal.Agent += want.Agent
+	}
+	if out.Total != wantTotal {
+		t.Errorf("total = %+v, want %+v", out.Total, wantTotal)
+	}
+}
+
+// TestStatsSeriesDistinct checks that the totals count a session spanning
+// several periods once: in the fixture A5 has events on 2025-12-31 and
+// 2026-01-01, so by day it appears in two buckets of alpha.
+func TestStatsSeriesDistinct(t *testing.T) {
+	e := newTestEnv(t)
+	_, db := fixturedb.Activity(t)
+	r := runActivity(t, e, db, "--period", "day", "--by", "project", "--since", "2025-12-31", "--until", "2026-01-01", "--json")
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	out := decode[ActivitySeriesJSON](t, r.stdout)
+	var perBucket int
+	for _, b := range out.Buckets {
+		perBucket += b.Sessions
+	}
+	if perBucket != 2 {
+		t.Errorf("sessions summed over the buckets = %d, want 2", perBucket)
+	}
+	if want := (ActivityJSON{Sessions: 1, Human: 2, Agent: 3}); out.Total != want {
+		t.Errorf("total = %+v, want %+v", out.Total, want)
+	}
+	if len(out.ByKey) != 1 || out.ByKey[0].Key != "alpha" || out.ByKey[0].ActivityJSON != (ActivityJSON{Sessions: 1, Human: 2, Agent: 3}) {
+		t.Errorf("by_key = %+v, want alpha 1/2/3", out.ByKey)
+	}
 }
 
 func TestStatsSeriesErrors(t *testing.T) {

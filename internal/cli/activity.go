@@ -23,7 +23,14 @@ type ActivitySeriesJSON struct {
 	// descending; "other" (--top) is last. For --by project these are the
 	// project names (base name of the git root, full path of a directory
 	// without repository), else the raw keys.
-	Keys    []string             `json:"keys"`
+	Keys []string `json:"keys"`
+	// Total is the activity of the whole range: human and agent events
+	// summed over all buckets, sessions counted once each over the range.
+	// The per-bucket sessions count a session once per period it was
+	// active in, so their sum is usually larger.
+	Total ActivityJSON `json:"total"`
+	// ByKey is Total per key, in the order of Keys; empty without --by.
+	ByKey   []ActivityCellJSON   `json:"by_key"`
 	Buckets []ActivityBucketJSON `json:"buckets"` // every period of the range, empty ones included
 }
 
@@ -86,6 +93,7 @@ func seriesJSON(s store.ActivitySeries, o seriesOptions, names map[string]string
 		Since: isoTime(since), Until: isoTime(until), Timezone: tz,
 		Period: o.period.String(), By: o.byName,
 		Keys:    make([]string, 0, len(s.Keys)),
+		ByKey:   []ActivityCellJSON{},
 		Buckets: make([]ActivityBucketJSON, 0, len(s.Buckets)),
 	}
 	name := func(k string) string {
@@ -95,18 +103,26 @@ func seriesJSON(s store.ActivitySeries, o seriesOptions, names map[string]string
 		return k
 	}
 	if o.byName != "" {
-		for _, k := range s.Keys {
+		for i, k := range s.Keys {
 			out.Keys = append(out.Keys, name(k))
+			out.ByKey = append(out.ByKey, ActivityCellJSON{Key: name(k), ActivityJSON: ActivityJSON{Sessions: s.KeySessions[i]}})
 		}
 	}
+	out.Total.Sessions = s.Sessions
 	for _, b := range s.Buckets {
 		bj := ActivityBucketJSON{Start: isoTime(b.Start), Label: b.Label, Cells: []ActivityCellJSON{}}
-		for _, c := range b.Cells {
+		for i, c := range b.Cells {
 			bj.Sessions += c.Sessions
 			bj.Human += c.Human
 			bj.Agent += c.Agent
-			if o.byName != "" && c.Activity != (store.Activity{}) {
-				bj.Cells = append(bj.Cells, ActivityCellJSON{Key: name(c.Key), ActivityJSON: act(c.Activity)})
+			out.Total.Human += c.Human
+			out.Total.Agent += c.Agent
+			if o.byName != "" {
+				out.ByKey[i].Human += c.Human
+				out.ByKey[i].Agent += c.Agent
+				if c.Activity != (store.Activity{}) {
+					bj.Cells = append(bj.Cells, ActivityCellJSON{Key: name(c.Key), ActivityJSON: act(c.Activity)})
+				}
 			}
 		}
 		out.Buckets = append(out.Buckets, bj)
@@ -114,16 +130,29 @@ func seriesJSON(s store.ActivitySeries, o seriesOptions, names map[string]string
 	return out
 }
 
+// TotalLabel and TotalKey mark the rows of writeSeriesTable that sum the
+// whole range: TotalLabel in the PERIOD column, and with --by TotalKey in
+// the KEY column of the row over all keys.
+const (
+	TotalLabel = "total"
+	TotalKey   = "*"
+)
+
 // writeSeriesTable writes the long format: without --by one row per period
 // (PERIOD SESSIONS HUMAN AGENT, empty periods as zeros), with --by one row
-// per period and key with activity (PERIOD KEY SESSIONS HUMAN AGENT).
+// per period and key with activity (PERIOD KEY SESSIONS HUMAN AGENT). The
+// rows labelled TotalLabel close the table: without --by one for the
+// range, with --by one per key and one for all keys (TotalKey). Their
+// SESSIONS count each session once over the range, while a period row
+// counts every session active in the period.
 func writeSeriesTable(w io.Writer, s ActivitySeriesJSON) error {
 	n := func(i int) string { return strconv.Itoa(i) }
 	if s.By == "" {
-		rows := make([][]string, 0, len(s.Buckets))
+		rows := make([][]string, 0, len(s.Buckets)+1)
 		for _, b := range s.Buckets {
 			rows = append(rows, []string{b.Label, n(b.Sessions), n(b.Human), n(b.Agent)})
 		}
+		rows = append(rows, []string{TotalLabel, n(s.Total.Sessions), n(s.Total.Human), n(s.Total.Agent)})
 		return table(w, []string{"PERIOD", "SESSIONS", "HUMAN", "AGENT"}, rows)
 	}
 	var rows [][]string
@@ -132,6 +161,10 @@ func writeSeriesTable(w io.Writer, s ActivitySeriesJSON) error {
 			rows = append(rows, []string{b.Label, c.Key, n(c.Sessions), n(c.Human), n(c.Agent)})
 		}
 	}
+	for _, c := range s.ByKey {
+		rows = append(rows, []string{TotalLabel, c.Key, n(c.Sessions), n(c.Human), n(c.Agent)})
+	}
+	rows = append(rows, []string{TotalLabel, TotalKey, n(s.Total.Sessions), n(s.Total.Human), n(s.Total.Agent)})
 	return table(w, []string{"PERIOD", "KEY", "SESSIONS", "HUMAN", "AGENT"}, rows)
 }
 

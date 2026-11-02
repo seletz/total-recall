@@ -21,6 +21,6 @@
     15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 01 02 03 04 05 06 07 08 09 10 11
  ██ claude main
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- agent                                                       sessions      human      agent    share
- claude main                                                       10         13         21    100 %
+ agent                                       sessions    session-days      human      agent    share
+ claude main                                        9              10         13         21    100 %
  text chart · 28 days · 0 ms

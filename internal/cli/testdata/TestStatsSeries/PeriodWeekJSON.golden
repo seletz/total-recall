@@ -5,6 +5,12 @@
   "period": "week",
   "by": "",
   "keys": [],
+  "total": {
+    "sessions": 17,
+    "human": 22,
+    "agent": 37
+  },
+  "by_key": [],
   "buckets": [
     {
       "start": "2025-11-30T23:00:00.000Z",

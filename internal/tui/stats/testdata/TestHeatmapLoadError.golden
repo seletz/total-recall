@@ -19,8 +19,8 @@
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- project                                                     sessions      human      agent    share
- alpha                                                              6          9         14     67 %
- ~/gamma                                                            2          2          4     17 %
- beta                                                               2          2          3     14 %
+ project                                     sessions    session-days      human      agent    share
+ alpha                                              5               6          9         14     67 %
+ ~/gamma                                            2               2          2          4     17 %
+ beta                                               2               2          2          3     14 %
  text chart · 28 days · 0 ms · heatmap error: boom
