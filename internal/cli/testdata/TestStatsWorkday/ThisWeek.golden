@@ -1,12 +1,13 @@
 2026-01-05 04:00 – 2026-01-12 03:59 (Europe/Berlin, day starts 04:00, human and agent events)
+core hours 09:00-17:00, target 8h00m per weekday
 
-DATE        DAY  FIRST  LAST   SPAN
-2026-01-05  Mon  08:45  08:45  5s
-2026-01-06  Tue  -      -      -
-2026-01-07  Wed  -      -      -
-2026-01-08  Thu  17:30  17:55  25m
-2026-01-09  Fri  -      -      -
-2026-01-10  Sat  -      -      -
-2026-01-11  Sun  19:00  19:00  5s
+DATE        DAY  FIRST  LAST   SPAN  DIFF
+2026-01-05  Mon  08:45  08:45  5s    -7h59m
+2026-01-06  Tue  -      -      -     -
+2026-01-07  Wed  -      -      -     -
+2026-01-08  Thu  17:30  17:55  25m   -7h34m
+2026-01-09  Fri  -      -      -     -
+2026-01-10  Sat  -      -      -     -
+2026-01-11  Sun  19:00  19:00  5s    +0h00m
 
-total: 3 days with activity, 25m
+total: 3 days with activity, 25m · target 16h00m (2 workdays × 8h00m) · balance -15h34m

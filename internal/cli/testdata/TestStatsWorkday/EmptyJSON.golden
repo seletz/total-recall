@@ -4,6 +4,8 @@
   "timezone": "Europe/Berlin",
   "day_start": "04:00",
   "human_only": false,
+  "work_hours": "09:00-17:00",
+  "target_seconds": 28800,
   "days": [
     {
       "day": "2026-03-02",
@@ -13,6 +15,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": false,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -25,6 +30,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": false,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -37,6 +45,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": false,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -49,6 +60,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": false,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -61,6 +75,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": false,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -73,6 +90,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": true,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -85,6 +105,9 @@
       "first_local": "",
       "last_local": "",
       "span_seconds": 0,
+      "weekend": true,
+      "target_seconds": 0,
+      "diff_seconds": 0,
       "sessions": 0,
       "human": 0,
       "agent": 0
@@ -92,6 +115,9 @@
   ],
   "total": {
     "days": 0,
-    "span_seconds": 0
+    "workdays": 0,
+    "span_seconds": 0,
+    "target_seconds": 0,
+    "balance_seconds": 0
   }
 }

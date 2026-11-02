@@ -1,12 +1,13 @@
 2025-12-29 04:00 – 2026-01-05 03:59 (Europe/Berlin, day starts 04:00, human events only)
+core hours 09:00-17:00, target 8h00m per weekday
 
-DATE        DAY  FIRST  LAST        SPAN
-2025-12-29  Mon  -      -           -
-2025-12-30  Tue  -      -           -
-2025-12-31  Wed  23:40  00:05 (+1)  25m
-2026-01-01  Thu  -      -           -
-2026-01-02  Fri  15:00  15:00       0s
-2026-01-03  Sat  -      -           -
-2026-01-04  Sun  -      -           -
+DATE        DAY  FIRST  LAST        SPAN  DIFF
+2025-12-29  Mon  -      -           -     -
+2025-12-30  Tue  -      -           -     -
+2025-12-31  Wed  23:40  00:05 (+1)  25m   -7h35m
+2026-01-01  Thu  -      -           -     -
+2026-01-02  Fri  15:00  15:00       0s    -8h00m
+2026-01-03  Sat  -      -           -     -
+2026-01-04  Sun  -      -           -     -
 
-total: 2 days with activity, 25m
+total: 2 days with activity, 25m · target 16h00m (2 workdays × 8h00m) · balance -15h35m

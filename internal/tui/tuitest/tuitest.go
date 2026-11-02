@@ -143,10 +143,11 @@ func Frame(m tea.Model) string {
 // RequireOutput quits the program and compares the raw renderer output with
 // testdata/<test name>.golden. Update the files with go test -update.
 //
-// The terminal capability queries Bubble Tea sends at start-up (synchronized
-// output, unicode core, kitty keyboard) are removed first: the program writes
-// them from its own goroutine, so their position relative to the first frame
-// depends on scheduling and is not part of what a golden file should pin.
+// The terminal queries sent at start-up (synchronized output, unicode core,
+// kitty keyboard, and the background colour the views ask for) are removed
+// first: the program writes them from its own goroutine, so their position
+// relative to the first frame depends on scheduling and is not part of what
+// a golden file should pin.
 func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 	tb.Helper()
 	_ = tm.Quit()
@@ -160,7 +161,7 @@ func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 // StripQueries removes the start-up capability queries from raw program
 // output; see RequireOutput.
 func StripQueries(out []byte) []byte {
-	for _, q := range []string{ansi.RequestModeSynchronizedOutput, ansi.RequestModeUnicodeCore, ansi.RequestKittyKeyboard} {
+	for _, q := range []string{ansi.RequestModeSynchronizedOutput, ansi.RequestModeUnicodeCore, ansi.RequestKittyKeyboard, ansi.RequestBackgroundColor} {
 		out = bytes.ReplaceAll(out, []byte(q), nil)
 	}
 	return out
