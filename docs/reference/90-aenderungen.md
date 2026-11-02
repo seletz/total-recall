@@ -1,14 +1,18 @@
+---
+title: Änderungen
+icon: lucide/history
+---
 # Änderungen
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
 ## v0.2.0
 
-Die Terminal-Oberfläche aus dem [Spike](spike-tui.md) ist übernommen, dazu Arbeitszeit und Feiertage in CLI und TUI, Zeitreihen in `stats` und drei neue Config-Abschnitte. Die Datenbank bleibt bei Schema v3; ein Update braucht keine Migration.
+Die Terminal-Oberfläche aus dem [Spike](../explanation/spike-tui.md) ist übernommen, dazu Arbeitszeit und Feiertage in CLI und TUI, Zeitreihen in `stats` und drei neue Config-Abschnitte. Die Datenbank bleibt bei Schema v3; ein Update braucht keine Migration.
 
 ### Neu: `total-recall tui`
 
-Eine Vollbild-Oberfläche im Terminal, nur lesend. Bedienung: [TUI](tui.md).
+Eine Vollbild-Oberfläche im Terminal, nur lesend. Bedienung: [TUI](30-tui.md).
 
 - **Suche** mit Trefferliste beim Tippen, Vorschau des Austauschs um den Treffer, Filtern nach Actor, Zeitraum und Repo sowie Rohsyntax (++ctrl+r++). ++enter++ öffnet die Session.
 - **Session** als Detailansicht: Verlauf mit Hervorhebung der Suchwörter, `n`/`N` von Treffer zu Treffer, `T` blendet Tool-Aufrufe ein und aus, `y` kopiert die Session-ID.
@@ -21,13 +25,13 @@ Eine Vollbild-Oberfläche im Terminal, nur lesend. Bedienung: [TUI](tui.md).
 
 ### Neu in der CLI
 
-- [`stats --period day|week|month --by project|agent|directory --top N`](befehle.md#stats-period): eine Zeitreihe als Text oder JSON, Ersatz für externe Auswertungsskripte.
-- [`stats --workday`](befehle.md#stats-workday): erste und letzte Aktivität je Tag mit Spanne, Soll, Differenz, Feiertagen und Saldo; `--range today|this-week|last-week|this-month|last-month`, `--all-events`, JSON.
+- [`stats --period day|week|month --by project|agent|directory --top N`](10-befehle.md#stats-period): eine Zeitreihe als Text oder JSON, Ersatz für externe Auswertungsskripte.
+- [`stats --workday`](10-befehle.md#stats-workday): erste und letzte Aktivität je Tag mit Spanne, Soll, Differenz, Feiertagen und Saldo; `--range today|this-week|last-week|this-month|last-month`, `--all-events`, JSON.
 - `config show` listet die Tastenbelegung als `keys.<aktion>` und meldet Probleme in `[work]`, `[tui]` und `[keys]`; `doctor` meldet sie als Befund.
 
 ### Konfiguration
 
-Neu in der [Konfiguration](konfiguration.md): `day_start` (Tagesgrenze der Aktivität je Tag), `[work]` (Kernzeit, Tagessoll, Rahmen je Tag und Woche, Bundesland, Zählweise), `[tui]` (Startansicht, Grafikmodus, Maus, Startzustand von Statistik und Aktivität) und `[keys]` (Tastenbelegung). `config init` schreibt sie kommentiert in die Vorlage.
+Neu in der [Konfiguration](20-konfiguration.md): `day_start` (Tagesgrenze der Aktivität je Tag), `[work]` (Kernzeit, Tagessoll, Rahmen je Tag und Woche, Bundesland, Zählweise), `[tui]` (Startansicht, Grafikmodus, Maus, Startzustand von Statistik und Aktivität) und `[keys]` (Tastenbelegung). `config init` schreibt sie kommentiert in die Vorlage.
 
 ### Geändertes Verhalten
 

@@ -1,3 +1,7 @@
+---
+title: Befehle
+icon: lucide/terminal
+---
 # Befehle
 
 Überblick über alle Befehle. Alle Beispielausgaben sind erfunden.
@@ -17,7 +21,7 @@ Zeiten in der Ausgabe sind in lokaler Zeit (`--tz`). In der Datenbank und in der
 
 Zeitangaben für `--since` und `--until` sind lokale Zeit: `2026-10-01`, `2026-10-01T14:30` oder RFC 3339. Ein reines Datum bei `--until` schließt den ganzen Tag ein: `--until 2026-10-31` heißt „bis einschließlich 31. Oktober“.
 
-Die lesenden Befehle öffnen die Datenbank nur lesend. Ist ihr Schema älter als das Programm, gibt es eine Warnung; ein schreibender Befehl wie `ingest` migriert sie (siehe [Design](design.md#schema-versionierung)).
+Die lesenden Befehle öffnen die Datenbank nur lesend. Ist ihr Schema älter als das Programm, gibt es eine Warnung; ein schreibender Befehl wie `ingest` migriert sie (siehe [Design](../explanation/design.md#schema-versionierung)).
 
 ## `ingest` { #ingest }
 
@@ -46,7 +50,7 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 - Fehler je Datei stehen auf stderr; die übrigen Dateien werden trotzdem gelesen. Gab es Fehler, ist der Exit-Code 1.
 - Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
 
-Mehr dazu: [Hooks einrichten](hooks.md).
+Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
 ## `status` { #status }
 
@@ -265,7 +269,7 @@ JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in
 
 ### Arbeitszeit: `--workday` { #stats-workday }
 
-Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität**, die Spanne dazwischen und die Differenz zum Tagessoll: ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde. Dieselbe Ansicht hat die [TUI](tui.md#aktivitat) als Reiter „activity“.
+Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität**, die Spanne dazwischen und die Differenz zum Tagessoll: ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde. Dieselbe Ansicht hat die [TUI](30-tui.md#aktivitat) als Reiter „activity“.
 
 ```sh
 total-recall stats --workday                          # diese Woche
@@ -293,14 +297,14 @@ total: 5 days with activity, 41h40m · target 40h00m (5 workdays × 8h00m) · ba
 |---|---|
 | `--range today\|this-week\|last-week\|this-month\|last-month` | Zeitraum relativ zu jetzt. Wochen sind ISO-Wochen ab Montag. Nur mit `--workday`, nicht zusammen mit `--since`/`--until`/`--month` |
 | `--since`, `--until`, `--month` | wie oben; ein Datum meint den ganzen Tag ab der Tagesgrenze, `--until` einschließlich. Ohne Zeitraum gilt `this-week` |
-| `--all-events` | eigene Nachrichten und Agent-Events zählen wie die Aktivitätsstatistik. Standard sind nur eigene Nachrichten (`human events only`): Agent-Events laufen nachts weiter und dehnen die Spanne. Den Standard setzt `count` in [`[work]`](konfiguration.md#work) |
+| `--all-events` | eigene Nachrichten und Agent-Events zählen wie die Aktivitätsstatistik. Standard sind nur eigene Nachrichten (`human events only`): Agent-Events laufen nachts weiter und dehnen die Spanne. Den Standard setzt `count` in [`[work]`](20-konfiguration.md#work) |
 | `--human-only` | veraltet, da Standard; wird noch angenommen (mit Hinweis auf stderr) und setzt auch bei `count = "all"` auf eigene Nachrichten |
 
-**Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
+**Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](20-konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
 
-**Soll.** Kernzeit und Tagessoll kommen aus [`[work]`](konfiguration.md#work), Standard 09:00–17:00 und 8 h. `DIFF` ist die Spanne minus Soll an Arbeitstagen mit Aktivität; Wochenende und Feiertage haben kein Soll, dort ist die ganze Spanne die Differenz. Die Summenzeile nennt das Soll als Tagessoll × **Arbeitstage des Zeitraums**: Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute (im laufenden Monat zählen künftige Tage noch nicht). Ein Tag ohne Aktivität an einem Arbeitstag drückt den Saldo also um ein Tagessoll (Urlaub und ein vergessener Tag sind nicht zu unterscheiden), ein Feiertag nicht. Die Kernzeit ist in der Textausgabe nur eine Angabe; wo die Aktivität liegt, zeigt die TUI.
+**Soll.** Kernzeit und Tagessoll kommen aus [`[work]`](20-konfiguration.md#work), Standard 09:00–17:00 und 8 h. `DIFF` ist die Spanne minus Soll an Arbeitstagen mit Aktivität; Wochenende und Feiertage haben kein Soll, dort ist die ganze Spanne die Differenz. Die Summenzeile nennt das Soll als Tagessoll × **Arbeitstage des Zeitraums**: Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute (im laufenden Monat zählen künftige Tage noch nicht). Ein Tag ohne Aktivität an einem Arbeitstag drückt den Saldo also um ein Tagessoll (Urlaub und ein vergessener Tag sind nicht zu unterscheiden), ein Feiertag nicht. Die Kernzeit ist in der Textausgabe nur eine Angabe; wo die Aktivität liegt, zeigt die TUI.
 
-**Feiertage.** Gesetzliche Feiertage kommen aus `bundesland` in [`[work]`](konfiguration.md#work), Standard Baden-Württemberg; die Kopfzeile nennt die Region, die Spalte `HOLIDAY` den Namen, die Summenzeile die Anzahl. Ein unbekanntes Bundesland fällt auf die bundesweiten Feiertage (`Deutschland`) zurück.
+**Feiertage.** Gesetzliche Feiertage kommen aus `bundesland` in [`[work]`](20-konfiguration.md#work), Standard Baden-Württemberg; die Kopfzeile nennt die Region, die Spalte `HOLIDAY` den Namen, die Summenzeile die Anzahl. Ein unbekanntes Bundesland fällt auf die bundesweiten Feiertage (`Deutschland`) zurück.
 
 JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_local`, `last_local`, mit `(+1)`), die Spanne in Sekunden, `weekend`, `holiday` (Name oder `""`), Soll und Differenz in Sekunden (`target_seconds`, `diff_seconds`, beide 0 ohne Aktivität) und die Zähler. Oben stehen `human_only`, `work_hours`, `target_seconds` und `holiday_region`, in `total` die Arbeitstage des Zeitraums (`workdays`), die Feiertage (`holidays`), das Soll und der Saldo (`balance_seconds`). Ein Tag ohne Aktivität hat leere Zeiten und Nullen.
 
@@ -332,7 +336,7 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
 
 ## `tui` { #tui }
 
-Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap, erste und letzte Aktivität je Tag. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](tui.md).
+Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap, erste und letzte Aktivität je Tag. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](30-tui.md).
 
 ```sh
 total-recall tui                              # Suche
@@ -349,7 +353,7 @@ total-recall tui stats --graphics text        # Chart als Text, keine Terminal-A
 | `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty, kitty und herdr, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `tui.graphics` aus der Config, sonst `auto` |
 | `--no-mouse` | Maus dem Terminal überlassen (Textauswahl durch Ziehen). Default `tui.mouse` aus der Config; `--no-mouse=false` schaltet die Maus für einen Aufruf ein |
 
-Die Defaults der Ansicht, des Grafikmodus, der Maus und des Startzustands von Statistik und Aktivität stehen im Abschnitt [`[tui]`](konfiguration.md#tui) der Konfiguration, die Tastenbelegung in [`[keys]`](konfiguration.md#keys); Flags und Argument gehen vor. Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`. Entwurf, Messwerte und Entscheidung zur Übernahme: [Spike: TUI](spike-tui.md).
+Die Defaults der Ansicht, des Grafikmodus, der Maus und des Startzustands von Statistik und Aktivität stehen im Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration, die Tastenbelegung in [`[keys]`](20-konfiguration.md#keys); Flags und Argument gehen vor. Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`. Entwurf, Messwerte und Entscheidung zur Übernahme: [Spike: TUI](../explanation/spike-tui.md).
 
 ## `sql` { #sql }
 
@@ -366,7 +370,7 @@ total-recall sql --format csv "SELECT * FROM daily_activity" > aktivitaet.csv
 | `--format table\|json\|csv` | Ausgabeformat, Default `table` |
 | `--json` | Kurzform für `--format json` (Liste von Objekten, Spalten in Abfrage-Reihenfolge) |
 
-Schema und Beispiele: [Auswertung](auswertung.md) und `total-recall llm --skill`.
+Schema: [Schema](40-schema.md); Beispiele: [Archiv auswerten](../how-to/30-auswerten.md) und `total-recall llm --skill`.
 
 ## `backup` { #backup }
 
@@ -446,7 +450,7 @@ Je Befund steht die erste Fundstelle (`Datei:Zeile`) dabei. Inhalte werden nicht
 | `--harness NAME` | zu prüfende Harness, Default `claude` |
 | `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`) |
 
-Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](hooks.md#nach-einem-claude-code-update).
+Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).
 
 ## `hooks print` { #hooks-print }
 
@@ -462,11 +466,11 @@ total-recall hooks print --binary "$(command -v total-recall)"   # mit absolutem
 | `--harness NAME` | derzeit nur `claude` (Default) |
 | `--binary BEFEHL` | Befehl in den Hooks, Default `total-recall` |
 
-Den Block und was jeder Hook tut: [Hooks einrichten](hooks.md).
+Den Block und was jeder Hook tut: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
 ## `llm --skill` { #llm }
 
-Gibt die eingebettete Anleitung für Agenten aus (`SKILL.md`). Siehe [Für Agenten](agenten.md).
+Gibt die eingebettete Anleitung für Agenten aus (`SKILL.md`). Siehe [Agenten anbinden](../how-to/50-agenten-anbinden.md).
 
 ```sh
 total-recall llm --skill
@@ -491,7 +495,7 @@ backup.dir       /Users/me/Documents/total-recall                               
 log (effective)  /Users/me/Library/Application Support/total-recall/total-recall.log  default
 ```
 
-`ORIGIN` ist `default`, `file`, `env` oder `flag`. `config init` schreibt an den Ort, den `--config` bzw. `TOTAL_RECALL_CONFIG` nennt, sonst nach `~/.config/total-recall/config.toml`. Siehe [Konfiguration](konfiguration.md).
+`ORIGIN` ist `default`, `file`, `env` oder `flag`. `config init` schreibt an den Ort, den `--config` bzw. `TOTAL_RECALL_CONFIG` nennt, sonst nach `~/.config/total-recall/config.toml`. Siehe [Konfiguration](20-konfiguration.md).
 
 ## `version` { #version }
 

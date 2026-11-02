@@ -1,9 +1,13 @@
+---
+title: TUI
+icon: lucide/keyboard
+---
 # TUI
 
 `total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap und die erste und letzte Aktivität je Tag. Die Datenbank wird nur lesend geöffnet.
 
 !!! note "Herkunft"
-    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe; alle Bildschirme auf dieser Seite sind erfundene Beispiele.
+    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](../explanation/spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe; alle Bildschirme auf dieser Seite sind erfundene Beispiele.
 
 ## Aufruf
 
@@ -22,7 +26,7 @@ total-recall tui stats --graphics text    # Chart als Text, kein Bild
 | `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `graphics` aus `[tui]`, sonst `auto`; siehe [Grafikmodi](#grafikmodi) |
 | `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus). Default `mouse` aus `[tui]`; `--no-mouse=false` schaltet die Maus für einen Aufruf wieder ein |
 
-Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Der Abschnitt [`[tui]`](konfiguration.md#tui) der Konfiguration setzt die Defaults von Ansicht, Grafikmodus und Maus sowie Periode und Dimension der Statistik und das Fenster der Aktivität; Flags und Argument gehen vor. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
+Die [globalen Optionen](10-befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Der Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration setzt die Defaults von Ansicht, Grafikmodus und Maus sowie Periode und Dimension der Statistik und das Fenster der Aktivität; Flags und Argument gehen vor. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
 
 Alle Tasten auf dieser Seite sind die Standardbelegung. Sie ist auf ein deutsches Mac-Layout ausgelegt und lässt sich über den Abschnitt `[keys]` der Konfiguration ändern, siehe [Tastenbelegung anpassen](#tastenbelegung-anpassen).
 
@@ -90,7 +94,7 @@ Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, kein
 
 Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. Das Mausrad in der Vorschau verschiebt den Austausch zeilenweise; mit dem nächsten Treffer springt die Vorschau wieder an die automatische Position mit dem Treffer im oberen Drittel.
 
-**Textauswahl:** Solange die Maus an das Programm geht, wählt einfaches Ziehen keinen Text mehr aus. Die Terminals erlauben die Auswahl trotzdem mit einer Zusatztaste: ++shift++ und Ziehen in Ghostty und kitty, ++option++ und Ziehen in Terminal.app und iTerm2. In herdr und tmux kommen die Mausmeldungen beim Programm an, die Auswahl mit Zusatztaste geht an das äußere Terminal. Wer ganz ohne Maus arbeiten will, startet mit `--no-mouse` oder setzt `mouse = false` im Abschnitt [`[tui]`](konfiguration.md#tui) der Konfiguration; dann bleibt die Maus beim Terminal und die Bedienung ist rein über die Tastatur. `--no-mouse=false` schaltet sie für einen Aufruf wieder ein.
+**Textauswahl:** Solange die Maus an das Programm geht, wählt einfaches Ziehen keinen Text mehr aus. Die Terminals erlauben die Auswahl trotzdem mit einer Zusatztaste: ++shift++ und Ziehen in Ghostty und kitty, ++option++ und Ziehen in Terminal.app und iTerm2. In herdr und tmux kommen die Mausmeldungen beim Programm an, die Auswahl mit Zusatztaste geht an das äußere Terminal. Wer ganz ohne Maus arbeiten will, startet mit `--no-mouse` oder setzt `mouse = false` im Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration; dann bleibt die Maus beim Terminal und die Bedienung ist rein über die Tastatur. `--no-mouse=false` schaltet sie für einen Aufruf wieder ein.
 
 ## Suche
 
@@ -216,10 +220,10 @@ Good. Tag v0.1.0 and run the release.
 ```
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
-- **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](konfiguration.md#tui).
+- **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](20-konfiguration.md#tui).
 - **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
-- **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
+- **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](20-konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
 - **Tabelle** (Spaltenköpfe in der Akzentfarbe): dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
 
@@ -266,7 +270,7 @@ Reichen auch neun Zeilen nicht (Terminal unter 24 Zeilen), bleibt die Heatmap au
 
 ## Aktivität
 
-Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste und letzte Aktivität**: ein Notnagel für vergessenes Ein- und Ausstempeln. Dieselben Daten liefert [`stats --workday`](befehle.md#stats-workday) als Text und JSON.
+Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste und letzte Aktivität**: ein Notnagel für vergessenes Ein- und Ausstempeln. Dieselben Daten liefert [`stats --workday`](10-befehle.md#stats-workday) als Text und JSON.
 
 ```text
  total-recall                                                        1 search  2 stats  [3 activity]
@@ -289,14 +293,14 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
  7 days · 4 ms · human only · 1 holiday
 ```
 
-- **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`human`, der Standard: nur eigene Nachrichten, denn Agent-Events laufen nachts weiter und dehnen die Spanne; `h` schaltet auf `all`, eigene Nachrichten und Agent-Events wie in der Statistik; den Standard setzt `count` in [`[work]`](konfiguration.md#work)). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag; ein Feiertag steht bei einem einzelnen Tag mit Namen dahinter.
+- **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`human`, der Standard: nur eigene Nachrichten, denn Agent-Events laufen nachts weiter und dehnen die Spanne; `h` schaltet auf `all`, eigene Nachrichten und Agent-Events wie in der Statistik; den Standard setzt `count` in [`[work]`](20-konfiguration.md#work)). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag; ein Feiertag steht bei einem einzelnen Tag mit Namen dahinter.
 - **Kopfzeile** bei Woche und Monat: die Arbeitszeit der Periode (Summe der Spannen, fett und gefärbt: türkis unter, grün im Rahmen, orange über dem Wochenrahmen `weekly_low`–`weekly_high`, bei einer Woche mit fünf Arbeitstagen 32–48 h, sonst anteilig), die Tage mit Aktivität, das Soll (Tagessoll × Arbeitstage der Periode) mit dem Saldo dagegen und die Feiertage der Periode mit Namen. Arbeitstage sind Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute: in der laufenden Woche oder dem laufenden Monat zählen künftige Tage noch nicht. Ein vergessener Tag oder Urlaub drückt den Saldo also, ein Feiertag nicht.
-- **Zeitfenster:** Start ist die aktuelle Woche (`activity_window` in [`[tui]`](konfiguration.md#tui)). ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
+- **Zeitfenster:** Start ist die aktuelle Woche (`activity_window` in [`[tui]`](20-konfiguration.md#tui)). ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
 - **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen, die Differenz zum Tagessoll und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
-- **Normalarbeitszeit:** Kernzeit und Tagessoll kommen aus `[work]` in der [Konfiguration](konfiguration.md#work), Standard 09:00–17:00 und 8 h. Die Kernzeit liegt als Band mit Linien an Anfang und Ende auf der Achse jedes Werktags (`│───│`, farbig hinterlegt). Der Balken ist innerhalb der Kernzeit blau (`█`), davor und danach orange (`▓`), nach Mitternacht rot (`▒`); am Wochenende violett ohne Band. Ohne Farben (`NO_COLOR`) unterscheiden die Zeichen.
+- **Normalarbeitszeit:** Kernzeit und Tagessoll kommen aus `[work]` in der [Konfiguration](20-konfiguration.md#work), Standard 09:00–17:00 und 8 h. Die Kernzeit liegt als Band mit Linien an Anfang und Ende auf der Achse jedes Werktags (`│───│`, farbig hinterlegt). Der Balken ist innerhalb der Kernzeit blau (`█`), davor und danach orange (`▓`), nach Mitternacht rot (`▒`); am Wochenende violett ohne Band. Ohne Farben (`NO_COLOR`) unterscheiden die Zeichen.
 - **Spanne und Differenz:** Die Spanne eines Arbeitstags wird gegen `daily_low`/`daily_high` bewertet und mit der Differenz zum Soll (`+1h15m`, `-2h35m`) gefärbt: türkis unter, grün im Rahmen, orange deutlich über Soll. Wochenende und Feiertage haben kein Soll, ihre ganze Spanne ist die Differenz; ein Tag ohne Aktivität hat keine (`-`), zählt bei Woche und Monat aber als Arbeitstag mit (siehe Kopfzeile).
-- **Feiertage** kommen aus `bundesland` in [`[work]`](konfiguration.md#work) (Standard Baden-Württemberg, unbekannt oder leer: nur die bundesweiten). Ein Feiertag ist magenta: Datum, Spanne und Balken; die Zeitachse hat kein Band, und der Name steht auf ihr, links vorn oder hinter dem Balken, wo Platz ist. Ein Feiertag am Wochenende zählt als Feiertag. Die Statuszeile zählt die Feiertage des Fensters.
-- **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
+- **Feiertage** kommen aus `bundesland` in [`[work]`](20-konfiguration.md#work) (Standard Baden-Württemberg, unbekannt oder leer: nur die bundesweiten). Ein Feiertag ist magenta: Datum, Spanne und Balken; die Zeitachse hat kein Band, und der Name steht auf ihr, links vorn oder hinter dem Balken, wo Platz ist. Ein Feiertag am Wochenende zählt als Feiertag. Die Statuszeile zählt die Feiertage des Fensters.
+- **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](20-konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
 - **Kennzahlen** unter der Linie bei Woche und Monat: Median, Mittelwert, Minimum und Maximum von erster Aktivität, letzter Aktivität (als Uhrzeit, nach Mitternacht mit `(+1)`) und Spanne über die Tage mit Aktivität; die Spannen sind nach der Tagesbewertung gefärbt. `s` blendet den Block aus und ein; er weicht von selbst, wenn sonst weniger als drei Tageszeilen blieben.
 - **Farben** kommen aus dem gemeinsamen [Theme](#farben) und folgen damit dem Terminalhintergrund; Magenta ist den Feiertagen vorbehalten.
 - **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
@@ -371,7 +375,7 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 
 ### Tastenbelegung anpassen { #tastenbelegung-anpassen }
 
-Im Abschnitt `[keys]` der [Konfiguration](konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `stats_`, `activity_`).
+Im Abschnitt `[keys]` der [Konfiguration](20-konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `stats_`, `activity_`).
 
 ```toml
 [keys]

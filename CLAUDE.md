@@ -2,7 +2,7 @@
 
 Harness-neutral archive of coding-agent sessions (Claude Code first) in a local SQLite DB, Go CLI.
 
-**Read `docs/design.md` first.** It is the spec: schema, CLI, config, hooks, redaction. Do not re-decide what it settles; if something in it is wrong or missing, say so in your report instead of silently diverging.
+**Read `docs/explanation/design.md` first.** It is the spec: schema, CLI, config, hooks, redaction. Do not re-decide what it settles; if something in it is wrong or missing, say so in your report instead of silently diverging.
 
 ## Rules
 
@@ -19,7 +19,7 @@ Harness-neutral archive of coding-agent sessions (Claude Code first) in a local 
 
 ## Layout
 
-See `docs/design.md`, section Architektur. Shared types are in `internal/model`, the adapter interface in `internal/harness`. Change them only if necessary and state why in the PR.
+See `docs/explanation/design.md`, section Architektur. Shared types are in `internal/model`, the adapter interface in `internal/harness`. Change them only if necessary and state why in the PR.
 
 ## Tasks
 

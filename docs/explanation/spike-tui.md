@@ -1,9 +1,13 @@
+---
+title: "Spike: TUI (Historie)"
+icon: lucide/flask-conical
+---
 # Spike: TUI
 
 !!! note "Historisches Dokument"
-    Diese Seite ist das Protokoll des Spikes mit Stand vom 1. November 2026. Die Empfehlung „übernehmen“ ist umgesetzt: Die TUI ist seit v0.2.0 fester Bestandteil von `total-recall`, die Folgearbeiten aus dem [Ergebnis](#ergebnis) sind bis auf die manuelle Kitty-Prüfung erledigt, siehe [Was daraus wurde](#was-daraus-wurde). Maßgeblich sind heute [TUI](tui.md) für die Bedienung, [Befehle](befehle.md) und [Konfiguration](konfiguration.md); der Text darunter beschreibt den Stand vor der Übernahme und wird nicht mehr nachgeführt.
+    Diese Seite ist das Protokoll des Spikes mit Stand vom 1. November 2026. Die Empfehlung „übernehmen“ ist umgesetzt: Die TUI ist seit v0.2.0 fester Bestandteil von `total-recall`, die Folgearbeiten aus dem [Ergebnis](#ergebnis) sind bis auf die manuelle Kitty-Prüfung erledigt, siehe [Was daraus wurde](#was-daraus-wurde). Maßgeblich sind heute [TUI](../reference/30-tui.md) für die Bedienung, [Befehle](../reference/10-befehle.md) und [Konfiguration](../reference/20-konfiguration.md); der Text darunter beschreibt den Stand vor der Übernahme und wird nicht mehr nachgeführt.
 
-Entwurf für eine Terminal-Oberfläche `total-recall tui`: interaktive Volltextsuche mit Vorschau und grafische Auswertung der Aktivität über die Zeit. Stand der Recherche: 1. November 2026. Ob der Spike übernommen wird, ist offen; er bleibt deshalb ein eigenständiges Unterkommando, das sich wieder entfernen lässt. Der Spike ist umgesetzt; das [Ergebnis](#ergebnis) mit Messwerten und Empfehlung steht am Ende, die Bedienung in [TUI](tui.md).
+Entwurf für eine Terminal-Oberfläche `total-recall tui`: interaktive Volltextsuche mit Vorschau und grafische Auswertung der Aktivität über die Zeit. Stand der Recherche: 1. November 2026. Ob der Spike übernommen wird, ist offen; er bleibt deshalb ein eigenständiges Unterkommando, das sich wieder entfernen lässt. Der Spike ist umgesetzt; das [Ergebnis](#ergebnis) mit Messwerten und Empfehlung steht am Ende, die Bedienung in [TUI](../reference/30-tui.md).
 
 ## Ziele
 
@@ -350,7 +354,7 @@ Manuell vor jedem Merge (Checkliste in der PR, lesend gegen die echte DB): Ghost
 
 ## Ergebnis
 
-Stand 1. November 2026, nach dem Merge aller Teil-Issues des Meilensteins „Spike: TUI“ in `develop`. Benutzerdoku: [TUI](tui.md), Befehlsreferenz: [`tui`](befehle.md#tui).
+Stand 1. November 2026, nach dem Merge aller Teil-Issues des Meilensteins „Spike: TUI“ in `develop`. Benutzerdoku: [TUI](../reference/30-tui.md), Befehlsreferenz: [`tui`](../reference/10-befehle.md#tui).
 
 ### Was funktioniert
 
@@ -371,7 +375,7 @@ Stand 1. November 2026, nach dem Merge aller Teil-Issues des Meilensteins „Spi
 
 ### Abweichungen vom Entwurf
 
-- **Fokus in der Suche.** Entwurf: ++tab++ wechselt immer zwischen Eingabe und Liste. Im Spike ging ++tab++ nur Eingabe → Liste und wechselte aus der Liste die Ansicht, weil die App ++tab++ selbst als „nächste Ansicht“ belegt hatte. Mit [#46](https://github.com/seletz/total-recall/issues/46) gilt der Entwurf: ++tab++/++shift+tab++ wechseln in beide Richtungen und bleiben in der Suche; dafür hat die App ++tab++ aufgegeben, Ansichten wechseln nur `1`/`2`. Der Vertrag steht in [TUI](tui.md#fokus).
+- **Fokus in der Suche.** Entwurf: ++tab++ wechselt immer zwischen Eingabe und Liste. Im Spike ging ++tab++ nur Eingabe → Liste und wechselte aus der Liste die Ansicht, weil die App ++tab++ selbst als „nächste Ansicht“ belegt hatte. Mit [#46](https://github.com/seletz/total-recall/issues/46) gilt der Entwurf: ++tab++/++shift+tab++ wechseln in beide Richtungen und bleiben in der Suche; dafür hat die App ++tab++ aufgegeben, Ansichten wechseln nur `1`/`2`. Der Vertrag steht in [TUI](../reference/30-tui.md#fokus).
 - **Zeitfilter** der Suche startet bei `all`, nicht bei 90 Tagen. **Repo-Filter** wird mit ++enter++ übernommen, nicht beim Tippen.
 - **Detailansicht** ist eine Ebene über den Ansichten (die Suche bleibt darunter erhalten), kein dritter Tab. Status und Position stehen in der Trennlinie, nicht in der Fußzeile.
 - **Umbruch und Hervorhebung** macht die Session-Ansicht selbst: der Soft-Wrap des Bubbles-Viewports trennt mitten im Wort.
@@ -450,7 +454,7 @@ Falls der Spike wieder herausgenommen wird:
 1. `internal/tui` komplett löschen, dazu `internal/cli/tui.go`.
 2. In `internal/cli/root.go` die Zeile `e.tuiCmd(),` aus der Befehlsliste entfernen; in `internal/cli/cli_test.go` die Tests für `tui --help` und die ungültigen `tui`-Aufrufe.
 3. `go mod tidy`. Damit verschwinden Bubble Tea, Bubbles, Lip Gloss, Ultraviolet, `x/ansi`, `x/exp/golden`, teatest, ntcharts, chartpicture, go-analyze/charts und colorprofile; kein anderes Paket benutzt sie.
-4. `docs/tui.md` löschen, den Eintrag in `zensical.toml` und den Abschnitt `tui` in `docs/befehle.md` entfernen. Diese Seite bleibt als Protokoll.
+4. `docs/reference/30-tui.md` löschen und den Abschnitt `tui` in `docs/reference/10-befehle.md` entfernen (die Navigation ist ordnergetrieben, ein Eintrag in `zensical.toml` entfällt). Diese Seite bleibt als Protokoll.
 5. Bleiben können `internal/store/activity.go` samt Tests und `internal/testfixture` (Aktivitäts-Fixture, `fixturedb`): additive Dateien ohne Abhängigkeiten nach außen, Grundlage für `stats --period/--by`. Wird die Projekt-Heuristik dafür gebraucht, `internal/tui/project` vorher nach `internal/project` verschieben.
 6. `go test ./...`, `go vet ./...`, `mise run docs:build`.
 
@@ -494,7 +498,7 @@ Nicht angelegt, nur gelistet:
 1. **Kitty-Checkliste aus PR #38** in Ghostty (nativ, tmux mit/ohne Passthrough), Terminal.app und bei 80×24 durchgehen; Ergebnis hier nachtragen. Entscheidet über den Bildpfad.
 2. **`tuitest`-Helfer:** den doppelten `run`/`drive`-Helfer aus Session- und Statistik-Tests nach `internal/tui/tuitest` heben.
 3. **`TestOutput` unter `-race`** deterministisch machen oder CI mit `-race` laufen lassen.
-4. **Fokus-Vertrag:** erledigt mit [#46](https://github.com/seletz/total-recall/issues/46), siehe [Abweichungen](#abweichungen-vom-entwurf) und [TUI](tui.md#fokus).
+4. **Fokus-Vertrag:** erledigt mit [#46](https://github.com/seletz/total-recall/issues/46), siehe [Abweichungen](#abweichungen-vom-entwurf) und [TUI](../reference/30-tui.md#fokus).
 5. **Projektnamen mit `~`** für Verzeichnisse ohne Repository: erledigt mit [#53](https://github.com/seletz/total-recall/issues/53) (Pfad mit `~` für das Home-Verzeichnis), siehe [Abweichungen](#abweichungen-vom-entwurf); die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt die Heuristik später.
 6. **`stats --period/--by/--top`** wie oben, inklusive Ablösung von `monthly_stats.py`.
 7. **Eindeutige Sessions je Fenster** in der Statistik-Tabelle (Store-Erweiterung).
@@ -504,7 +508,7 @@ Nicht angelegt, nur gelistet:
 
 ### Was daraus wurde { #was-daraus-wurde }
 
-Stand 2. November 2026, alles in v0.2.0 (Meilenstein [v0.2.0](https://github.com/seletz/total-recall/milestone/2), Übersicht in [Änderungen](aenderungen.md#v020)):
+Stand 2. November 2026, alles in v0.2.0 (Meilenstein [v0.2.0](https://github.com/seletz/total-recall/milestone/2), Übersicht in [Änderungen](../reference/90-aenderungen.md#v020)):
 
 | Vorschlag | Ergebnis |
 |---|---|
@@ -513,7 +517,7 @@ Stand 2. November 2026, alles in v0.2.0 (Meilenstein [v0.2.0](https://github.com
 | 3. `TestOutput` unter `-race` | erledigt ([#45](https://github.com/seletz/total-recall/issues/45)) |
 | 4. Fokusvertrag | erledigt ([#46](https://github.com/seletz/total-recall/issues/46)); seit der dritten Ansicht wechseln `1`, `2` und `3` |
 | 5. Projektnamen mit `~` | erledigt ([#53](https://github.com/seletz/total-recall/issues/53)) |
-| 6. `stats --period/--by/--top` | erledigt ([#50](https://github.com/seletz/total-recall/issues/50)), siehe [Befehle](befehle.md#stats-period) |
+| 6. `stats --period/--by/--top` | erledigt ([#50](https://github.com/seletz/total-recall/issues/50)), siehe [Befehle](../reference/10-befehle.md#stats-period) |
 | 7. Eindeutige Sessions je Fenster | erledigt ([#51](https://github.com/seletz/total-recall/issues/51)) |
 | 8. Config `[tui]` | erledigt ([#49](https://github.com/seletz/total-recall/issues/49)), dazu `[keys]` ([#72](https://github.com/seletz/total-recall/issues/72)) und `[work]` ([#60](https://github.com/seletz/total-recall/issues/60), [#63](https://github.com/seletz/total-recall/issues/63)); die Prüfung dieser Abschnitte ist träge, damit ein Fehler die Hooks nicht stoppt |
 | 9. Abhängigkeiten | offen ([#47](https://github.com/seletz/total-recall/issues/47)), solange Ultraviolet und teatest keine Tags haben |

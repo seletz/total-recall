@@ -18,7 +18,7 @@ type Classifier struct {
 	AutomationPrefixes []string
 }
 
-// DefaultClassifier returns the built-in prefix lists (docs/design.md, Actor-Klassifikation).
+// DefaultClassifier returns the built-in prefix lists (docs/explanation/design.md, Actor-Klassifikation).
 func DefaultClassifier() Classifier {
 	return Classifier{
 		PeerPrefixes: []string{

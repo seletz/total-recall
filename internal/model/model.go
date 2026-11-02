@@ -61,7 +61,7 @@ func ValidRole(r string) bool {
 }
 
 // Session is a (partial) session description. Zero values mean "unknown" and never
-// overwrite known values in the store (see docs/design.md, upsert rule).
+// overwrite known values in the store (see docs/explanation/design.md, upsert rule).
 type Session struct {
 	ID             string // "<harness>:<native id>"
 	Harness        string

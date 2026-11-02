@@ -1,6 +1,6 @@
 // Package config loads the total-recall TOML configuration, applies defaults,
 // environment and flag overrides, expands paths and records where each
-// effective value came from (see docs/design.md, section "Konfiguration").
+// effective value came from (see docs/explanation/design.md, section "Konfiguration").
 //
 // Precedence: flag > environment variable > config file > default.
 //

@@ -30,7 +30,7 @@ type DirInfo struct {
 }
 
 // mergeSession combines a stored session (old) with new facts (new) following
-// the upsert rule of docs/design.md:
+// the upsert rule of docs/explanation/design.md:
 //   - StartedAt = minimum, EndedAt = maximum of the non-zero values;
 //   - empty values never overwrite set ones;
 //   - "last seen" fields (HarnessVersion, GitBranch, Model) take new's value

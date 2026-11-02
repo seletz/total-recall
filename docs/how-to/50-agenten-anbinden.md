@@ -1,4 +1,8 @@
-# Für Agenten
+---
+title: Agenten anbinden
+icon: lucide/bot
+---
+# Agenten anbinden
 
 Agenten sollen das Archiv selbst auswerten können. Etwa: „Woran habe ich letzte Woche gearbeitet?“ oder „Was haben wir damals zu X entschieden?“
 
@@ -35,4 +39,4 @@ Alternativ reicht ein Hinweis in der `CLAUDE.md`: „Für Fragen zu früheren Se
 ## Sicherheit
 
 - Agenten brauchen nur `sql` und die lesenden Befehle. `sql` kann nichts ändern.
-- Geheimnisse sind schon beim Einlesen maskiert. Siehe [Datenschutz](datenschutz.md).
+- Geheimnisse sind schon beim Einlesen maskiert. Siehe [Datenschutz](../explanation/datenschutz.md).

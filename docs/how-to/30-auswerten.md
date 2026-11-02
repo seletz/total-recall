@@ -1,4 +1,8 @@
-# Auswertung
+---
+title: Archiv auswerten
+icon: lucide/chart-column
+---
+# Archiv auswerten
 
 Drei Wege führen zu Antworten:
 
@@ -26,7 +30,7 @@ Für Skripte:
 total-recall stats --month 2026-10 --json > oktober.json
 ```
 
-Als Zeitreihe, je Woche und Projekt (Details: [`stats --period`](befehle.md#stats-period)):
+Als Zeitreihe, je Woche und Projekt (Details: [`stats --period`](../reference/10-befehle.md#stats-period)):
 
 ```sh
 total-recall stats --period week --by project --since 2026-08-01
@@ -50,35 +54,7 @@ Die Treffer zeigen Session, Zeit und einen Textausschnitt. Mit der Session-ID ge
 
 ## Eigene Abfragen mit `sql`
 
-`sql` öffnet die Datenbank nur lesend. Du kannst also nichts kaputt machen.
-
-### Das Wichtigste zum Schema
-
-| Tabelle / View | Inhalt |
-|---|---|
-| `sessions` | eine Zeile je Session: Name, Repo, Branch, Start, Ende. `display_name` ist der beste Titel: eigener Titel (`name`), sonst KI-Titel (`ai_title`), sonst `agent_name` |
-| `events` | eine Zeile je Nachricht, Tool-Aufruf oder Tool-Ergebnis |
-| `events_fts` | Volltextindex über `events.text` |
-| `exchanges` | je menschlicher Nachricht: die Anfrage und die letzte Antwort des Agenten |
-| `daily_activity` | je Tag (lokale Zeit) und Session: Repo, Anzahl human-/agent-Events |
-| `sources` | eingelesene Dateien und Lesestand |
-| `dirs` | Cache: Verzeichnis → Git-Root und Remote |
-
-Wichtige Spalten in `events`: `session_id`, `ts`, `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`.
-
-Der `actor` sagt, wer etwas geschrieben hat:
-
-| actor | Bedeutung |
-|---|---|
-| `human` | du hast es getippt |
-| `agent` | der Agent hat es geschrieben |
-| `peer` | ein anderer Agent (andere Session, Subagent) |
-| `automation` | Automatik: geplante Prompts, Systemhinweise, Slash-Commands |
-| `tool` | Ergebnis eines Tool-Aufrufs |
-
-Alle Zeiten stehen in **UTC** im Format `2026-10-31T22:21:58.123Z`. Für lokale Zeit nutze `datetime(ts, 'localtime')`. Das rechnet mit der Zeitzone deines Rechners.
-
-Das vollständige Schema steht im [Design](design.md#datenmodell).
+`sql` öffnet die Datenbank nur lesend. Du kannst also nichts kaputt machen. Tabellen, Views, der `actor` und die Zeitangaben stehen in der Referenz unter [Schema](../reference/40-schema.md); das vollständige Schema in der Spezifikation unter [Datenmodell](../explanation/design.md#datenmodell).
 
 ### Beispiele
 
@@ -162,6 +138,3 @@ Als JSON oder CSV weiterverarbeiten:
 ```sh
 total-recall sql --json "SELECT * FROM daily_activity WHERE day >= '2026-10-01'" | jq .
 ```
-
-!!! note "Spalten der Views"
-    Die Spaltennamen der Views `exchanges` (`session_id`, `ts`, `request`, `response`) und `daily_activity` (`day`, …) sind vorläufig. Maßgeblich ist das Schema in der Datenbank: `total-recall sql "SELECT sql FROM sqlite_master WHERE type = 'view'"`.

@@ -1,6 +1,6 @@
 // Package store persists sessions and events in SQLite (modernc.org/sqlite,
 // pure Go): schema and forward-only migrations, idempotent batch writes,
-// queries for the CLI, read-only SQL and backups (see docs/design.md).
+// queries for the CLI, read-only SQL and backups (see docs/explanation/design.md).
 //
 // All timestamps are stored as UTC ISO 8601 text with millisecond precision
 // ("2026-10-31T22:21:58.123Z"), which sorts lexicographically.

@@ -231,7 +231,7 @@ func focusFrame(m Model) string {
 	return tuitest.Frame(m) + "cursor: " + cursor + "\nmark: " + mark + "\nkeys: " + ansi.Strip(h.ShortHelpView(m.ShortHelp())) + "\n"
 }
 
-// TestFocusFrames pins the focus contract (docs/tui.md, Fokus): tab and
+// TestFocusFrames pins the focus contract (docs/reference/30-tui.md, Fokus): tab and
 // shift+tab cycle input ↔ list without leaving the view, esc goes one level
 // back, letters in the input are text, the repo filter is applied by enter
 // or tab and dropped by esc, and the focused element is the one with the
