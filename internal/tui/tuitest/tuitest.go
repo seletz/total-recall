@@ -53,11 +53,18 @@ func New(tb testing.TB, m tea.Model, opts ...teatest.TestOption) *teatest.TestMo
 
 // Key builds the key press for a name: a single character ("q", "?", "1"), a
 // special key ("tab", "esc", "enter", "up", "down", "left", "right",
-// "backspace", "space") or a ctrl combination ("ctrl+c").
+// "backspace", "space"), with the modifiers "ctrl+" and "shift+" in front
+// ("ctrl+c", "shift+tab").
 func Key(name string) tea.KeyPressMsg {
 	var mod tea.KeyMod
-	if rest, ok := strings.CutPrefix(name, "ctrl+"); ok {
-		mod, name = tea.ModCtrl, rest
+	for {
+		if rest, ok := strings.CutPrefix(name, "ctrl+"); ok {
+			mod, name = mod|tea.ModCtrl, rest
+		} else if rest, ok := strings.CutPrefix(name, "shift+"); ok {
+			mod, name = mod|tea.ModShift, rest
+		} else {
+			break
+		}
 	}
 	special := map[string]rune{
 		"tab": tea.KeyTab, "esc": tea.KeyEscape, "enter": tea.KeyEnter,
