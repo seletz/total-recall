@@ -3,7 +3,7 @@
   "until": "2026-01-11T23:00:00.000Z",
   "timezone": "Europe/Berlin",
   "period": "week",
-  "by": "",
+  "by": null,
   "keys": [],
   "total": {
     "sessions": 17,
