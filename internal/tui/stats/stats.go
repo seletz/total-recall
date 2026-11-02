@@ -62,6 +62,9 @@ type Options struct {
 	// plain TextChart that never touches the terminal; auto, text or kitty
 	// mean a KittyChart starting in that mode (see NewKittyChart).
 	Graphics Graphics
+	// Home is the home directory, abbreviated to "~" in the project names
+	// of directories without a repository; empty keeps full paths.
+	Home string
 }
 
 func (o *Options) defaults() {
@@ -408,7 +411,7 @@ func (m *Model) rebuild() tea.Cmd {
 	if !m.loaded {
 		return nil
 	}
-	names := project.Names(m.series.Keys)
+	names := project.Names(m.series.Keys, m.series.Dirs, m.opts.Home)
 	m.spec = m.colors.Assign(chart.FromSeries(m.series, m.window.Period, m.metric, names))
 	return tea.Batch(m.chart.SetSpec(m.spec), m.chart.SetSize(m.chartSize()))
 }

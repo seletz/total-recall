@@ -21,7 +21,8 @@ type ActivitySeriesJSON struct {
 	By       string `json:"by"`     // project, agent, directory or ""
 	// Keys are the dimension values in the order of the cells, by volume
 	// descending; "other" (--top) is last. For --by project these are the
-	// project names, else the raw keys.
+	// project names (base name of the git root, full path of a directory
+	// without repository), else the raw keys.
 	Keys    []string             `json:"keys"`
 	Buckets []ActivityBucketJSON `json:"buckets"` // every period of the range, empty ones included
 }
@@ -135,10 +136,13 @@ func writeSeriesTable(w io.Writer, s ActivitySeriesJSON) error {
 }
 
 // keyNames returns the display names of the series keys: project names for
-// the project dimension, else nil (raw keys).
-func keyNames(s store.ActivitySeries, o seriesOptions) map[string]string {
+// the project dimension, else nil (raw keys). Directories without a
+// repository are named by their path; home is abbreviated to "~" in it, an
+// empty home keeps the full path (the JSON output, which is meant for
+// scripts and should not depend on who runs it).
+func keyNames(s store.ActivitySeries, o seriesOptions, home string) map[string]string {
 	if o.byName == "" || o.by != store.DimProject {
 		return nil
 	}
-	return project.Names(s.Keys)
+	return project.Names(s.Keys, s.Dirs, home)
 }

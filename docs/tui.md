@@ -366,7 +366,7 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 
 - **Spike.** Die TUI kann in einer späteren Version wieder entfernt werden; siehe die Empfehlung im [Spike](spike-tui.md#empfehlung).
 - **Suche:** höchstens 200 Treffer je Abfrage, sortiert nach Rang. Der Zeitfilter startet bei `all`, nicht bei 90 Tagen. Die Filter `a`, `t`, `r` wirken nur, wenn die Liste den Fokus hat.
-- **Projektnamen** kommen aus einer Heuristik über Git-Root und Verzeichnis. Verzeichnisse ohne Repository sind nicht als solche markiert (kein `~`, anders als im Entwurf), weil der Schlüssel allein nicht sagt, ob er ein Git-Root ist. Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
+- **Projektnamen** kommen aus einer Heuristik: Repositories heißen wie der Basisname ihres Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), Verzeichnisse ohne Repository erscheinen als Pfad, das Home-Verzeichnis darin als `~` (`~/notes`). Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
 - **Tabelle:** `sessions` ist über die Perioden summiert, nicht über das Fenster eindeutig gezählt.
 - **Heatmap** nur ab etwa 25 Terminalzeilen.
 - **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session.

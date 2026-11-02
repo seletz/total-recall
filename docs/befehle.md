@@ -214,7 +214,7 @@ total-recall stats --period month --since 2026-01-01          # nur je Monat, oh
 | Option | Bedeutung |
 |---|---|
 | `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0 |
-| `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots, sonst des Verzeichnisses; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
+| `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
 | `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
 
 Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt.
@@ -223,6 +223,7 @@ Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie 
 PERIOD    KEY           SESSIONS  HUMAN  AGENT
 2026-W40  total-recall  12        240    4100
 2026-W40  infra         3         31     410
+2026-W40  ~/notes       2         18     95
 2026-W41  total-recall  9         180    3300
 ```
 

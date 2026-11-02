@@ -25,18 +25,21 @@ func TestStatsSeries(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
+		home string // App.Home; the fixture's gamma has no repository and shows as its path
 	}{
-		{"PeriodWeek", []string{"--period", "week"}},
-		{"PeriodMonth", []string{"--period", "month"}},
-		{"WeekByProject", []string{"--period", "week", "--by", "project"}},
-		{"MonthByAgent", []string{"--period", "month", "--by", "agent"}},
-		{"DayByDirectoryTop", []string{"--period", "day", "--by", "directory", "--top", "1", "--until", "2025-12-07"}},
-		{"ByDefaultsToDay", []string{"--by", "project", "--until", "2025-12-04"}},
-		{"EmptyRange", []string{"--period", "week", "--by", "project", "--since", "2026-03-02", "--until", "2026-03-08"}},
-		{"PeriodWeekJSON", []string{"--period", "week", "--json"}},
-		{"WeekByProjectJSON", []string{"--period", "week", "--by", "project", "--json"}},
-		{"MonthByAgentTopJSON", []string{"--period", "month", "--by", "agent", "--top", "1", "--json"}},
-		{"EmptyRangeJSON", []string{"--period", "month", "--since", "2026-03-01", "--until", "2026-03-31", "--json"}},
+		{"PeriodWeek", []string{"--period", "week"}, ""},
+		{"PeriodMonth", []string{"--period", "month"}, ""},
+		{"WeekByProject", []string{"--period", "week", "--by", "project"}, ""},
+		{"WeekByProjectHome", []string{"--period", "week", "--by", "project"}, "/w"},
+		{"WeekByProjectHomeJSON", []string{"--period", "week", "--by", "project", "--json"}, "/w"},
+		{"MonthByAgent", []string{"--period", "month", "--by", "agent"}, ""},
+		{"DayByDirectoryTop", []string{"--period", "day", "--by", "directory", "--top", "1", "--until", "2025-12-07"}, ""},
+		{"ByDefaultsToDay", []string{"--by", "project", "--until", "2025-12-04"}, ""},
+		{"EmptyRange", []string{"--period", "week", "--by", "project", "--since", "2026-03-02", "--until", "2026-03-08"}, ""},
+		{"PeriodWeekJSON", []string{"--period", "week", "--json"}, ""},
+		{"WeekByProjectJSON", []string{"--period", "week", "--by", "project", "--json"}, ""},
+		{"MonthByAgentTopJSON", []string{"--period", "month", "--by", "agent", "--top", "1", "--json"}, ""},
+		{"EmptyRangeJSON", []string{"--period", "month", "--since", "2026-03-01", "--until", "2026-03-31", "--json"}, ""},
 	}
 	e := newTestEnv(t)
 	_, db := fixturedb.Activity(t)
@@ -49,6 +52,7 @@ func TestStatsSeries(t *testing.T) {
 			if !strings.Contains(strings.Join(args, " "), "--until") {
 				args = append(args, activityRange[2:]...)
 			}
+			e.home = tt.home
 			r := runActivity(t, e, db, args...)
 			if r.code != 0 {
 				t.Fatalf("exit %d: %s", r.code, r.stderr)
@@ -72,13 +76,13 @@ func TestStatsSeriesCounts(t *testing.T) {
 	if out.Period != "week" || out.By != "project" || out.Timezone != "Europe/Berlin" {
 		t.Errorf("header = %+v", out)
 	}
-	if want := []string{"alpha", "beta", "gamma"}; strings.Join(out.Keys, ",") != strings.Join(want, ",") {
+	if want := []string{"alpha", "beta", tf.ActivityGamma}; strings.Join(out.Keys, ",") != strings.Join(want, ",") {
 		t.Errorf("keys = %v, want %v", out.Keys, want)
 	}
 	if len(out.Buckets) != 6 {
 		t.Fatalf("buckets = %d, want 6", len(out.Buckets))
 	}
-	names := map[string]string{tf.ActivityAlpha: "alpha", tf.ActivityBeta: "beta", tf.ActivityGamma: "gamma"}
+	names := map[string]string{tf.ActivityAlpha: "alpha", tf.ActivityBeta: "beta", tf.ActivityGamma: tf.ActivityGamma}
 	got := map[string]ActivityJSON{} // "week key" -> cell
 	for _, b := range out.Buckets {
 		for _, c := range b.Cells {
