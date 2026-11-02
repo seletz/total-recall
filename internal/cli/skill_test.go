@@ -16,20 +16,9 @@ import (
 // The skill (internal/skill/SKILL.md) documents the JSON fields of the read
 // commands and the columns of the schema. These tests keep the document
 // honest: every documented name must exist in the real output and the real
-// schema, and vice versa.
-//
-// Two parts of the documented contract land in separate changes:
-//
-//   - #81: JSON errors on stdout, no omitempty (every key always present),
-//     --no-truncate, --format jsonl.
-//   - #82: show --since/--until/--limit/--offset, search --session.
-//
-// Until they are merged, the checks that depend on them are skipped.
-// TODO(#81, #82): set both constants to true once develop contains them.
-const (
-	contract81 = false
-	contract82 = true
-)
+// schema, and vice versa. They also cover the output contract (#81: JSON
+// errors on stdout, every key always present, jsonl, --no-truncate) and the
+// show window and search --session flags (#82) as the skill describes them.
 
 // skillSections parses SKILL.md into "heading -> documented names". A section
 // is a heading whose text starts with a backticked name, optionally followed
@@ -230,9 +219,8 @@ func TestSkillSchemaColumns(t *testing.T) {
 
 // TestSkillJSONFields checks the documented JSON fields of every read
 // command against the real output on the fixture database and against the
-// JSON tags of the output types. Before #81 some keys are omitted when empty,
-// so only "no undocumented key" is checked per object; with contract81 every
-// object must carry every documented key.
+// JSON tags of the output types: every object carries exactly the documented
+// keys.
 func TestSkillJSONFields(t *testing.T) {
 	e := skillEnv(t)
 	sections := skillSections(t)
@@ -266,24 +254,17 @@ func TestSkillJSONFields(t *testing.T) {
 			if len(objects) == 0 {
 				t.Fatalf("%v: no objects at %q", tt.args, tt.path)
 			}
-			union := map[string]any{}
 			for _, obj := range objects {
 				for k := range obj {
-					union[k] = nil
 					if !slices.Contains(documented, k) {
 						t.Errorf("key %q is in the output but not documented", k)
 					}
 				}
-				if contract81 {
-					for _, d := range documented {
-						if _, ok := obj[d]; !ok {
-							t.Errorf("documented key %q missing in %v", d, objKeys(obj))
-						}
+				for _, d := range documented {
+					if _, ok := obj[d]; !ok {
+						t.Errorf("documented key %q missing in %v", d, objKeys(obj))
 					}
 				}
-			}
-			if !contract81 {
-				t.Logf("keys seen: %v (full presence check needs #81)", objKeys(union))
 			}
 			if tt.typ != nil {
 				if got, want := sorted(documented), sorted(jsonTags(tt.typ)); !reflect.DeepEqual(got, want) {
@@ -329,12 +310,9 @@ func TestSkillQueriesRun(t *testing.T) {
 	}
 }
 
-// TestSkillOutputContract covers the contract of #81 as the skill documents
+// TestSkillOutputContract covers the output contract as the skill documents
 // it: JSON errors on stdout, jsonl, --no-truncate.
 func TestSkillOutputContract(t *testing.T) {
-	if !contract81 {
-		t.Skip("needs #81 (output contract); set contract81 = true after the merge")
-	}
 	e := skillEnv(t)
 	t.Run("ErrorOnStdout", func(t *testing.T) {
 		tests := []struct {
@@ -379,13 +357,10 @@ func TestSkillOutputContract(t *testing.T) {
 	})
 }
 
-// TestSkillShowWindow covers the window and paging flags of #82 and
+// TestSkillShowWindow covers the window and paging flags of show and
 // search --session as the skill documents them. Times are local
 // (Europe/Berlin in the test config): 11:00-12:00 local is 09:00-10:00 UTC.
 func TestSkillShowWindow(t *testing.T) {
-	if !contract82 {
-		t.Skip("needs #82 (show window, search --session); set contract82 = true after the merge")
-	}
 	e := skillEnv(t)
 	s1 := "claude:" + tf.DemoSession1
 	events := func(args ...string) []map[string]any {

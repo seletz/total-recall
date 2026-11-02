@@ -98,12 +98,12 @@ LIMIT 50"
 
 ## Output contract
 
-- Always use `--json` (`sql`: `--json` or `--format json|jsonl`). Only stdout needs parsing.
-- Success: exit 0, data on stdout. An empty result is `[]` for `sessions`, `search` and `sql`; `show` returns `"events": []`.
-- Error: exit 1 and exactly one JSON object on stdout: `{"error":{"kind":"sql","message":"no such column: nosuchcol"}}`. `kind` is lower-case and stable (`sql`, `usage`, `not_found`, `config`, `db`). The message is repeated on stderr. Stdout is never empty.
-- Every documented key is always present. An empty value is `null`, never a missing key.
+- Every read command (`status`, `sessions`, `show`, `search`, `stats`, `sql`, `doctor`, `config show`) has `--format table|json|jsonl`; `sql` also has `csv`. `--json` is short for `--format json`. Always use one of the JSON formats; only stdout needs parsing.
+- Success: exit 0, data on stdout. An empty result is `[]` for `sessions`, `search` and `sql`; `show` returns `"events": []`; `jsonl` prints no line.
+- Error: exit 1 and exactly one JSON object on stdout: `{"error":{"kind":"sql","message":"no such column: nosuchcol"}}`. `kind` is stable: `usage` (flags, arguments, their combinations), `config` (configuration not loadable), `db` (archive cannot be opened), `sql` (SQLite rejected the query, also `search --raw`), `not_found` (session or event unknown), `ambiguous` (prefix matches more than one session), `internal` (everything else). The message is repeated on stderr. Stdout is never empty.
+- Every documented key is always present. A string without a value is `null` (e.g. `parent_id` of a top-level session), never a missing key; numbers are never `null` (0), lists never `null` (`[]`).
 - `--format table` (the default without `--json`) truncates cells only when stdout is a terminal; a truncated cell ends with `…` and stderr says how many were cut. `--no-truncate` forces full cells. `json`, `jsonl` and `csv` never truncate.
-- `--format jsonl` prints one object per line without buffering; use it for large reads.
+- `--format jsonl` prints one compact object per line without buffering; use it for large reads. `status` and `stats` are then one line; `show --format jsonl` writes only the events, one per line (the session header comes from `sessions`).
 - Time stamps in JSON are UTC (`2026-10-05T21:30:00.000Z`). `--since`/`--until` take local time: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM` or RFC 3339; a date-only `--until` includes that whole day.
 - Session ids look like `claude:f2b299a1-b3c1-4cf8-b1d7-8c4840eab467` (`<harness>:<native id>`). `show` and `search --session` accept the full id, the native id or a unique prefix.
 
@@ -259,7 +259,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
 | `total-recall llm --skill` | prints this document |
 
-Global flags: `--db PATH`, `--config PATH`, `--tz ZONE` (default `Europe/Berlin`; used by `stats`, day boundaries and displayed times).
+Every read command takes `--format table|json|jsonl` (`sql` also `csv`), `--json` and `--no-truncate`. Global flags: `--db PATH`, `--config PATH`, `--tz ZONE` (default `Europe/Berlin`; used by `stats`, day boundaries and displayed times).
 
 ### JSON fields
 
@@ -394,13 +394,13 @@ One object per hit.
 |---|---|
 | `day` | `YYYY-MM-DD` local |
 | `weekday` | `Mon` … `Sun` |
-| `first` | first activity (UTC), empty without activity |
-| `last` | last activity (UTC) |
+| `first` | first activity (UTC), `null` without activity |
+| `last` | last activity (UTC), `null` without activity |
 | `first_local` | local clock, `01:30 (+1)` past midnight |
 | `last_local` | local clock |
 | `span_seconds` | elapsed time between first and last |
 | `weekend` | |
-| `holiday` | name of the public holiday, else empty |
+| `holiday` | name of the public holiday, else `null` |
 | `target_seconds` | daily target, 0 on weekends, holidays and days without activity |
 | `diff_seconds` | span minus target |
 | `sessions` | |
