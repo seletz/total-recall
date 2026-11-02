@@ -1,6 +1,8 @@
-// Package tuitest drives Bubble Tea models in tests. It wraps teatest with
-// the fixed terminal size, colourless profile and clock the TUI golden tests
-// share, so every view package tests the same way.
+// Package tuitest drives Bubble Tea models in tests, so every view package
+// tests the same way. It wraps teatest with the fixed terminal size,
+// colourless profile and clock the TUI golden tests share (New, Press,
+// WaitFor, Final) and drives models without a program, running their
+// commands synchronously (Exec, Run, Send, Drive).
 package tuitest
 
 import (
