@@ -212,8 +212,10 @@ func TestFocused(t *testing.T) {
 }
 
 // focusFrame is the frame followed by what the app shows of the focus and
-// the plain frame cannot: the cursor position, whether the marked hit is
-// inverted, and the short help of the focused element (the footer).
+// the plain frame cannot: the cursor position, whether the marked hit sits
+// on the selection background (the escape sequence right before the mark
+// sets a background), and the short help of the focused element (the
+// footer).
 func focusFrame(m Model) string {
 	v := m.View()
 	cursor := "none"
@@ -221,7 +223,7 @@ func focusFrame(m Model) string {
 		cursor = fmt.Sprintf("%d,%d", v.Cursor.X, v.Cursor.Y)
 	}
 	mark := "plain"
-	if strings.Contains(v.Content, "\x1b[7m▸") {
+	if i := strings.Index(v.Content, "▸"); i >= 0 && strings.Contains(v.Content[strings.LastIndex(v.Content[:i], "\x1b["):i], "48;2;") {
 		mark = "inverted"
 	}
 	h := help.New()
@@ -361,6 +363,23 @@ func press(m Model, k string) (Model, tea.Cmd) {
 	return nm.(Model), cmd
 }
 
+// searchResult runs the command of a search and returns its resultMsg; the
+// command is a batch of the query and the spinner's first tick.
+func searchResult(t *testing.T, cmd tea.Cmd) resultMsg {
+	t.Helper()
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok {
+		t.Fatal("search did not return a batch")
+	}
+	for _, c := range batch {
+		if r, ok := c().(resultMsg); ok {
+			return r
+		}
+	}
+	t.Fatal("batch holds no search result")
+	return resultMsg{}
+}
+
 // TestStaleResultDiscarded is the sequence logic: a slower answer to an older
 // query arriving after a newer one must not replace the newer hits, and the
 // older query's context is cancelled by the newer input.
@@ -383,7 +402,7 @@ func TestStaleResultDiscarded(t *testing.T) {
 	}
 
 	// The second query answers first, the first one later.
-	r2, r1 := search2(), search1()
+	r2, r1 := searchResult(t, search2), searchResult(t, search1)
 	m = update(t, m, r2)
 	if got := snippets(m); got != "ab" {
 		t.Fatalf("after fresh result: hits = %q, want %q", got, "ab")
@@ -478,7 +497,7 @@ func TestRenderSnippet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := renderSnippet(tt.in, tt.width)
+			got := New(Options{}).renderSnippet(tt.in, tt.width)
 			if plain := ansi.Strip(got); plain != tt.want {
 				t.Errorf("renderSnippet(%q, %d) = %q, want %q", tt.in, tt.width, plain, tt.want)
 			}
@@ -492,24 +511,35 @@ func TestRenderSnippet(t *testing.T) {
 	}
 }
 
+// TestStatus checks the plain text of the status line; while a search runs
+// the spinner's first frame turns in front of it.
 func TestStatus(t *testing.T) {
 	tests := []struct {
-		name string
-		m    Model
-		want string
+		name     string
+		searcher bool
+		set      func(m *Model)
+		want     string
 	}{
-		{"no searcher", Model{}, "no database"},
-		{"empty input", Model{opts: Options{Searcher: &fakeSearcher{}}}, "type to search"},
-		{"searching", Model{opts: Options{Searcher: &fakeSearcher{}}, searching: true, query: "x"}, "searching…"},
-		{"no hits", Model{opts: Options{Searcher: &fakeSearcher{}}, query: "x", took: 3 * time.Millisecond}, "no hits (3 ms)"},
-		{"one hit", Model{opts: Options{Searcher: &fakeSearcher{}}, query: "x", hits: make([]store.SearchHit, 1)}, "1 hit (0 ms)"},
-		{"hits", Model{opts: Options{Searcher: &fakeSearcher{}}, query: "x", hits: make([]store.SearchHit, 5), took: 12 * time.Millisecond}, "5 hits (12 ms)"},
-		{"limit", Model{opts: Options{Searcher: &fakeSearcher{}}, query: "x", hits: make([]store.SearchHit, Limit)}, "200 hits, limit reached (0 ms)"},
-		{"error", Model{opts: Options{Searcher: &fakeSearcher{}}, query: "x", err: context.DeadlineExceeded}, "error: context deadline exceeded"},
+		{"no searcher", false, nil, "no database"},
+		{"empty input", true, nil, "type to search"},
+		{"searching", true, func(m *Model) { m.searching, m.query = true, "x" }, "⠋ searching…"},
+		{"no hits", true, func(m *Model) { m.query, m.took = "x", 3*time.Millisecond }, "no hits (3 ms)"},
+		{"one hit", true, func(m *Model) { m.query, m.hits = "x", make([]store.SearchHit, 1) }, "1 hit (0 ms)"},
+		{"hits", true, func(m *Model) { m.query, m.hits, m.took = "x", make([]store.SearchHit, 5), 12*time.Millisecond }, "5 hits (12 ms)"},
+		{"limit", true, func(m *Model) { m.query, m.hits = "x", make([]store.SearchHit, Limit) }, "200 hits, limit reached (0 ms)"},
+		{"error", true, func(m *Model) { m.query, m.err = "x", context.DeadlineExceeded }, "error: context deadline exceeded"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.m.status(); got != tt.want {
+			opts := Options{Now: tuitest.Clock}
+			if tt.searcher {
+				opts.Searcher = &fakeSearcher{}
+			}
+			m := New(opts)
+			if tt.set != nil {
+				tt.set(&m)
+			}
+			if got := ansi.Strip(m.status()); got != tt.want {
 				t.Errorf("status() = %q, want %q", got, tt.want)
 			}
 		})

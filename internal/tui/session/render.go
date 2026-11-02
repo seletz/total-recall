@@ -14,14 +14,6 @@ import (
 	"github.com/seletz/total-recall/internal/model"
 )
 
-var (
-	nameStyle     = lipgloss.NewStyle().Bold(true)
-	faintStyle    = lipgloss.NewStyle().Faint(true)
-	markStyle     = lipgloss.NewStyle().Bold(true)
-	hitStyle      = lipgloss.NewStyle().Bold(true).Underline(true)
-	selectedStyle = lipgloss.NewStyle().Reverse(true)
-)
-
 // mark is appended to the separator of the marked event; it reads without
 // colour, like the brackets of the active tab in the app header.
 const mark = " ◄"
@@ -38,7 +30,7 @@ func (m *Model) layout() {
 	width := max(m.width, 1)
 	for i, ev := range m.events {
 		m.eventAt = append(m.eventAt, len(m.lines))
-		m.lines = append(m.lines, "── "+ev.TS.In(m.loc).Format("2006-01-02 15:04:05")+"  "+label(ev))
+		m.lines = append(m.lines, "── "+m.ts(ev)+"  "+Label(ev))
 		text := strings.ReplaceAll(strings.TrimRight(ev.Text, "\n"), "\t", "    ")
 		text = strings.ReplaceAll(text, "\r", "")
 		if text != "" {
@@ -55,41 +47,41 @@ func (m *Model) layout() {
 	m.render()
 }
 
-// label names an event on its separator: the actor, tool calls with the
-// tool name, other non-message kinds with the kind.
-func label(ev model.Event) string {
-	switch {
-	case ev.Kind == model.KindToolUse:
-		return "tool_use " + ev.ToolName
-	case ev.Kind != model.KindMessage:
-		return string(ev.Actor) + " (" + string(ev.Kind) + ")"
-	}
-	return string(ev.Actor)
-}
+// ts formats the time of an event for its separator.
+func (m Model) ts(ev model.Event) string { return ev.TS.In(m.loc).Format("2006-01-02 15:04:05") }
 
-// render styles the lines and hands them to the viewport: separators faint,
-// the marked event's separator with mark, hits underlined, the selected hit
-// reversed. The scroll offset is kept.
+// render styles the lines and hands them to the viewport: separators with
+// the time muted and the actor in its colour (see Separator), the marked
+// event's separator with mark, the text of tool events muted, hits in the
+// match style, the selected hit in the selection style. A separator that
+// holds a match keeps the plain, muted rendering, so the match shows. The
+// scroll offset is kept.
 func (m *Model) render() {
 	out := make([]string, len(m.lines))
 	next := 0
+	event := -1 // the event the line belongs to
 	for i, line := range m.lines {
+		if event+1 < len(m.eventAt) && m.eventAt[event+1] == i {
+			event++
+		}
 		start := next
 		for next < len(m.matches) && m.matches[next].Line == i {
 			next++
 		}
-		if start < next {
-			out[i] = highlightLine(line, m.matches[start:next], m.hit-start, hitStyle, selectedStyle)
+		st := LineStyles{Match: m.th.Match, Selected: m.th.Selected}
+		switch {
+		case event >= 0 && m.eventAt[event] == i && start == next:
+			out[i] = Separator(m.th, m.ts(m.events[event]), m.events[event], max(m.width, 1))
 			continue
+		case event >= 0 && m.eventAt[event] == i:
+			st.Base = m.th.Muted
+		case event >= 0:
+			st.Base = textStyle(m.th, m.events[event])
 		}
-		out[i] = line
+		out[i] = HighlightLine(line, m.matches[start:next], m.hit-start, st)
 	}
-	for e, at := range m.eventAt {
-		if e == m.current {
-			out[at] = faintStyle.Render(out[at]) + markStyle.Render(mark)
-		} else {
-			out[at] = faintStyle.Render(out[at])
-		}
+	if m.current >= 0 && m.current < len(m.eventAt) {
+		out[m.eventAt[m.current]] += m.th.Mark.Render(mark)
 	}
 	offset := m.vp.YOffset()
 	m.vp.SetContentLines(out)
@@ -105,31 +97,31 @@ func (m Model) View() tea.View {
 	var body string
 	switch {
 	case m.err != nil:
-		body = " " + m.err.Error()
+		body = " " + m.th.Error.Render(m.err.Error())
 	case !m.loaded && m.loading:
-		body = faintStyle.Render(" loading…")
+		body = m.th.Muted.Render(" loading…")
 	case !m.loaded:
-		body = faintStyle.Render(" no session")
+		body = m.th.Muted.Render(" no session")
 	default:
 		body = lipgloss.JoinVertical(lipgloss.Left, m.header(), m.rule(), m.vp.View())
 	}
 	return tea.NewView(lipgloss.NewStyle().MaxWidth(m.width).MaxHeight(m.height).Render(body))
 }
 
-// header is the name with the ID on the right, then repo, branch, time span
-// and counts. In a narrow window the name wins: the ID is shortened or
-// dropped.
+// header is the name (title style) with the ID (muted) on the right, then
+// repo, branch, time span and the counts in the actors' colours. In a
+// narrow window the name wins: the ID is shortened or dropped.
 func (m Model) header() string {
 	s := m.session
 	name := s.DisplayName()
 	if name == "" {
 		name = "(untitled)"
 	}
-	left := " " + nameStyle.Render(ansi.Truncate(name, max(m.width-2, 1), "…"))
+	left := " " + m.th.Title.Render(ansi.Truncate(name, max(m.width-2, 1), "…"))
 	first := left
 	if room := m.width - lipgloss.Width(left) - 3; room >= minIDWidth {
 		id := ansi.Truncate(s.ID, room, "…")
-		first += strings.Repeat(" ", room-lipgloss.Width(id)+2) + faintStyle.Render(id) + " "
+		first += strings.Repeat(" ", room-lipgloss.Width(id)+2) + m.th.Muted.Render(id) + " "
 	}
 
 	parts := []string{ShortRepo(s.Repo())}
@@ -137,7 +129,8 @@ func (m Model) header() string {
 		parts = append(parts, s.GitBranch)
 	}
 	parts = append(parts, TimeSpan(s.StartedAt, s.EndedAt, m.loc),
-		fmt.Sprintf("%d human  %d agent", s.HumanEvents, s.AgentEvents))
+		m.th.Actor(model.ActorHuman).Render(fmt.Sprintf("%d human", s.HumanEvents))+"  "+
+			m.th.Actor(model.ActorAgent).Render(fmt.Sprintf("%d agent", s.AgentEvents)))
 	if s.ParentID != "" {
 		parts = append(parts, "parent "+s.ParentID)
 	}
@@ -146,8 +139,9 @@ func (m Model) header() string {
 }
 
 // rule is the line between header and transcript; it carries the status:
-// the event at the top, the selected hit, the tools switch and the copy
-// notice.
+// the event at the top, the selected hit, the position in a transcript
+// longer than the viewport (top, bot or the percentage scrolled), the
+// tools switch and the copy notice.
 func (m Model) rule() string {
 	parts := []string{"no events"}
 	if n := len(m.events); n > 0 {
@@ -159,6 +153,9 @@ func (m Model) rule() string {
 	case len(m.open.Terms) > 0:
 		parts = append(parts, "no hits")
 	}
+	if m.vp.TotalLineCount() > m.vp.Height() {
+		parts = append(parts, m.position())
+	}
 	if m.all {
 		parts = append(parts, "tools")
 	}
@@ -167,7 +164,19 @@ func (m Model) rule() string {
 	}
 	status := "── " + strings.Join(parts, " · ") + " "
 	status = ansi.Truncate(status, m.width, "")
-	return status + strings.Repeat("─", max(m.width-lipgloss.Width(status), 0))
+	return m.th.Rule.Render(status + strings.Repeat("─", max(m.width-lipgloss.Width(status), 0)))
+}
+
+// position is where the viewport is in a transcript longer than itself:
+// "top", "bot" or the percentage scrolled, like a pager.
+func (m Model) position() string {
+	switch {
+	case m.vp.AtTop():
+		return "top"
+	case m.vp.AtBottom():
+		return "bot"
+	}
+	return fmt.Sprintf("%d%%", int(m.vp.ScrollPercent()*100))
 }
 
 // TimeSpan formats start and end like "2026-10-31 22:10 – 23:02 (52m)"; the

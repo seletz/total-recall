@@ -14,7 +14,8 @@
 // (weekdays that are no public holiday, up to today) and rates them with
 // the weekly bounds. Weekends and public holidays have no target and their
 // own colours; a holiday is named in its row and in the headline. Colours
-// follow the terminal background (tea.BackgroundColorMsg); every coloured
+// come from the theme and follow the terminal background (the app asks
+// for it; the answer arrives as tea.BackgroundColorMsg); every coloured
 // element also differs in glyph, so NO_COLOR stays legible.
 //
 // Every change of window or counting mode loads a store.Workday as a
@@ -36,6 +37,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/window"
 )
 
@@ -115,8 +117,10 @@ type Model struct {
 	offset        int // first visible day row
 	initCmd       tea.Cmd
 	width, height int
-	dark          bool // terminal background; true until the terminal answers
-	styles        styles
+	// th is the theme; dark until the terminal answers the app's
+	// background colour query. styles are the view's styles derived from it.
+	th     theme.Theme
+	styles styles
 }
 
 // New returns the view for opts: the week containing now, counting as
@@ -130,8 +134,8 @@ func New(opts Options) Model {
 		humanOnly: opts.HumanOnly,
 		cache:     map[filter][]store.Workday{},
 		figures:   true,
-		dark:      true,
-		styles:    newStyles(true),
+		th:        theme.New(true),
+		styles:    newStyles(theme.New(true)),
 	}
 	m, m.initCmd = m.load()
 	return m
@@ -140,9 +144,8 @@ func New(opts Options) Model {
 // Title implements tui.View.
 func (Model) Title() string { return "activity" }
 
-// Init implements tea.Model: it starts the first load and asks the
-// terminal for its background colour.
-func (m Model) Init() tea.Cmd { return tea.Batch(m.initCmd, tea.RequestBackgroundColor) }
+// Init implements tea.Model: it starts the first load.
+func (m Model) Init() tea.Cmd { return m.initCmd }
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -165,8 +168,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case resultMsg:
 		return m.result(msg), nil
 	case tea.BackgroundColorMsg:
-		m.dark = msg.IsDark()
-		m.styles = newStyles(m.dark)
+		m.th = theme.New(msg.IsDark())
+		m.styles = newStyles(m.th)
 		return m, nil
 	}
 	return m, nil
@@ -326,8 +329,6 @@ func (m *Model) clampOffset() {
 	m.offset = max(0, min(m.offset, len(m.days)-m.rowsAvail()))
 }
 
-var activeStyle = lipgloss.NewStyle().Reverse(true)
-
 // ShortHelp implements help.KeyMap.
 func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
 
@@ -363,7 +364,7 @@ func (m Model) View() tea.View {
 	for ; pad > 0; pad-- {
 		parts = append(parts, "")
 	}
-	parts = append(parts, strings.Repeat("─", m.width))
+	parts = append(parts, m.th.Rule.Render(strings.Repeat("─", m.width)))
 	if m.showFigures() {
 		for _, f := range m.figureLines() {
 			parts = append(parts, line(" "+f))
@@ -382,18 +383,19 @@ func (m Model) switches() string {
 	if m.humanOnly {
 		active = 1
 	}
-	left := " period: " + toggles(periods, int(m.window.Period)) + "  count: " + toggles(counts, active)
+	left := " period: " + m.toggles(periods, int(m.window.Period)) + "  count: " + m.toggles(counts, active)
 	right := m.windowLabel()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	return left + strings.Repeat(" ", gap) + right
 }
 
-// toggles joins the names, the active one in brackets and reverse video.
-func toggles(names []string, active int) string {
+// toggles joins the names, the active one in brackets and the active
+// style of the theme.
+func (m Model) toggles(names []string, active int) string {
 	out := make([]string, len(names))
 	for i, n := range names {
 		if i == active {
-			n = activeStyle.Render("[" + n + "]")
+			n = m.styles.active.Render("[" + n + "]")
 		}
 		out[i] = n
 	}

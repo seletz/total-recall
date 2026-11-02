@@ -26,9 +26,11 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/window"
 )
 
@@ -39,7 +41,9 @@ const TopN = 6
 const MinChartHeight = 8
 
 // chromeRows are the rows of the body beside chart and table: the switches
-// line, the rule above the table and the status line.
+// line, the rule above the table and the status line. The tiles with the
+// key figures take one more row when the chart keeps MinChartHeight
+// beside them (see layout).
 const chromeRows = 3
 
 // Loader loads activity series and stats; *store.Store implements it.
@@ -157,6 +161,9 @@ type Model struct {
 	chart         Chart
 	initCmd       tea.Cmd // the first load, started by Init
 	width, height int
+	// th is the theme; dark until the terminal answers the app's
+	// background colour query.
+	th theme.Theme
 }
 
 // New returns the view for opts: days by project, the default window ending
@@ -171,6 +178,7 @@ func New(opts Options) Model {
 		colors: &chart.Colors{},
 		chart:  opts.Chart,
 		heat:   heatmap{cache: map[heatFilter]store.Stats{}},
+		th:     theme.New(true),
 	}
 	// The first load is prepared here because Init cannot change the model:
 	// the command must carry the sequence number the model will compare
@@ -199,6 +207,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.result(msg)
 	case heatResultMsg:
 		return m.heatResult(msg), nil
+	case tea.BackgroundColorMsg:
+		m.th = theme.New(msg.IsDark())
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.chart, cmd = m.chart.Update(msg)
@@ -420,37 +431,43 @@ func (m *Model) rebuild() tea.Cmd {
 	return tea.Batch(m.chart.SetSpec(m.spec), m.chart.SetSize(m.chartSize()))
 }
 
-// layout splits the body height between the chart, the heatmap and the
-// table: the heatmap, when on, takes the height of the largest layout that
-// fits while the chart keeps MinChartHeight beside it (see
+// split is how the body rows are shared: the tiles row (0 or 1), the
+// chart, the heatmap and the table.
+type split struct {
+	tiles, chart, heat, table int
+}
+
+// layout splits the body height between the tiles, the chart, the heatmap
+// and the table: the heatmap, when on, takes the height of the largest
+// layout that fits while the chart keeps MinChartHeight beside it (see
 // chart.HeatmapLayoutFor); the table gets one line per series plus its
-// header, but shrinks before the chart goes below MinChartHeight; the chart
-// gets the rest.
-func (m Model) layout() (chartH, heatH, tableH int) {
+// header, but shrinks before the chart goes below MinChartHeight; the
+// tiles take one row when the chart keeps MinChartHeight beside the full
+// table; the chart gets the rest.
+func (m Model) layout() split {
+	var l split
 	avail := max(m.height-chromeRows, 0)
 	if m.heat.on {
-		heatH = chart.HeatmapLayoutFor(max(m.width-1, 0), avail-MinChartHeight).Height()
-		avail -= heatH
+		l.heat = chart.HeatmapLayoutFor(max(m.width-1, 0), avail-MinChartHeight).Height()
+		avail -= l.heat
 	}
 	want := 0
 	if m.loaded && len(m.spec.Series) > 0 {
 		want = len(m.spec.Series) + 1
 	}
-	tableH = min(want, max(avail-MinChartHeight, 0))
-	return avail - tableH, heatH, tableH
+	l.table = min(want, max(avail-MinChartHeight, 0))
+	if want > 0 && l.table == want && avail-want-1 >= MinChartHeight {
+		l.tiles = 1
+	}
+	l.chart = avail - l.table - l.tiles
+	return l
 }
 
 // chartSize is the chart area: the body width less the indent, and the
 // chart rows of the layout.
 func (m Model) chartSize() (w, h int) {
-	chartH, _, _ := m.layout()
-	return max(m.width-1, 0), chartH
+	return max(m.width-1, 0), m.layout().chart
 }
-
-var (
-	activeStyle = lipgloss.NewStyle().Reverse(true)
-	faintStyle  = lipgloss.NewStyle().Faint(true)
-)
 
 // ShortHelp implements help.KeyMap.
 func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
@@ -458,59 +475,97 @@ func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
 // FullHelp implements help.KeyMap.
 func (m Model) FullHelp() [][]key.Binding { return m.keys.FullHelp() }
 
-// View implements tea.Model: the switches, the chart, a rule, the table and
-// the status line.
+// View implements tea.Model: the switches, the tiles, the chart, a rule,
+// the table and the status line.
 func (m Model) View() tea.View {
 	if m.width == 0 || m.height == 0 {
 		return tea.NewView("")
 	}
-	chartH, heatH, tableH := m.layout()
+	l := m.layout()
 	block := func(s string, h int) string {
 		return lipgloss.NewStyle().Width(m.width).Height(h).MaxWidth(m.width).MaxHeight(h).Render(s)
 	}
 	parts := []string{m.switches()}
-	if chartH > 0 {
-		parts = append(parts, block(m.chartView(chartH), chartH))
+	if l.tiles > 0 {
+		parts = append(parts, block(m.tiles(), l.tiles))
 	}
-	if heatH > 0 {
-		parts = append(parts, block(m.heatView(heatH), heatH))
+	if l.chart > 0 {
+		parts = append(parts, block(m.chartView(l.chart), l.chart))
 	}
-	parts = append(parts, strings.Repeat("─", m.width))
-	if tableH > 0 {
-		parts = append(parts, block(indent(newTable(m.spec, m.series, m.window.Period, m.dim, m.width-1).View()), tableH))
+	if l.heat > 0 {
+		parts = append(parts, block(m.heatView(l.heat), l.heat))
+	}
+	parts = append(parts, m.th.Rule.Render(strings.Repeat("─", m.width)))
+	if l.table > 0 {
+		parts = append(parts, block(indent(newTable(m.th, m.spec, m.series, m.window.Period, m.dim, m.width-1).View()), l.table))
 	}
 	parts = append(parts, " "+ansi.Truncate(m.status(), max(m.width-1, 0), "…"))
 	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
 // switches is the top line: period and dimension with the active value in
-// brackets, and the window on the right.
+// brackets on the accent background, and the window on the right.
 func (m Model) switches() string {
 	periods := []string{"day", "week", "month"}
 	dims := []string{"project", "agent", "directory"}
-	left := " period: " + toggles(periods, int(m.window.Period)) + "  by: " + toggles(dims, int(m.dim))
+	left := " period: " + toggles(m.th, periods, int(m.window.Period)) + "  by: " + toggles(m.th, dims, int(m.dim))
 	right := m.window.String()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	return ansi.Truncate(left+strings.Repeat(" ", gap)+right, m.width, "…")
 }
 
-// toggles joins the names, the active one in brackets and reverse video.
-func toggles(names []string, active int) string {
+// toggles joins the names, the active one in brackets and the active
+// style of the theme.
+func toggles(th theme.Theme, names []string, active int) string {
 	out := make([]string, len(names))
 	for i, n := range names {
 		if i == active {
-			n = activeStyle.Render("[" + n + "]")
+			n = th.Active.Render("[" + n + "]")
 		}
 		out[i] = n
 	}
 	return strings.Join(out, " ")
 }
 
+// tiles is the row of key figures of the window above the chart: the
+// events (and how many of them human and agent), the distinct sessions
+// and the periods with activity, each a bold figure behind an accent bar
+// with a muted label, so they read as tiles without a border. Empty until
+// the series is loaded.
+func (m Model) tiles() string {
+	if !m.loaded {
+		return ""
+	}
+	human, agent, active := 0, 0, 0
+	for _, b := range m.series.Buckets {
+		sum := 0
+		for _, c := range b.Cells {
+			human += c.Activity.Human
+			agent += c.Activity.Agent
+			sum += c.Activity.Human + c.Activity.Agent
+		}
+		if sum > 0 {
+			active++
+		}
+	}
+	tile := func(st lipgloss.Style, figure, label string) string {
+		return m.th.AccentText.Render("▎") + st.Render(figure) + " " + m.th.Muted.Render(label)
+	}
+	parts := []string{
+		tile(m.th.Figure, group(human+agent), "events"),
+		tile(m.th.Actor(model.ActorHuman), group(human), "human"),
+		tile(m.th.Actor(model.ActorAgent), group(agent), "agent"),
+		tile(m.th.Figure, group(m.series.Sessions), "sessions"),
+		tile(m.th.Figure, fmt.Sprintf("%d/%d", active, len(m.series.Buckets)), m.window.Period.String()+"s active"),
+	}
+	return ansi.Truncate(" "+strings.Join(parts, "  "), m.width, "…")
+}
+
 // chartView is the chart area: the container's view, or the hint while
 // there is nothing to draw.
 func (m Model) chartView(h int) string {
 	if hint := m.hint(); hint != "" {
-		return " " + faintStyle.Render(hint)
+		return " " + m.th.Muted.Render(hint)
 	}
 	return indent(m.chart.View())
 }
@@ -535,11 +590,11 @@ func (m Model) hint() string {
 func (m Model) heatView(h int) string {
 	switch {
 	case m.heat.err != nil:
-		return " " + faintStyle.Render("The heatmap query failed; see the status line.")
+		return " " + m.th.Muted.Render("The heatmap query failed; see the status line.")
 	case !m.heat.loaded:
-		return " " + faintStyle.Render("Loading heatmap…")
+		return " " + m.th.Muted.Render("Loading heatmap…")
 	}
-	return indent(chart.RenderHeatmapText(m.heat.stats, m.metric, max(m.width-1, 0), h))
+	return indent(chart.RenderHeatmap(m.heat.stats, m.metric, max(m.width-1, 0), h, chart.HeatScaleFor(m.th.Dark)))
 }
 
 // status is the bottom line: the chart mode, the state of the load and
@@ -550,7 +605,7 @@ func (m Model) status() string {
 	case m.opts.Loader == nil:
 		return mode + " · no database"
 	case m.err != nil:
-		return mode + " · error: " + m.err.Error()
+		return mode + " · " + m.th.Error.Render("error: "+m.err.Error())
 	case m.loading:
 		return mode + " · loading…"
 	case !m.loaded:
@@ -566,11 +621,10 @@ func (m Model) heatStatus() string {
 	if !m.heat.on {
 		return ""
 	}
-	_, heatH, _ := m.layout()
 	switch {
 	case m.heat.err != nil:
-		return " · heatmap error: " + m.heat.err.Error()
-	case heatH == 0:
+		return " · " + m.th.Error.Render("heatmap error: "+m.heat.err.Error())
+	case m.layout().heat == 0:
 		return " · heatmap needs more rows"
 	case m.heat.loading:
 		return " · loading heatmap…"

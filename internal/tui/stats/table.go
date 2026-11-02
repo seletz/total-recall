@@ -9,6 +9,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // Widths of the number columns; the name column takes the rest.
@@ -30,9 +31,9 @@ func sessionPeriodsTitle(p store.Period) string {
 // volume, "other" last) with the distinct sessions of the window, the
 // sessions summed over the periods (session-days, -weeks or -months: a
 // session active in three periods counts three), human and agent events
-// and the share of all events in the window. The table is not interactive:
-// no cursor, no key map.
-func newTable(spec chart.Spec, series store.ActivitySeries, period store.Period, dim store.Dimension, width int) table.Model {
+// and the share of all events in the window; the header is in the label
+// style of th. The table is not interactive: no cursor, no key map.
+func newTable(th theme.Theme, spec chart.Spec, series store.ActivitySeries, period store.Period, dim store.Dimension, width int) table.Model {
 	total := 0
 	rows := make([][4]int, len(spec.Series))
 	for j := range spec.Series {
@@ -77,7 +78,7 @@ func newTable(spec chart.Spec, series store.ActivitySeries, period store.Period,
 	}
 	t := table.New(table.WithColumns(cols), table.WithRows(trows), table.WithWidth(width), table.WithHeight(len(trows)+1))
 	t.SetStyles(table.Styles{
-		Header:   lipgloss.NewStyle().Bold(true).PaddingRight(columnGap),
+		Header:   th.Label.PaddingRight(columnGap),
 		Cell:     lipgloss.NewStyle().PaddingRight(columnGap),
 		Selected: lipgloss.NewStyle(),
 	})

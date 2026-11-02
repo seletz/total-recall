@@ -4,8 +4,6 @@ import (
 	"sort"
 	"strings"
 	"unicode"
-
-	"charm.land/lipgloss/v2"
 )
 
 // Match is one highlighted range: byte offsets Start (inclusive) and End
@@ -157,24 +155,32 @@ var baseLetter = func() map[rune]rune {
 	return m
 }()
 
-// highlightLine wraps the matches of one line in style and the match at
-// current (an index into ms, or -1) in selected. Lines are plain text, so
-// byte offsets can be used directly.
-func highlightLine(line string, ms []Match, current int, style, selected lipgloss.Style) string {
+// HighlightLine renders one plain line with its matches ms (byte ranges
+// within line) in st.Match, the match at current (an index into ms, or -1)
+// in st.Selected and the text between them in st.Base. Every segment is
+// styled on its own: a style wrapped around styled text would end at the
+// inner reset.
+func HighlightLine(line string, ms []Match, current int, st LineStyles) string {
+	base := func(s string) string {
+		if s == "" {
+			return ""
+		}
+		return st.Base.Render(s)
+	}
 	if len(ms) == 0 {
-		return line
+		return base(line)
 	}
 	var b strings.Builder
 	pos := 0
 	for i, m := range ms {
-		b.WriteString(line[pos:m.Start])
+		b.WriteString(base(line[pos:m.Start]))
 		if i == current {
-			b.WriteString(selected.Render(line[m.Start:m.End]))
+			b.WriteString(st.Selected.Render(line[m.Start:m.End]))
 		} else {
-			b.WriteString(style.Render(line[m.Start:m.End]))
+			b.WriteString(st.Match.Render(line[m.Start:m.End]))
 		}
 		pos = m.End
 	}
-	b.WriteString(line[pos:])
+	b.WriteString(base(line[pos:]))
 	return b.String()
 }

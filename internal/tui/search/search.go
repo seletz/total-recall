@@ -16,10 +16,12 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/theme"
 )
 
 // Limit is the maximum number of hits one search fetches.
@@ -118,6 +120,11 @@ type Model struct {
 	preview preview
 
 	width, height int
+	// th is the theme; dark until the terminal answers the app's
+	// background colour query. spin turns in the status line while a
+	// search runs.
+	th   theme.Theme
+	spin spinner.Model
 }
 
 // New returns the view for opts.
@@ -135,11 +142,25 @@ func New(opts Options) Model {
 	repo.Prompt = "repo: "
 	repo.Placeholder = "substring of remote, root or cwd"
 	repo.SetVirtualCursor(false)
-	m := Model{opts: opts, keys: defaultKeyMap(), input: in, repoIn: repo}
+	m := Model{opts: opts, keys: defaultKeyMap(), input: in, repoIn: repo, spin: spinner.New(spinner.WithSpinner(spinner.MiniDot))}
+	m.setTheme(theme.New(true))
 	if opts.Query != "" {
 		m.query = opts.Query
 	}
 	return m
+}
+
+// setTheme applies th to the view and its inputs: the prompt of the
+// focused input in the title style, blurred muted.
+func (m *Model) setTheme(th theme.Theme) {
+	m.th = th
+	m.spin.Style = th.Spinner
+	for _, in := range []*textinput.Model{&m.input, &m.repoIn} {
+		st := textinput.DefaultStyles(th.Dark)
+		st.Focused.Prompt, st.Blurred.Prompt = th.Title, th.Muted
+		st.Focused.Placeholder, st.Blurred.Placeholder = th.Muted, th.Muted
+		in.SetStyles(st)
+	}
 }
 
 // Title implements tui.View.
@@ -193,6 +214,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.loadPreview()
 	case previewMsg:
 		return m.previewResult(msg)
+	case tea.BackgroundColorMsg:
+		m.setTheme(theme.New(msg.IsDark()))
+		return m, nil
+	case spinner.TickMsg:
+		// The spinner runs only while a search does; a tick after the
+		// result stops it.
+		if !m.searching {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -369,7 +402,9 @@ func (m *Model) stop() {
 	m.searching = false
 }
 
-// search starts the query for the current input and filters.
+// search starts the query for the current input and filters, and the
+// spinner. The query comes first in the batch: run synchronously (tests),
+// its result stops the spinner before the spinner's first tick arrives.
 func (m Model) search() (tea.Model, tea.Cmd) {
 	m.stop()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -383,11 +418,11 @@ func (m Model) search() (tea.Model, tea.Cmd) {
 		HighlightEnd:   hlEnd,
 	}
 	m.filters.apply(&f, now())
-	return m, func() tea.Msg {
+	return m, tea.Batch(func() tea.Msg {
 		start := now()
 		hits, err := s.Search(ctx, query, f)
 		return resultMsg{seq: seq, query: query, hits: hits, took: now().Sub(start), err: err}
-	}
+	}, m.spin.Tick)
 }
 
 // open emits OpenSession for the marked hit.
@@ -449,15 +484,15 @@ func (m Model) FullHelp() [][]key.Binding {
 }
 
 // status is the text of the bottom line: hit count and duration, or why
-// there are no hits.
+// there are no hits; the spinner turns in front of "searching…".
 func (m Model) status() string {
 	switch {
 	case m.opts.Searcher == nil:
 		return "no database"
 	case m.err != nil:
-		return "error: " + m.err.Error()
+		return m.th.Error.Render("error: " + m.err.Error())
 	case m.searching:
-		return "searching…"
+		return m.spin.View() + " searching…"
 	case m.query == "":
 		return "type to search"
 	}
