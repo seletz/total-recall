@@ -111,7 +111,7 @@ LIMIT 50"
 
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
 - `events.text` of tool results is truncated to 4 KiB. `events.raw` is the full original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); never select `raw` in a list query.
-- `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until` and page with `--limit`/`--offset`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
+- `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
 - `search` returns 20 hits by default (`--limit N` for more). Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
 
@@ -251,7 +251,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, recent errors |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--all-sessions` includes sessions without events |
-| `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--all]` | conversation of one session; without limits the whole session |
+| `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory] [--top N]` | time series per period, optionally per key |

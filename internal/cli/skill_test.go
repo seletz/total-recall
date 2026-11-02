@@ -28,7 +28,7 @@ import (
 // TODO(#81, #82): set both constants to true once develop contains them.
 const (
 	contract81 = false
-	contract82 = false
+	contract82 = true
 )
 
 // skillSections parses SKILL.md into "heading -> documented names". A section
