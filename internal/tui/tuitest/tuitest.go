@@ -39,14 +39,12 @@ func Clock() time.Time { return Now }
 var Environ = []string{"TERM=xterm-256color"}
 
 // New starts m in a test program of Width×Height cells without colours and
-// with the fixed Environ. The program is stopped when the test ends.
-func New(tb testing.TB, m tea.Model, opts ...teatest.TestOption) *teatest.TestModel {
+// with the fixed Environ, plus any further program options. The program is
+// stopped when the test ends.
+func New(tb testing.TB, m tea.Model, opts ...tea.ProgramOption) *teatest.TestModel {
 	tb.Helper()
-	opts = append([]teatest.TestOption{
-		teatest.WithInitialTermSize(Width, Height),
-		teatest.WithProgramOptions(tea.WithColorProfile(colorprofile.NoTTY), tea.WithEnvironment(Environ)),
-	}, opts...)
-	tm := teatest.NewTestModel(tb, m, opts...)
+	opts = append([]tea.ProgramOption{tea.WithColorProfile(colorprofile.NoTTY), tea.WithEnvironment(Environ)}, opts...)
+	tm := teatest.NewTestModel(tb, m, teatest.WithInitialTermSize(Width, Height), teatest.WithProgramOptions(opts...))
 	tb.Cleanup(func() { tm.GetProgram().Kill() })
 	return tm
 }
@@ -133,13 +131,26 @@ func Frame(m tea.Model) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
+// SlowTicker is the program option for output goldens, see RequireOutput:
+// it slows the renderer's ticker to one frame per second, so a start-up
+// that quits within that second is painted once, by the final flush.
+var SlowTicker = tea.WithFPS(1)
+
 // RequireOutput quits the program and compares the raw renderer output with
 // testdata/<test name>.golden. Update the files with go test -update.
 //
-// The terminal capability queries Bubble Tea sends at start-up (synchronized
-// output, unicode core, kitty keyboard) are removed first: the program writes
-// them from its own goroutine, so their position relative to the first frame
-// depends on scheduling and is not part of what a golden file should pin.
+// Where the renderer's first flush falls is a matter of scheduling: it runs
+// on a wall-clock ticker, while the program hands over its start-up messages
+// from goroutines. The program and teatest each send a window size message,
+// and every resize forces a full repaint, so a start-up may paint its frame
+// once, twice or three times, and a tick before the first view is rendered
+// even starts it inline. Three things keep the golden independent of that:
+// the program runs with SlowTicker, so a start-up that quits within a second
+// is painted once, by the final flush; the model must already have its size
+// when the program starts, so a tick that does come first paints the same
+// frame; and CollapseRepaints keeps only one paint. The terminal capability
+// queries the program writes from its own goroutine are removed as well
+// (StripQueries).
 func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 	tb.Helper()
 	_ = tm.Quit()
@@ -147,7 +158,7 @@ func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	teatest.RequireEqualOutput(tb, StripQueries(out))
+	teatest.RequireEqualOutput(tb, CollapseRepaints(StripQueries(out)))
 }
 
 // StripQueries removes the start-up capability queries from raw program
@@ -157,4 +168,19 @@ func StripQueries(out []byte) []byte {
 		out = bytes.ReplaceAll(out, []byte(q), nil)
 	}
 	return out
+}
+
+// CollapseRepaints keeps only the last full repaint in raw program output:
+// everything from the first erase of the screen up to the last one is
+// dropped, so the result is the start-up sequences, one painted frame and
+// the shutdown sequences. Output without a repeated erase is returned as is;
+// see RequireOutput.
+func CollapseRepaints(out []byte) []byte {
+	erase := []byte(ansi.CursorHomePosition + ansi.EraseEntireScreen)
+	first := bytes.Index(out, erase)
+	last := bytes.LastIndex(out, erase)
+	if first < 0 || first == last {
+		return out
+	}
+	return append(out[:first:first], out[last:]...)
 }

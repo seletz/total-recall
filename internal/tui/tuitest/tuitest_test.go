@@ -82,3 +82,26 @@ func TestStripQueries(t *testing.T) {
 		t.Error("query left in output")
 	}
 }
+
+func TestCollapseRepaints(t *testing.T) {
+	erase := ansi.CursorHomePosition + ansi.EraseEntireScreen
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"nil", "", ""},
+		{"no paint", "setup\x1b[?25h", "setup\x1b[?25h"},
+		{"one paint", "setup" + erase + "frame\x1b[?25h", "setup" + erase + "frame\x1b[?25h"},
+		{"repainted", "setup" + erase + "frame\x1b[?25h\x1b[?25l" + erase + "frame\x1b[?25h", "setup" + erase + "frame\x1b[?25h"},
+		{"empty first paint", "setup" + erase + erase + "frame", "setup" + erase + "frame"},
+		{"last paint kept", "setup" + erase + "a" + erase + "b" + erase + "c", "setup" + erase + "c"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := string(tuitest.CollapseRepaints([]byte(tt.in))); got != tt.want {
+				t.Errorf("CollapseRepaints(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

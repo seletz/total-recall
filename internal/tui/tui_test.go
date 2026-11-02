@@ -98,7 +98,10 @@ func TestOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tm := tuitest.New(t, app)
+	// The app gets its size before the program starts, so the renderer paints
+	// the same frame whenever its ticker fires first; see RequireOutput.
+	m := tuitest.Send(t, app, tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height})
+	tm := tuitest.New(t, m, tuitest.SlowTicker)
 	tuitest.RequireOutput(t, tm)
 }
 
