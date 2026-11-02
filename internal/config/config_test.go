@@ -3,9 +3,12 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
 // env returns a lookup func over a fixed map.
@@ -414,5 +417,149 @@ func TestWriteTemplate(t *testing.T) {
 	b, _ = os.ReadFile(p)
 	if string(b) != "mine" {
 		t.Error("existing file was overwritten")
+	}
+}
+
+func TestKeysSection(t *testing.T) {
+	dir := t.TempDir()
+	p := writeFile(t, dir, "c.toml", `
+[keys]
+global_quit = "ctrl+q"
+stats_days = ["x", "Y"]
+`)
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	km := c.KeyMap()
+	if got := km.Keys(keys.GlobalQuit); !slices.Equal(got, []string{"ctrl+q"}) {
+		t.Errorf("global_quit = %v", got)
+	}
+	if got := km.Keys(keys.StatsDays); !slices.Equal(got, []string{"x", "Y"}) {
+		t.Errorf("stats_days = %v", got)
+	}
+	if got := km.Keys(keys.StatsWeeks); !slices.Equal(got, []string{"w"}) {
+		t.Errorf("stats_weeks = %v (must keep its default)", got)
+	}
+	entries := map[string]Entry{}
+	for _, e := range c.Entries() {
+		entries[e.Key] = e
+	}
+	checks := []struct {
+		key, value string
+		origin     Origin
+	}{
+		{"keys.global_quit", `["ctrl+q"]`, OriginFile},
+		{"keys.stats_days", `["x", "Y"]`, OriginFile},
+		{"keys.stats_weeks", `["w"]`, OriginDefault},
+		{"keys.stats_earlier", `["left", ",", "["]`, OriginDefault},
+	}
+	for _, ck := range checks {
+		e, ok := entries[ck.key]
+		if !ok {
+			t.Errorf("missing entry %q", ck.key)
+			continue
+		}
+		if e.Value != ck.value || e.Origin != ck.origin {
+			t.Errorf("%s = %+v, want %q %s", ck.key, e, ck.value, ck.origin)
+		}
+	}
+	// Without a file the map is the defaults.
+	d, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.KeyMap().Keys(keys.GlobalQuit); !slices.Equal(got, []string{"q"}) {
+		t.Errorf("default global_quit = %v", got)
+	}
+}
+
+func TestKeysErrors(t *testing.T) {
+	tests := []struct {
+		name, toml, want string
+	}{
+		{"unknown action", "[keys]\nstats_zoom = \"z\"\n", `[keys] "stats_zoom": unknown action`},
+		{"bad key name", "[keys]\nstats_days = \"ctrl+\"\n", `[keys] stats_days: "ctrl+": empty`},
+		{"conflict", "[keys]\nstats_days = \"e\"\n", `"e" is bound to both stats_days and stats_metric`},
+		{"global conflict", "[keys]\nsearch_actor = \"q\"\n", `"q" is bound to both global_quit and search_actor`},
+		{"reserved", "[keys]\nglobal_quit = [\"q\", \"ctrl+c\"]\n", "reserved"},
+		{"wrong type", "[keys]\nglobal_quit = 1\n", "global_quit"},
+		{"empty list", "[keys]\nglobal_quit = []\n", "global_quit: no keys"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.toml)
+			_, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("Load error = %v, want containing %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestTUISection(t *testing.T) {
+	d, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}); d.TUI != want {
+		t.Errorf("default TUI = %+v, want %+v", d.TUI, want)
+	}
+	p := writeFile(t, t.TempDir(), "c.toml", `
+[tui]
+view = "stats"
+graphics = "text"
+mouse = false
+stats_period = "week"
+stats_dimension = "agent"
+activity_window = "month"
+`)
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}); c.TUI != want {
+		t.Errorf("TUI = %+v, want %+v", c.TUI, want)
+	}
+	entries := map[string]Entry{}
+	for _, e := range c.Entries() {
+		entries[e.Key] = e
+	}
+	for k, want := range map[string]string{"tui.view": "stats", "tui.graphics": "text", "tui.mouse": "false",
+		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month"} {
+		if e := entries[k]; e.Value != want || e.Origin != OriginFile {
+			t.Errorf("%s = %+v, want %q from file", k, e, want)
+		}
+	}
+	if e := entries["tui.mouse"]; e.Origin != OriginFile {
+		t.Errorf("tui.mouse origin = %s", e.Origin)
+	}
+	d2, _ := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	for _, e := range d2.Entries() {
+		if strings.HasPrefix(e.Key, "tui.") && e.Origin != OriginDefault {
+			t.Errorf("%s origin = %s without a file", e.Key, e.Origin)
+		}
+	}
+}
+
+func TestTUIErrors(t *testing.T) {
+	tests := []struct {
+		name, toml, want string
+	}{
+		{"view", "[tui]\nview = \"help\"\n", `tui.view "help": use search, stats or activity`},
+		{"graphics", "[tui]\ngraphics = \"sixel\"\n", `tui.graphics "sixel": use auto, text or kitty`},
+		{"period", "[tui]\nstats_period = \"year\"\n", `tui.stats_period "year": use day, week or month`},
+		{"dimension", "[tui]\nstats_dimension = \"repo\"\n", `tui.stats_dimension "repo": use project, agent or directory`},
+		{"window", "[tui]\nactivity_window = \"days\"\n", `tui.activity_window "days": use day, week or month`},
+		{"case", "[tui]\nview = \"Stats\"\n", `tui.view "Stats"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.toml)
+			_, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("Load error = %v, want containing %q", err, tt.want)
+			}
+		})
 	}
 }

@@ -24,6 +24,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/stats"
@@ -88,6 +89,16 @@ type Options struct {
 	// NoMouse leaves the mouse to the terminal: no wheel scrolling and no
 	// clicks, but text is selected by plain dragging.
 	NoMouse bool
+	// StatsPeriod and StatsDimension are what the stats view starts with
+	// (day, week, month; project, agent, directory); empty means days by
+	// project.
+	StatsPeriod    string
+	StatsDimension string
+	// ActivityWindow is the window the activity view starts with (day,
+	// week, month); empty means week.
+	ActivityWindow string
+	// Keys are the effective key bindings; nil means the defaults.
+	Keys keys.Map
 }
 
 func (o *Options) defaults() {
@@ -102,6 +113,15 @@ func (o *Options) defaults() {
 	}
 	if o.Graphics == "" {
 		o.Graphics = GraphicsAuto
+	}
+	if o.StatsPeriod == "" {
+		o.StatsPeriod = "day"
+	}
+	if o.StatsDimension == "" {
+		o.StatsDimension = "project"
+	}
+	if o.ActivityWindow == "" {
+		o.ActivityWindow = "week"
 	}
 }
 
@@ -124,7 +144,15 @@ type Focused interface {
 // New builds the app for opts.
 func New(opts Options) (App, error) {
 	opts.defaults()
-	views := []View{search.New(searchOptions(opts)), stats.New(statsOptions(opts)), activity.New(activityOptions(opts))}
+	so, err := statsOptions(opts)
+	if err != nil {
+		return App{}, err
+	}
+	ao, err := activityOptions(opts)
+	if err != nil {
+		return App{}, err
+	}
+	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao)}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -134,8 +162,8 @@ func New(opts Options) (App, error) {
 	if active < 0 {
 		return App{}, fmt.Errorf("unknown view %q (use %s)", opts.Start, strings.Join(ViewNames, ", "))
 	}
-	detail := session.New(opts.Store, opts.Location)
-	return App{opts: opts, views: views, active: active, detail: detail, keys: defaultKeyMap()}, nil
+	detail := session.New(opts.Store, opts.Location, opts.Keys)
+	return App{opts: opts, views: views, active: active, detail: detail, keys: newKeyMap(opts.Keys)}, nil
 }
 
 // Run starts the app on in/out and blocks until it quits.
@@ -152,7 +180,7 @@ func Run(ctx context.Context, opts Options, in io.Reader, out io.Writer) error {
 // store stays a nil Searcher and Loader, so the view can tell there is no
 // database.
 func searchOptions(opts Options) search.Options {
-	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location}
+	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location, Keys: opts.Keys}
 	if opts.Store != nil {
 		so.Searcher, so.Loader = opts.Store, opts.Store
 	}
@@ -160,21 +188,33 @@ func searchOptions(opts Options) search.Options {
 }
 
 // statsOptions is what the stats view gets from the app options; a nil store
-// stays a nil Loader.
-func statsOptions(opts Options) stats.Options {
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home}
+// stays a nil Loader. The period and dimension names are parsed here.
+func statsOptions(opts Options) (stats.Options, error) {
+	p, err := store.ParsePeriod(opts.StatsPeriod)
+	if err != nil {
+		return stats.Options{}, fmt.Errorf("stats period: %w", err)
+	}
+	d, err := store.ParseDimension(opts.StatsDimension)
+	if err != nil {
+		return stats.Options{}, fmt.Errorf("stats dimension: %w", err)
+	}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}
-	return so
+	return so, nil
 }
 
 // activityOptions is what the activity view gets from the app options; a
-// nil store stays a nil Loader.
-func activityOptions(opts Options) activity.Options {
-	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work}
+// nil store stays a nil Loader. The window name is parsed here.
+func activityOptions(opts Options) (activity.Options, error) {
+	w, err := store.ParsePeriod(opts.ActivityWindow)
+	if err != nil {
+		return activity.Options{}, fmt.Errorf("activity window: %w", err)
+	}
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: w, Keys: opts.Keys}
 	if opts.Store != nil {
 		ao.Loader = opts.Store
 	}
-	return ao
+	return ao, nil
 }

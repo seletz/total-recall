@@ -32,6 +32,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/window"
 )
 
@@ -58,6 +59,12 @@ type Options struct {
 	// Work is the working time the days are measured against; the zero
 	// value shows neither core hours nor a target.
 	Work store.WorkHours
+	// Window is the period of the initial window: the day, week or month
+	// containing now. The app sets it from the configuration; the zero
+	// value is a day.
+	Window store.Period
+	// Keys are the effective key bindings; nil means the defaults.
+	Keys keys.Map
 }
 
 func (o *Options) defaults() {
@@ -109,14 +116,14 @@ type Model struct {
 	styles        styles
 }
 
-// New returns the view for opts: the week containing now, human and agent
-// events.
+// New returns the view for opts: the configured window containing now,
+// human and agent events.
 func New(opts Options) Model {
 	opts.defaults()
 	m := Model{
 		opts:   opts,
-		keys:   defaultKeyMap(),
-		window: window.Single(store.PeriodWeek, opts.Now(), opts.Location),
+		keys:   newKeyMap(opts.Keys),
+		window: window.Single(opts.Window, opts.Now(), opts.Location),
 		cache:  map[filter][]store.Workday{},
 		dark:   true,
 		styles: newStyles(true),

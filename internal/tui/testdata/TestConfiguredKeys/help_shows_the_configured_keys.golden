@@ -1,0 +1,30 @@
+ total-recall                                                      1 search  [2 stats]  3 activity
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+            ╭─────────────────────────────────────────────────────────────────────────╮
+            │ keys: stats                                                             │
+            │                                                                         │
+            │ d days      p by project      <     earlier     1 search      ?    help │
+            │ W weeks     a by agent        →/./] later       s stats       esc  back │
+            │ m months    v by directory    -     zoom out    3 activity    x/^q quit │
+            │ e metric    h heatmap         +/=   zoom in                   ^c   quit │
+            │                               g     graphics                            │
+            │                                                                         │
+            │ esc or ? closes this help                                               │
+            ╰─────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ esc back • x/^q quit

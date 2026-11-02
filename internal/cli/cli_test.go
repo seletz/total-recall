@@ -9,14 +9,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
 	tf "github.com/seletz/total-recall/internal/testfixture"
+	"github.com/seletz/total-recall/internal/tui"
 )
 
 // testEnv is an isolated installation: config, DB, log, backups and a
@@ -781,6 +784,61 @@ func TestTUICommand(t *testing.T) {
 			r := e.run(t, "", tt.args...)
 			if r.code == 0 || !strings.Contains(r.stderr, tt.want) {
 				t.Errorf("%v = %+v, want exit != 0 and %q in stderr", tt.args, r, tt.want)
+			}
+		})
+	}
+}
+
+// TestTUIOptions checks the precedence flag > config > default for the
+// [tui] table and that the key map reaches the app.
+func TestTUIOptions(t *testing.T) {
+	base := func() *config.Config {
+		return &config.Config{Timezone: "UTC", TUI: config.TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}}
+	}
+	tests := []struct {
+		name    string
+		cfg     func(*config.Config)
+		flags   tuiFlags
+		want    tui.Options
+		wantErr string
+	}{
+		{"defaults", nil, tuiFlags{},
+			tui.Options{Start: "search", Graphics: "auto", NoMouse: false, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}, ""},
+		{"config", func(c *config.Config) {
+			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}
+		}, tuiFlags{},
+			tui.Options{Start: "stats", Graphics: "text", NoMouse: true, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}, ""},
+		{"flags over config", func(c *config.Config) {
+			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}
+		}, tuiFlags{View: "activity", Graphics: "kitty", GraphicsSet: true, NoMouse: false, NoMouseSet: true, Query: "x"},
+			tui.Options{Start: "activity", Graphics: "kitty", NoMouse: false, Query: "x", StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}, ""},
+		{"unset bool flag keeps config", func(c *config.Config) { c.TUI.Mouse = false }, tuiFlags{NoMouse: false},
+			tui.Options{Start: "search", Graphics: "auto", NoMouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}, ""},
+		{"bad view flag", nil, tuiFlags{View: "bogus"}, tui.Options{}, `unknown view "bogus"`},
+		{"bad graphics flag", nil, tuiFlags{Graphics: "sixel", GraphicsSet: true}, tui.Options{}, "graphics"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			if tt.cfg != nil {
+				tt.cfg(cfg)
+			}
+			got, err := tuiOptions(cfg, tt.flags)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("tuiOptions error = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Keys == nil {
+				t.Error("Keys not set")
+			}
+			got.Keys, got.Location, got.Work = nil, nil, store.WorkHours{}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("tuiOptions = %+v\nwant %+v", got, tt.want)
 			}
 		})
 	}

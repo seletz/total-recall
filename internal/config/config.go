@@ -14,12 +14,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // static builds must not depend on the system zoneinfo
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
 // Environment variables understood by Load.
@@ -82,6 +85,11 @@ type Config struct {
 	// Work is the normal working time the activity per day is measured
 	// against (stats --workday, TUI activity).
 	Work Work `toml:"work"`
+	// TUI holds the start-up defaults of `total-recall tui`.
+	TUI TUI `toml:"tui"`
+	// Keys overrides key bindings of the TUI: action name → keys; see
+	// package keys for the names. Only listed actions change.
+	Keys map[string]KeyList `toml:"keys"`
 
 	// Path is the config file that was considered (it may not exist).
 	Path string `toml:"-"`
@@ -97,7 +105,57 @@ type Config struct {
 	loc                *time.Location
 	dayStart           time.Duration
 	workStart, workEnd time.Duration
+	keyMap             keys.Map
 }
+
+// KeyList is the value of one [keys] entry: a key name or a list of them.
+type KeyList []string
+
+// UnmarshalTOML implements toml.Unmarshaler: a string or an array of strings.
+func (l *KeyList) UnmarshalTOML(v any) error {
+	switch v := v.(type) {
+	case string:
+		*l = KeyList{v}
+	case []any:
+		out := make(KeyList, 0, len(v))
+		for _, e := range v {
+			s, ok := e.(string)
+			if !ok {
+				return fmt.Errorf("want a key name, got %v", e)
+			}
+			out = append(out, s)
+		}
+		*l = out
+	default:
+		return fmt.Errorf("want a key name or a list of key names, got %v", v)
+	}
+	return nil
+}
+
+// TUI configures `total-recall tui`. Flags override every value.
+type TUI struct {
+	// View is the view shown first: search, stats or activity.
+	View string `toml:"view"`
+	// Graphics is the chart mode: auto, text or kitty (--graphics).
+	Graphics string `toml:"graphics"`
+	// Mouse enables wheel scrolling and clicks (--no-mouse turns it off).
+	Mouse bool `toml:"mouse"`
+	// StatsPeriod and StatsDimension are the period (day, week, month) and
+	// the dimension (project, agent, directory) the stats view starts with.
+	StatsPeriod    string `toml:"stats_period"`
+	StatsDimension string `toml:"stats_dimension"`
+	// ActivityWindow is the window the activity view starts with: day,
+	// week or month.
+	ActivityWindow string `toml:"activity_window"`
+}
+
+// Allowed values of the [tui] table.
+var (
+	TUIViews      = []string{"search", "stats", "activity"}
+	TUIGraphics   = []string{"auto", "text", "kitty"}
+	TUIPeriods    = []string{"day", "week", "month"}
+	TUIDimensions = []string{"project", "agent", "directory"}
+)
 
 // DefaultDayStart is the built-in day boundary for the activity per day.
 const DefaultDayStart = "04:00"
@@ -193,8 +251,8 @@ type Entry struct {
 	Origin Origin
 }
 
-// keys lists every configuration key with a formatter, in display order.
-var keys = []struct {
+// fields lists every configuration key with a formatter, in display order.
+var fields = []struct {
 	key    string
 	format func(*Config) string
 }{
@@ -222,6 +280,12 @@ var keys = []struct {
 	{"work.target", func(c *Config) string { return c.Work.Target.String() }},
 	{"work.daily_low", func(c *Config) string { return c.Work.DailyLow.String() }},
 	{"work.daily_high", func(c *Config) string { return c.Work.DailyHigh.String() }},
+	{"tui.view", func(c *Config) string { return c.TUI.View }},
+	{"tui.graphics", func(c *Config) string { return c.TUI.Graphics }},
+	{"tui.mouse", func(c *Config) string { return strconv.FormatBool(c.TUI.Mouse) }},
+	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
+	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
+	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
 }
 
 func formatList(l []string) string {
@@ -259,6 +323,8 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	}
 	c.Git.Resolve = true
 	c.Work = Work{Hours: DefaultWorkHours, Target: Duration{DefaultWorkTarget}, DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh}}
+	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}
+	c.Keys = map[string]KeyList{}
 	return c
 }
 
@@ -354,10 +420,13 @@ func (c *Config) readFile(expand func(string) string) error {
 		return fmt.Errorf("config %s: unknown keys: %s", c.Path, strings.Join(names, ", "))
 	}
 	c.Loaded = true
-	for _, k := range keys {
+	for _, k := range fields {
 		if md.IsDefined(strings.Split(k.key, ".")...) {
 			c.origins[k.key] = OriginFile
 		}
+	}
+	for name := range c.Keys {
+		c.origins["keys."+name] = OriginFile
 	}
 	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Harness.Claude.ProjectsDir} {
 		*p = expand(*p)
@@ -377,6 +446,9 @@ func (c *Config) validate() error {
 	}
 	c.dayStart = d
 	if err := c.validateWork(); err != nil {
+		return err
+	}
+	if err := c.validateTUI(); err != nil {
 		return err
 	}
 	if c.Backup.KeepDaily < 0 {
@@ -431,6 +503,42 @@ func (c *Config) validateWork() error {
 	return nil
 }
 
+// validateTUI checks the [tui] table and resolves the [keys] table.
+func (c *Config) validateTUI() error {
+	for _, v := range []struct {
+		key, value string
+		allowed    []string
+	}{
+		{"tui.view", c.TUI.View, TUIViews},
+		{"tui.graphics", c.TUI.Graphics, TUIGraphics},
+		{"tui.stats_period", c.TUI.StatsPeriod, TUIPeriods},
+		{"tui.stats_dimension", c.TUI.StatsDimension, TUIDimensions},
+		{"tui.activity_window", c.TUI.ActivityWindow, TUIPeriods},
+	} {
+		if !slices.Contains(v.allowed, v.value) {
+			return fmt.Errorf("config: %s %q: use %s", v.key, v.value, orList(v.allowed))
+		}
+	}
+	overrides := make(map[string][]string, len(c.Keys))
+	for name, l := range c.Keys {
+		overrides[name] = l
+	}
+	m, err := keys.Resolve(overrides)
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	c.keyMap = m
+	return nil
+}
+
+// orList joins "a, b or c".
+func orList(l []string) string {
+	if len(l) < 2 {
+		return strings.Join(l, "")
+	}
+	return strings.Join(l[:len(l)-1], ", ") + " or " + l[len(l)-1]
+}
+
 // WorkHours returns the configured core hours as offsets from local
 // midnight (09:00–17:00 = 9h, 17h).
 func (c *Config) WorkHours() (start, end time.Duration) { return c.workStart, c.workEnd }
@@ -443,13 +551,28 @@ func (c *Config) Origin(key string) Origin {
 	return OriginDefault
 }
 
-// Entries returns all effective values with their origin, in a stable order.
+// Entries returns all effective values with their origin, in a stable
+// order: the fields, then every key-bound action of the TUI.
 func (c *Config) Entries() []Entry {
-	out := make([]Entry, len(keys))
-	for i, k := range keys {
-		out[i] = Entry{Key: k.key, Value: k.format(c), Origin: c.Origin(k.key)}
+	out := make([]Entry, 0, len(fields)+len(keys.Actions))
+	for _, k := range fields {
+		out = append(out, Entry{Key: k.key, Value: k.format(c), Origin: c.Origin(k.key)})
+	}
+	km := c.KeyMap()
+	for _, a := range keys.Actions {
+		k := "keys." + a.Name
+		out = append(out, Entry{Key: k, Value: formatList(km.Keys(a.Name)), Origin: c.Origin(k)})
 	}
 	return out
+}
+
+// KeyMap returns the effective key bindings of the TUI: the defaults with
+// the [keys] table applied.
+func (c *Config) KeyMap() keys.Map {
+	if c.keyMap == nil {
+		return keys.Defaults()
+	}
+	return c.keyMap
 }
 
 // parseClock parses "HH:MM" (hour 0-23, minute 0-59) as an offset from

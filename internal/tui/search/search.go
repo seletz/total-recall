@@ -20,6 +20,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
 // Limit is the maximum number of hits one search fetches.
@@ -48,6 +49,8 @@ type Options struct {
 	Location *time.Location
 	// Debounce is the pause before a search starts; 0 means DefaultDebounce.
 	Debounce time.Duration
+	// Keys are the effective key bindings; nil means the defaults.
+	Keys keys.Map
 }
 
 func (o *Options) defaults() {
@@ -135,7 +138,7 @@ func New(opts Options) Model {
 	repo.Prompt = "repo: "
 	repo.Placeholder = "substring of remote, root or cwd"
 	repo.SetVirtualCursor(false)
-	m := Model{opts: opts, keys: defaultKeyMap(), input: in, repoIn: repo}
+	m := Model{opts: opts, keys: newKeyMap(opts.Keys), input: in, repoIn: repo}
 	if opts.Query != "" {
 		m.query = opts.Query
 	}

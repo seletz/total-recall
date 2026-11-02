@@ -81,3 +81,34 @@ daily_high = "9h"
 [git]
 # Resolve git root, remote URL and branch for session working directories.
 resolve = true
+
+[tui]
+# Start-up defaults of `total-recall tui`; flags and the view argument
+# override them.
+# View shown first: search, stats or activity.
+view = "search"
+# Chart rendering in the stats view: auto, text or kitty (--graphics).
+graphics = "auto"
+# Wheel scrolling and clicks; false leaves the mouse to the terminal
+# (--no-mouse, --no-mouse=false switches it on for one run).
+mouse = true
+# Period (day, week, month) and dimension (project, agent, directory) the
+# stats view starts with.
+stats_period = "day"
+stats_dimension = "project"
+# Window the activity view starts with: day, week or month.
+activity_window = "week"
+
+[keys]
+# Key bindings of the TUI: action = key or list of keys. Only listed
+# actions change; the docs (TUI, "Tastenbelegung anpassen") list every
+# action with its default. Names are prefixed with the view they belong
+# to; a key may belong to one action per view, and global keys to none.
+# Key names: single characters ("a", "G", "?", ","), up, down, left,
+# right, enter, tab, esc, space, backspace, delete, insert, home, end,
+# pgup, pgdown, f1-f20, with ctrl+, alt+ and shift+ in front; ctrl+c always
+# quits and cannot be bound.
+# Examples:
+# global_quit = ["q", "ctrl+q"]
+# stats_earlier = "<"
+# stats_later = ">"
