@@ -3,9 +3,10 @@
   "until": "2026-01-05T03:00:00.000Z",
   "timezone": "Europe/Berlin",
   "day_start": "04:00",
-  "human_only": true,
+  "human_only": false,
   "work_hours": "09:00-17:00",
   "target_seconds": 28800,
+  "holiday_region": "Baden-Württemberg",
   "days": [
     {
       "day": "2025-12-29",
@@ -16,6 +17,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -31,6 +33,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -41,16 +44,17 @@
       "day": "2025-12-31",
       "weekday": "Wed",
       "first": "2025-12-31T22:40:00.000Z",
-      "last": "2025-12-31T23:05:00.000Z",
+      "last": "2025-12-31T23:05:05.000Z",
       "first_local": "23:40",
       "last_local": "00:05 (+1)",
-      "span_seconds": 1500,
+      "span_seconds": 1505,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 28800,
-      "diff_seconds": -27300,
+      "diff_seconds": -27295,
       "sessions": 1,
       "human": 2,
-      "agent": 0
+      "agent": 3
     },
     {
       "day": "2026-01-01",
@@ -61,6 +65,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "Neujahr",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -71,16 +76,17 @@
       "day": "2026-01-02",
       "weekday": "Fri",
       "first": "2026-01-02T14:00:00.000Z",
-      "last": "2026-01-02T14:00:00.000Z",
+      "last": "2026-01-02T14:00:05.000Z",
       "first_local": "15:00",
       "last_local": "15:00",
-      "span_seconds": 0,
+      "span_seconds": 5,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 28800,
-      "diff_seconds": -28800,
+      "diff_seconds": -28795,
       "sessions": 1,
       "human": 1,
-      "agent": 0
+      "agent": 2
     },
     {
       "day": "2026-01-03",
@@ -91,6 +97,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": true,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -106,6 +113,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": true,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -115,9 +123,10 @@
   ],
   "total": {
     "days": 2,
-    "workdays": 2,
-    "span_seconds": 1500,
-    "target_seconds": 57600,
-    "balance_seconds": -56100
+    "workdays": 4,
+    "holidays": 1,
+    "span_seconds": 1510,
+    "target_seconds": 115200,
+    "balance_seconds": -113690
   }
 }

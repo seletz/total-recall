@@ -76,6 +76,41 @@ type Spec struct {
 	Period store.Period // period of the labels
 	Labels []string     // axis label per bar, see AxisLabel
 	Series []Series     // bottom segment first; store.OtherKey last
+	// Marks say per label which days are off: one per label for a day
+	// period, else nil. The text renderer colours the axis labels by them;
+	// the picture renderer has no coloured labels and ignores them.
+	Marks []Mark
+}
+
+// Mark is what sets a day apart on the axis: a weekend or a public
+// holiday (named).
+type Mark struct {
+	Weekend bool
+	Holiday string
+}
+
+// IsZero reports whether the day is an ordinary workday.
+func (m Mark) IsZero() bool { return m == Mark{} }
+
+// HolidayColor is the colour of a holiday's axis label; it is no series
+// colour.
+var HolidayColor = lipgloss.Color("#e377c2")
+
+// DayMarks returns the marks of the buckets of a day series: the weekend
+// days and the holidays named by holidays (nil names none). For another
+// period it returns nil.
+func DayMarks(s store.ActivitySeries, period store.Period, holidays store.Holidays) []Mark {
+	if period != store.PeriodDay || len(s.Buckets) == 0 {
+		return nil
+	}
+	marks := make([]Mark, len(s.Buckets))
+	for i, b := range s.Buckets {
+		marks[i].Weekend = store.IsWeekend(b.Start)
+		if holidays != nil {
+			marks[i].Holiday = holidays.Name(b.Start)
+		}
+	}
+	return marks
 }
 
 // AxisLabel formats the start of a period for the chart axis: days as 05,

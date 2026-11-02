@@ -197,6 +197,9 @@ func TestLoadErrors(t *testing.T) {
 		{"work target too long", "[work]\ntarget = \"25h\"\n", "work.target"},
 		{"work thresholds reversed", "[work]\ndaily_low = \"9h\"\ndaily_high = \"6h\"\n", "work.daily"},
 		{"work threshold negative", "[work]\ndaily_low = \"-1h\"\n", "work.daily_low"},
+		{"work weekly reversed", "[work]\nweekly_low = \"48h\"\nweekly_high = \"32h\"\n", "work.weekly"},
+		{"work weekly negative", "[work]\nweekly_low = \"-1h\"\n", "work.weekly_low"},
+		{"work count unknown", "[work]\ncount = \"agents\"\n", "work.count"},
 		{"negative keep", "[backup]\nkeep_daily = -1\n", "keep_daily"},
 		{"negative raw max", "[ingest]\nraw_max_bytes = -1\n", "raw_max_bytes"},
 		{"bad regex", "[redact]\nextra_patterns = [\"(\"]\n", "extra_patterns"},
@@ -313,12 +316,17 @@ func TestWork(t *testing.T) {
 		start, end time.Duration
 		target     time.Duration
 		low, high  time.Duration
+		// Weekly bounds and Bundesland; zero values mean the defaults.
+		wlow, whigh time.Duration
+		bundesland  string
 	}{
-		{"default", "", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 6 * time.Hour, 9 * time.Hour},
-		{"file", "[work]\nhours = \"08:30-16:30\"\ntarget = \"7h30m\"\ndaily_low = \"7h\"\ndaily_high = \"8h\"\n",
-			8*time.Hour + 30*time.Minute, 16*time.Hour + 30*time.Minute, 7*time.Hour + 30*time.Minute, 7 * time.Hour, 8 * time.Hour},
-		{"hours at day start", "day_start = \"09:00\"\n[work]\nhours = \"09:00-17:00\"\n", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 6 * time.Hour, 9 * time.Hour},
-		{"equal thresholds", "[work]\ndaily_low = \"8h\"\ndaily_high = \"8h\"\n", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 8 * time.Hour, 8 * time.Hour},
+		{"default", "", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 6 * time.Hour, 9 * time.Hour, 0, 0, ""},
+		{"file", "[work]\nhours = \"08:30-16:30\"\ntarget = \"7h30m\"\ndaily_low = \"7h\"\ndaily_high = \"8h\"\nweekly_low = \"30h\"\nweekly_high = \"45h\"\nbundesland = \"Bayern\"\n",
+			8*time.Hour + 30*time.Minute, 16*time.Hour + 30*time.Minute, 7*time.Hour + 30*time.Minute, 7 * time.Hour, 8 * time.Hour, 30 * time.Hour, 45 * time.Hour, "Bayern"},
+		{"hours at day start", "day_start = \"09:00\"\n[work]\nhours = \"09:00-17:00\"\n", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 6 * time.Hour, 9 * time.Hour, 0, 0, ""},
+		{"equal thresholds", "[work]\ndaily_low = \"8h\"\ndaily_high = \"8h\"\nweekly_low = \"40h\"\nweekly_high = \"40h\"\n", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 8 * time.Hour, 8 * time.Hour, 40 * time.Hour, 40 * time.Hour, ""},
+		// An unknown Bundesland is kept as written; the holiday package falls back to the nationwide holidays.
+		{"unknown bundesland", "[work]\nbundesland = \"Atlantis\"\n", 9 * time.Hour, 17 * time.Hour, 8 * time.Hour, 6 * time.Hour, 9 * time.Hour, 0, 0, "Atlantis"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,7 +348,37 @@ func TestWork(t *testing.T) {
 			if c.Work.DailyLow.Duration != tt.low || c.Work.DailyHigh.Duration != tt.high {
 				t.Errorf("thresholds = %s, %s; want %s, %s", c.Work.DailyLow, c.Work.DailyHigh, tt.low, tt.high)
 			}
+			wlow, whigh, bl := tt.wlow, tt.whigh, tt.bundesland
+			if wlow == 0 && whigh == 0 {
+				wlow, whigh = DefaultWorkWeeklyLow, DefaultWorkWeeklyHigh
+			}
+			if bl == "" {
+				bl = DefaultWorkBundesland
+			}
+			if c.Work.WeeklyLow.Duration != wlow || c.Work.WeeklyHigh.Duration != whigh {
+				t.Errorf("weekly = %s, %s; want %s, %s", c.Work.WeeklyLow, c.Work.WeeklyHigh, wlow, whigh)
+			}
+			if c.Work.Bundesland != bl {
+				t.Errorf("Bundesland = %q, want %q", c.Work.Bundesland, bl)
+			}
 		})
+	}
+}
+
+// TestWorkCount checks the default counting mode of the activity per day.
+func TestWorkCount(t *testing.T) {
+	for content, humanOnly := range map[string]bool{"": true, "[work]\ncount = \"human\"\n": true, "[work]\ncount = \"all\"\n": false} {
+		opts := Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)}
+		if content != "" {
+			opts.ConfigFile = writeFile(t, t.TempDir(), "c.toml", content)
+		}
+		c, err := Load(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := c.Work.HumanOnly(); got != humanOnly {
+			t.Errorf("%q: HumanOnly = %v, want %v", content, got, humanOnly)
+		}
 	}
 }
 
@@ -357,7 +395,7 @@ func TestEntries(t *testing.T) {
 		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.raw_max_bytes", "ingest.store_raw",
 		"harness.claude.enabled", "harness.claude.projects_dir", "harness.claude.skip_record_types",
 		"harness.claude.actors.peer_prefixes", "harness.claude.actors.automation_prefixes", "git.resolve",
-		"work.hours", "work.target", "work.daily_low", "work.daily_high"} {
+		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland", "work.count"} {
 		if _, ok := got[k]; !ok {
 			t.Errorf("missing entry %q", k)
 		}

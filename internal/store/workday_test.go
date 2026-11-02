@@ -51,14 +51,24 @@ func seedWorkday(t *testing.T, s *Store) {
 	}
 }
 
+// holidayFunc adapts a function to Holidays.
+type holidayFunc func(time.Time) string
+
+func (f holidayFunc) Name(day time.Time) string { return f(day) }
+
 // fmtWorkday renders a day as "label first last span sessions/human/agent",
-// e.g. "2026-03-28 22:00 03:30 (+1) 4h30m0s 1/2/1"; "-" for an empty day.
+// e.g. "2026-03-28 22:00 03:30 (+1) 4h30m0s 1/2/1"; "-" for an empty day;
+// the holiday name, if any, follows.
 func fmtWorkday(d Workday, loc *time.Location) string {
-	if !d.Active() {
-		return d.Label + " -"
+	s := d.Label + " -"
+	if d.Active() {
+		s = fmt.Sprintf("%s %s %s %s %d/%d/%d", d.Label, d.FirstClock(loc), d.LastClock(loc), d.Span(),
+			d.Sessions, d.Human, d.Agent)
 	}
-	return fmt.Sprintf("%s %s %s %s %d/%d/%d", d.Label, d.FirstClock(loc), d.LastClock(loc), d.Span(),
-		d.Sessions, d.Human, d.Agent)
+	if d.Holiday != "" {
+		s += " " + d.Holiday
+	}
+	return s
 }
 
 func TestWorkday(t *testing.T) {
@@ -138,6 +148,19 @@ func TestWorkday(t *testing.T) {
 			f: WorkdayFilter{Since: local(2026, 3, 29, 1, 0), Until: local(2026, 3, 29, 4, 0),
 				Location: loc, DayStart: dayStart},
 			want: []string{"2026-03-28 01:30 (+1) 03:59 (+1) 1h29m59s 2/1/2"},
+		},
+		{
+			// 2026-05-01 (Tag der Arbeit) is a Friday with no activity, the
+			// 2nd a Saturday; the holiday name comes from the filter.
+			name: "holidays",
+			f: WorkdayFilter{Since: local(2026, 4, 30, 4, 0), Until: local(2026, 5, 3, 4, 0),
+				Location: loc, DayStart: dayStart, Holidays: holidayFunc(func(d time.Time) string {
+					if d.Month() == time.May && d.Day() == 1 {
+						return "Tag der Arbeit"
+					}
+					return ""
+				})},
+			want: []string{"2026-04-30 -", "2026-05-01 - Tag der Arbeit", "2026-05-02 -"},
 		},
 		{
 			name: "range without activity",

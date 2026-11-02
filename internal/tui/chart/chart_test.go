@@ -366,6 +366,65 @@ func TestRenderTextColors(t *testing.T) {
 	}
 }
 
+// holidayFunc adapts a function to store.Holidays.
+type holidayFunc func(time.Time) string
+
+func (f holidayFunc) Name(day time.Time) string { return f(day) }
+
+// TestDayMarks checks the marks of a day series: weekends, the named
+// holidays, nothing for other periods or without buckets.
+func TestDayMarks(t *testing.T) {
+	loc := testfixture.ActivityLocation
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, loc) // Thursday
+	var buckets []store.ActivityBucket
+	for d := range 7 {
+		buckets = append(buckets, store.ActivityBucket{Start: start.AddDate(0, 0, d)})
+	}
+	s := store.ActivitySeries{Buckets: buckets}
+	cal := holidayFunc(func(d time.Time) string {
+		if d.Day() == 1 {
+			return "Neujahr"
+		}
+		if d.Day() == 6 {
+			return "Epiphanias"
+		}
+		return ""
+	})
+	want := []Mark{{Holiday: "Neujahr"}, {}, {Weekend: true}, {Weekend: true}, {}, {Holiday: "Epiphanias"}, {}}
+	got := DayMarks(s, store.PeriodDay, cal)
+	if len(got) != len(want) {
+		t.Fatalf("DayMarks = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("mark %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if got := DayMarks(s, store.PeriodDay, nil); got[0].Holiday != "" || !got[2].Weekend {
+		t.Errorf("without holidays = %v", got)
+	}
+	if DayMarks(s, store.PeriodWeek, cal) != nil || DayMarks(store.ActivitySeries{}, store.PeriodDay, cal) != nil {
+		t.Error("marks for a week or without buckets")
+	}
+}
+
+// TestAxisLabelMarks checks that a holiday label is coloured, a weekend
+// label faint and the plain text unchanged.
+func TestAxisLabelMarks(t *testing.T) {
+	labels := []string{"01", "02", "03", "04"}
+	marks := []Mark{{Holiday: "Neujahr"}, {}, {Weekend: true}, {Weekend: true}}
+	out := axisLabels(labels, marks, 20, 2, 1)
+	if plain := ansi.Strip(out); plain != "01 02 03 04" {
+		t.Errorf("plain = %q", plain)
+	}
+	if !strings.Contains(out, holidayLabel.Render("01")) || !strings.Contains(out, weekendLabel.Render("03")) || strings.Contains(out, holidayLabel.Render("02")) {
+		t.Errorf("styles missing or misplaced: %q", out)
+	}
+	if out := axisLabels(labels, nil, 20, 2, 1); out != "01 02 03 04" {
+		t.Errorf("without marks = %q", out)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

@@ -21,10 +21,11 @@ const (
 	cellOutside                 // activity before or after them, same calendar day
 	cellNight                   // activity after midnight, before the day boundary
 	cellWeekend                 // activity on a weekend
+	cellHoliday                 // activity on a public holiday
 )
 
 // glyphs of the cell kinds, in cellKind order.
-var glyphs = [...]rune{'·', '─', '│', '█', '▓', '▒', '█'}
+var glyphs = [...]rune{'·', '─', '│', '█', '▓', '▒', '█', '█'}
 
 // cells classifies the bar cells of a day: the axis runs from the day
 // boundary to the next one (24 hours, 23 or 25 on a DST change) and cell i
@@ -32,8 +33,9 @@ var glyphs = [...]rune{'·', '─', '│', '█', '▓', '▒', '█'}
 // to the last activity, at least one; an active cell is classified by the
 // instant of its middle, clamped to the activity, against the core hours
 // and midnight. Without activity the cells show the core-hours band and
-// the lines at its start and end; without working time there is neither,
-// and every active cell is cellCore.
+// the lines at its start and end; a weekend, a holiday and no working
+// time have neither, and every active cell is cellWeekend, cellHoliday or
+// cellCore.
 func (l layout) cells(d store.Workday) []cellKind {
 	out := make([]cellKind, l.bar)
 	start := store.DayBoundary(d.Day, l.dayStart)
@@ -44,7 +46,7 @@ func (l layout) cells(d store.Workday) []cellKind {
 
 	weekend := store.IsWeekend(d.Day)
 	var coreStart, coreEnd time.Time
-	if !l.work.IsZero() && !weekend {
+	if !l.work.IsZero() && !d.IsOff() {
 		coreStart, coreEnd = l.work.Core(d.Day)
 		for i := range out {
 			mid := at(float64(i) + 0.5)
@@ -68,6 +70,8 @@ func (l layout) cells(d store.Workday) []cellKind {
 		t := at(float64(i) + 0.5)
 		t = time.Unix(0, min(max(t.UnixNano(), d.First.UnixNano()), d.Last.UnixNano()))
 		switch {
+		case d.IsHoliday():
+			out[i] = cellHoliday
 		case weekend:
 			out[i] = cellWeekend
 		case l.work.IsZero():
@@ -83,12 +87,48 @@ func (l layout) cells(d store.Workday) []cellKind {
 	return out
 }
 
-// renderBar draws the cells, one styled run per stretch of equal kind.
-func (l layout) renderBar(cells []cellKind) string {
+// caption is text drawn over the empty cells of a bar: the holiday name.
+type caption struct {
+	at   int    // first cell
+	text []rune // one rune per cell; nil for none
+}
+
+// caption places the holiday name of d on the axis: one cell in from the
+// left when the bar starts after it, else one cell after the bar when it
+// fits there; nothing on an ordinary day or without room.
+func (l layout) caption(cells []cellKind, d store.Workday) caption {
+	if !d.IsHoliday() {
+		return caption{}
+	}
+	text := []rune(d.Holiday)
+	first, last := len(cells), -1
+	for i, c := range cells {
+		if c >= cellCore {
+			first = min(first, i)
+			last = i
+		}
+	}
+	switch {
+	case first >= 1+len(text)+1:
+		return caption{at: 1, text: text}
+	case last+2+len(text) <= len(cells):
+		return caption{at: last + 2, text: text}
+	}
+	return caption{}
+}
+
+// renderBar draws the cells, one styled run per stretch of equal kind,
+// with the caption in the holiday colour over the cells it covers.
+func (l layout) renderBar(cells []cellKind, c caption) string {
 	var b strings.Builder
 	for i := 0; i < len(cells); {
+		if i >= c.at && i < c.at+len(c.text) {
+			b.WriteString(l.styles.holidayName.Render(string(c.text[i-c.at:])))
+			i = c.at + len(c.text)
+			continue
+		}
 		j := i
-		for j < len(cells) && cells[j] == cells[i] {
+		for j < len(cells) && cells[j] == cells[i] && (j < c.at || j >= c.at+len(c.text)) {
 			j++
 		}
 		b.WriteString(l.styles.cell(cells[i]).Render(strings.Repeat(string(glyphs[cells[i]]), j-i)))

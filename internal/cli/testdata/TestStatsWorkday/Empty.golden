@@ -1,13 +1,13 @@
-2026-03-02 04:00 – 2026-03-09 03:59 (Europe/Berlin, day starts 04:00, human and agent events)
-core hours 09:00-17:00, target 8h00m per weekday
+2026-03-02 04:00 – 2026-03-09 03:59 (Europe/Berlin, day starts 04:00, human events only)
+core hours 09:00-17:00, target 8h00m per workday, holidays Baden-Württemberg
 
-DATE        DAY  FIRST  LAST  SPAN  DIFF
-2026-03-02  Mon  -      -     -     -
-2026-03-03  Tue  -      -     -     -
-2026-03-04  Wed  -      -     -     -
-2026-03-05  Thu  -      -     -     -
-2026-03-06  Fri  -      -     -     -
-2026-03-07  Sat  -      -     -     -
-2026-03-08  Sun  -      -     -     -
+DATE        DAY  FIRST  LAST  SPAN  DIFF  HOLIDAY
+2026-03-02  Mon  -      -     -     -     -
+2026-03-03  Tue  -      -     -     -     -
+2026-03-04  Wed  -      -     -     -     -
+2026-03-05  Thu  -      -     -     -     -
+2026-03-06  Fri  -      -     -     -     -
+2026-03-07  Sat  -      -     -     -     -
+2026-03-08  Sun  -      -     -     -     -
 
 total: 0 days with activity, 0s · target 0s (0 workdays × 8h00m) · balance +0h00m

@@ -195,7 +195,7 @@ Good. Tag v0.1.0 and run the release.
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. `[` und `]` verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
-- **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos.
+- **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
 - **Tabelle:** dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
 
@@ -247,7 +247,8 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 ```text
  total-recall                                                      1 search   2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- period: day [week] month  count: [all] human        this week · 2026-W44 · 2026-10-26 – 2026-11-01
+ period: day [week] month  count: all [human]        this week · 2026-W44 · 2026-10-26 – 2026-11-01
+ week: 41h40m in 5 days · target 40h00m (5 workdays × 8h00m) · balance +1h40m · Sun 01 Allerheiligen
  day             first  last          span     diff  04     08      12      16     20      00
  Mon 2026-10-26  08:12  18:40       10h28m   +2h28m  ········▓▓███████████████▓▓▓▓·················
  Tue 2026-10-27  09:03  01:30 (+1)  16h27m   +8h27m  ·········████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒····
@@ -255,24 +256,28 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
  Thu 2026-10-29  07:55  17:10        9h15m   +1h15m  ·······▓▓▓███████████████▓····················
  Fri 2026-10-30  10:20  15:45        5h25m   -2h35m  ·········│──███████████─│·····················
  Sat 2026-10-31  -      -                -        -  ··············································
- Sun 2026-11-01  21:00  21:05           5m   +0h05m  ································█·············
+ Sun 2026-11-01  21:00  21:05           5m   +0h05m  ·Allerheiligen··························█·············
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- total: 5 days with activity, 41h40m · target 32h00m (4 workdays × 8h00m) · balance +9h40m
- 7 days · 4 ms
+ first  median 09:03  mean 11:18  min 07:55  max 21:00
+ last   median 18:40  mean 19:38  min 15:45  max 01:30 (+1)
+ span   median 9h15m  mean 8h20m  min 5m     max 16h27m
+ 7 days · 4 ms · human only · 1 holiday
 ```
 
-- **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`all`: eigene Nachrichten und Agent-Events wie in der Statistik; `h` schaltet auf `human`, nur eigene Nachrichten). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag.
+- **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`human`, der Standard: nur eigene Nachrichten, denn Agent-Events laufen nachts weiter und dehnen die Spanne; `h` schaltet auf `all`, eigene Nachrichten und Agent-Events wie in der Statistik; den Standard setzt `count` in [`[work]`](konfiguration.md#work)). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag; ein Feiertag steht bei einem einzelnen Tag mit Namen dahinter.
+- **Kopfzeile** bei Woche und Monat: die Arbeitszeit der Periode (Summe der Spannen, fett und gefärbt: türkis unter, grün im Rahmen, orange über dem Wochenrahmen `weekly_low`–`weekly_high`, bei einer Woche mit fünf Arbeitstagen 32–48 h, sonst anteilig), die Tage mit Aktivität, das Soll (Tagessoll × Arbeitstage der Periode) mit dem Saldo dagegen und die Feiertage der Periode mit Namen. Arbeitstage sind Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute: in der laufenden Woche oder dem laufenden Monat zählen künftige Tage noch nicht. Ein vergessener Tag oder Urlaub drückt den Saldo also, ein Feiertag nicht.
 - **Zeitfenster:** Start ist die aktuelle Woche. `[` und `]` verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
 - **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen, die Differenz zum Tagessoll und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
 - **Normalarbeitszeit:** Kernzeit und Tagessoll kommen aus `[work]` in der [Konfiguration](konfiguration.md#work), Standard 09:00–17:00 und 8 h. Die Kernzeit liegt als Band mit Linien an Anfang und Ende auf der Achse jedes Werktags (`│───│`, farbig hinterlegt). Der Balken ist innerhalb der Kernzeit blau (`█`), davor und danach orange (`▓`), nach Mitternacht rot (`▒`); am Wochenende violett ohne Band. Ohne Farben (`NO_COLOR`) unterscheiden die Zeichen.
-- **Spanne und Differenz:** Die Spanne eines Werktags wird gegen `daily_low`/`daily_high` bewertet und mit der Differenz zum Soll (`+1h15m`, `-2h35m`) gefärbt: türkis unter, grün im Rahmen, orange deutlich über Soll. Das Wochenende hat kein Soll, seine ganze Spanne ist die Differenz; ein Tag ohne Aktivität hat keine (`-`) und zählt nicht als Arbeitstag, also auch Urlaub oder Feiertag nicht.
+- **Spanne und Differenz:** Die Spanne eines Arbeitstags wird gegen `daily_low`/`daily_high` bewertet und mit der Differenz zum Soll (`+1h15m`, `-2h35m`) gefärbt: türkis unter, grün im Rahmen, orange deutlich über Soll. Wochenende und Feiertage haben kein Soll, ihre ganze Spanne ist die Differenz; ein Tag ohne Aktivität hat keine (`-`), zählt bei Woche und Monat aber als Arbeitstag mit (siehe Kopfzeile).
+- **Feiertage** kommen aus `bundesland` in [`[work]`](konfiguration.md#work) (Standard Baden-Württemberg, unbekannt oder leer: nur die bundesweiten). Ein Feiertag ist magenta: Datum, Spanne und Balken; die Zeitachse hat kein Band, und der Name steht auf ihr, links vorn oder hinter dem Balken, wo Platz ist. Ein Feiertag am Wochenende zählt als Feiertag. Die Statuszeile zählt die Feiertage des Fensters.
 - **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
-- **Summenzeile** bei Woche und Monat: Anzahl Tage mit Aktivität, Summe der Spannen, das Soll (Tagessoll × Werktage mit Aktivität) und der Saldo dagegen, gefärbt mit der um die Werktage skalierten Tagestoleranz. Ein einzelner Tag braucht sie nicht.
-- **Farben** folgen dem Terminalhintergrund (hell oder dunkel, Abfrage beim Start) und kommen aus der Palette der Statistik-Charts.
-- **Statuszeile:** Anzahl Tage und Dauer der Abfrage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
+- **Kennzahlen** unter der Linie bei Woche und Monat: Median, Mittelwert, Minimum und Maximum von erster Aktivität, letzter Aktivität (als Uhrzeit, nach Mitternacht mit `(+1)`) und Spanne über die Tage mit Aktivität; die Spannen sind nach der Tagesbewertung gefärbt. `s` blendet den Block aus und ein; er weicht von selbst, wenn sonst weniger als drei Tageszeilen blieben.
+- **Farben** folgen dem Terminalhintergrund (hell oder dunkel, Abfrage beim Start) und kommen aus der Palette der Statistik-Charts; Magenta ist den Feiertagen vorbehalten.
+- **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
 
-Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er, die Uhrzeiten, Spanne und Differenz bleiben.
+Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er (und mit ihm der Feiertagsname auf der Achse), die Uhrzeiten, Spanne und Differenz bleiben. Die Kopfzeile wird bei schmalen Fenstern rechts abgeschnitten (`…`); die Feiertage stehen dann noch in den Zeilen.
 
 ## Tasten
 
@@ -334,7 +339,8 @@ Im Repo-Filter: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft; siehe [Foku
 | `[` / `]` | eine Periode zurück / vor |
 | `c` | heute / diese Woche / dieser Monat |
 | `l` | gestern / letzte Woche / letzter Monat |
-| `h` | nur eigene Nachrichten zählen ein/aus |
+| `h` | Zählweise: nur eigene Nachrichten ↔ alle Events |
+| `s` | Kennzahlen (Median, Mittelwert, Min/Max) ein/aus |
 | ++up++ / `k`, ++down++ / `j` | blättern, wenn nicht alle Tage passen |
 
 ## Grafikmodi
@@ -403,7 +409,8 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Suche:** höchstens 200 Treffer je Abfrage, sortiert nach Rang. Der Zeitfilter startet bei `all`, nicht bei 90 Tagen. Die Filter `a`, `t`, `r` wirken nur, wenn die Liste den Fokus hat.
 - **Projektnamen** kommen aus einer Heuristik: Repositories heißen wie der Basisname ihres Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), Verzeichnisse ohne Repository erscheinen als Pfad, das Home-Verzeichnis darin als `~` (`~/notes`). Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
 - **Heatmap** nur ab etwa 25 Terminalzeilen.
-- **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session.
+- **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session. Feiertage kennt nur Deutschland (je Bundesland); Urlaub und Krankheit sind der Ansicht unbekannt und zählen als Arbeitstage ohne Aktivität.
+- **Statistik:** Feiertage markiert nur das Text-Chart in der Achse; das Bild (Kitty Graphics) hat keine farbigen Achsenbeschriftungen.
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
 - **Maus** nur für Rad, Tabs und Treffer: kein Klick in Vorschau, Statistik und Aktivität, kein Ziehen in Listen. Textauswahl nur mit Zusatztaste des Terminals oder mit `--no-mouse`.
 - **Zwischenablage** über OSC 52; das Terminal muss es erlauben (in tmux `set -g set-clipboard on`).
