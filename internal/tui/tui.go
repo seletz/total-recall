@@ -1,4 +1,4 @@
-// Package tui is the interactive terminal UI of total-recall (spike): an app
+// Package tui is the interactive terminal UI of total-recall: an app
 // shell that hosts the search, stats and activity views, switches between
 // them and shows a help overlay built from their key maps.
 //

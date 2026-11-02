@@ -27,7 +27,7 @@ func (e *env) tuiCmd() *cobra.Command {
 	var f tuiFlags
 	c := &cobra.Command{
 		Use:   "tui [search|stats|activity]",
-		Short: "Interactive search, activity charts and first/last activity per day (spike)",
+		Short: "Interactive search, activity charts and first/last activity per day",
 		Long: `tui opens the archive read-only in a full-screen terminal UI with a live
 search view, an activity statistics view and a view of the first and the
 last activity per day (see stats --workday). The optional argument selects
