@@ -181,7 +181,7 @@ func writeWorkdayTable(w io.Writer, days []store.Workday, since, until time.Time
 	}
 	b := wh.Balance(days)
 	_, _ = fmt.Fprintf(w, "\ntotal: %s with activity, %s · target %s (%s × %s) · balance %s\n",
-		plural(b.Active, "day"), duration(b.Span), store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(wh.Target), store.FormatDiff(b.Balance))
+		plural(b.Active, "day"), store.FormatSpan(b.Span), store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(wh.Target), store.FormatDiff(b.Balance))
 	return nil
 }
 
