@@ -53,9 +53,13 @@ allow = []                       # Regexe, die nie maskiert werden
 
 [work]
 hours = "09:00-17:00"            # Kernzeit (stats --workday, TUI activity)
-target = "8h"                    # Tagessoll an Werktagen, Wochenende ohne Soll
+target = "8h"                    # Tagessoll an Arbeitstagen, Wochenende und Feiertage ohne Soll
 daily_low = "6h"                 # Spanne darunter: unter Soll
 daily_high = "9h"                # Spanne darüber: deutlich über Soll
+weekly_low = "32h"               # Wochenarbeitszeit (5 Arbeitstage) darunter: unter Soll
+weekly_high = "48h"              # darüber: deutlich über Soll
+bundesland = "Baden-Württemberg" # gesetzliche Feiertage; unbekannt/leer = bundesweit
+count = "human"                  # was zählt: "human" (eigene Nachrichten) oder "all"
 
 [ingest]
 tool_result_max_bytes = 4096
@@ -151,16 +155,25 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 
 ### `[work]` { #work }
 
-Normalarbeitszeit für die Aktivität je Tag ([`stats --workday`](befehle.md#stats-workday), TUI-Ansicht „activity“).
+Normalarbeitszeit und Feiertage für die Aktivität je Tag ([`stats --workday`](befehle.md#stats-workday), TUI-Ansicht „activity“; die Feiertage auch in der Statistik-Ansicht).
 
 `hours`
 :   Kernzeit als `HH:MM-HH:MM` (Ortszeit des Kalendertags, Beginn vor Ende, nicht vor `day_start`). Die TUI zeigt sie als Band auf der Zeitachse und färbt Aktivität davor und danach als früh bzw. spät. Default: `09:00-17:00`.
 
 `target`
-:   Tagessoll an Werktagen (Montag bis Freitag); das Wochenende hat keines. Die Spanne eines Tags mit Aktivität wird daran gemessen, die Summenzeile einer Woche oder eines Monats gegen Soll × Werktage mit Aktivität. Default: `8h`.
+:   Tagessoll an Arbeitstagen (Montag bis Freitag ohne Feiertage); Wochenende und Feiertage haben keines. Die Spanne eines Tags mit Aktivität wird daran gemessen, die Woche oder der Monat gegen Soll × Arbeitstage der Periode (bis heute, mit oder ohne Aktivität). Default: `8h`.
 
 `daily_low`, `daily_high`
-:   Eine Spanne unter `daily_low` gilt als unter Soll, über `daily_high` als deutlich darüber, dazwischen als im Rahmen; danach färbt die TUI Spanne und Differenz. Für den Saldo einer Woche oder eines Monats wird die Toleranz mit den Werktagen multipliziert. Default: `6h` und `9h`.
+:   Eine Spanne unter `daily_low` gilt als unter Soll, über `daily_high` als deutlich darüber, dazwischen als im Rahmen; danach färbt die TUI Spanne, Differenz und die Kennzahlen der Spanne. Default: `6h` und `9h`.
+
+`weekly_low`, `weekly_high`
+:   Rahmen für die Arbeitszeit einer Woche mit fünf Arbeitstagen: darunter unter Soll, darüber deutlich darüber; danach färbt die TUI die Kopfzeile von Woche und Monat. Eine Periode mit anderer Zahl von Arbeitstagen (Feiertag, laufender Monat) skaliert den Rahmen anteilig: vier Arbeitstage 25h36m–38h24m, ein Monat mit 21 Arbeitstagen 134h24m–201h36m. Default: `32h` und `48h`.
+
+`bundesland`
+:   Bundesland für die gesetzlichen Feiertage: `Baden-Württemberg`, `Bayern`, `Berlin`, `Brandenburg`, `Bremen`, `Hamburg`, `Hessen`, `Mecklenburg-Vorpommern`, `Niedersachsen`, `Nordrhein-Westfalen`, `Rheinland-Pfalz`, `Saarland`, `Sachsen`, `Sachsen-Anhalt`, `Schleswig-Holstein`, `Thüringen` (Schreibweise ohne Bindestrich und Groß-/Kleinschreibung egal) oder `Deutschland` für nur die bundesweiten. Ein unbekannter oder leerer Name ist kein Fehler und bedeutet `Deutschland`. Default: `Baden-Württemberg`.
+
+`count`
+:   Was die Aktivität je Tag zählt: `human` (nur eigene Nachrichten; Agent-Events laufen nachts weiter und dehnen die Spanne) oder `all` (eigene Nachrichten und Agent-Events wie die Aktivitätsstatistik). `stats --workday --all-events` und die Taste `h` in der TUI schalten für einen Lauf um. Default: `human`.
 
 ### `[git]`
 

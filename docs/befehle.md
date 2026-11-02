@@ -259,35 +259,38 @@ Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität**, die Sp
 total-recall stats --workday                          # diese Woche
 total-recall stats --workday --range last-week
 total-recall stats --workday --range last-month --json
-total-recall stats --workday --since 2026-10-01 --until 2026-10-15 --human-only
+total-recall stats --workday --since 2026-10-01 --until 2026-10-15 --all-events
 ```
 
 ```text
-2026-10-26 04:00 – 2026-11-02 03:59 (Europe/Berlin, day starts 04:00, human and agent events)
-core hours 09:00-17:00, target 8h00m per weekday
+2026-10-26 04:00 – 2026-11-02 03:59 (Europe/Berlin, day starts 04:00, human events only)
+core hours 09:00-17:00, target 8h00m per workday, holidays Baden-Württemberg
 
-DATE        DAY  FIRST  LAST        SPAN    DIFF
-2026-10-26  Mon  08:12  18:40       10h28m  +2h28m
-2026-10-27  Tue  09:03  01:30 (+1)  16h27m  +8h27m
-2026-10-28  Wed  -      -           -       -
-2026-10-29  Thu  07:55  17:10       9h15m   +1h15m
+DATE        DAY  FIRST  LAST        SPAN    DIFF    HOLIDAY
+2026-10-26  Mon  08:12  18:40       10h28m  +2h28m  -
+2026-10-27  Tue  09:03  01:30 (+1)  16h27m  +8h27m  -
+2026-10-28  Wed  -      -           -       -       -
+2026-10-29  Thu  07:55  17:10       9h15m   +1h15m  -
 …
-2026-11-01  Sun  21:00  21:05       5m      +0h05m
+2026-11-01  Sun  21:00  21:05       5m      +0h05m  Allerheiligen
 
-total: 5 days with activity, 41h40m · target 32h00m (4 workdays × 8h00m) · balance +9h40m
+total: 5 days with activity, 41h40m · target 40h00m (5 workdays × 8h00m) · balance +1h40m · 1 holiday
 ```
 
 | Option | Bedeutung |
 |---|---|
 | `--range today\|this-week\|last-week\|this-month\|last-month` | Zeitraum relativ zu jetzt. Wochen sind ISO-Wochen ab Montag. Nur mit `--workday`, nicht zusammen mit `--since`/`--until`/`--month` |
 | `--since`, `--until`, `--month` | wie oben; ein Datum meint den ganzen Tag ab der Tagesgrenze, `--until` einschließlich. Ohne Zeitraum gilt `this-week` |
-| `--human-only` | nur eigene Nachrichten zählen (sonst wie die Aktivitätsstatistik: eigene Nachrichten und Agent-Events) |
+| `--all-events` | eigene Nachrichten und Agent-Events zählen wie die Aktivitätsstatistik. Standard sind nur eigene Nachrichten (`human events only`): Agent-Events laufen nachts weiter und dehnen die Spanne. Den Standard setzt `count` in [`[work]`](konfiguration.md#work) |
+| `--human-only` | veraltet, da Standard; wird noch angenommen (mit Hinweis auf stderr) und setzt auch bei `count = "all"` auf eigene Nachrichten |
 
 **Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
 
-**Soll.** Kernzeit und Tagessoll kommen aus [`[work]`](konfiguration.md#work), Standard 09:00–17:00 und 8 h. `DIFF` ist die Spanne minus Soll an Werktagen mit Aktivität; das Wochenende hat kein Soll, dort ist die ganze Spanne die Differenz. Tage ohne Aktivität zählen nicht als Arbeitstage (Urlaub, Feiertag und ein vergessener Tag sind nicht zu unterscheiden). Die Summenzeile nennt das Soll (Tagessoll × Werktage mit Aktivität) und den Saldo aller Spannen dagegen. Die Kernzeit ist in der Textausgabe nur eine Angabe; wo die Aktivität liegt, zeigt die TUI.
+**Soll.** Kernzeit und Tagessoll kommen aus [`[work]`](konfiguration.md#work), Standard 09:00–17:00 und 8 h. `DIFF` ist die Spanne minus Soll an Arbeitstagen mit Aktivität; Wochenende und Feiertage haben kein Soll, dort ist die ganze Spanne die Differenz. Die Summenzeile nennt das Soll als Tagessoll × **Arbeitstage des Zeitraums**: Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute (im laufenden Monat zählen künftige Tage noch nicht). Ein Tag ohne Aktivität an einem Arbeitstag drückt den Saldo also um ein Tagessoll (Urlaub und ein vergessener Tag sind nicht zu unterscheiden), ein Feiertag nicht. Die Kernzeit ist in der Textausgabe nur eine Angabe; wo die Aktivität liegt, zeigt die TUI.
 
-JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_local`, `last_local`, mit `(+1)`), die Spanne in Sekunden, `weekend`, Soll und Differenz in Sekunden (`target_seconds`, `diff_seconds`, beide 0 ohne Aktivität) und die Zähler. Oben stehen `work_hours` und `target_seconds`, in `total` die Werktage mit Soll (`workdays`), das Soll und der Saldo (`balance_seconds`). Ein Tag ohne Aktivität hat leere Zeiten und Nullen.
+**Feiertage.** Gesetzliche Feiertage kommen aus `bundesland` in [`[work]`](konfiguration.md#work), Standard Baden-Württemberg; die Kopfzeile nennt die Region, die Spalte `HOLIDAY` den Namen, die Summenzeile die Anzahl. Ein unbekanntes Bundesland fällt auf die bundesweiten Feiertage (`Deutschland`) zurück.
+
+JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_local`, `last_local`, mit `(+1)`), die Spanne in Sekunden, `weekend`, `holiday` (Name oder `""`), Soll und Differenz in Sekunden (`target_seconds`, `diff_seconds`, beide 0 ohne Aktivität) und die Zähler. Oben stehen `human_only`, `work_hours`, `target_seconds` und `holiday_region`, in `total` die Arbeitstage des Zeitraums (`workdays`), die Feiertage (`holidays`), das Soll und der Saldo (`balance_seconds`). Ein Tag ohne Aktivität hat leere Zeiten und Nullen.
 
 ```json
 {
@@ -295,20 +298,21 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
   "until": "2026-11-02T03:00:00.000Z",
   "timezone": "Europe/Berlin",
   "day_start": "04:00",
-  "human_only": false,
+  "human_only": true,
   "work_hours": "09:00-17:00",
   "target_seconds": 28800,
+  "holiday_region": "Baden-Württemberg",
   "days": [
     {
       "day": "2026-10-27", "weekday": "Tue",
       "first": "2026-10-27T08:03:00.000Z", "last": "2026-10-28T00:30:00.000Z",
       "first_local": "09:03", "last_local": "01:30 (+1)",
-      "span_seconds": 59220, "weekend": false,
+      "span_seconds": 59220, "weekend": false, "holiday": "",
       "target_seconds": 28800, "diff_seconds": 30420,
-      "sessions": 3, "human": 41, "agent": 902
+      "sessions": 3, "human": 41, "agent": 0
     }
   ],
-  "total": {"days": 5, "workdays": 4, "span_seconds": 150000, "target_seconds": 115200, "balance_seconds": 34800}
+  "total": {"days": 5, "workdays": 5, "holidays": 1, "span_seconds": 150000, "target_seconds": 144000, "balance_seconds": 6000}
 }
 ```
 
