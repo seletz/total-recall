@@ -65,6 +65,19 @@ skip_record_types = []
 peer_prefixes = []
 automation_prefixes = ["Hourly ", "Weekend watch"]
 
+[work]
+# Normal working time for the activity per day (`stats --workday`, TUI view
+# "activity"). Core hours as HH:MM-HH:MM (local time, not before day_start):
+# activity outside them is marked as early or late.
+hours = "09:00-17:00"
+# Daily target on weekdays; the difference per day and the balance of a
+# week or month are measured against it. Weekends have no target.
+target = "8h"
+# A day's span (first to last activity) below daily_low counts as under,
+# above daily_high as over the target; in between it is on target.
+daily_low = "6h"
+daily_high = "9h"
+
 [git]
 # Resolve git root, remote URL and branch for session working directories.
 resolve = true

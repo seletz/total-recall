@@ -541,10 +541,11 @@ human messages.`,
 				if err != nil {
 					return err
 				}
+				wh := workHours(cfg)
 				if asJSON {
-					return writeJSON(cmd.OutOrStdout(), workdayJSON(days, since, until, loc, cfg.Timezone, cfg.DayStart, humanOnly))
+					return writeJSON(cmd.OutOrStdout(), workdayJSON(days, since, until, loc, cfg.Timezone, cfg.DayStart, humanOnly, wh, cfg.Work.Hours))
 				}
-				return writeWorkdayTable(cmd.OutOrStdout(), days, since, until, loc, cfg.DayStart, humanOnly)
+				return writeWorkdayTable(cmd.OutOrStdout(), days, since, until, loc, cfg.DayStart, humanOnly, wh, cfg.Work.Hours)
 			}
 			since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
 			if err != nil {

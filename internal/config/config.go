@@ -79,6 +79,9 @@ type Config struct {
 		Claude Claude `toml:"claude"`
 	} `toml:"harness"`
 	Git Git `toml:"git"`
+	// Work is the normal working time the activity per day is measured
+	// against (stats --workday, TUI activity).
+	Work Work `toml:"work"`
 
 	// Path is the config file that was considered (it may not exist).
 	Path string `toml:"-"`
@@ -87,13 +90,36 @@ type Config struct {
 	// Loaded is true when Path existed and was read.
 	Loaded bool `toml:"-"`
 
-	origins  map[string]Origin
-	loc      *time.Location
-	dayStart time.Duration
+	origins            map[string]Origin
+	loc                *time.Location
+	dayStart           time.Duration
+	workStart, workEnd time.Duration
 }
 
 // DefaultDayStart is the built-in day boundary for the activity per day.
 const DefaultDayStart = "04:00"
+
+// Work configures the normal working time of the activity per day.
+type Work struct {
+	// Hours are the core hours as "HH:MM-HH:MM" (local wall-clock time of
+	// the calendar day, start before end, not before day_start).
+	Hours string `toml:"hours"`
+	// Target is the daily target on weekdays; weekends have none.
+	Target Duration `toml:"target"`
+	// DailyLow and DailyHigh bound the span of a day that counts as on
+	// target: below DailyLow it is under, above DailyHigh over.
+	DailyLow  Duration `toml:"daily_low"`
+	DailyHigh Duration `toml:"daily_high"`
+}
+
+// Built-in working time: core hours 09:00–17:00, 8h per weekday, a span of
+// 6h to 9h is on target.
+const (
+	DefaultWorkHours     = "09:00-17:00"
+	DefaultWorkTarget    = 8 * time.Hour
+	DefaultWorkDailyLow  = 6 * time.Hour
+	DefaultWorkDailyHigh = 9 * time.Hour
+)
 
 // Backup configures `total-recall backup`.
 type Backup struct {
@@ -189,6 +215,10 @@ var keys = []struct {
 	{"harness.claude.actors.peer_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PeerPrefixes) }},
 	{"harness.claude.actors.automation_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.AutomationPrefixes) }},
 	{"git.resolve", func(c *Config) string { return strconv.FormatBool(c.Git.Resolve) }},
+	{"work.hours", func(c *Config) string { return c.Work.Hours }},
+	{"work.target", func(c *Config) string { return c.Work.Target.String() }},
+	{"work.daily_low", func(c *Config) string { return c.Work.DailyLow.String() }},
+	{"work.daily_high", func(c *Config) string { return c.Work.DailyHigh.String() }},
 }
 
 func formatList(l []string) string {
@@ -225,6 +255,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Actors:          Actors{PeerPrefixes: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"}},
 	}
 	c.Git.Resolve = true
+	c.Work = Work{Hours: DefaultWorkHours, Target: Duration{DefaultWorkTarget}, DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh}}
 	return c
 }
 
@@ -341,6 +372,9 @@ func (c *Config) validate() error {
 		return fmt.Errorf("config: day_start %q: %w", c.DayStart, err)
 	}
 	c.dayStart = d
+	if err := c.validateWork(); err != nil {
+		return err
+	}
 	if c.Backup.KeepDaily < 0 {
 		return fmt.Errorf("config: backup.keep_daily must be >= 0")
 	}
@@ -365,6 +399,37 @@ func (c *Config) validate() error {
 	}
 	return nil
 }
+
+// validateWork checks the [work] table against day_start.
+func (c *Config) validateWork() error {
+	from, to, ok := strings.Cut(c.Work.Hours, "-")
+	start, err1 := parseClock(from)
+	end, err2 := parseClock(to)
+	if !ok || err1 != nil || err2 != nil {
+		return fmt.Errorf("config: work.hours %q: want HH:MM-HH:MM", c.Work.Hours)
+	}
+	if start >= end {
+		return fmt.Errorf("config: work.hours %q: start must be before end", c.Work.Hours)
+	}
+	if start < c.dayStart {
+		return fmt.Errorf("config: work.hours %q: must not start before day_start %s", c.Work.Hours, c.DayStart)
+	}
+	c.workStart, c.workEnd = start, end
+	if t := c.Work.Target.Duration; t <= 0 || t > 24*time.Hour {
+		return fmt.Errorf("config: work.target %s: want more than 0 and at most 24h", t)
+	}
+	if c.Work.DailyLow.Duration < 0 {
+		return fmt.Errorf("config: work.daily_low must be >= 0")
+	}
+	if c.Work.DailyHigh.Duration < c.Work.DailyLow.Duration {
+		return fmt.Errorf("config: work.daily_high must not be below work.daily_low")
+	}
+	return nil
+}
+
+// WorkHours returns the configured core hours as offsets from local
+// midnight (09:00–17:00 = 9h, 17h).
+func (c *Config) WorkHours() (start, end time.Duration) { return c.workStart, c.workEnd }
 
 // Origin returns where the value of key (dotted, e.g. "backup.dir") came from.
 func (c *Config) Origin(key string) Origin {

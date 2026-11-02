@@ -94,6 +94,52 @@ func TestStatsWorkdayDayStart(t *testing.T) {
 	}
 }
 
+// TestStatsWorkdayTarget checks the target fields of the JSON: a weekday
+// is measured against 8h, a weekend has no target and its span is the
+// difference, the total balances the spans against the active weekdays.
+func TestStatsWorkdayTarget(t *testing.T) {
+	e := newTestEnv(t)
+	e.now = activityNow
+	_, db := fixturedb.Activity(t)
+	out := decode[WorkdayJSON](t, runActivity(t, e, db, "--workday", "--range", "this-week", "--json").stdout)
+	if out.WorkHours != "09:00-17:00" || out.TargetSeconds != 8*3600 {
+		t.Errorf("work = %q, %d", out.WorkHours, out.TargetSeconds)
+	}
+	byDay := map[string]WorkdayDayJSON{}
+	for _, d := range out.Days {
+		byDay[d.Weekday] = d
+	}
+	if d := byDay["Mon"]; d.Weekend || d.TargetSeconds != 8*3600 || d.DiffSeconds != 5-8*3600 {
+		t.Errorf("Mon = %+v", d)
+	}
+	if d := byDay["Tue"]; d.Weekend || d.TargetSeconds != 0 || d.DiffSeconds != 0 {
+		t.Errorf("Tue (inactive) = %+v", d)
+	}
+	if d := byDay["Sat"]; !d.Weekend || d.TargetSeconds != 0 || d.DiffSeconds != 0 {
+		t.Errorf("Sat (inactive) = %+v", d)
+	}
+	if d := byDay["Sun"]; !d.Weekend || d.TargetSeconds != 0 || d.DiffSeconds != 5 {
+		t.Errorf("Sun = %+v", d)
+	}
+	want := WorkdayTotalJSON{Days: 3, Workdays: 2, SpanSeconds: 1515, TargetSeconds: 16 * 3600, BalanceSeconds: 1515 - 16*3600}
+	if out.Total != want {
+		t.Errorf("total = %+v, want %+v", out.Total, want)
+	}
+
+	// A different target and core hours from the config.
+	cfg, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(e.configPath, append(cfg, []byte("\n[work]\nhours = \"08:00-16:00\"\ntarget = \"7h\"\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := runActivity(t, e, db, "--workday", "--range", "this-week")
+	if !strings.Contains(r.stdout, "core hours 08:00-16:00, target 7h00m per weekday") || !strings.Contains(r.stdout, "-6h59m") {
+		t.Errorf("custom work hours not applied:\n%s", r.stdout)
+	}
+}
+
 func TestStatsWorkdayErrors(t *testing.T) {
 	e := newTestEnv(t)
 	tests := []struct {
