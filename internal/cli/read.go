@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -269,34 +270,74 @@ type EventJSON struct {
 	TokensOut int64  `json:"tokens_out,omitempty"`
 }
 
+// showHintEvents is the number of events above which an unbounded show
+// prints a hint on stderr on how to bound the output.
+const showHintEvents = 2000
+
+// findSession resolves a session reference (full ID, native ID or unique
+// prefix) with user-facing errors.
+func findSession(ctx context.Context, st *store.Store, ref string) (store.SessionInfo, error) {
+	s, err := st.FindSession(ctx, ref)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return s, fmt.Errorf("no session matches %q", ref)
+	case errors.Is(err, store.ErrAmbiguous):
+		return s, fmt.Errorf("%q matches more than one session; use a longer prefix", ref)
+	}
+	return s, err
+}
+
 func (e *env) showCmd() *cobra.Command {
 	var asJSON, all bool
+	var since, until, fromEvent string
+	var limit, offset int
 	c := &cobra.Command{
 		Use:   "show SESSION",
 		Short: "Show the conversation of one session (full ID, native ID or unique prefix)",
-		Args:  cobra.ExactArgs(1),
+		Long: `Show the conversation of one session. Without bounds the whole session is
+printed; --since/--until (local time, same formats as search), --limit with
+--offset, or --from-event EVENT_ID (e.g. from a search hit) select a window.
+Events are in session order; --offset and --limit apply after the time
+window.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := e.loadConfig()
 			if err != nil {
 				return err
+			}
+			loc := cfg.Location()
+			f := store.EventFilter{All: all, FromEvent: fromEvent, Limit: limit, Offset: offset}
+			if f.Since, err = parseTimeArg(since, loc, false); err != nil {
+				return err
+			}
+			if f.Until, err = parseTimeArg(until, loc, true); err != nil {
+				return err
+			}
+			if limit < 0 {
+				return fmt.Errorf("--limit must not be negative")
+			}
+			if offset < 0 {
+				return fmt.Errorf("--offset must not be negative")
 			}
 			st, err := e.openRead(cfg)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = st.Close() }()
-			s, err := st.FindSession(cmd.Context(), args[0])
-			switch {
-			case errors.Is(err, store.ErrNotFound):
-				return fmt.Errorf("no session matches %q", args[0])
-			case errors.Is(err, store.ErrAmbiguous):
-				return fmt.Errorf("%q matches more than one session; use a longer prefix", args[0])
-			case err != nil:
-				return err
-			}
-			evs, err := st.Events(cmd.Context(), s.ID, all)
+			s, err := findSession(cmd.Context(), st, args[0])
 			if err != nil {
 				return err
+			}
+			evs, err := st.EventWindow(cmd.Context(), s.ID, f)
+			if errors.Is(err, store.ErrNotFound) {
+				return fmt.Errorf("no event %q in session %s", fromEvent, s.ID)
+			}
+			if err != nil {
+				return err
+			}
+			bounded := since != "" || until != "" || limit > 0 || fromEvent != ""
+			if !bounded && len(evs) > showHintEvents {
+				_, _ = fmt.Fprintf(e.app.Stderr, "show: %d events; bound the output with --since/--until, --limit (and --offset) or --from-event EVENT_ID\n", len(evs))
 			}
 			if asJSON {
 				out := struct {
@@ -310,7 +351,6 @@ func (e *env) showCmd() *cobra.Command {
 				}
 				return writeJSON(cmd.OutOrStdout(), out)
 			}
-			loc := cfg.Location()
 			w := cmd.OutOrStdout()
 			name := s.DisplayName()
 			if name == "" {
@@ -343,6 +383,11 @@ func (e *env) showCmd() *cobra.Command {
 	}
 	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	c.Flags().BoolVar(&all, "all", false, "include tool calls/results, automation, system and meta events")
+	c.Flags().StringVar(&since, "since", "", "from this time (YYYY-MM-DD or YYYY-MM-DDTHH:MM, local time)")
+	c.Flags().StringVar(&until, "until", "", "until this time; a date includes the whole day")
+	c.Flags().IntVar(&limit, "limit", 0, "maximum number of events (0 = all)")
+	c.Flags().IntVar(&offset, "offset", 0, "skip the first N events of the window (paging with --limit)")
+	c.Flags().StringVar(&fromEvent, "from-event", "", "start at this event ID (inclusive), e.g. event_id of a search hit")
 	return c
 }
 
@@ -364,7 +409,7 @@ type HitJSON struct {
 func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
 	var asJSON, raw bool
-	var actor string
+	var actor, session string
 	c := &cobra.Command{
 		Use:   "search QUERY",
 		Short: "Full-text search over event text (FTS5) with snippets",
@@ -386,7 +431,15 @@ passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
 				return err
 			}
 			defer func() { _ = st.Close() }()
-			hits, err := st.Search(cmd.Context(), strings.Join(args, " "), store.SearchFilter{SessionFilter: sf, Actor: actor, Raw: raw})
+			var sessionID string
+			if session != "" {
+				s, err := findSession(cmd.Context(), st, session)
+				if err != nil {
+					return err
+				}
+				sessionID = s.ID
+			}
+			hits, err := st.Search(cmd.Context(), strings.Join(args, " "), store.SearchFilter{SessionFilter: sf, SessionID: sessionID, Actor: actor, Raw: raw})
 			if err != nil {
 				return err
 			}
@@ -415,6 +468,7 @@ passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
 	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*)")
 	c.Flags().StringVar(&actor, "actor", "", "only events of this actor: human, agent, peer, automation, tool")
+	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix)")
 	return c
 }
 

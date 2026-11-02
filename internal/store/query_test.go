@@ -338,3 +338,92 @@ func TestSessionsHideEmpty(t *testing.T) {
 		t.Errorf("HideEmpty = %s, want %s", got, want)
 	}
 }
+
+func eventIDs(evs []model.Event) string {
+	var out []string
+	for _, e := range evs {
+		out = append(out, e.ID)
+	}
+	return strings.Join(out, ",")
+}
+
+func TestEventWindow(t *testing.T) {
+	s, _ := openTestStore(t)
+	seed(t, s)
+	tests := []struct {
+		name string
+		f    EventFilter
+		want string
+		err  error
+	}{
+		{"conversation", EventFilter{}, "claude:a1,claude:a2,claude:a5,claude:a6,claude:a8", nil},
+		{"all", EventFilter{All: true}, "claude:a1,claude:a2,claude:a3,claude:a4,claude:a5,claude:a6,claude:a7,claude:a8", nil},
+		{"since inclusive", EventFilter{Since: ts("2026-10-31T22:20:00Z")}, "claude:a5,claude:a6,claude:a8", nil},
+		{"until exclusive", EventFilter{Until: ts("2026-10-31T22:20:00Z")}, "claude:a1,claude:a2", nil},
+		{"since and until", EventFilter{All: true, Since: ts("2026-10-31T22:10:00Z"), Until: ts("2026-10-31T22:12:00Z")}, "claude:a2,claude:a3", nil},
+		{"limit", EventFilter{Limit: 2}, "claude:a1,claude:a2", nil},
+		{"offset", EventFilter{Offset: 3}, "claude:a6,claude:a8", nil},
+		{"limit and offset", EventFilter{Limit: 2, Offset: 1}, "claude:a2,claude:a5", nil},
+		{"offset past end", EventFilter{Offset: 10}, "", nil},
+		{"from event", EventFilter{FromEvent: "claude:a5"}, "claude:a5,claude:a6,claude:a8", nil},
+		{"from event with limit", EventFilter{FromEvent: "claude:a5", Limit: 1}, "claude:a5", nil},
+		{"from hidden event", EventFilter{FromEvent: "claude:a3"}, "claude:a5,claude:a6,claude:a8", nil},
+		{"from event and since", EventFilter{FromEvent: "claude:a2", Since: ts("2026-10-31T23:00:00Z")}, "claude:a6,claude:a8", nil},
+		{"from unknown event", EventFilter{FromEvent: "claude:zz"}, "", ErrNotFound},
+		{"from event of another session", EventFilter{FromEvent: "claude:b1"}, "", ErrNotFound},
+		{"empty window", EventFilter{Since: ts("2027-01-01T00:00:00Z")}, "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			evs, err := s.EventWindow(ctx, "claude:aaa111", tt.f)
+			if tt.err != nil {
+				if err != tt.err {
+					t.Fatalf("err = %v, want %v", err, tt.err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := eventIDs(evs); got != tt.want {
+				t.Errorf("events = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSearchSession(t *testing.T) {
+	s, _ := openTestStore(t)
+	seed(t, s)
+	tests := []struct {
+		name, q, session string
+		want             []string
+	}{
+		{"session filter", "login", "claude:aaa111", []string{"claude:a1", "claude:a2", "claude:a3", "claude:a4"}},
+		{"other session", "login", "other:ccc333", []string{"other:c1"}},
+		{"session without hits", "login", "claude:aab222", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hits, err := s.Search(ctx, tt.q, SearchFilter{SessionID: tt.session})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]bool{}
+			for _, h := range hits {
+				got[h.Event.ID] = true
+				if h.Event.SessionID != tt.session {
+					t.Errorf("hit from session %s, want %s", h.Event.SessionID, tt.session)
+				}
+			}
+			if len(got) != len(tt.want) {
+				t.Errorf("hits = %v, want %v", got, tt.want)
+			}
+			for _, w := range tt.want {
+				if !got[w] {
+					t.Errorf("missing hit %s", w)
+				}
+			}
+		})
+	}
+}
