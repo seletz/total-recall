@@ -527,7 +527,13 @@ func TestStatus(t *testing.T) {
 		t.Errorf("status without DB = %+v", r)
 	}
 	e.mustRun(t, "ingest", "--all")
-	newLogger(e.log, time.Now).Errorf("hook Stop: boom")
+	// Three days ago: an old error and a missing-transcript error, which
+	// never counts. Three hours ago: a fresh error.
+	at := func(d time.Duration) func() time.Time { return func() time.Time { return e.now.Add(d) } }
+	newLogger(e.log, at(-72*time.Hour)).Errorf("hook Stop: /p/a.jsonl: permission denied")
+	newLogger(e.log, at(-71*time.Hour)).Errorf("hook SubagentStop: /p/b.jsonl: stat /p/b.jsonl: no such file or directory")
+	newLogger(e.log, at(-3*time.Hour)).Infof("hook SubagentStop: transcript not present, skipped: /p/c.jsonl")
+	newLogger(e.log, at(-3*time.Hour)).Errorf("hook Stop: boom")
 	s := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
 	if s.Sessions != 3 || s.Events != 9 || s.Sources != 4 || s.DB != e.db || s.DBSizeBytes == 0 {
 		t.Errorf("status = %+v", s)
@@ -535,14 +541,52 @@ func TestStatus(t *testing.T) {
 	if s.SchemaVersion != store.LatestSchemaVersion() || s.BinarySchemaVersion != store.LatestSchemaVersion() {
 		t.Errorf("schema versions = %d/%d", s.SchemaVersion, s.BinarySchemaVersion)
 	}
-	if s.LastIngest["claude"] == "" || len(s.RecentErrors) != 1 || !strings.Contains(s.RecentErrors[0], "boom") {
+	if s.LastIngest["claude"] == "" {
 		t.Errorf("status = %+v", s)
 	}
+	if s.ErrorsWindow != "24h" || string(s.ErrorsSince) != isoTime(e.now.Add(-24*time.Hour)) || s.OlderErrors != 1 || s.RecentErrorsTotal != 1 {
+		t.Errorf("error window = %+v", s)
+	}
+	if len(s.RecentErrors) != 1 || s.RecentErrors[0].Message != "hook Stop: boom" || string(s.RecentErrors[0].At) != isoTime(e.now.Add(-3*time.Hour)) {
+		t.Errorf("recent errors = %+v", s.RecentErrors)
+	}
 	out := e.mustRun(t, "status")
-	for _, want := range []string{e.db, "schema", "last ingest (claude)", "none in", "boom"} {
+	for _, want := range []string{e.db, "schema", "last ingest (claude)", "none in", "recent errors (last 24h", "2026-10-20 11:00  (3h00m ago)  hook Stop: boom", "older errors: 1", "--all-errors"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "permission denied") || strings.Contains(out, "no such file") {
+		t.Errorf("status shows old or skipped errors:\n%s", out)
+	}
+	// --all-errors lifts the window; missing transcripts stay hidden.
+	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json", "--all-errors"))
+	if s.ErrorsWindow != "" || s.ErrorsSince != "" || s.OlderErrors != 0 || s.RecentErrorsTotal != 2 || len(s.RecentErrors) != 2 || s.RecentErrors[0].Message != "hook Stop: /p/a.jsonl: permission denied" {
+		t.Errorf("--all-errors = %+v", s)
+	}
+	out = e.mustRun(t, "status", "--all-errors")
+	if !strings.Contains(out, "errors (all): 2") || !strings.Contains(out, "permission denied") || strings.Contains(out, "older errors") {
+		t.Errorf("--all-errors text:\n%s", out)
+	}
+	// --errors caps the listed lines, the totals stay.
+	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json", "--all-errors", "--errors", "1"))
+	if s.RecentErrorsTotal != 2 || len(s.RecentErrors) != 1 || s.RecentErrors[0].Message != "hook Stop: boom" {
+		t.Errorf("--errors 1 = %+v", s)
+	}
+	if out := e.mustRun(t, "status", "--all-errors", "--errors", "1"); !strings.Contains(out, "errors (all): 2, newest 1 shown") {
+		t.Errorf("--errors 1 text:\n%s", out)
+	}
+	// Without errors in the window the text says so.
+	if err := os.Remove(e.log); err != nil {
+		t.Fatal(err)
+	}
+	newLogger(e.log, at(-72*time.Hour)).Errorf("hook Stop: old")
+	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
+	if len(s.RecentErrors) != 0 || s.RecentErrorsTotal != 0 || s.OlderErrors != 1 {
+		t.Errorf("only old = %+v", s)
+	}
+	if out := e.mustRun(t, "status"); !strings.Contains(out, "recent errors (last 24h, since 2026-10-19 14:00): none") || !strings.Contains(out, "older errors: 1") {
+		t.Errorf("only old text:\n%s", out)
 	}
 }
 

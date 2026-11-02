@@ -248,7 +248,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 
 | Command | Use it for |
 |---|---|
-| `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, recent errors |
+| `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit |
@@ -345,7 +345,11 @@ One object per hit.
 | `last_backup` | path of the last backup, `null` if none |
 | `last_backup_at` | time of the last backup, `null` if none |
 | `log` | path of the log file |
-| `recent_errors` | last error lines of the log |
+| `errors_window` | age limit of `recent_errors`, `"24h"`; `null` with `--all-errors` |
+| `errors_since` | start of the window (UTC); `null` with `--all-errors` |
+| `recent_errors` | error lines of the window, oldest first, at most `--errors N` (default 5): `at` (UTC, `null` without timestamp), `message`. Lines about transcripts that did not exist yet are never included |
+| `recent_errors_total` | count of errors in the window, including lines beyond the cap |
+| `older_errors` | count of errors before the window (0 with `--all-errors`) |
 
 #### `stats --json`
 
