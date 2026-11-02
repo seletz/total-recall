@@ -13,7 +13,7 @@
                      │ tab     list     a  actor      1 search      ?   help │
                      │ tab/esc input    t  time       2 stats       esc back │
                      │ enter   open     r  repo       3 activity    q   quit │
-                     │ ↑/k     up       ^r raw fts                           │
+                     │ ↑/k     up       ^r raw fts                  ^c  quit │
                      │ ↓/j     down                                          │
                      │                                                       │
                      │ esc or ? closes this help                             │

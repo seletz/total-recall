@@ -3,34 +3,37 @@ package session
 import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/viewport"
+
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
-// KeyMap holds the bindings of the session view. Footer and help overlay are
-// generated from it. Scroll and Hit exist for the footer only: they name the
-// pairs ↑/↓ and n/N in one entry each.
+// KeyMap holds the bindings of the session view, built from the effective
+// keys (see package keys). Footer and help overlay are generated from it.
+// Scroll and Hit exist for the footer only: they name the pairs ↑/↓ and
+// n/N in one entry each.
 type KeyMap struct {
 	Up, Down, PageUp, PageDown, HalfUp, HalfDown, Top, Bottom key.Binding
 	Next, Prev, Tools, Copy, Back                             key.Binding
 	Scroll, Hit                                               key.Binding
 }
 
-func defaultKeyMap() KeyMap {
+func newKeyMap(m keys.Map) KeyMap {
 	return KeyMap{
-		Up:       key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:     key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		PageUp:   key.NewBinding(key.WithKeys("pgup", "b"), key.WithHelp("b/pgup", "page up")),
-		PageDown: key.NewBinding(key.WithKeys("pgdown", "f", "space"), key.WithHelp("f/pgdn", "page down")),
-		HalfUp:   key.NewBinding(key.WithKeys("u", "ctrl+u"), key.WithHelp("u", "½ page up")),
-		HalfDown: key.NewBinding(key.WithKeys("d", "ctrl+d"), key.WithHelp("d", "½ page down")),
-		Top:      key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/home", "top")),
-		Bottom:   key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("G/end", "bottom")),
-		Next:     key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "next hit")),
-		Prev:     key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "previous hit")),
-		Tools:    key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "tools on/off")),
-		Copy:     key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy session id")),
-		Back:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		Scroll:   key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "scroll")),
-		Hit:      key.NewBinding(key.WithKeys("n", "N"), key.WithHelp("n/N", "next/prev hit")),
+		Up:       m.Binding(keys.SessionUp),
+		Down:     m.Binding(keys.SessionDown),
+		PageUp:   m.Binding(keys.SessionPageUp),
+		PageDown: m.Binding(keys.SessionPageDown),
+		HalfUp:   m.Binding(keys.SessionHalfUp),
+		HalfDown: m.Binding(keys.SessionHalfDown),
+		Top:      m.Binding(keys.SessionTop),
+		Bottom:   m.Binding(keys.SessionBottom),
+		Next:     m.Binding(keys.SessionNext),
+		Prev:     m.Binding(keys.SessionPrev),
+		Tools:    m.Binding(keys.SessionTools),
+		Copy:     m.Binding(keys.SessionCopy),
+		Back:     m.Binding(keys.GlobalBack),
+		Scroll:   m.Group("scroll", keys.SessionUp, keys.SessionDown),
+		Hit:      m.Group("next/prev hit", keys.SessionNext, keys.SessionPrev),
 	}
 }
 

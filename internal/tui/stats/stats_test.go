@@ -17,6 +17,7 @@ import (
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -382,6 +383,40 @@ func (c *fakeChart) SetSpec(s chart.Spec) tea.Cmd    { c.spec = s; return nil }
 func (c *fakeChart) SetSize(w, h int) tea.Cmd        { c.width, c.height = w, h; return nil }
 func (c *fakeChart) View() string                    { return "fake chart" }
 func (c *fakeChart) Mode() string                    { return "fake mode" }
+
+// TestStartPeriodAndDimension: the view starts with the configured period
+// and dimension and loads them right away.
+func TestStartPeriodAndDimension(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Period: store.PeriodWeek, Dimension: store.DimAgent})
+	if m.window.Period != store.PeriodWeek || m.dim != store.DimAgent {
+		t.Errorf("start = %v by %v, want week by agent", m.window.Period, m.dim)
+	}
+	frame := tuitest.Frame(drive(t, m))
+	if !strings.Contains(frame, "[week]") || !strings.Contains(frame, "[agent]") {
+		t.Errorf("frame lacks [week] by [agent]:\n%s", frame)
+	}
+}
+
+// TestConfiguredKeys: the view acts on the configured keys only and shows
+// them in its help.
+func TestConfiguredKeys(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	km, err := keys.Resolve(map[string][]string{keys.StatsWeeks: {"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Keys: km})
+	if got := drive(t, m, "w"); got.window.Period != store.PeriodDay {
+		t.Errorf("w still switches to weeks")
+	}
+	if got := drive(t, m, "x"); got.window.Period != store.PeriodWeek {
+		t.Errorf("x does not switch to weeks")
+	}
+	if h := m.keys.Period.Help(); h.Key != "d/x/m" {
+		t.Errorf("period group help = %q", h.Key)
+	}
+}
 
 // TestHolidayMarks checks that a holiday calendar marks the day axis: the
 // default day window (28 days ending 2026-01-11) holds the Christmas
