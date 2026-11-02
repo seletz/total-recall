@@ -32,42 +32,12 @@ func newModel(t *testing.T, l Loader) Model {
 	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation})
 }
 
-// run executes cmd synchronously and feeds every message it produces back
-// into m, so a test can drive the view without a program: a load command
-// yields its result right away, batches are unpacked.
-func run(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
-	t.Helper()
-	if cmd == nil {
-		return m
-	}
-	switch msg := cmd().(type) {
-	case nil:
-		return m
-	case tea.BatchMsg:
-		for _, c := range msg {
-			m = run(t, m, c)
-		}
-		return m
-	default:
-		var next tea.Cmd
-		m, next = m.Update(msg)
-		return run(t, m, next)
-	}
-}
-
 // drive starts m with the body size and applies the key names in order,
-// running every command to completion.
+// running every command to completion (see tuitest.Drive).
 func drive(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
-	var tm tea.Model = m
-	tm = run(t, tm, tm.Init())
-	tm, _ = tm.Update(bodySize)
-	for _, k := range keys {
-		var cmd tea.Cmd
-		tm, cmd = tm.Update(tuitest.Key(k))
-		tm = run(t, tm, cmd)
-	}
-	return tm.(Model)
+	msgs := append([]tea.Msg{bodySize}, tuitest.Keys(keys...)...)
+	return tuitest.Drive(t, m, msgs...).(Model)
 }
 
 // TestFrames drives the view through every switch against the Activity
@@ -216,8 +186,7 @@ func TestHeatmapLoadError(t *testing.T) {
 	l := &countingLoader{st: st}
 	m := drive(t, newModel(t, l))
 	l.err = errors.New("boom")
-	tm, cmd := m.Update(tuitest.Key("h"))
-	tm = run(t, tm, cmd)
+	tm := tuitest.Send(t, m, tuitest.Key("h"))
 	golden.RequireEqual(t, tuitest.Frame(tm))
 }
 
@@ -269,7 +238,7 @@ func TestStaleHeatmap(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	l := &countingLoader{st: st}
 	var m tea.Model = newModel(t, l)
-	m = run(t, m, m.Init())
+	m = tuitest.Run(t, m, m.Init())
 	m, _ = m.Update(bodySize)
 	m, onCmd := m.Update(tuitest.Key("h"))
 	m, shiftCmd := m.Update(tuitest.Key("["))
@@ -280,7 +249,7 @@ func TestStaleHeatmap(t *testing.T) {
 	if f := tuitest.Frame(m); !strings.Contains(f, "Loading heatmap") || strings.Contains(f, "max ") {
 		t.Errorf("stale heatmap applied:\n%s", f)
 	}
-	m = run(t, m, shiftCmd)
+	m = tuitest.Run(t, m, shiftCmd)
 	if f := tuitest.Frame(m); strings.Contains(f, "loading") || !strings.Contains(f, "weekday × hour") {
 		t.Errorf("shifted heatmap not shown:\n%s", f)
 	}
@@ -303,7 +272,7 @@ func TestStaleResult(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	l := &countingLoader{st: st}
 	var m tea.Model = newModel(t, l)
-	m = run(t, m, m.Init())
+	m = tuitest.Run(t, m, m.Init())
 	m, _ = m.Update(bodySize)
 	m, weekCmd := m.Update(tuitest.Key("w"))
 	m, monthCmd := m.Update(tuitest.Key("m"))
