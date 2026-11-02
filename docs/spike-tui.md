@@ -294,6 +294,7 @@ Fallmatrix:
 | Terminal | Verhalten |
 |---|---|
 | Ghostty ≥ 1.0, kitty | Bild (Platzhalter) |
+| herdr in Ghostty | Bild, wenn herdr die `a=q`-Abfrage beantwortet. chartpicture sondiert dort nicht (`TERM_PROGRAM=herdr` ist ihm unbekannt), die TUI schickt die Abfrage selbst; siehe [#41](https://github.com/seletz/total-recall/issues/41) |
 | WezTerm, Konsole, Warp | antworten auf `a=q`, können aber keine Platzhalter: Bild käme kaputt. Im Spike: Bildmodus nur, wenn `TERM_PROGRAM` ghostty oder `TERM` xterm-kitty ist, sonst Text trotz positiver Sondierung. Offen für später. |
 | Alacritty, Terminal.app, iTerm2 stabil, Windows Terminal | Text |
 | tmux ohne Passthrough, Zellij | Text, Hinweis in der Fußzeile |

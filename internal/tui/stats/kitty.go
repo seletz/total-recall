@@ -1,7 +1,9 @@
 package stats
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/NimbleMarkets/ntcharts/picture/chartpicture/v2"
@@ -16,6 +18,18 @@ import (
 // the life of the program, so every new picture replaces the previous one
 // in the terminal instead of piling up.
 const DefaultImageID = 23
+
+// probeImageID is the image ID of the chart's own Kitty query (see
+// Env.ownProbe). The terminal echoes it in its answer, which is how the
+// answer is told apart from the picture package's probe and the chart.
+const probeImageID = 42
+
+// defaultProbeTimeout is how long the chart's own probe waits for an
+// answer; the same as the picture package's probe.
+const defaultProbeTimeout = 250 * time.Millisecond
+
+// probeTimeoutMsg marks the end of the chart's own probe window.
+type probeTimeoutMsg struct{}
 
 // GraphicsToggler is implemented by chart containers that can switch their
 // rendering; the g key of the view calls it.
@@ -37,6 +51,9 @@ type KittyOptions struct {
 	Probe func() Probe
 	// ImageID is the Kitty image ID; 0 means DefaultImageID.
 	ImageID int
+	// ProbeTimeout is how long the chart's own probe waits for the
+	// terminal; 0 means 250 ms. Tests shorten it.
+	ProbeTimeout time.Duration
 }
 
 // KittyChart is a chart container that draws the spec as a Kitty Graphics
@@ -66,7 +83,8 @@ type KittyChart struct {
 	cols, rows int
 
 	probe         Probe // last observed outcome; ProbePending until resolved
-	probeStarted  bool  // this container asked the picture package to probe
+	probeStarted  bool  // this container started the probe (its own or the picture package's)
+	ownProbe      bool  // the probe is the chart's own query (Env.ownProbe), not the picture package's
 	cellRequested bool
 	decision      Decision
 }
@@ -83,12 +101,19 @@ func NewKittyChart(opts KittyOptions) *KittyChart {
 	if opts.Probe == nil {
 		opts.Probe = readProbe
 	}
+	if opts.ProbeTimeout == 0 {
+		opts.ProbeTimeout = defaultProbeTimeout
+	}
 	c := &KittyChart{opts: opts, mode: opts.Mode, text: NewTextChart()}
 	if opts.Env != nil {
 		c.env = *opts.Env
 	} else {
 		c.env = EnvFromOS()
 	}
+	// The chart probes itself only while the picture package's state is
+	// still open; a capability forced beforehand (NTCHARTS_KITTY, tests)
+	// is final for both.
+	c.ownProbe = c.env.ownProbe() && opts.Probe() == ProbePending
 	c.pic = c.newPicture()
 	c.decision = Decide(c.mode, c.probe, c.env)
 	return c
@@ -153,20 +178,54 @@ func (c *KittyChart) Init() tea.Cmd {
 	return nil
 }
 
-// startProbe asks the picture package to probe, once per process. When the
-// probe already ran (or can no longer run) the picture state is read as is.
+// startProbe starts the probe once: the picture package's for terminals it
+// recognizes, the chart's own query where it would send nothing (herdr).
+// When the package's probe already ran (or can no longer run) its state is
+// read as is.
 func (c *KittyChart) startProbe() tea.Cmd {
 	if c.probeStarted {
 		return nil
 	}
 	c.probeStarted = true
+	if c.ownProbe {
+		return c.queryKitty()
+	}
 	return picture.QueryKittySupport()
+}
+
+// queryKitty sends the chart's own Kitty query, an a=q transmit of one RGB
+// pixel that a Kitty-aware terminal acknowledges with the same ID, and
+// starts the timeout. Update resolves the probe from the answer or the
+// timeout, and a late answer still wins.
+func (c *KittyChart) queryKitty() tea.Cmd {
+	query := fmt.Sprintf("\x1b_Ga=q,t=d,f=24,s=1,v=1,i=%d;AAAA\x1b\\", probeImageID)
+	return tea.Batch(
+		func() tea.Msg { return tea.RawMsg{Msg: query} },
+		tea.Tick(c.opts.ProbeTimeout, func(time.Time) tea.Msg { return probeTimeoutMsg{} }),
+	)
+}
+
+// observeProbe resolves the chart's own probe from msg.
+func (c *KittyChart) observeProbe(msg tea.Msg) {
+	switch m := msg.(type) {
+	case uv.KittyGraphicsEvent:
+		if m.Options.ID == probeImageID {
+			c.probe = ProbeSupported
+		}
+	case probeTimeoutMsg:
+		if c.probe == ProbePending {
+			c.probe = ProbeTimeout
+		}
+	}
 }
 
 // Update implements Chart: it feeds the picture model, tracks the cell size
 // and re-applies the decision after every message, since the probe result
 // and the probe timeout arrive as messages.
 func (c *KittyChart) Update(msg tea.Msg) (Chart, tea.Cmd) {
+	if c.ownProbe {
+		c.observeProbe(msg)
+	}
 	if ev, ok := msg.(uv.CellSizeEvent); ok && ev.Width > 0 && ev.Height > 0 {
 		cell := chart.CellSize{Width: ev.Width, Height: ev.Height}
 		if cell != c.cell {
@@ -180,10 +239,11 @@ func (c *KittyChart) Update(msg tea.Msg) (Chart, tea.Cmd) {
 	return c, tea.Batch(cmd, c.sync())
 }
 
-// sync observes the probe and applies the decision: entering image mode
-// starts rendering, leaving it deletes the image.
+// sync observes the picture package's probe (the chart's own is resolved
+// in Update) and applies the decision: entering image mode starts
+// rendering, leaving it deletes the image.
 func (c *KittyChart) sync() tea.Cmd {
-	if c.mode == GraphicsAuto {
+	if c.mode == GraphicsAuto && !c.ownProbe {
 		if p := c.opts.Probe(); p != ProbePending {
 			c.probe = p
 		}
@@ -239,14 +299,16 @@ func (c *KittyChart) leaveImage() tea.Cmd {
 
 // Toggle implements GraphicsToggler: auto → text → kitty → auto. Returning
 // to auto restores the probe outcome the picture package had before kitty
-// was forced; when nothing was probed yet, the probe starts now.
+// was forced; when nothing was probed yet, the probe starts now. The
+// chart's own probe keeps running across the cycle, its answer arrives in
+// Update.
 func (c *KittyChart) Toggle() tea.Cmd {
 	c.mode = c.mode.Next()
 	var cmd tea.Cmd
 	if c.mode == GraphicsAuto {
 		picture.ForceKittyCapability(c.probe.capability())
 		cmd = c.startProbe()
-		if cmd == nil && c.probe == ProbePending {
+		if cmd == nil && c.probe == ProbePending && !c.ownProbe {
 			c.probe = ProbeSkipped
 		}
 	}
