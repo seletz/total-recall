@@ -22,6 +22,12 @@ import (
 
 // StatusJSON is the JSON output of status. Every key is always present;
 // LastBackup and LastBackupAt are null without a backup.
+//
+// Errors come from the log file. RecentErrors lists the ERROR lines of the
+// window ErrorsWindow (default "24h"; ErrorsSince is its start), oldest
+// first, capped by --errors; RecentErrorsTotal is the count in the window,
+// OlderErrors the count before it. With --all-errors the window is null and
+// OlderErrors 0. Lines that only report a missing transcript never count.
 type StatusJSON struct {
 	DB                  string            `json:"db"`
 	DBSizeBytes         int64             `json:"db_size_bytes"`
@@ -35,16 +41,41 @@ type StatusJSON struct {
 	LastBackup          NullString        `json:"last_backup"`
 	LastBackupAt        NullString        `json:"last_backup_at"`
 	Log                 string            `json:"log"`
-	RecentErrors        []string          `json:"recent_errors"`
+	ErrorsWindow        NullString        `json:"errors_window"`
+	ErrorsSince         NullString        `json:"errors_since"`
+	RecentErrors        []StatusError     `json:"recent_errors"`
+	RecentErrorsTotal   int               `json:"recent_errors_total"`
+	OlderErrors         int               `json:"older_errors"`
 }
+
+// StatusError is one error line in StatusJSON.RecentErrors. At is null
+// when the line has no timestamp.
+type StatusError struct {
+	At      NullString `json:"at"`
+	Message string     `json:"message"`
+}
+
+// statusErrorWindow is the age up to which status lists log errors. A
+// fixed window is predictable and independent of whether hooks ran since;
+// "since the last ingest" would hide an error minutes before a successful
+// run and would differ per harness.
+const statusErrorWindow = 24 * time.Hour
+
+// statusErrorWindowLabel names statusErrorWindow in the output.
+const statusErrorWindowLabel = "24h"
 
 func (e *env) statusCmd() *cobra.Command {
 	var of outputFlags
 	var nErrors int
+	var allErrors bool
 	c := &cobra.Command{
 		Use:   "status",
 		Short: "Show archive location, size, counts, last ingest, last backup and recent errors",
-		Args:  usageArgs(cobra.NoArgs),
+		Long: `Show the state of the archive. Errors are the ERROR lines of the log from
+the last 24h; older ones appear only as a count. --all-errors lists every
+error of the log regardless of age (without a cap unless --errors is set).
+Lines about transcripts that did not exist yet never count as errors.`,
+		Args: usageArgs(cobra.NoArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
 		cfg, err := e.loadConfig()
@@ -65,9 +96,10 @@ func (e *env) statusCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
+		now, loc := e.app.Now(), cfg.Location()
 		out := StatusJSON{DB: cfg.DB, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
-			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []string{}}
+			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
 			if fi, err := os.Stat(cfg.DB + suffix); err == nil {
 				out.DBSizeBytes += fi.Size()
@@ -81,13 +113,33 @@ func (e *env) statusCmd() *cobra.Command {
 			return err
 		}
 		out.LastBackup, out.LastBackupAt = NullString(bp), NullString(isoTime(bt))
-		if errs, err := lastErrors(cfg.LogPath(), nErrors); err == nil && errs != nil {
-			out.RecentErrors = errs
+
+		var since time.Time
+		cap := nErrors
+		if allErrors {
+			if !cmd.Flags().Changed("errors") {
+				cap = 0
+			}
+		} else {
+			since = now.Add(-statusErrorWindow)
+			out.ErrorsWindow = statusErrorWindowLabel
+			out.ErrorsSince = NullString(isoTime(since))
+		}
+		all, err := readErrors(cfg.LogPath())
+		if err != nil {
+			return err
+		}
+		recent, older := splitErrors(all, since)
+		out.RecentErrorsTotal, out.OlderErrors = len(recent), older
+		if cap > 0 && len(recent) > cap {
+			recent = recent[len(recent)-cap:]
+		}
+		for _, le := range recent {
+			out.RecentErrors = append(out.RecentErrors, StatusError{At: NullString(isoTime(le.At)), Message: le.Message})
 		}
 		if o.format.IsJSON() {
 			return o.object(out)
 		}
-		now, loc := e.app.Now(), cfg.Location()
 		w := o.w
 		rows := [][]string{
 			{"database", cfg.DB},
@@ -115,16 +167,33 @@ func (e *env) statusCmd() *cobra.Command {
 		if err := o.table(nil, rows); err != nil {
 			return err
 		}
-		if len(out.RecentErrors) > 0 {
-			_, _ = fmt.Fprintln(w, "\nrecent errors:")
-			for _, l := range out.RecentErrors {
-				_, _ = fmt.Fprintln(w, "  "+l)
+		head := "errors (all)"
+		if !allErrors {
+			head = fmt.Sprintf("recent errors (last %s, since %s)", out.ErrorsWindow, localTime(since, loc))
+		}
+		count := "none"
+		if out.RecentErrorsTotal > 0 {
+			count = strconv.Itoa(out.RecentErrorsTotal)
+			if len(recent) < out.RecentErrorsTotal {
+				count += fmt.Sprintf(", newest %d shown", len(recent))
 			}
+		}
+		_, _ = fmt.Fprintf(w, "\n%s: %s\n", head, count)
+		for _, le := range recent {
+			stamp := "(no timestamp)"
+			if !le.At.IsZero() {
+				stamp = localTime(le.At, loc) + "  (" + age(now, le.At) + ")"
+			}
+			_, _ = fmt.Fprintf(w, "  %s  %s\n", stamp, le.Message)
+		}
+		if older > 0 {
+			_, _ = fmt.Fprintf(w, "older errors: %d (not shown; status --all-errors lists them, log: %s)\n", older, cfg.LogPath())
 		}
 		return nil
 	})
 	of.register(c)
-	c.Flags().IntVar(&nErrors, "errors", 5, "number of recent error lines from the log")
+	c.Flags().IntVar(&nErrors, "errors", 5, "number of error lines to list (newest; 0 = all)")
+	c.Flags().BoolVar(&allErrors, "all-errors", false, "list errors of any age, not only the last 24h")
 	return c
 }
 

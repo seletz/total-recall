@@ -78,8 +78,18 @@ func (w *logWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// lastErrors returns up to n of the newest ERROR lines of the log file.
-func lastErrors(path string, n int) ([]string, error) {
+// logError is one ERROR line of the log file.
+type logError struct {
+	// At is the line's timestamp; zero when the line has none that parses
+	// (e.g. stderr of a detached child).
+	At      time.Time
+	Message string
+}
+
+// readErrors returns the ERROR lines of the log file in file order, without
+// the lines that only report a missing transcript (see isMissingTranscript).
+// A missing file is no error and yields nil.
+func readErrors(path string) ([]logError, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -88,18 +98,52 @@ func lastErrors(path string, n int) ([]string, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	var ring []string
+	var out []logError
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	for sc.Scan() {
-		if strings.Contains(sc.Text(), " ERROR ") {
-			ring = append(ring, sc.Text())
-			if len(ring) > n {
-				ring = ring[1:]
+		line := sc.Text()
+		stamp, rest, ok := strings.Cut(line, " ERROR ")
+		if !ok {
+			if msg, found := strings.CutPrefix(line, "ERROR "); found {
+				stamp, rest, ok = "", msg, true
 			}
 		}
+		if !ok || strings.Contains(stamp, " ") {
+			continue
+		}
+		if isMissingTranscript(rest) {
+			continue
+		}
+		e := logError{Message: rest}
+		if t, err := time.Parse(time.RFC3339, stamp); err == nil {
+			e.At = t
+		}
+		out = append(out, e)
 	}
-	return ring, sc.Err()
+	return out, sc.Err()
+}
+
+// isMissingTranscript reports whether msg is a hook error about a transcript
+// file that did not exist. Versions before 0.1.1 logged that case as ERROR;
+// since then it is INFO ("transcript not present, skipped"). Harnesses
+// announce files they have not written yet, so this is never a failure.
+func isMissingTranscript(msg string) bool {
+	return strings.HasPrefix(msg, "hook ") && strings.Contains(msg, "no such file or directory")
+}
+
+// splitErrors partitions errs into the lines at or after since (recent, in
+// file order) and the count of older ones. Lines without a timestamp are
+// recent: an undated error is never hidden.
+func splitErrors(errs []logError, since time.Time) (recent []logError, older int) {
+	for _, e := range errs {
+		if !e.At.IsZero() && e.At.Before(since) {
+			older++
+			continue
+		}
+		recent = append(recent, e)
+	}
+	return recent, older
 }
 
 // startDetached re-executes the running binary with args in a new session
