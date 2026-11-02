@@ -11,7 +11,30 @@
 | `--tz ZONE` | Zeitzone für Anzeige und Tagesgrenzen, Default `Europe/Berlin` |
 | `--backup-dir PFAD` | anderer Backup-Ordner (sonst `TOTAL_RECALL_BACKUP_DIR` bzw. `backup.dir`) |
 
-Alle lesenden Befehle (`status`, `sessions`, `show`, `search`, `stats`, `sql`, `config show`) haben `--json`.
+## Ausgabe der lesenden Befehle { #ausgabe }
+
+Alle lesenden Befehle (`status`, `sessions`, `show`, `search`, `stats`, `sql`, `doctor`, `config show`) haben dieselben Ausgabeoptionen:
+
+| Option | Bedeutung |
+|---|---|
+| `--format table\|json\|jsonl` | Ausgabeformat, Default `table` (Tabelle oder Text). `sql` kennt zusätzlich `csv`. |
+| `--json` | Kurzform für `--format json` |
+| `--no-truncate` | Tabellenzellen auch im Terminal nie kürzen |
+
+`json` ist ein eingerücktes Dokument, `jsonl` ein kompaktes Objekt je Zeile, ungepuffert, zum Streamen großer Ergebnisse. Bei `status` und `stats` ist das eine Zeile; `show --format jsonl` schreibt nur die Events, eines je Zeile (den Session-Kopf liefert `sessions`). Ein leeres Ergebnis ist `[]` (`json`) bzw. keine Zeile (`jsonl`).
+
+**Fehler.** Mit `--json` oder `--format json|jsonl` geht ein Fehler als ein Objekt auf stdout, der Exit-Code bleibt 1, die Meldung steht zusätzlich auf stderr. Ein Skript muss also nur stdout lesen:
+
+```sh
+$ total-recall sql --json "select nosuchcol from sessions"
+{"error":{"kind":"sql","message":"SQL logic error: no such column: nosuchcol (1)"}}
+```
+
+`kind` ist stabil: `usage` (Flags, Argumente, ihre Kombinationen), `config` (Konfiguration nicht ladbar), `db` (Archiv nicht zu öffnen), `sql` (SQLite lehnt die Abfrage ab, auch bei `search --raw`), `not_found` (Session oder Event unbekannt), `ambiguous` (Präfix passt auf mehrere Sessions), `internal` (alles andere).
+
+**Schlüssel.** Jeder dokumentierte Schlüssel ist in der JSON-Ausgabe immer vorhanden. Ein String ohne Wert ist `null`, zum Beispiel `parent_id` einer Haupt-Session oder `holiday` an einem gewöhnlichen Tag; Zahlen sind nie `null` (0), Listen nie `null` (`[]`).
+
+**Kürzung.** `--format table` kürzt Zellen nur, wenn stdout ein Terminal ist, und dann auf die Terminalbreite: die breitesten Spalten geben zuerst ab. Eine gekürzte Zelle endet mit `…`, und auf stderr steht `N cells truncated, --no-truncate for full values`. In eine Pipe oder Datei (`| less`, `> datei`, aus einem Skript) wird nie gekürzt. Zellen mit Zeilenumbrüchen stehen in der Tabelle immer auf einer Zeile (Leerraum zu einem Leerzeichen); `csv` und JSON behalten den Text unverändert.
 
 Zeiten in der Ausgabe sind in lokaler Zeit (`--tz`). In der Datenbank und in der JSON-Ausgabe stehen sie in UTC (`2026-10-31T22:21:58.123Z`).
 
@@ -113,6 +136,9 @@ total-recall show 9a1b2c3d                      # Präfix aus `sessions`
 total-recall show claude:9a1b2c3d-…             # volle ID
 total-recall show 9a1b2c3d --all                # inklusive Tool-Aufrufe, Ergebnisse, Automatik
 total-recall show 9a1b2c3d --json
+total-recall show 9a1b2c3d --since 2026-10-31T20:00 --until 2026-10-31T21:00   # Zeitfenster, lokale Zeit
+total-recall show 9a1b2c3d --limit 50 --offset 100                             # blättern
+total-recall show 9a1b2c3d --from-event claude:7c0d…#0 --limit 20              # ab einem Treffer aus `search`
 ```
 
 ```text
@@ -130,7 +156,17 @@ Bitte richte goreleaser mit einem Homebrew-Cask ein.
 Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
 ```
 
+| Option | Bedeutung |
+|---|---|
+| `--all` | auch Tool-Aufrufe und -Ergebnisse, Automatik, System- und Meta-Events |
+| `--since T` / `--until T` | nur Events in diesem Zeitfenster; Formate und Semantik wie bei `search`: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM`, `YYYY-MM-DD HH:MM` oder RFC 3339, lokale Zeit gemäß `timezone`; ein reines Datum bei `--until` schließt den ganzen Tag ein |
+| `--limit N` | höchstens N Events (0 = alle, Default) |
+| `--offset N` | die ersten N Events des Fensters überspringen (Blättern mit `--limit`) |
+| `--from-event ID` | ab diesem Event (einschließlich), z. B. `event_id` eines Treffers aus `search` |
+
 Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein eindeutiges Präfix davon angegeben werden. Ohne `--all` zeigt `show` nur Nachrichten von Mensch, Agent und anderen Agenten (`peer`).
+
+Die Filter wirken in dieser Reihenfolge: erst `--all`, dann das Zeitfenster und `--from-event`, dann `--offset` und `--limit`. Ohne Grenzen bleibt die Ausgabe vollständig; bei mehr als 2000 Events steht ein Hinweis auf stderr, wie sich die Ausgabe begrenzen lässt. Mit `--from-event` und einem Event, das ohne `--all` nicht sichtbar ist (etwa ein Tool-Ergebnis), beginnt die Ausgabe bei der nächsten Nachricht. Ein leeres Fenster liefert mit `--json` eine leere Liste `"events": []`.
 
 ## `search` { #search }
 
@@ -141,6 +177,7 @@ total-recall search goreleaser
 total-recall search backup retention --since 2026-10-01      # beide Wörter müssen vorkommen
 total-recall search --raw 'cask AND (homebrew OR tap)'       # FTS5-Syntax
 total-recall search redaction --actor human --repo seletz/total-recall --json
+total-recall search backup --session 9a1b2c3d                # nur in dieser Session
 ```
 
 ```text
@@ -152,6 +189,7 @@ total-recall search redaction --actor human --repo seletz/total-recall --json
 |---|---|
 | Filter wie `sessions` | `--since`/`--until` gelten hier für die Zeit des Events |
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
+| `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
 | `--limit N` | höchstens N Treffer (Default 20, 0 = alle) |
 
@@ -363,8 +401,11 @@ total-recall sql --format csv "SELECT * FROM daily_activity" > aktivitaet.csv
 
 | Option | Bedeutung |
 |---|---|
-| `--format table\|json\|csv` | Ausgabeformat, Default `table` |
-| `--json` | Kurzform für `--format json` (Liste von Objekten, Spalten in Abfrage-Reihenfolge) |
+| `--format table\|json\|jsonl\|csv` | Ausgabeformat, Default `table`; siehe [Ausgabe](#ausgabe) |
+| `--json` | Kurzform für `--format json` (Liste von Objekten, Spalten in Abfrage-Reihenfolge, SQL-`NULL` als `null`) |
+| `--no-truncate` | Zellen auch im Terminal nie kürzen |
+
+`csv` und JSON geben Werte vollständig aus. Die Tabelle zieht mehrzeilige Werte auf eine Zeile und kürzt nur im Terminal.
 
 Schema und Beispiele: [Auswertung](auswertung.md) und `total-recall llm --skill`.
 
@@ -444,7 +485,7 @@ Je Befund steht die erste Fundstelle (`Datei:Zeile`) dabei. Inhalte werden nicht
 | Option | Bedeutung |
 |---|---|
 | `--harness NAME` | zu prüfende Harness, Default `claude` |
-| `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`) |
+| `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`); Konfigurationsprobleme gehen dann auf stderr |
 
 Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](hooks.md#nach-einem-claude-code-update).
 

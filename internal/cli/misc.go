@@ -171,7 +171,8 @@ into ~/.claude/settings.json (do not replace existing hooks).`,
 
 // ---- config ----
 
-// ConfigJSON is the --json output of config show.
+// ConfigJSON is the JSON output of config show. Every key is always
+// present; Problems is [] without problems.
 type ConfigJSON struct {
 	File       string        `json:"file"`
 	FileOrigin string        `json:"file_origin"`
@@ -179,70 +180,70 @@ type ConfigJSON struct {
 	Values     []ConfigValue `json:"values"`
 	// Problems are the errors of the tables that are checked when used
 	// ([work], [tui], [keys]); the command exits non-zero when there are any.
-	Problems []string `json:"problems,omitempty"`
+	Problems []string `json:"problems"`
 }
 
-// ConfigValue is one effective value.
+// ConfigValue is one effective value; Value is null when empty.
 type ConfigValue struct {
-	Key    string `json:"key"`
-	Value  string `json:"value"`
-	Origin string `json:"origin"`
+	Key    string     `json:"key"`
+	Value  NullString `json:"value"`
+	Origin string     `json:"origin"`
 }
 
 func (e *env) configCmd() *cobra.Command {
 	c := &cobra.Command{Use: "config", Short: "Show or initialize the configuration"}
-	var asJSON bool
+	var of outputFlags
 	show := &cobra.Command{
 		Use:   "show",
 		Short: "Show the effective configuration with the origin of each value",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := e.loadConfig()
-			if err != nil {
-				return err
-			}
-			out := ConfigJSON{File: cfg.Path, FileOrigin: string(cfg.PathOrigin), Loaded: cfg.Loaded}
-			for _, en := range cfg.Entries() {
-				out.Values = append(out.Values, ConfigValue{Key: en.Key, Value: en.Value, Origin: string(en.Origin)})
-			}
-			out.Values = append(out.Values, ConfigValue{Key: "log (effective)", Value: cfg.LogPath(), Origin: string(cfg.Origin("log"))})
-			problems := cfg.Problems()
-			for _, p := range problems {
-				out.Problems = append(out.Problems, p.Error())
-			}
-			if asJSON {
-				if err := writeJSON(cmd.OutOrStdout(), out); err != nil {
-					return err
-				}
-				if len(problems) > 0 {
-					return errSilent
-				}
-				return nil
-			}
-			state := "not found, defaults apply"
-			if cfg.Loaded {
-				state = "loaded"
-			}
-			w := cmd.OutOrStdout()
-			_, _ = fmt.Fprintf(w, "config file: %s (%s, %s)\n\n", cfg.Path, cfg.PathOrigin, state)
-			rows := make([][]string, 0, len(out.Values))
-			for _, v := range out.Values {
-				rows = append(rows, []string{v.Key, v.Value, v.Origin})
-			}
-			if err := table(w, []string{"KEY", "VALUE", "ORIGIN"}, rows); err != nil {
-				return err
-			}
-			if len(problems) == 0 {
-				return nil
-			}
-			_, _ = fmt.Fprintln(w, "\nproblems (checked when a command uses the table; hooks and ingest are not affected):")
-			for _, p := range problems {
-				_, _ = fmt.Fprintf(w, "  %s\n", p)
-			}
-			return errSilent
-		},
+		Args:  usageArgs(cobra.NoArgs),
 	}
-	show.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	show.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
+		cfg, err := e.loadConfig()
+		if err != nil {
+			return err
+		}
+		out := ConfigJSON{File: cfg.Path, FileOrigin: string(cfg.PathOrigin), Loaded: cfg.Loaded, Values: []ConfigValue{}, Problems: []string{}}
+		for _, en := range cfg.Entries() {
+			out.Values = append(out.Values, ConfigValue{Key: en.Key, Value: NullString(en.Value), Origin: string(en.Origin)})
+		}
+		out.Values = append(out.Values, ConfigValue{Key: "log (effective)", Value: NullString(cfg.LogPath()), Origin: string(cfg.Origin("log"))})
+		problems := cfg.Problems()
+		for _, p := range problems {
+			out.Problems = append(out.Problems, p.Error())
+		}
+		if o.format.IsJSON() {
+			if err := o.object(out); err != nil {
+				return err
+			}
+			if len(problems) > 0 {
+				return errSilent
+			}
+			return nil
+		}
+		state := "not found, defaults apply"
+		if cfg.Loaded {
+			state = "loaded"
+		}
+		w := o.w
+		_, _ = fmt.Fprintf(w, "config file: %s (%s, %s)\n\n", cfg.Path, cfg.PathOrigin, state)
+		rows := make([][]string, 0, len(out.Values))
+		for _, v := range out.Values {
+			rows = append(rows, []string{v.Key, string(v.Value), v.Origin})
+		}
+		if err := o.table([]string{"KEY", "VALUE", "ORIGIN"}, rows); err != nil {
+			return err
+		}
+		if len(problems) == 0 {
+			return nil
+		}
+		_, _ = fmt.Fprintln(w, "\nproblems (checked when a command uses the table; hooks and ingest are not affected):")
+		for _, p := range problems {
+			_, _ = fmt.Fprintf(w, "  %s\n", p)
+		}
+		return errSilent
+	})
+	of.register(show)
 	initCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Write a commented config template (never overwrites)",

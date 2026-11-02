@@ -278,7 +278,7 @@ func TestStatsWorkdayBundesland(t *testing.T) {
 				t.Fatal(err)
 			}
 			out := decode[WorkdayJSON](t, runActivity(t, e, db, "--workday", "--range", "this-week", "--json").stdout)
-			if out.HolidayRegion != tt.region || out.Total.Workdays != tt.workdays || out.Days[1].Holiday != tt.holiday {
+			if out.HolidayRegion != tt.region || out.Total.Workdays != tt.workdays || string(out.Days[1].Holiday) != tt.holiday {
 				t.Errorf("region %q, workdays %d, Tue holiday %q; want %q, %d, %q", out.HolidayRegion, out.Total.Workdays, out.Days[1].Holiday, tt.region, tt.workdays, tt.holiday)
 			}
 			r := runActivity(t, e, db, "--workday", "--range", "this-week")
