@@ -8,6 +8,25 @@
     "claude main",
     "other"
   ],
+  "total": {
+    "sessions": 17,
+    "human": 22,
+    "agent": 37
+  },
+  "by_key": [
+    {
+      "key": "claude main",
+      "sessions": 16,
+      "human": 22,
+      "agent": 35
+    },
+    {
+      "key": "other",
+      "sessions": 1,
+      "human": 0,
+      "agent": 2
+    }
+  ],
   "buckets": [
     {
       "start": "2025-11-30T23:00:00.000Z",

@@ -213,11 +213,13 @@ total-recall stats --period month --since 2026-01-01          # nur je Monat, oh
 
 | Option | Bedeutung |
 |---|---|
-| `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0 |
+| `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0, zuletzt eine Zeile `total` für den ganzen Zeitraum |
 | `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
 | `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
 
-Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt.
+Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt. Den Schluss bilden Zeilen mit der Periode `total`: ohne `--by` eine für den Zeitraum, mit `--by` eine je Schlüssel und eine über alle Schlüssel (KEY `*`).
+
+`SESSIONS` zählt zweierlei: In einer Periodenzeile zählt jede Session, die in der Periode aktiv war; eine Session über drei Tage steht bei `--period day` in drei Zeilen. In den `total`-Zeilen zählt jede Session im Zeitraum genau einmal. Die Summe der Periodenzeilen ist deshalb meist größer als `total`. `HUMAN` und `AGENT` sind in beiden Fällen einfache Summen.
 
 ```text
 PERIOD    KEY           SESSIONS  HUMAN  AGENT
@@ -225,9 +227,13 @@ PERIOD    KEY           SESSIONS  HUMAN  AGENT
 2026-W40  infra         3         31     410
 2026-W40  ~/notes       2         18     95
 2026-W41  total-recall  9         180    3300
+total     total-recall  18        420    7400
+total     infra         3         31     410
+total     ~/notes       2         18     95
+total     *             23        469    7905
 ```
 
-JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in UTC, `start` der Periodenbeginn in UTC, `label` die Periode in lokaler Zeit (`2026-10-05`, `2026-W41`, `2026-10`). Jede Periode des Zeitraums ist enthalten, auch leere; `sessions`, `human`, `agent` auf Periodenebene sind die Summe über alle Schlüssel. `cells` enthält nur Schlüssel mit Aktivität. Ohne `--by` sind `by` leer, `keys` und `cells` leere Listen.
+JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in UTC, `start` der Periodenbeginn in UTC, `label` die Periode in lokaler Zeit (`2026-10-05`, `2026-W41`, `2026-10`). Jede Periode des Zeitraums ist enthalten, auch leere; `sessions`, `human`, `agent` auf Periodenebene sind die Summe über alle Schlüssel. `cells` enthält nur Schlüssel mit Aktivität. `total` ist der ganze Zeitraum, `by_key` dasselbe je Schlüssel in der Reihenfolge von `keys`; dort zählt `sessions` jede Session einmal, in den Perioden einmal je Periode mit Aktivität. Ohne `--by` sind `by` leer, `keys`, `by_key` und `cells` leere Listen.
 
 ```json
 {
@@ -237,6 +243,12 @@ JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in
   "period": "week",
   "by": "project",
   "keys": ["total-recall", "infra", "other"],
+  "total": {"sessions": 23, "human": 469, "agent": 7905},
+  "by_key": [
+    {"key": "total-recall", "sessions": 18, "human": 420, "agent": 7400},
+    {"key": "infra", "sessions": 3, "human": 31, "agent": 410},
+    {"key": "other", "sessions": 2, "human": 18, "agent": 95}
+  ],
   "buckets": [
     {
       "start": "2026-10-04T22:00:00.000Z",

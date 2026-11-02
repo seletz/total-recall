@@ -23,8 +23,8 @@
     15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 01 02 03 04 05 06 07 08 09 10 11
  ██ alpha  ██ ~/gamma  ██ beta
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- project                                                     sessions      human      agent    share
- alpha                                                              6          9         14     67 %
- ~/gamma                                                            2          2          4     17 %
- beta                                                               2          2          3     14 %
+ project                                     sessions    session-days      human      agent    share
+ alpha                                              5               6          9         14     67 %
+ ~/gamma                                            2               2          2          4     17 %
+ beta                                               2               2          2          3     14 %
  text chart · 28 days · 0 ms

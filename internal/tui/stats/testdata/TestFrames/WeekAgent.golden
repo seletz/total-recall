@@ -20,7 +20,7 @@
      W39   W40   W41   W42   W43   W44   W45   W46   W47   W48   W49   W50   W51   W52   W01   W02
  ██ claude main  ██ claude subagent
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- agent                                                       sessions      human      agent    share
- claude main                                                       16         22         35     96 %
- claude subagent                                                    1          0          2      3 %
+ agent                                       sessions   session-weeks      human      agent    share
+ claude main                                       16              16         22         35     96 %
+ claude subagent                                    1               1          0          2      3 %
  text chart · 16 weeks · 0 ms
