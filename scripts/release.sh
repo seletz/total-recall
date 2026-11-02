@@ -51,6 +51,14 @@ esac
 
 NEXT="v${MAJOR}.${MINOR}.${PATCH}"
 
+# The release workflow puts the section "## $NEXT" of docs/aenderungen.md at
+# the top of the GitHub release; without it the workflow fails after the tag
+# is pushed, so check here first.
+if ! "$(dirname "$0")/release-notes.sh" "$NEXT" >/dev/null; then
+    echo "Add a section \"## $NEXT\" to docs/aenderungen.md before tagging." >&2
+    exit 1
+fi
+
 echo ""
 read -rp "Create release $NEXT? [y/N]: " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
