@@ -18,6 +18,10 @@ go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Vers
 description = "Run all tests"
 run = "go test ./..."
 
+[tasks."test:race"]
+description = "Run all tests with the race detector"
+run = "go test -race ./..."
+
 [tasks.lint]
 description = "Run go vet and golangci-lint"
 run = ["go vet ./...", "golangci-lint run"]
