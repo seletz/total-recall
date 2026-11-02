@@ -19,7 +19,8 @@ description = "Run all tests"
 run = "go test ./..."
 
 [tasks."test:race"]
-description = "Run all tests with the race detector"
+description = "Run all tests with the race detector (needs cgo on linux)"
+env = { CGO_ENABLED = "1" }
 run = "go test -race ./..."
 
 [tasks.lint]
