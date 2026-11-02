@@ -21,7 +21,7 @@
 - CLI mit `github.com/spf13/cobra`. Jeder lesende Befehl hat `--json`.
 - Releases über goreleaser, Homebrew-Cask im Tap `seletz/homebrew-tap`. Die Release Notes je Version stehen in `docs/aenderungen.md`; der Release-Workflow stellt den Abschnitt des Tags (`scripts/release-notes.sh`, `--release-header`) vor den generierten Commit-Changelog. `scripts/release.sh` taggt nur, wenn der Abschnitt existiert.
 - Doku mit Zensical unter `docs/`, auf Deutsch, veröffentlicht auf GitHub Pages bei jedem Push nach `develop` (`.github/workflows/docs.yml`).
-- Tasks über `mise` (`mise run build|test|lint|docs:serve|release`).
+- Tasks über `mise` (`mise run build|test|lint|docs:serve|release`). `mise run docs:screenshots` erzeugt die Bilder der TUI unter `docs/assets/screenshots/` (`internal/screenshot`, `tools/screenshots`): Statistik und Aktivität aus einer anonymisierten Kopie der konfigurierten DB (neutrale Namen nach Aktivitätsrang, alle Inhalte geleert, Kopie außerhalb des Repos), Suche und Session aus einem erfundenen Demo-Archiv; die Bilder zeichnet das Werkzeug selbst aus den Frames der kopflos gesteuerten TUI (Zelle für Zelle, eingebettete Schrift Go Mono).
 - TDD, tabellengetriebene Tests. Testdaten sind synthetisch. **Nie echte Transkripte ins Repo.**
 
 ## Pfade

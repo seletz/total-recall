@@ -2,6 +2,8 @@
 
 Archiviert Sessions von Coding-Agenten (zuerst Claude Code) in eine lokale SQLite-Datenbank und macht sie auswertbar, für Menschen und für Agenten. Claude Code löscht alte Transkripte; `total-recall` liest sie über Hooks laufend ein und hebt sie auf.
 
+![total-recall tui: Volltextsuche mit Vorschau](docs/assets/screenshots/search.png)
+
 Dokumentation: <https://seletz.github.io/total-recall/> (Quelle unter [docs/](docs/), Spezifikation in [docs/design.md](docs/design.md), Änderungen je Version in [docs/aenderungen.md](docs/aenderungen.md)).
 
 ## Was es kann
