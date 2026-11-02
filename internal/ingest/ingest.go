@@ -1,7 +1,7 @@
 // Package ingest orchestrates reading transcripts into the store: it finds
 // sources, locks each file, continues at the stored byte offset, redacts,
 // resolves git info and writes events, sessions and the new offset in one
-// transaction per batch (see docs/design.md, "Ingest, Hooks, Nebenläufigkeit").
+// transaction per batch (see docs/explanation/design.md, "Ingest, Hooks, Nebenläufigkeit").
 package ingest
 
 import (

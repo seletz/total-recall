@@ -4,7 +4,7 @@ Archiviert Sessions von Coding-Agenten (zuerst Claude Code) in eine lokale SQLit
 
 ![total-recall tui: Volltextsuche mit Vorschau](docs/assets/screenshots/search.png)
 
-Dokumentation: <https://seletz.github.io/total-recall/> (Quelle unter [docs/](docs/), Spezifikation in [docs/design.md](docs/design.md), Änderungen je Version in [docs/aenderungen.md](docs/aenderungen.md)).
+Dokumentation: <https://seletz.github.io/total-recall/> (Quelle unter [docs/](docs/), nach [Diátaxis](https://diataxis.fr/) gegliedert; Spezifikation in [docs/explanation/design.md](docs/explanation/design.md), Änderungen je Version in [docs/reference/90-aenderungen.md](docs/reference/90-aenderungen.md)).
 
 ## Was es kann
 
@@ -19,7 +19,7 @@ Dokumentation: <https://seletz.github.io/total-recall/> (Quelle unter [docs/](do
 brew install --cask seletz/tap/total-recall
 ```
 
-Solange das Repository privat ist, geht nur der Weg aus dem Quellcode: `mise run build` baut `./total-recall`. Details, Hooks und erstes Einlesen: [Installation](https://seletz.github.io/total-recall/installation/) und [Hooks einrichten](https://seletz.github.io/total-recall/hooks/).
+Solange das Repository privat ist, geht nur der Weg aus dem Quellcode: `mise run build` baut `./total-recall`. Details, Hooks und erstes Einlesen: [Installieren](https://seletz.github.io/total-recall/how-to/10-installieren/) und [Hooks einrichten](https://seletz.github.io/total-recall/how-to/20-hooks-einrichten/); einmal von vorn bis hinten: [Erste Schritte](https://seletz.github.io/total-recall/tutorials/erste-schritte/).
 
 ## Entwicklung
 

@@ -4,7 +4,7 @@ package store
 // is the schema version recorded in schema_version. Forward-only: never edit
 // a released migration, append a new one.
 //
-// Notes on deviations from docs/design.md:
+// Notes on deviations from docs/explanation/design.md:
 //   - events has an explicit INTEGER PRIMARY KEY "seq" and "id" is UNIQUE
 //     (not the PK). events_fts uses external content keyed by rowid, and
 //     VACUUM (including VACUUM INTO for backups) may renumber implicit rowids

@@ -32,7 +32,7 @@ archives:
 checksum:
   name_template: "checksums-{{ .Tag }}.txt"
 
-# The release body starts with the notes for the tag from docs/aenderungen.md
+# The release body starts with the notes for the tag from docs/reference/90-aenderungen.md
 # (scripts/release-notes.sh, passed as --release-header by the workflow); the
 # generated changelog below lists the remaining commits.
 changelog:

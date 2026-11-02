@@ -16,7 +16,7 @@ import (
 // Focus: List and Input move the focus between the input and the hit list
 // with the focus keys (tab and shift+tab by default, both directions, the
 // view never gives them to the app); the back key (esc) is the "one level
-// back" of Input and Cancel. See docs/tui.md, section Fokus.
+// back" of Input and Cancel. See docs/reference/30-tui.md, section Fokus.
 type KeyMap struct {
 	Up    key.Binding
 	Down  key.Binding
