@@ -763,7 +763,7 @@ func TestTUICommand(t *testing.T) {
 	e := newTestEnv(t)
 	// Flags and arguments are validated before anything is opened, so these
 	// never start the program.
-	if out := e.mustRun(t, "tui", "--help"); !strings.Contains(out, "--graphics") || !strings.Contains(out, "--query") {
+	if out := e.mustRun(t, "tui", "--help"); !strings.Contains(out, "--graphics") || !strings.Contains(out, "--query") || !strings.Contains(out, "--no-mouse") {
 		t.Errorf("tui --help = %q", out)
 	}
 	tests := []struct {

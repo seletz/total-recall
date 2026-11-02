@@ -55,6 +55,10 @@ type preview struct {
 	events  []model.Event
 	hit     int
 	err     error
+	// scroll is the first line of the exchange shown once the mouse wheel
+	// has moved it (scrolled); before that the hit is kept in view.
+	scrolled bool
+	scroll   int
 }
 
 // stop cancels the running load, if any.
@@ -83,6 +87,7 @@ func (m *Model) follow() tea.Cmd {
 	p.seq++
 	p.stop()
 	h := m.marked()
+	p.scrolled, p.scroll = false, 0
 	if h == nil {
 		*p = preview{seq: p.seq}
 		return nil
@@ -146,6 +151,7 @@ func (m Model) previewResult(msg previewMsg) (tea.Model, tea.Cmd) {
 	}
 	p.loading, p.cancel = false, nil
 	p.eventID, p.session, p.events, p.hit, p.err = msg.eventID, msg.session, msg.events, msg.hit, msg.err
+	p.scrolled, p.scroll = false, 0
 	return m, nil
 }
 
@@ -219,27 +225,64 @@ func (m Model) previewView(w, rows int) string {
 	case p.err != nil:
 		return " " + ansi.Truncate("error: "+p.err.Error(), max(w-1, 0), "…")
 	}
-	lines := m.previewHead(w)
-	head := len(lines)
-	hitLine := 0
+	head, body, hitLine := m.previewLines(w)
+	if avail := rows - len(head); len(body) > avail && avail > 0 {
+		off, limit := previewOffset(hitLine, len(body), avail)
+		if p.scrolled {
+			off = min(p.scroll, limit)
+		}
+		body = body[off:]
+	}
+	return strings.Join(append(head, body...), "\n")
+}
+
+// previewLines renders the preview for width w as the head lines and the
+// lines of the exchange; hitLine is the index of the hit's separator within
+// the body.
+func (m Model) previewLines(w int) (head, body []string, hitLine int) {
+	p := m.preview
+	head = m.previewHead(w)
 	ms := terms(m.query, m.filters.raw)
 	for i, e := range p.events {
 		if i == p.hit {
-			hitLine = len(lines)
+			hitLine = len(body)
 		}
-		lines = append(lines, m.previewEvent(e, i == p.hit, ms, w)...)
+		body = append(body, m.previewEvent(e, i == p.hit, ms, w)...)
 		if i < len(p.events)-1 {
-			lines = append(lines, "")
+			body = append(body, "")
 		}
 	}
-	// Keep the hit in the upper part of the column when the exchange is
-	// longer than the column; the head stays.
-	body := lines[head:]
-	if avail := rows - head; len(body) > avail && avail > 0 {
-		off := min(max(hitLine-head-avail/3, 0), len(body)-avail)
-		body = body[off:]
+	return head, body, hitLine
+}
+
+// previewOffset returns the automatic first line of a body of n lines in
+// avail rows, which keeps the hit at hitLine in the upper part of the
+// column, and the largest offset that still fills the column.
+func previewOffset(hitLine, n, avail int) (off, limit int) {
+	limit = max(n-avail, 0)
+	return min(max(hitLine-avail/3, 0), limit), limit
+}
+
+// scrollPreview moves the preview by delta lines from where it is shown,
+// within the exchange; the first line never leaves the column.
+func (m *Model) scrollPreview(delta int) {
+	p := &m.preview
+	h := m.marked()
+	if h == nil || p.eventID != h.Event.ID || p.err != nil {
+		return
 	}
-	return strings.Join(append(lines[:head:head], body...), "\n")
+	_, w := m.columns()
+	rows := max(m.height-chromeRows, 0)
+	head, body, hitLine := m.previewLines(w)
+	avail := rows - len(head)
+	if avail <= 0 || len(body) <= avail {
+		return
+	}
+	off, limit := previewOffset(hitLine, len(body), avail)
+	if p.scrolled {
+		off = min(p.scroll, limit)
+	}
+	p.scrolled, p.scroll = true, min(max(off+delta, 0), limit)
 }
 
 // previewHead is the session head: name, ID and repo, time span and branch,
