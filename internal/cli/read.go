@@ -492,13 +492,19 @@ func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
 }
 
 func (e *env) statsCmd() *cobra.Command {
-	var month, sinceArg, untilArg string
+	var month, sinceArg, untilArg, period, by string
+	var top int
 	var asJSON bool
 	c := &cobra.Command{
 		Use:   "stats",
-		Short: "Activity per day, per repo and per weekday×hour (local time)",
-		Long: `Counts sessions, human and agent events in a period, per local day, per
-repository and per weekday × hour. Default period: the current month.`,
+		Short: "Activity per day, per repo and per weekday×hour, or per period × project/agent/directory",
+		Long: `Counts sessions, human and agent events in a time range, per local day, per
+repository and per weekday × hour. Default range: the current month.
+
+With --period or --by the output is a time series instead: one row per
+period (day, week or month, local time) and, with --by, per project, agent
+type (main or subagent) or working directory. --top N keeps the N largest
+keys over the whole range and folds the rest into "other".`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := e.loadConfig()
@@ -510,11 +516,32 @@ repository and per weekday × hour. Default period: the current month.`,
 			if err != nil {
 				return err
 			}
+			series := period != "" || by != "" || cmd.Flags().Changed("top")
+			var opts seriesOptions
+			if series {
+				if opts, err = parseSeriesOptions(period, by, top); err != nil {
+					return err
+				}
+			}
 			st, err := e.openRead(cfg)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = st.Close() }()
+			if series {
+				as, err := st.ActivitySeries(cmd.Context(), store.ActivityFilter{
+					Since: since, Until: until, Location: loc,
+					Period: opts.period, Dimension: opts.by, TopN: opts.top,
+				})
+				if err != nil {
+					return err
+				}
+				out := seriesJSON(as, opts, keyNames(as, opts), since, until, cfg.Timezone)
+				if asJSON {
+					return writeJSON(cmd.OutOrStdout(), out)
+				}
+				return writeSeriesTable(cmd.OutOrStdout(), out)
+			}
 			s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
 			if err != nil {
 				return err
@@ -528,6 +555,9 @@ repository and per weekday × hour. Default period: the current month.`,
 	c.Flags().StringVar(&month, "month", "", "month YYYY-MM (default: current month)")
 	c.Flags().StringVar(&sinceArg, "since", "", "from this time (instead of --month)")
 	c.Flags().StringVar(&untilArg, "until", "", "until this time; a date includes the whole day")
+	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
+	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent or directory (implies --period day)")
+	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
 	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return c
 }
