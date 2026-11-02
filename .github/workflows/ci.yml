@@ -28,7 +28,10 @@ jobs:
         run: go vet ./...
 
       - name: go test
-        run: go test ./...
+        # The race detector needs cgo on linux; the build stays static.
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./...
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9.3.0

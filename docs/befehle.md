@@ -265,7 +265,7 @@ JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in
 
 ### Arbeitszeit: `--workday` { #stats-workday }
 
-Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität** und die Spanne dazwischen: ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde. Dieselbe Ansicht hat die [TUI](tui.md#aktivitat) als Reiter „activity“.
+Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität**, die Spanne dazwischen und die Differenz zum Tagessoll: ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde. Dieselbe Ansicht hat die [TUI](tui.md#aktivitat) als Reiter „activity“.
 
 ```sh
 total-recall stats --workday                          # diese Woche
@@ -276,15 +276,17 @@ total-recall stats --workday --since 2026-10-01 --until 2026-10-15 --human-only
 
 ```text
 2026-10-26 04:00 – 2026-11-02 03:59 (Europe/Berlin, day starts 04:00, human and agent events)
+core hours 09:00-17:00, target 8h00m per weekday
 
-DATE        DAY  FIRST  LAST        SPAN
-2026-10-26  Mon  08:12  18:40       10h28m
-2026-10-27  Tue  09:03  01:30 (+1)  16h27m
-2026-10-28  Wed  -      -           -
-2026-10-29  Thu  07:55  17:10       9h15m
+DATE        DAY  FIRST  LAST        SPAN    DIFF
+2026-10-26  Mon  08:12  18:40       10h28m  +2h28m
+2026-10-27  Tue  09:03  01:30 (+1)  16h27m  +8h27m
+2026-10-28  Wed  -      -           -       -
+2026-10-29  Thu  07:55  17:10       9h15m   +1h15m
 …
+2026-11-01  Sun  21:00  21:05       5m      +0h05m
 
-total: 5 days with activity, 41h40m
+total: 5 days with activity, 41h40m · target 32h00m (4 workdays × 8h00m) · balance +9h40m
 ```
 
 | Option | Bedeutung |
@@ -295,7 +297,9 @@ total: 5 days with activity, 41h40m
 
 **Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
 
-JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_local`, `last_local`, mit `(+1)`), die Spanne in Sekunden und die Zähler. Ein Tag ohne Aktivität hat leere Zeiten und Nullen.
+**Soll.** Kernzeit und Tagessoll kommen aus [`[work]`](konfiguration.md#work), Standard 09:00–17:00 und 8 h. `DIFF` ist die Spanne minus Soll an Werktagen mit Aktivität; das Wochenende hat kein Soll, dort ist die ganze Spanne die Differenz. Tage ohne Aktivität zählen nicht als Arbeitstage (Urlaub, Feiertag und ein vergessener Tag sind nicht zu unterscheiden). Die Summenzeile nennt das Soll (Tagessoll × Werktage mit Aktivität) und den Saldo aller Spannen dagegen. Die Kernzeit ist in der Textausgabe nur eine Angabe; wo die Aktivität liegt, zeigt die TUI.
+
+JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_local`, `last_local`, mit `(+1)`), die Spanne in Sekunden, `weekend`, Soll und Differenz in Sekunden (`target_seconds`, `diff_seconds`, beide 0 ohne Aktivität) und die Zähler. Oben stehen `work_hours` und `target_seconds`, in `total` die Werktage mit Soll (`workdays`), das Soll und der Saldo (`balance_seconds`). Ein Tag ohne Aktivität hat leere Zeiten und Nullen.
 
 ```json
 {
@@ -304,16 +308,19 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
   "timezone": "Europe/Berlin",
   "day_start": "04:00",
   "human_only": false,
+  "work_hours": "09:00-17:00",
+  "target_seconds": 28800,
   "days": [
     {
       "day": "2026-10-27", "weekday": "Tue",
       "first": "2026-10-27T08:03:00.000Z", "last": "2026-10-28T00:30:00.000Z",
       "first_local": "09:03", "last_local": "01:30 (+1)",
-      "span_seconds": 59220,
+      "span_seconds": 59220, "weekend": false,
+      "target_seconds": 28800, "diff_seconds": 30420,
       "sessions": 3, "human": 41, "agent": 902
     }
   ],
-  "total": {"days": 5, "span_seconds": 150000}
+  "total": {"days": 5, "workdays": 4, "span_seconds": 150000, "target_seconds": 115200, "balance_seconds": 34800}
 }
 ```
 
