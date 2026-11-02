@@ -1,6 +1,6 @@
  period: [day] week month  count: [all] human                            yesterday · Sat 2026-01-10
- day             first  last     span  04        08        12        16        20        00
- Sat 2026-01-10  -      -           -  ····························································
+ day             first  last     span     diff  04      08       12      16       20      00
+ Sat 2026-01-10  -      -           -        -  ···················································
 
 
 
