@@ -12,6 +12,7 @@ import (
 
 func (e *env) tuiCmd() *cobra.Command {
 	var query, graphics string
+	var noMouse bool
 	c := &cobra.Command{
 		Use:   "tui [search|stats|activity]",
 		Short: "Interactive search, activity charts and first/last activity per day (spike)",
@@ -42,11 +43,12 @@ the view shown first.`,
 			}
 			defer func() { _ = st.Close() }()
 			opts := tui.Options{Store: st, Location: cfg.Location(), Now: e.app.Now,
-				Start: start, Query: query, Graphics: g, DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Home: cfg.Home}
+				Start: start, Query: query, Graphics: g, DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Home: cfg.Home, NoMouse: noMouse}
 			return tui.Run(cmd.Context(), opts, e.app.Stdin, e.app.Stdout)
 		},
 	}
 	c.Flags().StringVar(&query, "query", "", "initial search text")
 	c.Flags().StringVar(&graphics, "graphics", "auto", "chart rendering: auto, text or kitty")
+	c.Flags().BoolVar(&noMouse, "no-mouse", false, "leave the mouse to the terminal (plain drag selects text)")
 	return c
 }

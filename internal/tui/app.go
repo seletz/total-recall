@@ -55,6 +55,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.broadcast(a.bodySize())
 	case tea.KeyPressMsg:
 		return a.key(msg)
+	case tea.MouseClickMsg:
+		return a.mouse(msg, func(y int) tea.Msg { msg.Y = y; return msg })
+	case tea.MouseWheelMsg:
+		return a.mouse(msg, func(y int) tea.Msg { msg.Y = y; return msg })
+	case tea.MouseReleaseMsg, tea.MouseMotionMsg:
+		return a, nil
 	case search.OpenSession:
 		a.showDetail = true
 		return a.updateDetail(session.Open{SessionID: msg.SessionID, EventID: msg.EventID, Terms: msg.Terms})
@@ -99,6 +105,27 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	return a.forward(msg)
+}
+
+// mouse routes a click or wheel turn: the help overlay swallows it, a click
+// on a tab switches the view (and closes the detail), anything in the body
+// goes to the current view with the header rows subtracted (shift builds
+// the message with the new row), the rest of the chrome drops it.
+func (a App) mouse(msg tea.MouseMsg, shift func(y int) tea.Msg) (tea.Model, tea.Cmd) {
+	if a.help {
+		return a, nil
+	}
+	m := msg.Mouse()
+	if _, click := msg.(tea.MouseClickMsg); click && m.Y == 0 && m.Button == tea.MouseLeft {
+		if i := a.tabAt(m.X); i >= 0 {
+			a.active, a.showDetail = i, false
+		}
+		return a, nil
+	}
+	if y := m.Y - headerRows; y >= 0 && y < a.bodySize().Height {
+		return a.forward(shift(y))
+	}
+	return a, nil
 }
 
 // current is the view that owns the body: the detail while it is shown,
@@ -158,6 +185,9 @@ func (a App) bodySize() tea.WindowSizeMsg {
 func (a App) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
+	if !a.opts.NoMouse {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	if a.width == 0 || a.height == 0 {
 		return v
 	}
@@ -190,6 +220,14 @@ var (
 // active tab is marked with brackets so it reads without colour. While the
 // detail is shown its title follows the active tab.
 func (a App) header() string {
+	left := titleStyle.Render(" total-recall")
+	right := strings.Join(a.tabs(), " ") + " "
+	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
+	return left + strings.Repeat(" ", gap) + right
+}
+
+// tabs renders the view tabs of the header.
+func (a App) tabs() []string {
 	tabs := make([]string, len(a.views))
 	for i, v := range a.views {
 		t := " " + itoa(i+1) + " " + v.Title() + " "
@@ -201,10 +239,23 @@ func (a App) header() string {
 		}
 		tabs[i] = t
 	}
-	left := titleStyle.Render(" total-recall")
-	right := strings.Join(tabs, " ") + " "
-	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	return left + strings.Repeat(" ", gap) + right
+	return tabs
+}
+
+// tabAt returns the index of the tab at column x of the header, -1 between
+// and outside the tabs. It follows the layout of header: the tabs sit at
+// the right edge, one space apart, with a trailing space.
+func (a App) tabAt(x int) int {
+	tabs := a.tabs()
+	start := a.width - lipgloss.Width(strings.Join(tabs, " ")) - 1
+	for i, t := range tabs {
+		end := start + lipgloss.Width(t)
+		if x >= start && x < end {
+			return i
+		}
+		start = end + 1
+	}
+	return -1
 }
 
 // footer shows the short help of the current view followed by the global
