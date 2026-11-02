@@ -8,7 +8,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v0.2.0
 
-Die Terminal-Oberfläche aus dem [Spike](../explanation/spike-tui.md) ist übernommen, dazu Arbeitszeit und Feiertage in CLI und TUI, Zeitreihen in `stats` und drei neue Config-Abschnitte. Die Datenbank bleibt bei Schema v3; ein Update braucht keine Migration.
+Die Terminal-Oberfläche aus dem [Spike](../explanation/spike-tui.md) ist übernommen, dazu Arbeitszeit und Feiertage in CLI und TUI, Zeitreihen in `stats`, ein fester Ausgabevertrag der lesenden Befehle für Skripte und Agenten, Zeitfenster in `show` und drei neue Config-Abschnitte. Die Datenbank bleibt bei Schema v3; ein Update braucht keine Migration.
 
 ### Neu: `total-recall tui`
 
@@ -27,6 +27,10 @@ Eine Vollbild-Oberfläche im Terminal, nur lesend. Bedienung: [TUI](30-tui.md).
 
 - [`stats --period day|week|month --by project|agent|directory --top N`](10-befehle.md#stats-period): eine Zeitreihe als Text oder JSON, Ersatz für externe Auswertungsskripte.
 - [`stats --workday`](10-befehle.md#stats-workday): erste und letzte Aktivität je Tag mit Spanne, Soll, Differenz, Feiertagen und Saldo; `--range today|this-week|last-week|this-month|last-month`, `--all-events`, JSON.
+- [Ausgabe der lesenden Befehle](10-befehle.md#ausgabe): `status`, `sessions`, `show`, `search`, `stats`, `sql`, `doctor` und `config show` haben `--format table|json|jsonl` (`sql` auch `csv`), `--json` als Kurzform und `--no-truncate`. `jsonl` schreibt ein kompaktes Objekt je Zeile, ungepuffert; `show --format jsonl` schreibt nur die Events. Mit JSON-Ausgabe geht ein Fehler als `{"error":{"kind":…,"message":…}}` auf stdout, Exit-Code 1; `kind` ist stabil (`usage`, `config`, `db`, `sql`, `not_found`, `ambiguous`, `internal`). Jeder dokumentierte Schlüssel ist immer vorhanden, ein leerer String ist `null`.
+- [`show --since/--until/--limit/--offset/--from-event`](10-befehle.md#show): Zeitfenster in lokaler Zeit wie bei `search`, Blättern und Einstieg an einem Event, etwa der `event_id` eines Suchtreffers. Ohne Grenzen bleibt die Ausgabe vollständig; ab 2000 Events steht ein Hinweis auf stderr, wie sie sich begrenzen lässt.
+- [`search --session ID`](10-befehle.md#search): nur in einer Session suchen; volle ID, native ID oder eindeutiges Präfix.
+- [`llm --skill`](../how-to/50-agenten-anbinden.md): der Skill für Agenten ist für maschinelle Nutzung umgebaut: zuerst die vier Kernabfragen als Copy-Paste-Blöcke für `sql --json`, dann der Ausgabevertrag, Kostenhinweise, Schema und Fallstricke (etwa das Idiom für ein lokales Zeitfenster auf `ts`). Ein Test prüft die genannten Spalten gegen das Schema und die JSON-Felder gegen die echte Ausgabe.
 - `config show` listet die Tastenbelegung als `keys.<aktion>` und meldet Probleme in `[work]`, `[tui]` und `[keys]`; `doctor` meldet sie als Befund.
 - [`status`](10-befehle.md#status) zeigt nur noch Fehler der letzten 24 Stunden, mit lokaler Zeit und Alter; ältere erscheinen als Anzahl, `--all-errors` listet sie. Hook-Zeilen über noch nicht vorhandene Transkripte zählen nicht mehr als Fehler. In der JSON-Ausgabe ist `recent_errors` jetzt eine Liste von Objekten (`at`, `message`), neu sind `errors_window`, `errors_since`, `recent_errors_total` und `older_errors`.
 
@@ -39,16 +43,20 @@ Neu in der [Konfiguration](20-konfiguration.md): `day_start` (Tagesgrenze der Ak
 - **Nur eigene Nachrichten:** `stats --workday` und die Aktivitätsansicht zählen standardmäßig nur menschliche Nachrichten, weil Agent-Events nachts weiterlaufen und die Spanne dehnen. `--all-events`, die Taste `h` oder `count = "all"` in `[work]` zählen alles. `--human-only` ist veraltet und wird noch angenommen.
 - **Fokus statt Ansicht:** ++tab++ und ++shift+tab++ wechseln in der Suche nur noch zwischen Eingabe und Liste. Die Ansichten wechseln `1`, `2` und `3`.
 - **Prüfung der Config:** `[work]`, `[tui]` und `[keys]` werden erst geprüft, wenn ein Befehl sie braucht. Ein Fehler dort bricht `tui` und `stats --workday` ab, stoppt aber nie Hooks und `ingest`.
+- **JSON-Fehler auf stdout:** Mit `--json` oder `--format json|jsonl` steht ein Fehler jetzt als Objekt auf stdout, nicht mehr nur als Text auf stderr. Ein Skript muss nur stdout lesen; der Exit-Code bleibt 1.
+- **`null` statt fehlender Schlüssel:** Schlüssel ohne Wert fehlten in der JSON-Ausgabe bisher, jetzt stehen sie mit `null` darin, zum Beispiel `parent_id` einer Haupt-Session oder `holiday` an einem gewöhnlichen Tag. Zahlen und Listen sind nie `null`.
+- **Kürzung nur im Terminal:** Tabellenzellen werden nur gekürzt, wenn stdout ein Terminal ist, und dann auf die Terminalbreite mit `…` und einem Hinweis auf stderr. In eine Pipe oder Datei geht immer der volle Text; `--no-truncate` erzwingt ihn auch im Terminal.
 
 ### Sonstiges
 
-- Die Dokumentation liegt auf GitHub Pages: <https://seletz.github.io/total-recall/>.
+- Die Dokumentation liegt auf GitHub Pages: <https://seletz.github.io/total-recall/>. Sie ist nach Diátaxis gegliedert in Tutorials, How-To, Referenz und Erklärungen, mit Screenshots aller TUI-Ansichten.
+- Ein synthetisches Demo-Archiv (`mise run demo:db`) ist die gemeinsame Grundlage von Tests und Screenshots; die Screenshots prüft die CI gegen eingecheckte Frames.
 - Lizenz: MIT.
 - Das Binary ist durch die TUI etwa 3,5 MiB größer.
 
 ### Bekannt
 
-- Die Kitty-Grafik der Statistik ist in echten Terminals noch nicht vollständig geprüft ([#40](https://github.com/seletz/total-recall/issues/40)); der Textpfad ist davon unabhängig.
+- Die TUI ist in herdr und über die gerenderten Screenshots geprüft. Andere Terminals (Ghostty, tmux, Terminal.app) sollten funktionieren, sind aber nicht einzeln getestet; Fehlerberichte sind willkommen.
 - Feiertage gibt es nur für Deutschland; Urlaub und Krankheit kennt die Aktivitätsansicht nicht.
 
 ## v0.1.1 (2026-11-01)
