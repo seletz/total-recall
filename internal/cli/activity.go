@@ -14,11 +14,11 @@ import (
 // per period and, with --by, per dimension value. Without --by, By is "",
 // Keys and every Cells are empty.
 type ActivitySeriesJSON struct {
-	Since    string `json:"since"`
-	Until    string `json:"until"`
-	Timezone string `json:"timezone"`
-	Period   string `json:"period"` // day, week or month
-	By       string `json:"by"`     // project, agent, directory or ""
+	Since    NullString `json:"since"`
+	Until    NullString `json:"until"`
+	Timezone string     `json:"timezone"`
+	Period   string     `json:"period"` // day, week or month
+	By       NullString `json:"by"`     // project, agent, directory or null
 	// Keys are the dimension values in the order of the cells, by volume
 	// descending; "other" (--top) is last. For --by project these are the
 	// project names (base name of the git root, full path of a directory
@@ -90,8 +90,8 @@ func parseSeriesOptions(period, by string, top int) (seriesOptions, error) {
 // display names; keys without an entry are shown as they are.
 func seriesJSON(s store.ActivitySeries, o seriesOptions, names map[string]string, since, until time.Time, tz string) ActivitySeriesJSON {
 	out := ActivitySeriesJSON{
-		Since: isoTime(since), Until: isoTime(until), Timezone: tz,
-		Period: o.period.String(), By: o.byName,
+		Since: NullString(isoTime(since)), Until: NullString(isoTime(until)), Timezone: tz,
+		Period: o.period.String(), By: NullString(o.byName),
 		Keys:    make([]string, 0, len(s.Keys)),
 		ByKey:   []ActivityCellJSON{},
 		Buckets: make([]ActivityBucketJSON, 0, len(s.Buckets)),

@@ -48,11 +48,11 @@ var rangeNames = []string{"today", "this-week", "last-week", "this-month", "last
 // WorkdayJSON is the --json output of stats --workday: the first and the
 // last activity per day of the range.
 type WorkdayJSON struct {
-	Since     string `json:"since"`
-	Until     string `json:"until"`
-	Timezone  string `json:"timezone"`
-	DayStart  string `json:"day_start"`  // HH:MM, activity before it counts for the previous day
-	HumanOnly bool   `json:"human_only"` // only human events were counted
+	Since     NullString `json:"since"`
+	Until     NullString `json:"until"`
+	Timezone  string     `json:"timezone"`
+	DayStart  string     `json:"day_start"`  // HH:MM, activity before it counts for the previous day
+	HumanOnly bool       `json:"human_only"` // only human events were counted
 	// WorkHours are the core hours ("09:00-17:00") and TargetSeconds the
 	// daily target on workdays the days are measured against.
 	WorkHours     string `json:"work_hours"`
@@ -68,17 +68,17 @@ type WorkdayJSON struct {
 
 // WorkdayDayJSON is one day.
 type WorkdayDayJSON struct {
-	Day     string `json:"day"`     // 2006-01-02 in local time
-	Weekday string `json:"weekday"` // Mon … Sun
-	First   string `json:"first"`   // first activity, UTC; "" without activity
-	Last    string `json:"last"`    // last activity, UTC
+	Day     string     `json:"day"`     // 2006-01-02 in local time
+	Weekday string     `json:"weekday"` // Mon … Sun
+	First   NullString `json:"first"`   // first activity, UTC; null without activity
+	Last    NullString `json:"last"`    // last activity, UTC
 	// FirstLocal and LastLocal are local clock times ("08:12"); past
 	// midnight the days after Day follow in brackets ("01:30 (+1)").
-	FirstLocal  string `json:"first_local"`
-	LastLocal   string `json:"last_local"`
-	SpanSeconds int    `json:"span_seconds"` // elapsed time between first and last
-	Weekend     bool   `json:"weekend"`
-	Holiday     string `json:"holiday"` // name of the public holiday, "" on an ordinary day
+	FirstLocal  NullString `json:"first_local"`
+	LastLocal   NullString `json:"last_local"`
+	SpanSeconds int        `json:"span_seconds"` // elapsed time between first and last
+	Weekend     bool       `json:"weekend"`
+	Holiday     NullString `json:"holiday"` // name of the public holiday, null on an ordinary day
 	// TargetSeconds is the day's target (zero on a weekend, a holiday or
 	// without activity), DiffSeconds the span minus the target (zero
 	// without activity).
@@ -157,7 +157,7 @@ func isDate(s string) bool {
 // json converts the report to its JSON form.
 func (r workdayReport) json() WorkdayJSON {
 	out := WorkdayJSON{
-		Since: isoTime(r.since), Until: isoTime(r.until), Timezone: r.tz, DayStart: r.dayStart, HumanOnly: r.humanOnly,
+		Since: NullString(isoTime(r.since)), Until: NullString(isoTime(r.until)), Timezone: r.tz, DayStart: r.dayStart, HumanOnly: r.humanOnly,
 		WorkHours: r.hours, TargetSeconds: int(r.work.Target.Seconds()), HolidayRegion: r.region,
 		Days: make([]WorkdayDayJSON, 0, len(r.days)),
 	}
@@ -165,9 +165,9 @@ func (r workdayReport) json() WorkdayJSON {
 		diff, _ := r.work.Diff(d)
 		out.Days = append(out.Days, WorkdayDayJSON{
 			Day: d.Label, Weekday: d.Day.Format("Mon"),
-			First: isoTime(d.First), Last: isoTime(d.Last),
-			FirstLocal: d.FirstClock(r.loc), LastLocal: d.LastClock(r.loc),
-			SpanSeconds: int(d.Span().Seconds()), Weekend: store.IsWeekend(d.Day), Holiday: d.Holiday,
+			First: NullString(isoTime(d.First)), Last: NullString(isoTime(d.Last)),
+			FirstLocal: NullString(d.FirstClock(r.loc)), LastLocal: NullString(d.LastClock(r.loc)),
+			SpanSeconds: int(d.Span().Seconds()), Weekend: store.IsWeekend(d.Day), Holiday: NullString(d.Holiday),
 			TargetSeconds: int(r.work.TargetFor(d).Seconds()), DiffSeconds: int(diff.Seconds()),
 			ActivityJSON: act(d.Activity),
 		})
