@@ -26,9 +26,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
-	"github.com/seletz/total-recall/internal/tui/project"
 )
 
 // TopN is how many dimension values the chart stacks; the rest is "other".
