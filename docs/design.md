@@ -81,6 +81,23 @@ automation_prefixes = ["Hourly ", "Weekend watch"]
 
 [git]
 resolve = true
+
+[tui]
+view = "search"                  # Ansicht beim Start; Argument geht vor
+graphics = "auto"                # auto | text | kitty; --graphics geht vor
+mouse = true                     # false = --no-mouse; --no-mouse=false geht vor
+stats_period = "day"             # day | week | month
+stats_dimension = "project"      # project | agent | directory
+activity_window = "week"         # day | week | month
+
+[keys]
+# Aktion = Taste oder Liste von Tasten; nur genannte Aktionen ändern sich.
+# Aktionsnamen mit Kontext-Präfix (global_, search_, session_, stats_,
+# activity_), Katalog in internal/tui/keys. Tastennamen wie Bubble Tea sie
+# meldet (a, G, ?, up, enter, ctrl+r, shift+tab); ctrl+c ist reserviert.
+# Je Kontext gehört eine Taste zu einer Aktion; globale Tasten sind in
+# keinem Kontext erneut erlaubt. Verstöße sind ein Fehler beim Laden.
+# global_quit = ["q", "ctrl+q"]
 ```
 
 `~` und Umgebungsvariablen werden in Pfaden expandiert. Unbekannte Schlüssel sind ein Fehler (Tippfehler sollen auffallen).
@@ -99,6 +116,8 @@ internal/project          Projektname aus Git-Root bzw. Verzeichnis, Home als `~
 internal/ingest           Orchestrierung: Quellen finden, Offsets, Locking, Store schreiben
 internal/skill            eingebetteter SKILL.md für `llm --skill`
 internal/config           TOML laden, Defaults, Env/Flag-Overrides, Pfad-Expansion
+internal/tui              TUI (Spike): App-Shell, Views in Unterpaketen
+internal/tui/keys         Katalog der Tasten-Aktionen (Name, Kontext, Default, Hilfetext), Validierung von [keys]
 internal/version          Version via ldflags
 ```
 

@@ -340,11 +340,12 @@ total-recall tui stats --graphics text        # Chart als Text, keine Terminal-A
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `search` |
+| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `tui.view` aus der Config, sonst `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort |
-| `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty und kitty, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `auto` |
+| `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty und kitty, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `tui.graphics` aus der Config, sonst `auto` |
+| `--no-mouse` | Maus dem Terminal überlassen (Textauswahl durch Ziehen). Default `tui.mouse` aus der Config; `--no-mouse=false` schaltet die Maus für einen Aufruf ein |
 
-Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`; die TUI ist ein Spike, siehe [Spike: TUI](spike-tui.md#ergebnis).
+Die Defaults der Ansicht, des Grafikmodus, der Maus und des Startzustands von Statistik und Aktivität stehen im Abschnitt [`[tui]`](konfiguration.md#tui) der Konfiguration, die Tastenbelegung in [`[keys]`](konfiguration.md#keys); Flags und Argument gehen vor. Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`; die TUI ist ein Spike, siehe [Spike: TUI](spike-tui.md#ergebnis).
 
 ## `sql` { #sql }
 

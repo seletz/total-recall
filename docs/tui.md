@@ -17,12 +17,14 @@ total-recall tui stats --graphics text    # Chart als Text, kein Bild
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `search` |
+| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `view` aus `[tui]`, sonst `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort beim Start |
-| `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `auto`; siehe [Grafikmodi](#grafikmodi) |
-| `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus) |
+| `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `graphics` aus `[tui]`, sonst `auto`; siehe [Grafikmodi](#grafikmodi) |
+| `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus). Default `mouse` aus `[tui]`; `--no-mouse=false` schaltet die Maus für einen Aufruf wieder ein |
 
-Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
+Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Der Abschnitt [`[tui]`](konfiguration.md#tui) der Konfiguration setzt die Defaults von Ansicht, Grafikmodus und Maus sowie Periode und Dimension der Statistik und das Fenster der Aktivität; Flags und Argument gehen vor. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
+
+Alle Tasten auf dieser Seite sind die Standardbelegung. Sie ist auf ein deutsches Mac-Layout ausgelegt und lässt sich über den Abschnitt `[keys]` der Konfiguration ändern, siehe [Tastenbelegung anpassen](#tastenbelegung-anpassen).
 
 Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Zeichen breit. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap wechselt in ein kompaktes Layout und blendet sich darunter aus.
 
@@ -68,7 +70,7 @@ Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, kein
 
 Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. Das Mausrad in der Vorschau verschiebt den Austausch zeilenweise; mit dem nächsten Treffer springt die Vorschau wieder an die automatische Position mit dem Treffer im oberen Drittel.
 
-**Textauswahl:** Solange die Maus an das Programm geht, wählt einfaches Ziehen keinen Text mehr aus. Die Terminals erlauben die Auswahl trotzdem mit einer Zusatztaste: ++shift++ und Ziehen in Ghostty und kitty, ++option++ und Ziehen in Terminal.app und iTerm2. In herdr und tmux kommen die Mausmeldungen beim Programm an, die Auswahl mit Zusatztaste geht an das äußere Terminal. Wer ganz ohne Maus arbeiten will, startet mit `--no-mouse`; dann bleibt die Maus beim Terminal und die Bedienung ist rein über die Tastatur. Eine Einstellung in der Konfiguration folgt mit dem Abschnitt `[tui]` ([#49](https://github.com/seletz/total-recall/issues/49)).
+**Textauswahl:** Solange die Maus an das Programm geht, wählt einfaches Ziehen keinen Text mehr aus. Die Terminals erlauben die Auswahl trotzdem mit einer Zusatztaste: ++shift++ und Ziehen in Ghostty und kitty, ++option++ und Ziehen in Terminal.app und iTerm2. In herdr und tmux kommen die Mausmeldungen beim Programm an, die Auswahl mit Zusatztaste geht an das äußere Terminal. Wer ganz ohne Maus arbeiten will, startet mit `--no-mouse` oder setzt `mouse = false` im Abschnitt [`[tui]`](konfiguration.md#tui) der Konfiguration; dann bleibt die Maus beim Terminal und die Bedienung ist rein über die Tastatur. `--no-mouse=false` schaltet sie für einen Aufruf wieder ein.
 
 ## Suche
 
@@ -189,11 +191,11 @@ Good. Tag v0.1.0 and run the release.
  other                                             30              42        515      7 212     12 %
  text chart (kitty: not detected) · 28 days · 312 ms
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • p/a/v by • [ ] -/+ range • 1 search • 2 stats • ? help • q quit
+ d/w/m period • p/a/v by • ←/→/-/+ range • 1 search • 2 stats • ? help • q quit
 ```
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
-- **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. `[` und `]` verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält.
+- **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](konfiguration.md#tui).
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
 - **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos.
 - **Tabelle:** dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
@@ -263,7 +265,7 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 ```
 
 - **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`all`: eigene Nachrichten und Agent-Events wie in der Statistik; `h` schaltet auf `human`, nur eigene Nachrichten). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag.
-- **Zeitfenster:** Start ist die aktuelle Woche. `[` und `]` verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
+- **Zeitfenster:** Start ist die aktuelle Woche (`activity_window` in [`[tui]`](konfiguration.md#tui)). ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
 - **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen, die Differenz zum Tagessoll und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
 - **Normalarbeitszeit:** Kernzeit und Tagessoll kommen aus `[work]` in der [Konfiguration](konfiguration.md#work), Standard 09:00–17:00 und 8 h. Die Kernzeit liegt als Band mit Linien an Anfang und Ende auf der Achse jedes Werktags (`│───│`, farbig hinterlegt). Der Balken ist innerhalb der Kernzeit blau (`█`), davor und danach orange (`▓`), nach Mitternacht rot (`▒`); am Wochenende violett ohne Band. Ohne Farben (`NO_COLOR`) unterscheiden die Zeichen.
 - **Spanne und Differenz:** Die Spanne eines Werktags wird gegen `daily_low`/`daily_high` bewertet und mit der Differenz zum Soll (`+1h15m`, `-2h35m`) gefärbt: türkis unter, grün im Rahmen, orange deutlich über Soll. Das Wochenende hat kein Soll, seine ganze Spanne ist die Differenz; ein Tag ohne Aktivität hat keine (`-`) und zählt nicht als Arbeitstag, also auch Urlaub oder Feiertag nicht.
@@ -276,66 +278,96 @@ Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikm
 
 ## Tasten
 
+Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion hängt an einer Taste, die dort nur mit ++option++ erreichbar ist (`[ ] { } | \ ~ @`). Wo `[` und `]` naheliegen, sind sie Zweitbelegung hinter ++left++/++right++ und `,`/`.`. Die Fußzeile und die Hilfe (`?`) zeigen immer die tatsächlich wirksamen Tasten. Jede Aktion lässt sich umbelegen, siehe [Tastenbelegung anpassen](#tastenbelegung-anpassen); die Aktionsnamen stehen in den Tabellen.
+
 ### Überall
 
-| Taste | Wirkung |
-|---|---|
-| `1` / `2` / `3` | Suche / Statistik / Aktivität; schließt eine offene Session |
-| ++tab++ / ++shift+tab++ | Fokus innerhalb der Ansicht wechseln: in der Suche Eingabe ↔ Liste. Wechselt nie die Ansicht |
-| `?` | Hilfe ein/aus |
-| ++esc++ | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
-| `q` | beenden (nicht, solange Eingabe oder Repo-Filter den Fokus haben) |
-| ++ctrl+c++ | beenden, immer |
-| Maus | Rad blättert, Klick auf einen Tab wechselt die Ansicht; siehe [Maus](#maus) |
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| `1` / `2` / `3` | `global_search` / `global_stats` / `global_activity` | Suche / Statistik / Aktivität; schließt eine offene Session |
+| ++tab++ / ++shift+tab++ | `search_focus` | Fokus innerhalb der Ansicht wechseln: in der Suche Eingabe ↔ Liste. Wechselt nie die Ansicht |
+| `?` | `global_help` | Hilfe ein/aus |
+| ++esc++ | `global_back` | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
+| `q` | `global_quit` | beenden (nicht, solange Eingabe oder Repo-Filter den Fokus haben; eine Belegung mit ++ctrl++ beendet auch dort) |
+| ++ctrl+c++ | – | beenden, immer; nicht umbelegbar |
+| Maus | – | Rad blättert, Klick auf einen Tab wechselt die Ansicht; siehe [Maus](#maus) |
 
 ### Suche
 
-| Taste | Eingabe hat den Fokus | Liste hat den Fokus |
-|---|---|---|
-| ++tab++ / ++shift+tab++ | in die Liste | in die Eingabe |
-| ++esc++ | – | in die Eingabe |
-| ++enter++ | markierten Treffer öffnen | markierten Treffer öffnen |
-| ++up++ / `k`, ++down++ / `j` | – | Markierung bewegen |
-| `a`, `t`, `r` | Suchtext | Filter Actor, Zeitraum, Repo |
-| ++ctrl+r++ | Rohsyntax ein/aus | Rohsyntax ein/aus |
+| Taste | Aktion | Eingabe hat den Fokus | Liste hat den Fokus |
+|---|---|---|---|
+| ++tab++ / ++shift+tab++ | `search_focus` | in die Liste | in die Eingabe |
+| ++esc++ | `global_back` | – | in die Eingabe |
+| ++enter++ | `search_open` | markierten Treffer öffnen | markierten Treffer öffnen |
+| ++up++ / `k`, ++down++ / `j` | `search_up`, `search_down` | – | Markierung bewegen |
+| `a`, `t`, `r` | `search_actor`, `search_time`, `search_repo` | Suchtext | Filter Actor, Zeitraum, Repo |
+| ++ctrl+r++ | `search_raw` | Rohsyntax ein/aus | Rohsyntax ein/aus |
 
-Im Repo-Filter: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft; siehe [Fokus](#fokus).
+Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernimmt, ++esc++ (`global_back`) verwirft; siehe [Fokus](#fokus).
 
 ### Session
 
-| Taste | Wirkung |
-|---|---|
-| ++up++ / `k`, ++down++ / `j` | eine Zeile |
-| `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | eine Seite |
-| `u` / ++ctrl+u++, `d` / ++ctrl+d++ | eine halbe Seite |
-| `g` / ++home++, `G` / ++end++ | Anfang / Ende |
-| `n` / `N` | nächster / voriger Treffer |
-| `T` | Tool-Events ein/aus |
-| `y` | Session-ID kopieren |
-| ++esc++ | zurück zur Suche |
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| ++up++ / `k`, ++down++ / `j` | `session_up`, `session_down` | eine Zeile |
+| `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | `session_page_up`, `session_page_down` | eine Seite |
+| `u` / ++ctrl+u++, `d` / ++ctrl+d++ | `session_half_up`, `session_half_down` | eine halbe Seite |
+| `g` / ++home++, `G` / ++end++ | `session_top`, `session_bottom` | Anfang / Ende |
+| `n` / `N` | `session_next`, `session_prev` | nächster / voriger Treffer |
+| `T` | `session_tools` | Tool-Events ein/aus |
+| `y` | `session_copy` | Session-ID kopieren |
+| ++esc++ | `global_back` | zurück zur Suche |
 
 ### Statistik
 
-| Taste | Wirkung |
-|---|---|
-| `d` / `w` / `m` | Periode Tag / Woche / Monat |
-| `p` / `a` / `v` | Dimension Projekt / Agent / Verzeichnis |
-| `[` / `]` | ein Fenster zurück / vor |
-| `-` / `+` | Fenster halbieren / verdoppeln (`=` wie `+`) |
-| `e` | Kennzahl: events → human → sessions |
-| `h` | Heatmap ein/aus |
-| `g` | Grafikmodus: auto → text → kitty → auto |
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| `d` / `w` / `m` | `stats_days`, `stats_weeks`, `stats_months` | Periode Tag / Woche / Monat |
+| `p` / `a` / `v` | `stats_project`, `stats_agent`, `stats_directory` | Dimension Projekt / Agent / Verzeichnis |
+| ++left++ / ++right++, `,` / `.`, `[` / `]` | `stats_earlier`, `stats_later` | ein Fenster zurück / vor |
+| `-` / `+` | `stats_zoom_out`, `stats_zoom_in` | Fenster halbieren / verdoppeln (`=` wie `+`) |
+| `e` | `stats_metric` | Kennzahl: events → human → sessions |
+| `h` | `stats_heatmap` | Heatmap ein/aus |
+| `g` | `stats_graphics` | Grafikmodus: auto → text → kitty → auto |
 
 ### Aktivität
 
-| Taste | Wirkung |
-|---|---|
-| `d` / `w` / `m` | Fenster ein Tag / eine Woche / ein Monat |
-| `[` / `]` | eine Periode zurück / vor |
-| `c` | heute / diese Woche / dieser Monat |
-| `l` | gestern / letzte Woche / letzter Monat |
-| `h` | nur eigene Nachrichten zählen ein/aus |
-| ++up++ / `k`, ++down++ / `j` | blättern, wenn nicht alle Tage passen |
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| `d` / `w` / `m` | `activity_day`, `activity_week`, `activity_month` | Fenster ein Tag / eine Woche / ein Monat |
+| ++left++ / ++right++, `,` / `.`, `[` / `]` | `activity_earlier`, `activity_later` | eine Periode zurück / vor |
+| `c` | `activity_current` | heute / diese Woche / dieser Monat |
+| `l` | `activity_last` | gestern / letzte Woche / letzter Monat |
+| `h` | `activity_human` | nur eigene Nachrichten zählen ein/aus |
+| ++up++ / `k`, ++down++ / `j` | `activity_up`, `activity_down` | blättern, wenn nicht alle Tage passen |
+
+### Tastenbelegung anpassen { #tastenbelegung-anpassen }
+
+Im Abschnitt `[keys]` der [Konfiguration](konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `stats_`, `activity_`).
+
+```toml
+[keys]
+global_quit = ["q", "ctrl+q"]      # Liste: jede Taste löst aus
+stats_earlier = "<"                # oder eine einzelne Taste
+stats_later = ">"
+activity_earlier = "<"
+activity_later = ">"
+```
+
+**Tastennamen.** Ein einzelnes Zeichen (`a`, `G`, `?`, `,`, `ü`) oder ein Name: `up`, `down`, `left`, `right`, `enter`, `tab`, `esc`, `space`, `backspace`, `delete`, `insert`, `home`, `end`, `pgup`, `pgdown`, `f1` bis `f20`. Davor `ctrl+`, `alt+` oder `shift+` (`ctrl+r`, `shift+tab`, `ctrl+shift+up`). Groß- und Kleinschreibung ist bei Namen egal; ein einzelnes Zeichen mit ++shift++ schreibt man als Großbuchstaben (`G`, nicht `shift+g`), `ctrl+R` und `ctrl+r` sind dieselbe Taste.
+
+**Regeln.**
+
+- Innerhalb einer Ansicht gehört jede Taste zu höchstens einer Aktion, und die globalen Tasten (`global_*`) dürfen in keiner Ansicht noch einmal vorkommen. Verschiedene Ansichten dürfen dieselbe Taste nutzen (`a` ist in der Suche der Actor-Filter und in der Statistik die Dimension Agent).
+- ++ctrl+c++ beendet immer und lässt sich nicht belegen. Eine Belegung von `global_quit` mit ++ctrl++ (etwa `ctrl+q`) beendet auch, während ein Eingabefeld den Fokus hat.
+- Eingabefelder fangen nichts ab: Solange die Suche oder der Repo-Filter den Fokus hat, ist jedes Zeichen Text, egal wie es belegt ist. Der [Fokusvertrag](#fokus) gilt unverändert; `search_focus` und `global_back` sind die einzigen Tasten, die dort etwas anderes tun.
+- Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler. Die Config wird von jedem Befehl geladen, also melden `total-recall tui`, `total-recall config show` und `total-recall doctor` ihn gleich beim Start:
+
+```text
+config: [keys] "e" is bound to both stats_days and stats_metric
+```
+
+`total-recall config show` listet jede Aktion als `keys.<aktion>` mit ihrer wirksamen Belegung und der Herkunft (`default` oder `file`).
 
 ## Grafikmodi
 
@@ -407,5 +439,4 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
 - **Maus** nur für Rad, Tabs und Treffer: kein Klick in Vorschau, Statistik und Aktivität, kein Ziehen in Listen. Textauswahl nur mit Zusatztaste des Terminals oder mit `--no-mouse`.
 - **Zwischenablage** über OSC 52; das Terminal muss es erlauben (in tmux `set -g set-clipboard on`).
-- **Keine Konfiguration.** Grafikmodus und Startansicht nur als Flag bzw. Argument, kein Abschnitt `[tui]` in der Config.
 - **Große Sessions:** Vorschau und Detail laden den Verlauf vollständig; bei Sessions mit mehreren zehntausend Events dauert das Einblenden der Tools einen Moment (gemessen unter 0,1 s).

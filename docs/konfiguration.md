@@ -74,6 +74,19 @@ automation_prefixes = ["Hourly ", "Weekend watch"]
 
 [git]
 resolve = true
+
+[tui]
+view = "search"                  # Ansicht beim Start: search, stats, activity
+graphics = "auto"                # Chart: auto, text, kitty (--graphics)
+mouse = true                     # false = --no-mouse
+stats_period = "day"             # Statistik beim Start: day, week, month
+stats_dimension = "project"      # project, agent, directory
+activity_window = "week"         # Aktivität beim Start: day, week, month
+
+[keys]
+# Tastenbelegung der TUI, Aktion = Taste oder Liste; siehe TUI, „Tastenbelegung anpassen“
+# global_quit = ["q", "ctrl+q"]
+# stats_earlier = "<"
 ```
 
 ## Die Schlüssel im Einzelnen
@@ -166,6 +179,29 @@ Normalarbeitszeit für die Aktivität je Tag ([`stats --workday`](befehle.md#sta
 
 `resolve`
 :   Zu jedem Arbeitsverzeichnis Git-Root und Remote-URL ermitteln. Default: `true`. Der Branch kommt aus dem Transkript. Das Ergebnis wird in der Tabelle `dirs` gespeichert, damit es nach dem Löschen eines Worktrees erhalten bleibt. Ein gelöschter Worktree unter `<repo>__worktrees/<name>` wird dem Repo `<repo>` daneben zugeordnet. „Kein Git-Repo“ wird nach 7 Tagen neu geprüft.
+
+### `[tui]` { #tui }
+
+Defaults für [`total-recall tui`](tui.md). Flags und das Argument der Ansicht gehen vor: **Flag > Config > Default**.
+
+`view`
+:   Ansicht beim Start: `search`, `stats` oder `activity`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
+
+`graphics`
+:   Darstellung des Charts in der Statistik: `auto`, `text` oder `kitty`, siehe [Grafikmodi](tui.md#grafikmodi). Override: `--graphics`. Default: `auto`.
+
+`mouse`
+:   `true`: Mausrad und Klicks gehen an die TUI. `false`: die Maus bleibt beim Terminal, Text lässt sich durch einfaches Ziehen auswählen, siehe [Maus](tui.md#maus). Override: `--no-mouse` bzw. `--no-mouse=false`. Default: `true`.
+
+`stats_period`, `stats_dimension`
+:   Periode (`day`, `week`, `month`) und Dimension (`project`, `agent`, `directory`), mit denen die Statistik startet. Default: `day` und `project`.
+
+`activity_window`
+:   Fenster, mit dem die Aktivität je Tag startet: `day`, `week` oder `month`, jeweils die Periode, die heute enthält. Default: `week`.
+
+### `[keys]` { #keys }
+
+Tastenbelegung der TUI: je Aktion eine Taste (`global_quit = "x"`) oder eine Liste (`global_quit = ["q", "ctrl+q"]`). Nur genannte Aktionen ändern sich. Die Aktionen, ihre Standardbelegung, die erlaubten Tastennamen und die Regeln für Konflikte stehen unter [Tastenbelegung anpassen](tui.md#tastenbelegung-anpassen). Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler beim Laden der Config, also auch in `config show` und `doctor`. `config show` zeigt jede Aktion als `keys.<aktion>` mit Belegung und Herkunft.
 
 ## Umgebungsvariablen
 
