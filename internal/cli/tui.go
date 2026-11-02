@@ -69,6 +69,17 @@ flags and the argument override them. Key bindings come from [keys].`,
 // that was given wins over the config, which wins over the built-in
 // default. The store and the clock are added by the caller.
 func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
+	if err := cfg.ValidateTUI(); err != nil {
+		return tui.Options{}, err
+	}
+	km, err := cfg.KeyMap()
+	if err != nil {
+		return tui.Options{}, err
+	}
+	work, err := workHours(cfg)
+	if err != nil {
+		return tui.Options{}, err
+	}
 	view := cfg.TUI.View
 	if f.View != "" {
 		view = f.View
@@ -90,8 +101,8 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	}
 	return tui.Options{
 		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse,
-		DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home,
+		DayStart: cfg.DayStartOffset(), Work: work, Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow,
-		Keys: cfg.KeyMap(),
+		Keys: km,
 	}, nil
 }

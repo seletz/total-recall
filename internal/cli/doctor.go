@@ -25,6 +25,8 @@ func (e *env) doctorCmd() *cobra.Command {
 and report what the adapter does not know: record types that are neither
 ingested nor known to be skipped, content block types it does not handle,
 missing expected fields, malformed lines; plus the harness versions seen.
+Problems in the config tables that are only checked when used ([work],
+[tui], [keys]) are reported first.
 
 Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 		Args: cobra.NoArgs,
@@ -46,7 +48,19 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 				return fmt.Errorf("doctor: no enabled harness %q with a format check (supported: claude)", name)
 			}
 			reports := make([]harness.FormatReport, 0, len(checkers))
-			clean := true
+			problems := cfg.Problems()
+			clean := len(problems) == 0
+			if len(problems) > 0 {
+				w := cmd.OutOrStdout()
+				if asJSON {
+					w = cmd.ErrOrStderr()
+				}
+				_, _ = fmt.Fprintln(w, "config problems (hooks and ingest are not affected, tui and stats --workday fail):")
+				for _, p := range problems {
+					_, _ = fmt.Fprintf(w, "  %s\n", p)
+				}
+				_, _ = fmt.Fprintln(w)
+			}
 			for _, fc := range checkers {
 				r, err := fc.CheckFormat(cmd.Context())
 				if err != nil {

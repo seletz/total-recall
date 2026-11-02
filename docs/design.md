@@ -106,6 +106,8 @@ activity_window = "week"         # day | week | month
 
 `~` und Umgebungsvariablen werden in Pfaden expandiert. Unbekannte Schlüssel sind ein Fehler (Tippfehler sollen auffallen).
 
+Zwei Stufen der Prüfung: Die Kerneinstellungen (Pfade, Zeitzone, `day_start`, `[backup]`, `[ingest]`, `[redact]`, Schlüssel und Typen) prüft `config.Load` für jeden Befehl. Die Tabellen `[work]`, `[tui]` und `[keys]` werden nur geparst und erst beim Gebrauch geprüft (`WorkHours`, `ValidateTUI`, `KeyMap` liefern den Fehler; `Problems` alle drei für `config show` und `doctor`). Grund: Hooks laden die Config bei jedem Lauf; ein Fehler in einer Tabelle, die nur die TUI oder `stats --workday` braucht, darf die Archivierung nicht stoppen.
+
 ## Architektur
 
 ```

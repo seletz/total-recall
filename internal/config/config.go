@@ -3,6 +3,12 @@
 // effective value came from (see docs/design.md, section "Konfiguration").
 //
 // Precedence: flag > environment variable > config file > default.
+//
+// Load validates the core settings (paths, time zone, day boundary, backup,
+// ingest, redaction). The tables [work], [tui] and [keys] are only parsed:
+// their values are checked when a command uses them (WorkHours, KeyMap,
+// ValidateTUI), so a mistake there never stops hooks and ingest. Problems
+// lists every such error for `config show` and `doctor`.
 package config
 
 import (
@@ -101,11 +107,9 @@ type Config struct {
 	// or os.UserHomeDir()); display code abbreviates it to "~".
 	Home string `toml:"-"`
 
-	origins            map[string]Origin
-	loc                *time.Location
-	dayStart           time.Duration
-	workStart, workEnd time.Duration
-	keyMap             keys.Map
+	origins  map[string]Origin
+	loc      *time.Location
+	dayStart time.Duration
 }
 
 // KeyList is the value of one [keys] entry: a key name or a list of them.
@@ -480,12 +484,6 @@ func (c *Config) validate() error {
 		return fmt.Errorf("config: day_start %q: %w", c.DayStart, err)
 	}
 	c.dayStart = d
-	if err := c.validateWork(); err != nil {
-		return err
-	}
-	if err := c.validateTUI(); err != nil {
-		return err
-	}
 	if c.Backup.KeepDaily < 0 {
 		return fmt.Errorf("config: backup.keep_daily must be >= 0")
 	}
@@ -511,21 +509,31 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// validateWork checks the [work] table against day_start.
-func (c *Config) validateWork() error {
+// WorkHours validates the [work] table against day_start and returns the
+// core hours as offsets from local midnight (09:00–17:00 = 9h, 17h). The
+// error names the first bad value; commands that do not use the working
+// time never see it.
+func (c *Config) WorkHours() (start, end time.Duration, err error) {
 	from, to, ok := strings.Cut(c.Work.Hours, "-")
 	start, err1 := parseClock(from)
 	end, err2 := parseClock(to)
 	if !ok || err1 != nil || err2 != nil {
-		return fmt.Errorf("config: work.hours %q: want HH:MM-HH:MM", c.Work.Hours)
+		return 0, 0, fmt.Errorf("config: work.hours %q: want HH:MM-HH:MM", c.Work.Hours)
 	}
 	if start >= end {
-		return fmt.Errorf("config: work.hours %q: start must be before end", c.Work.Hours)
+		return 0, 0, fmt.Errorf("config: work.hours %q: start must be before end", c.Work.Hours)
 	}
 	if start < c.dayStart {
-		return fmt.Errorf("config: work.hours %q: must not start before day_start %s", c.Work.Hours, c.DayStart)
+		return 0, 0, fmt.Errorf("config: work.hours %q: must not start before day_start %s", c.Work.Hours, c.DayStart)
 	}
-	c.workStart, c.workEnd = start, end
+	if err := c.validateWorkBounds(); err != nil {
+		return 0, 0, err
+	}
+	return start, end, nil
+}
+
+// validateWorkBounds checks the target, the bounds and the count of [work].
+func (c *Config) validateWorkBounds() error {
 	if t := c.Work.Target.Duration; t <= 0 || t > 24*time.Hour {
 		return fmt.Errorf("config: work.target %s: want more than 0 and at most 24h", t)
 	}
@@ -547,8 +555,8 @@ func (c *Config) validateWork() error {
 	return nil
 }
 
-// validateTUI checks the [tui] table and resolves the [keys] table.
-func (c *Config) validateTUI() error {
+// ValidateTUI checks the values of the [tui] table.
+func (c *Config) ValidateTUI() error {
 	for _, v := range []struct {
 		key, value string
 		allowed    []string
@@ -563,16 +571,38 @@ func (c *Config) validateTUI() error {
 			return fmt.Errorf("config: %s %q: use %s", v.key, v.value, orList(v.allowed))
 		}
 	}
+	return nil
+}
+
+// KeyMap resolves the [keys] table against the defaults and validates it:
+// unknown actions, bad key names and conflicts are errors (see package
+// keys). Commands that do not use the key bindings never see them.
+func (c *Config) KeyMap() (keys.Map, error) {
 	overrides := make(map[string][]string, len(c.Keys))
 	for name, l := range c.Keys {
 		overrides[name] = l
 	}
 	m, err := keys.Resolve(overrides)
 	if err != nil {
-		return fmt.Errorf("config: %w", err)
+		return nil, fmt.Errorf("config: %w", err)
 	}
-	c.keyMap = m
-	return nil
+	return m, nil
+}
+
+// Problems returns the errors of the tables that Load does not validate
+// ([work], [tui], [keys]), in that order; nil when they are all fine.
+func (c *Config) Problems() []error {
+	var out []error
+	if _, _, err := c.WorkHours(); err != nil {
+		out = append(out, err)
+	}
+	if err := c.ValidateTUI(); err != nil {
+		out = append(out, err)
+	}
+	if _, err := c.KeyMap(); err != nil {
+		out = append(out, err)
+	}
+	return out
 }
 
 // orList joins "a, b or c".
@@ -583,10 +613,6 @@ func orList(l []string) string {
 	return strings.Join(l[:len(l)-1], ", ") + " or " + l[len(l)-1]
 }
 
-// WorkHours returns the configured core hours as offsets from local
-// midnight (09:00–17:00 = 9h, 17h).
-func (c *Config) WorkHours() (start, end time.Duration) { return c.workStart, c.workEnd }
-
 // Origin returns where the value of key (dotted, e.g. "backup.dir") came from.
 func (c *Config) Origin(key string) Origin {
 	if o, ok := c.origins[key]; ok {
@@ -596,27 +622,22 @@ func (c *Config) Origin(key string) Origin {
 }
 
 // Entries returns all effective values with their origin, in a stable
-// order: the fields, then every key-bound action of the TUI.
+// order: the fields, then every key-bound action of the TUI with the keys
+// as configured (or the default), whether or not they resolve.
 func (c *Config) Entries() []Entry {
 	out := make([]Entry, 0, len(fields)+len(keys.Actions))
 	for _, k := range fields {
 		out = append(out, Entry{Key: k.key, Value: k.format(c), Origin: c.Origin(k.key)})
 	}
-	km := c.KeyMap()
 	for _, a := range keys.Actions {
 		k := "keys." + a.Name
-		out = append(out, Entry{Key: k, Value: formatList(km.Keys(a.Name)), Origin: c.Origin(k)})
+		ks := a.Keys
+		if l, ok := c.Keys[a.Name]; ok {
+			ks = l
+		}
+		out = append(out, Entry{Key: k, Value: formatList(ks), Origin: c.Origin(k)})
 	}
 	return out
-}
-
-// KeyMap returns the effective key bindings of the TUI: the defaults with
-// the [keys] table applied.
-func (c *Config) KeyMap() keys.Map {
-	if c.keyMap == nil {
-		return keys.Defaults()
-	}
-	return c.keyMap
 }
 
 // parseClock parses "HH:MM" (hour 0-23, minute 0-59) as an offset from

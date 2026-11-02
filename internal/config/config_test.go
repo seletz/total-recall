@@ -193,16 +193,6 @@ func TestLoadErrors(t *testing.T) {
 		{"day start out of range", "day_start = \"24:00\"\n", "day_start"},
 		{"day start seconds", "day_start = \"04:00:00\"\n", "day_start"},
 		{"bad duration", "[backup]\nmin_interval = \"soon\"\n", "min_interval"},
-		{"bad work hours", "[work]\nhours = \"9-17\"\n", "work.hours"},
-		{"work hours reversed", "[work]\nhours = \"17:00-09:00\"\n", "work.hours"},
-		{"work hours before day start", "day_start = \"10:00\"\n[work]\nhours = \"09:00-17:00\"\n", "work.hours"},
-		{"work target zero", "[work]\ntarget = \"0h\"\n", "work.target"},
-		{"work target too long", "[work]\ntarget = \"25h\"\n", "work.target"},
-		{"work thresholds reversed", "[work]\ndaily_low = \"9h\"\ndaily_high = \"6h\"\n", "work.daily"},
-		{"work threshold negative", "[work]\ndaily_low = \"-1h\"\n", "work.daily_low"},
-		{"work weekly reversed", "[work]\nweekly_low = \"48h\"\nweekly_high = \"32h\"\n", "work.weekly"},
-		{"work weekly negative", "[work]\nweekly_low = \"-1h\"\n", "work.weekly_low"},
-		{"work count unknown", "[work]\ncount = \"agents\"\n", "work.count"},
 		{"negative keep", "[backup]\nkeep_daily = -1\n", "keep_daily"},
 		{"negative raw max", "[ingest]\nraw_max_bytes = -1\n", "raw_max_bytes"},
 		{"bad regex", "[redact]\nextra_patterns = [\"(\"]\n", "extra_patterns"},
@@ -341,8 +331,8 @@ func TestWork(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			start, end := c.WorkHours()
-			if start != tt.start || end != tt.end {
+			start, end, err := c.WorkHours()
+			if err != nil || start != tt.start || end != tt.end {
 				t.Errorf("WorkHours = %s, %s; want %s, %s", start, end, tt.start, tt.end)
 			}
 			if got := c.Work.Target.Duration; got != tt.target {
@@ -469,7 +459,10 @@ stats_days = ["x", "Y"]
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	km := c.KeyMap()
+	km, err := c.KeyMap()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got := km.Keys(keys.GlobalQuit); !slices.Equal(got, []string{"ctrl+q"}) {
 		t.Errorf("global_quit = %v", got)
 	}
@@ -507,7 +500,8 @@ stats_days = ["x", "Y"]
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := d.KeyMap().Keys(keys.GlobalQuit); !slices.Equal(got, []string{"q"}) {
+	if km, err := d.KeyMap(); err != nil || !slices.Equal(km.Keys(keys.GlobalQuit), []string{"q"}) {
+		got := km.Keys(keys.GlobalQuit)
 		t.Errorf("default global_quit = %v", got)
 	}
 }
@@ -527,9 +521,25 @@ func TestKeysErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := writeFile(t, t.TempDir(), "c.toml", tt.toml)
-			_, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
-			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("Load error = %v, want containing %q", err, tt.want)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if strings.HasPrefix(tt.name, "wrong type") {
+				// A type error is a decode error and fails Load itself.
+				if err == nil || !strings.Contains(err.Error(), tt.want) {
+					t.Errorf("Load error = %v, want containing %q", err, tt.want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load must not fail on [keys]: %v", err)
+			}
+			if _, err := c.KeyMap(); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("KeyMap error = %v, want containing %q", err, tt.want)
+			}
+			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.want) {
+				t.Errorf("Problems = %v, want one containing %q", ps, tt.want)
+			}
+			if len(c.Entries()) == 0 {
+				t.Error("Entries must still render with a bad [keys] table")
 			}
 		})
 	}
@@ -594,10 +604,59 @@ func TestTUIErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := writeFile(t, t.TempDir(), "c.toml", tt.toml)
-			_, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
-			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("Load error = %v, want containing %q", err, tt.want)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err != nil {
+				t.Fatalf("Load must not fail on [tui]: %v", err)
+			}
+			if err := c.ValidateTUI(); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("ValidateTUI error = %v, want containing %q", err, tt.want)
+			}
+			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.want) {
+				t.Errorf("Problems = %v, want one containing %q", ps, tt.want)
 			}
 		})
+	}
+}
+
+// TestWorkErrors: a bad [work] table loads, but WorkHours and Problems
+// report it, so hooks keep running and stats --workday fails clearly.
+func TestWorkErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"bad work hours", "[work]\nhours = \"9-17\"\n", "work.hours"},
+		{"work hours reversed", "[work]\nhours = \"17:00-09:00\"\n", "work.hours"},
+		{"work hours before day start", "day_start = \"10:00\"\n[work]\nhours = \"09:00-17:00\"\n", "work.hours"},
+		{"work target zero", "[work]\ntarget = \"0h\"\n", "work.target"},
+		{"work target too long", "[work]\ntarget = \"25h\"\n", "work.target"},
+		{"work thresholds reversed", "[work]\ndaily_low = \"9h\"\ndaily_high = \"6h\"\n", "work.daily"},
+		{"work threshold negative", "[work]\ndaily_low = \"-1h\"\n", "work.daily_low"},
+		{"work weekly reversed", "[work]\nweekly_low = \"48h\"\nweekly_high = \"32h\"\n", "work.weekly"},
+		{"work weekly negative", "[work]\nweekly_low = \"-1h\"\n", "work.weekly_low"},
+		{"work count unknown", "[work]\ncount = \"agents\"\n", "work.count"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.content)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err != nil {
+				t.Fatalf("Load must not fail on [work]: %v", err)
+			}
+			if _, _, err := c.WorkHours(); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("WorkHours error = %v, want containing %q", err, tt.wantErr)
+			}
+			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.wantErr) {
+				t.Errorf("Problems = %v, want one containing %q", ps, tt.wantErr)
+			}
+		})
+	}
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ps := c.Problems(); ps != nil {
+		t.Errorf("Problems of the defaults = %v", ps)
 	}
 }

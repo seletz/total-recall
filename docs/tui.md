@@ -367,7 +367,7 @@ activity_later = ">"
 - Innerhalb einer Ansicht gehört jede Taste zu höchstens einer Aktion, und die globalen Tasten (`global_*`) dürfen in keiner Ansicht noch einmal vorkommen. Verschiedene Ansichten dürfen dieselbe Taste nutzen (`a` ist in der Suche der Actor-Filter und in der Statistik die Dimension Agent).
 - ++ctrl+c++ beendet immer und lässt sich nicht belegen. Eine Belegung von `global_quit` mit ++ctrl++ (etwa `ctrl+q`) beendet auch, während ein Eingabefeld den Fokus hat.
 - Eingabefelder fangen nichts ab: Solange die Suche oder der Repo-Filter den Fokus hat, ist jedes Zeichen Text, egal wie es belegt ist. Der [Fokusvertrag](#fokus) gilt unverändert; `search_focus` und `global_back` sind die einzigen Tasten, die dort etwas anderes tun.
-- Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler. Die Config wird von jedem Befehl geladen, also melden `total-recall tui`, `total-recall config show` und `total-recall doctor` ihn gleich beim Start:
+- Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler, aber nur für die Befehle, die die Belegung brauchen: `total-recall tui` bricht beim Start ab, `total-recall config show` und `total-recall doctor` melden ihn. Hooks, Ingest und die übrigen Befehle laufen weiter, damit ein Tippfehler in `[keys]` nie die Archivierung stoppt:
 
 ```text
 config: [keys] "e" is bound to both stats_days and stats_metric

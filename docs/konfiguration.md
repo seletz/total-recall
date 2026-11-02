@@ -30,6 +30,12 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 - `~` und Umgebungsvariablen (`$HOME`, `${VAR}`) werden in Pfaden aufgelöst.
 - Unbekannte Schlüssel sind ein Fehler. So fallen Tippfehler sofort auf.
 
+## Prüfung { #pruefung }
+
+Beim Laden prüft jeder Befehl die Kerneinstellungen streng: Pfade, `timezone`, `day_start`, `[backup]`, `[ingest]`, `[redact]`, unbekannte Schlüssel und falsche Typen. Ein Fehler dort bricht jeden Befehl ab.
+
+Die Abschnitte `[work]`, `[tui]` und `[keys]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --workday` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
+
 ## Vollständige Vorlage
 
 ```toml
@@ -214,7 +220,7 @@ Defaults für [`total-recall tui`](tui.md). Flags und das Argument der Ansicht g
 
 ### `[keys]` { #keys }
 
-Tastenbelegung der TUI: je Aktion eine Taste (`global_quit = "x"`) oder eine Liste (`global_quit = ["q", "ctrl+q"]`). Nur genannte Aktionen ändern sich. Die Aktionen, ihre Standardbelegung, die erlaubten Tastennamen und die Regeln für Konflikte stehen unter [Tastenbelegung anpassen](tui.md#tastenbelegung-anpassen). Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler beim Laden der Config, also auch in `config show` und `doctor`. `config show` zeigt jede Aktion als `keys.<aktion>` mit Belegung und Herkunft.
+Tastenbelegung der TUI: je Aktion eine Taste (`global_quit = "x"`) oder eine Liste (`global_quit = ["q", "ctrl+q"]`). Nur genannte Aktionen ändern sich. Die Aktionen, ihre Standardbelegung, die erlaubten Tastennamen und die Regeln für Konflikte stehen unter [Tastenbelegung anpassen](tui.md#tastenbelegung-anpassen). Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler für `tui`; `config show` und `doctor` melden ihn, alle anderen Befehle laufen weiter (siehe [Prüfung](#pruefung)). `config show` zeigt jede Aktion als `keys.<aktion>` mit Belegung und Herkunft.
 
 ## Umgebungsvariablen
 

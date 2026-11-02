@@ -13,13 +13,16 @@ import (
 )
 
 // workHours is the configured working time as the store sees it.
-func workHours(cfg *config.Config) store.WorkHours {
-	start, end := cfg.WorkHours()
+func workHours(cfg *config.Config) (store.WorkHours, error) {
+	start, end, err := cfg.WorkHours()
+	if err != nil {
+		return store.WorkHours{}, err
+	}
 	return store.WorkHours{
 		Start: start, End: end, Target: cfg.Work.Target.Duration,
 		Low: cfg.Work.DailyLow.Duration, High: cfg.Work.DailyHigh.Duration,
 		WeeklyLow: cfg.Work.WeeklyLow.Duration, WeeklyHigh: cfg.Work.WeeklyHigh.Duration,
-	}
+	}, nil
 }
 
 // holidays is the holiday calendar of the configured Bundesland.
