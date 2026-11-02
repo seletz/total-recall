@@ -1,5 +1,8 @@
 # Spike: TUI
 
+!!! note "Historisches Dokument"
+    Diese Seite ist das Protokoll des Spikes mit Stand vom 1. November 2026. Die Empfehlung „übernehmen“ ist umgesetzt: Die TUI ist seit v0.2.0 fester Bestandteil von `total-recall`, die Folgearbeiten aus dem [Ergebnis](#ergebnis) sind bis auf die manuelle Kitty-Prüfung erledigt, siehe [Was daraus wurde](#was-daraus-wurde). Maßgeblich sind heute [TUI](tui.md) für die Bedienung, [Befehle](befehle.md) und [Konfiguration](konfiguration.md); der Text darunter beschreibt den Stand vor der Übernahme und wird nicht mehr nachgeführt.
+
 Entwurf für eine Terminal-Oberfläche `total-recall tui`: interaktive Volltextsuche mit Vorschau und grafische Auswertung der Aktivität über die Zeit. Stand der Recherche: 1. November 2026. Ob der Spike übernommen wird, ist offen; er bleibt deshalb ein eigenständiges Unterkommando, das sich wieder entfernen lässt. Der Spike ist umgesetzt; das [Ergebnis](#ergebnis) mit Messwerten und Empfehlung steht am Ende, die Bedienung in [TUI](tui.md).
 
 ## Ziele
@@ -498,3 +501,22 @@ Nicht angelegt, nur gelistet:
 8. **Config `[tui]`:** `graphics`, Standard-Zeitfilter der Suche (`all` oder 90 Tage), Startansicht.
 9. **Abhängigkeiten:** Ultraviolet und teatest auf getaggte Versionen heben, sobald es sie gibt; Charm-Updates mit Golden-Refresh als eigener Commit.
 10. **Heatmap bei 80×24:** statt ausblenden Chart und Heatmap abwechselnd zeigen oder den Körper scrollbar machen.
+
+### Was daraus wurde { #was-daraus-wurde }
+
+Stand 2. November 2026, alles in v0.2.0 (Meilenstein [v0.2.0](https://github.com/seletz/total-recall/milestone/2), Übersicht in [Änderungen](aenderungen.md#v020)):
+
+| Vorschlag | Ergebnis |
+|---|---|
+| 1. Kitty-Checkliste | offen, [#40](https://github.com/seletz/total-recall/issues/40). Dazugekommen: herdr wird im Modus `auto` erkannt ([#41](https://github.com/seletz/total-recall/issues/41)) |
+| 2. `tuitest`-Helfer | erledigt ([#44](https://github.com/seletz/total-recall/issues/44)) |
+| 3. `TestOutput` unter `-race` | erledigt ([#45](https://github.com/seletz/total-recall/issues/45)) |
+| 4. Fokusvertrag | erledigt ([#46](https://github.com/seletz/total-recall/issues/46)); seit der dritten Ansicht wechseln `1`, `2` und `3` |
+| 5. Projektnamen mit `~` | erledigt ([#53](https://github.com/seletz/total-recall/issues/53)) |
+| 6. `stats --period/--by/--top` | erledigt ([#50](https://github.com/seletz/total-recall/issues/50)), siehe [Befehle](befehle.md#stats-period) |
+| 7. Eindeutige Sessions je Fenster | erledigt ([#51](https://github.com/seletz/total-recall/issues/51)) |
+| 8. Config `[tui]` | erledigt ([#49](https://github.com/seletz/total-recall/issues/49)), dazu `[keys]` ([#72](https://github.com/seletz/total-recall/issues/72)) und `[work]` ([#60](https://github.com/seletz/total-recall/issues/60), [#63](https://github.com/seletz/total-recall/issues/63)); die Prüfung dieser Abschnitte ist träge, damit ein Fehler die Hooks nicht stoppt |
+| 9. Abhängigkeiten | offen ([#47](https://github.com/seletz/total-recall/issues/47)), solange Ultraviolet und teatest keine Tags haben |
+| 10. Heatmap bei 80×24 | erledigt ([#52](https://github.com/seletz/total-recall/issues/52)): kompaktes Layout statt Ausblenden |
+
+Nicht im Vorschlag, aber in v0.2.0 dazugekommen: die dritte Ansicht **Aktivität** mit Arbeitszeit, Kernzeit, Soll und Feiertagen ([#54](https://github.com/seletz/total-recall/issues/54), [#60](https://github.com/seletz/total-recall/issues/60), [#63](https://github.com/seletz/total-recall/issues/63), [#70](https://github.com/seletz/total-recall/issues/70)), die **Maus** ([#48](https://github.com/seletz/total-recall/issues/48)) und das gemeinsame **Theme** ([#62](https://github.com/seletz/total-recall/issues/62)). Die [Entfernungsanleitung](#entfernungsanleitung) ist damit veraltet: `internal/project` und `internal/holiday` werden auch von `stats` gebraucht, und `[tui]`, `[keys]` und `[work]` hängen an der Config.

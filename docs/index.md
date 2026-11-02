@@ -18,18 +18,18 @@ Claude Code löscht alte Transkripte. Der Schalter dafür heißt `cleanupPeriodD
 - **Inkrementell.** Jede Datei wird ab der Stelle gelesen, an der der letzte Lauf aufgehört hat.
 - **Nachlesen.** Beim Start einer Session wird alles nachgelesen, was bisher fehlt. So gehen auch Sessions nicht verloren, bei denen ein Hook ausgefallen ist.
 - **Lokal.** Die Datenbank liegt auf deinem Rechner. Geheimnisse werden vor dem Speichern maskiert. Details: [Datenschutz](datenschutz.md).
-- **Auswertbar.** Über die [Befehle](befehle.md), über Read-only-SQL und über einen eingebauten Skill für Agenten ([Für Agenten](agenten.md)).
+- **Auswertbar.** Über die [Befehle](befehle.md), die [TUI](tui.md) im Terminal, Read-only-SQL und einen eingebauten Skill für Agenten ([Für Agenten](agenten.md)).
 
 ## Was es nicht tut
 
 - Es spielt nichts in laufende Sessions zurück.
 - Es gibt keine semantische Suche. Die Volltextsuche nutzt SQLite FTS5.
-- In Version 0.1 wird nur Claude Code unterstützt.
+- Bisher wird nur Claude Code unterstützt.
 
 ## Stand
 
-!!! note "Version 0.1"
-    Alle Befehle auf der Seite [Befehle](befehle.md) sind umgesetzt. Unterstützt wird bisher nur Claude Code.
+!!! note "Version 0.2"
+    Alle Befehle auf der Seite [Befehle](befehle.md) sind umgesetzt, dazu die Terminal-Oberfläche [`total-recall tui`](tui.md). Unterstützt wird bisher nur Claude Code. Was sich je Version geändert hat, steht unter [Änderungen](aenderungen.md).
 
 Die verbindliche Spezifikation steht in [Design (Spezifikation)](design.md).
 

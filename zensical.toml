@@ -16,8 +16,9 @@ nav = [
   { "TUI" = "tui.md" },
   { "Für Agenten" = "agenten.md" },
   { "Datenschutz" = "datenschutz.md" },
+  { "Änderungen" = "aenderungen.md" },
   { "Design (Spezifikation)" = "design.md" },
-  { "Spike: TUI" = "spike-tui.md" },
+  { "Spike: TUI (Historie)" = "spike-tui.md" },
 ]
 
 # Zensical replaces (does not merge) the default extension list when this key
