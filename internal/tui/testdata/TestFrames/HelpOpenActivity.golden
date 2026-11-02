@@ -8,16 +8,16 @@
 
 
 
-     ╭───────────────────────────────────────────────────────────────────────────────────────╮
-     │ keys: activity                                                                        │
-     │                                                                                       │
-     │ d one day       [ earlier                ↑/k scroll up      1   search       ?   help │
-     │ w one week      ] later                  ↓/j scroll down    2   stats        esc back │
-     │ m one month     c this day/week/month                       3   activity     q   quit │
-     │ h human only    l last day/week/month                       tab next view             │
-     │                                                                                       │
-     │ esc or ? closes this help                                                             │
-     ╰───────────────────────────────────────────────────────────────────────────────────────╯
+       ╭────────────────────────────────────────────────────────────────────────────────────╮
+       │ keys: activity                                                                     │
+       │                                                                                    │
+       │ d one day       [ earlier                ↑/k scroll up      1 search      ?   help │
+       │ w one week      ] later                  ↓/j scroll down    2 stats       esc back │
+       │ m one month     c this day/week/month                       3 activity    q   quit │
+       │ h human only    l last day/week/month                                              │
+       │                                                                                    │
+       │ esc or ? closes this help                                                          │
+       ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 
 

@@ -29,24 +29,24 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Z
 Alle Ansichten teilen denselben Rahmen:
 
 - **Kopfzeile:** links der Programmname, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern (`[1 search]  2 stats`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
-- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • tab next view • ? help • q quit`). Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
+- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • ? help • q quit`). Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
 
 ```text
  total-recall                                                                   1 search  [2 stats]
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-             ╭───────────────────────────────────────────────────────────────────────╮
-             │ keys: stats                                                           │
-             │                                                                       │
-             │ d days      p by project      [ earlier     1   search       ?   help │
-             │ w weeks     a by agent        ] later       2   stats        esc back │
-             │ m months    v by directory    - zoom out    tab next view    q   quit │
-             │ e metric    h heatmap         + zoom in                               │
-             │                               g graphics                              │
-             │                                                                       │
-             │ esc or ? closes this help                                             │
-             ╰───────────────────────────────────────────────────────────────────────╯
+                ╭──────────────────────────────────────────────────────────────────╮
+                │ keys: stats                                                      │
+                │                                                                  │
+                │ d days      p by project      [ earlier     1 search    ?   help │
+                │ w weeks     a by agent        ] later       2 stats     esc back │
+                │ m months    v by directory    - zoom out                q   quit │
+                │ e metric    h heatmap         + zoom in                          │
+                │                               g graphics                         │
+                │                                                                  │
+                │ esc or ? closes this help                                        │
+                ╰──────────────────────────────────────────────────────────────────╯
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  esc back • q quit
@@ -74,14 +74,27 @@ Alle Ansichten teilen denselben Rahmen:
                                                  │
  5 hits (12 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • esc input • 1 search • 2 stats • …
+ ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stats…
 ```
 
 - **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer werden geholt; die Statuszeile sagt `200 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
-- **Trefferliste** links, zwei Zeilen je Treffer: Zeit, Session-Name und Actor, darunter der Textausschnitt mit hervorgehobenen Suchwörtern. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer ist mit `▸` und invertiert dargestellt.
+- **Trefferliste** links, zwei Zeilen je Treffer: Zeit, Session-Name und Actor, darunter der Textausschnitt mit hervorgehobenen Suchwörtern. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist er zusätzlich invertiert.
 - **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe): der Session-Kopf (Name, ID und Repo, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Der Treffer-Event ist mit `◄` markiert, die Suchwörter sind unterstrichen. Trifft die Suche einen Tool-Aufruf, lädt die Vorschau den vollen Verlauf inklusive Tools.
-- **Fokus:** ++tab++ wechselt von der Eingabe in die Liste, ++esc++ zurück in die Eingabe. In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die markierte Session (auch direkt aus der Eingabe). Solange die Eingabe den Fokus hat, gehen Buchstaben in den Suchtext: `q` beendet dann nicht, `1`/`2`/++tab++ wechseln nicht die Ansicht.
+- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die markierte Session (auch direkt aus der Eingabe).
 - **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), sonst `type to search`, `searching…`, `no hits` oder die Fehlermeldung.
+
+### Fokus
+
+Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und die **Trefferliste**. Die Vorschau ist reine Anzeige und folgt der Markierung. Der Repo-Filter ist ein modales Feld, das `r` aus der Liste öffnet; er gehört nicht zur Reihenfolge.
+
+- ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1` und `2`; ++tab++ ist dafür nicht belegt.
+- ++esc++ geht eine Ebene zurück: aus dem Repo-Filter in die Liste (die Änderung wird verworfen), aus der Liste in die Eingabe. In der Eingabe tut ++esc++ nichts.
+- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `q`, `?`, `1` und `2` landen im Suchtext und lösen nichts aus.
+- Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1`, `2`, `?`, `q`.
+- Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
+- Sichtbar ist der Fokus am Cursor und an der Markierung: in der Eingabe und im Repo-Filter steht der Cursor des Terminals im Feld; hat die Liste den Fokus, ist der markierte Treffer invertiert. Das `▸` vor dem markierten Treffer bleibt in jedem Fall, weil ++enter++ ihn aus beiden Elementen öffnet und die Vorschau ihn zeigt. Die Fußzeile nennt die Tasten des fokussierten Elements.
+
+Der Fokus bleibt beim Wechsel der Ansicht und beim Öffnen einer Session erhalten; ++esc++ aus der Session führt dorthin zurück, wo man war.
 
 ### Filter
 
@@ -91,14 +104,14 @@ Die Filter werden in der **Liste** umgeschaltet (in der Eingabe wären die Buchs
 |---|---|---|
 | `a` | Actor | `all` → `human` → `agent` → `peer` → `all` |
 | `t` | Zeitraum (Zeit des Events) | `all` → `7d` → `30d` → `90d` → `all` |
-| `r` | Repo | Teilstring von Remote-URL, Git-Root oder Arbeitsverzeichnis. Öffnet ein Eingabefeld in der Statuszeile: ++enter++ übernimmt, ++esc++ verwirft. Leer löscht den Filter |
+| `r` | Repo | Teilstring von Remote-URL, Git-Root oder Arbeitsverzeichnis. Öffnet ein Eingabefeld in der Statuszeile: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft. Leer löscht den Filter |
 | ++ctrl+r++ | Rohsyntax | FTS5-Syntax unverändert durchreichen (`AND`, `OR`, `NOT`, `"Phrase"`, `präfix*`), wie `search --raw`. Geht auch aus der Eingabe |
 
 Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in Rohsyntax ohne Operatoren, Anführungszeichen und Sterne.
 
 ## Session
 
-++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern und Markierung zurück. `1`, `2` und ++tab++ schließen die Detailansicht ebenfalls.
+++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern, Markierung und Fokus zurück. `1` und `2` schließen die Detailansicht ebenfalls.
 
 ```text
  total-recall                                                         [1 search] › session  2 stats
@@ -156,7 +169,7 @@ Good. Tag v0.1.0 and run the release.
  other                                                             42        515      7 212     12 %
  text chart (kitty: not detected) · 28 days · 312 ms
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • p/a/v by • [ ] -/+ range • 1 search • 2 stats • tab next view • ? help • q quit
+ d/w/m period • p/a/v by • [ ] -/+ range • 1 search • 2 stats • ? help • q quit
 ```
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
@@ -200,7 +213,7 @@ Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mind
 | Taste | Wirkung |
 |---|---|
 | `1` / `2` | Suche / Statistik; schließt eine offene Session |
-| ++tab++ | nächste Ansicht (in der Suche: aus der Eingabe erst in die Liste) |
+| ++tab++ / ++shift+tab++ | Fokus innerhalb der Ansicht wechseln: in der Suche Eingabe ↔ Liste. Wechselt nie die Ansicht |
 | `?` | Hilfe ein/aus |
 | ++esc++ | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
 | `q` | beenden (nicht, solange Eingabe oder Repo-Filter den Fokus haben) |
@@ -210,14 +223,14 @@ Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mind
 
 | Taste | Eingabe hat den Fokus | Liste hat den Fokus |
 |---|---|---|
-| ++tab++ | in die Liste | nächste Ansicht |
+| ++tab++ / ++shift+tab++ | in die Liste | in die Eingabe |
 | ++esc++ | – | in die Eingabe |
 | ++enter++ | markierten Treffer öffnen | markierten Treffer öffnen |
 | ++up++ / `k`, ++down++ / `j` | – | Markierung bewegen |
 | `a`, `t`, `r` | Suchtext | Filter Actor, Zeitraum, Repo |
 | ++ctrl+r++ | Rohsyntax ein/aus | Rohsyntax ein/aus |
 
-Im Repo-Filter: ++enter++ übernimmt, ++esc++ verwirft.
+Im Repo-Filter: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft; siehe [Fokus](#fokus).
 
 ### Session
 

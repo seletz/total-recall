@@ -98,12 +98,17 @@ func (m Model) list(w, rows int) string {
 }
 
 // entry renders hit i as two lines: a mark, time, session name and actor,
-// then the snippet. The marked hit is drawn in reverse video.
+// then the snippet. The marked hit always carries the mark (enter opens it
+// from the input too, and the preview shows it); it is drawn in reverse
+// video only while the list has the focus.
 func (m Model) entry(i, w int) []string {
 	h := m.hits[i]
 	mark, style := " ", lipgloss.NewStyle()
-	if i == m.cursor && m.focus == focusList {
-		mark, style = "▸", markStyle
+	if i == m.cursor {
+		mark = "▸"
+		if m.focus == focusList {
+			style = markStyle
+		}
 	}
 	ts := h.Event.TS.In(m.opts.Location).Format("2006-01-02 15:04")
 	actor := string(h.Event.Actor)

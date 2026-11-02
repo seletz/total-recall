@@ -55,7 +55,8 @@ func TestFrames(t *testing.T) {
 		keys  []string
 	}{
 		// The search view starts with its input focused: the first tab moves
-		// the focus to the hit list, only then do the global keys apply.
+		// the focus to the hit list, only then do the global keys apply. Tab
+		// cycles the focus within the search view and never switches views.
 		{"Start", "", nil},
 		{"StartStats", "stats", nil},
 		{"StartActivity", "activity", nil},
@@ -64,8 +65,12 @@ func TestFrames(t *testing.T) {
 		{"Key1AfterStats", "stats", []string{"1"}},
 		{"Key3", "", []string{"tab", "3"}},
 		{"Key2AfterActivity", "activity", []string{"2"}},
-		{"TabToActivity", "", []string{"tab", "tab", "tab"}},
-		{"TabWraps", "", []string{"tab", "tab", "tab", "tab"}},
+		{"Key1AfterActivity", "activity", []string{"1"}},
+		{"TabInActivityIgnored", "activity", []string{"tab"}},
+		{"TabCyclesFocus", "", []string{"tab", "tab"}},
+		{"TabTabThen2IsText", "", []string{"tab", "tab", "2"}},
+		{"TabInStatsIgnored", "stats", []string{"tab"}},
+		{"ShiftTabToList", "", []string{"shift+tab", "2"}},
 		{"HelpOpen", "", []string{"tab", "?"}},
 		{"HelpOpenStats", "stats", []string{"?"}},
 		{"HelpOpenActivity", "activity", []string{"?"}},
@@ -272,7 +277,7 @@ func TestDetail(t *testing.T) {
 		{"BackKeepsList", []string{"wait:Tagged v0.2.0.", "tab", "j", "wait:plan the week", "enter", "loaded", "esc", "closed"}},
 		{"Copy", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "y", "keys"}},
 		{"Help", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "?", "keys"}},
-		{"TabCloses", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "tab", "keys"}},
+		{"TabKeepsDetail", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "tab", "keys"}},
 		{"Key1Closes", []string{"wait:Tagged v0.2.0.", "tab", "enter", "loaded", "1", "keys"}},
 		{"Key2Closes", []string{"wait:Tagged v0.2.0.", "enter", "loaded", "2", "keys"}},
 	}

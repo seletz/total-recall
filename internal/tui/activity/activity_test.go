@@ -32,41 +32,12 @@ func newModel(t *testing.T, l Loader) Model {
 	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour})
 }
 
-// run executes cmd synchronously and feeds every message it produces back
-// into m, so a test can drive the view without a program.
-func run(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
-	t.Helper()
-	if cmd == nil {
-		return m
-	}
-	switch msg := cmd().(type) {
-	case nil:
-		return m
-	case tea.BatchMsg:
-		for _, c := range msg {
-			m = run(t, m, c)
-		}
-		return m
-	default:
-		var next tea.Cmd
-		m, next = m.Update(msg)
-		return run(t, m, next)
-	}
-}
-
 // drive starts m with the body size and applies the key names in order,
-// running every command to completion.
+// running every command to completion (see tuitest.Drive).
 func drive(t *testing.T, m Model, keys ...string) Model {
 	t.Helper()
-	var tm tea.Model = m
-	tm = run(t, tm, tm.Init())
-	tm, _ = tm.Update(bodySize)
-	for _, k := range keys {
-		var cmd tea.Cmd
-		tm, cmd = tm.Update(tuitest.Key(k))
-		tm = run(t, tm, cmd)
-	}
-	return tm.(Model)
+	msgs := append([]tea.Msg{bodySize}, tuitest.Keys(keys...)...)
+	return tuitest.Drive(t, m, msgs...).(Model)
 }
 
 // TestFrames drives the view against the Activity fixture and compares the
@@ -227,7 +198,7 @@ func TestStaleResultDropped(t *testing.T) {
 	tm, cmd = m.Update(tuitest.Key("l"))
 	stale := cmd()
 	tm, cmd = tm.Update(tuitest.Key("c"))
-	tm = run(t, tm, cmd)
+	tm = tuitest.Run(t, tm, cmd)
 	tm, _ = tm.Update(stale)
 	m = tm.(Model)
 	if !strings.Contains(tuitest.Frame(m), "this week") || len(m.cache) != 2 {

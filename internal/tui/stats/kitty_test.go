@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"image/png"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,42 +29,12 @@ func newKitty(mode Graphics, p Probe) *KittyChart {
 	return NewKittyChart(KittyOptions{Mode: mode, Env: &env, Probe: fixedProbe(p)})
 }
 
-// exec runs cmd to completion against c like a program would: batches and
-// sequences are unpacked, raw terminal writes are collected instead of
-// delivered, every other message goes to c.Update and its command runs in
-// turn. It returns everything written to the terminal.
+// exec runs cmd to completion against c (see tuitest.Exec): every message
+// goes to c.Update and its command runs in turn. It returns everything
+// written to the terminal.
 func exec(t *testing.T, c Chart, cmd tea.Cmd) []string {
 	t.Helper()
-	if cmd == nil {
-		return nil
-	}
-	msg := cmd()
-	switch m := msg.(type) {
-	case nil:
-		return nil
-	case tea.BatchMsg:
-		var out []string
-		for _, sub := range m {
-			out = append(out, exec(t, c, sub)...)
-		}
-		return out
-	case tea.RawMsg:
-		s, ok := m.Msg.(string)
-		if !ok {
-			t.Fatalf("raw message of type %T", m.Msg)
-		}
-		return []string{s}
-	}
-	// tea.Sequence yields an unexported slice of commands.
-	if v := reflect.ValueOf(msg); v.Kind() == reflect.Slice && v.Type().Elem() == reflect.TypeFor[tea.Cmd]() {
-		var out []string
-		for i := range v.Len() {
-			out = append(out, exec(t, c, v.Index(i).Interface().(tea.Cmd))...)
-		}
-		return out
-	}
-	_, next := c.Update(msg)
-	return exec(t, c, next)
+	return tuitest.Exec(t, func(msg tea.Msg) tea.Cmd { _, next := c.Update(msg); return next }, cmd)
 }
 
 // spec is a small chart spec with two series.

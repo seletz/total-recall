@@ -1,6 +1,8 @@
-// Package tuitest drives Bubble Tea models in tests. It wraps teatest with
-// the fixed terminal size, colourless profile and clock the TUI golden tests
-// share, so every view package tests the same way.
+// Package tuitest drives Bubble Tea models in tests, so every view package
+// tests the same way. It wraps teatest with the fixed terminal size,
+// colourless profile and clock the TUI golden tests share (New, Press,
+// WaitFor, Final) and drives models without a program, running their
+// commands synchronously (Exec, Run, Send, Drive).
 package tuitest
 
 import (
@@ -51,11 +53,18 @@ func New(tb testing.TB, m tea.Model, opts ...teatest.TestOption) *teatest.TestMo
 
 // Key builds the key press for a name: a single character ("q", "?", "1"), a
 // special key ("tab", "esc", "enter", "up", "down", "left", "right",
-// "backspace", "space") or a ctrl combination ("ctrl+c").
+// "backspace", "space"), with the modifiers "ctrl+" and "shift+" in front
+// ("ctrl+c", "shift+tab").
 func Key(name string) tea.KeyPressMsg {
 	var mod tea.KeyMod
-	if rest, ok := strings.CutPrefix(name, "ctrl+"); ok {
-		mod, name = tea.ModCtrl, rest
+	for {
+		if rest, ok := strings.CutPrefix(name, "ctrl+"); ok {
+			mod, name = mod|tea.ModCtrl, rest
+		} else if rest, ok := strings.CutPrefix(name, "shift+"); ok {
+			mod, name = mod|tea.ModShift, rest
+		} else {
+			break
+		}
 	}
 	special := map[string]rune{
 		"tab": tea.KeyTab, "esc": tea.KeyEscape, "enter": tea.KeyEnter,
