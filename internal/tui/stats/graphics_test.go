@@ -4,6 +4,10 @@ import "testing"
 
 var ghostty = Env{Term: "xterm-ghostty", TermProgram: "ghostty", TermProgramVersion: "1.4.0"}
 
+// herdr is the environment of a herdr pane: herdr names itself and hides
+// the outer terminal.
+var herdr = Env{Term: "xterm-256color", TermProgram: "herdr", TermProgramVersion: "0.9.5"}
+
 // TestDecide is the decision table of the chart mode: flag × probe × environment.
 func TestDecide(t *testing.T) {
 	tests := []struct {
@@ -39,6 +43,11 @@ func TestDecide(t *testing.T) {
 		{"auto tmux new ghostty", GraphicsAuto, ProbeSupported, Env{TermProgram: "ghostty", TermProgramVersion: "1.4.0", Tmux: true}, Decision{Image: true}},
 		{"auto tmux ghostty unknown version", GraphicsAuto, ProbeSupported, Env{TermProgram: "ghostty", Tmux: true}, Decision{Image: true}},
 		{"old ghostty outside tmux is fine", GraphicsAuto, ProbeSupported, Env{TermProgram: "ghostty", TermProgramVersion: "1.2.0"}, Decision{Image: true}},
+		// herdr renders placeholders itself; only its answer switches the image on.
+		{"auto herdr", GraphicsAuto, ProbeSupported, herdr, Decision{Image: true}},
+		{"auto herdr pending", GraphicsAuto, ProbePending, herdr, Decision{Reason: "probing…"}},
+		{"auto herdr timeout names its switch", GraphicsAuto, ProbeTimeout, herdr, Decision{Reason: "no answer; herdr kitty_graphics off?"}},
+		{"text in herdr", GraphicsText, ProbeSupported, herdr, Decision{}},
 		// An empty mode behaves like auto.
 		{"empty is auto", "", ProbeSupported, ghostty, Decision{Image: true}},
 	}
@@ -109,16 +118,53 @@ func TestVersionBefore(t *testing.T) {
 }
 
 func TestEnvFrom(t *testing.T) {
-	vars := map[string]string{
-		"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TERM_PROGRAM_VERSION": "3.8",
-		"TMUX": "/tmp/tmux-501/default,1,0", "GHOSTTY_RESOURCES_DIR": "/Applications/Ghostty.app/Contents/Resources/ghostty",
+	tests := []struct {
+		name string
+		vars map[string]string
+		want Env
+	}{
+		{"empty", nil, Env{}},
+		{"tmux from ghostty", map[string]string{
+			"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TERM_PROGRAM_VERSION": "3.8",
+			"TMUX": "/tmp/tmux-501/default,1,0", "GHOSTTY_RESOURCES_DIR": "/Applications/Ghostty.app/Contents/Resources/ghostty",
+		}, Env{Term: "tmux-256color", TermProgram: "tmux", TermProgramVersion: "3.8", Tmux: true, Ghostty: true}},
+		// herdr passes neither GHOSTTY_RESOURCES_DIR nor TMUX into its panes.
+		{"herdr pane", map[string]string{
+			"TERM": "xterm-256color", "TERM_PROGRAM": "herdr", "TERM_PROGRAM_VERSION": "0.9.5",
+		}, herdr},
 	}
-	got := EnvFrom(func(k string) string { return vars[k] })
-	want := Env{Term: "tmux-256color", TermProgram: "tmux", TermProgramVersion: "3.8", Tmux: true, Ghostty: true}
-	if got != want {
-		t.Errorf("EnvFrom = %+v, want %+v", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EnvFrom(func(k string) string { return tt.vars[k] })
+			if got != tt.want {
+				t.Errorf("EnvFrom = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
-	if got := EnvFrom(func(string) string { return "" }); got != (Env{}) {
-		t.Errorf("EnvFrom(empty) = %+v, want zero", got)
+}
+
+// TestEnvOwnProbe: the chart sends the Kitty query itself only where the
+// picture package would not: in herdr. Terminals the package recognizes
+// and tmux (whose probe needs the passthrough wrapper) stay with it.
+func TestEnvOwnProbe(t *testing.T) {
+	tests := []struct {
+		name string
+		env  Env
+		want bool
+	}{
+		{"herdr", herdr, true},
+		{"ghostty", ghostty, false},
+		{"kitty", Env{Term: "xterm-kitty"}, false},
+		{"tmux", Env{Term: "tmux-256color", TermProgram: "tmux", Tmux: true}, false},
+		{"herdr named but in tmux", Env{TermProgram: "herdr", Tmux: true}, false},
+		{"unknown", Env{Term: "xterm-256color", TermProgram: "Apple_Terminal"}, false},
+		{"empty", Env{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.env.ownProbe(); got != tt.want {
+				t.Errorf("%+v.ownProbe() = %v, want %v", tt.env, got, tt.want)
+			}
+		})
 	}
 }

@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"image/png"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -129,6 +131,126 @@ func TestKittyChartAutoFallsBack(t *testing.T) {
 				t.Error("view shows placeholders")
 			}
 		})
+	}
+}
+
+// newHerdr builds a container in a herdr pane with a short own-probe
+// timeout; the picture package's state is still open, so the chart probes
+// itself.
+func newHerdr(mode Graphics) *KittyChart {
+	env := herdr
+	return NewKittyChart(KittyOptions{Mode: mode, Env: &env, Probe: fixedProbe(ProbePending), ProbeTimeout: time.Millisecond})
+}
+
+// probeAnswer is the terminal's reply to the chart's own Kitty query.
+func probeAnswer(id int) uv.KittyGraphicsEvent {
+	return uv.KittyGraphicsEvent{Options: kitty.Options{ID: id}, Payload: []byte("OK")}
+}
+
+// TestKittyChartOwnProbe: in a herdr pane the picture package would send
+// nothing, so the chart sends the a=q query itself at Init and waits. The
+// query names the probe's own image ID, no image goes out before an
+// answer, and with the short test timeout the status line reports the
+// missing answer with herdr's switch.
+func TestKittyChartOwnProbe(t *testing.T) {
+	c := newHerdr(GraphicsAuto)
+	out := joined(start(t, c, 60, 12))
+	for _, want := range []string{"\x1b_G", "a=q", "i=" + strconv.Itoa(probeImageID)} {
+		if !strings.Contains(out, want) {
+			t.Errorf("terminal output lacks %q: %q", want, out)
+		}
+	}
+	if strings.Contains(out, "a=T") {
+		t.Errorf("image transmitted before the terminal answered: %q", out)
+	}
+	if got, want := c.Mode(), "text chart (kitty: no answer; herdr kitty_graphics off?)"; got != want {
+		t.Errorf("Mode() = %q, want %q", got, want)
+	}
+	if hasPlaceholder(c.View()) {
+		t.Error("view shows placeholders")
+	}
+}
+
+// TestKittyChartOwnProbeAnswer: the terminal's answer to the chart's own
+// query switches the image on, even after the timeout fired first (the
+// input queue can deliver the answer late). Answers to other IDs are not
+// ours.
+func TestKittyChartOwnProbeAnswer(t *testing.T) {
+	c := newHerdr(GraphicsAuto)
+	start(t, c, 60, 12)
+
+	_, cmd := c.Update(probeAnswer(DefaultImageID))
+	if out := joined(exec(t, c, cmd)); strings.Contains(out, "a=T") || hasPlaceholder(c.View()) {
+		t.Errorf("an answer to a foreign ID placed the image: %q", out)
+	}
+
+	_, cmd = c.Update(probeAnswer(probeImageID))
+	out := joined(exec(t, c, cmd))
+	for _, want := range []string{"\x1b[16t", "a=T", "U=1", "i=23", "c=60", "r=12"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("terminal output lacks %q", want)
+		}
+	}
+	if !hasPlaceholder(c.View()) {
+		t.Fatalf("view shows no placeholders:\n%s", c.View())
+	}
+	if got := c.Mode(); got != "image chart (kitty)" {
+		t.Errorf("Mode() = %q", got)
+	}
+	// g cycles as in any other terminal: text deletes, kitty forces, auto
+	// keeps the answer.
+	exec(t, c, c.Toggle())
+	exec(t, c, c.Toggle())
+	exec(t, c, c.Toggle())
+	if got := c.Mode(); got != "image chart (kitty)" || !hasPlaceholder(c.View()) {
+		t.Errorf("after g g g: Mode() = %q, placeholders %v", got, hasPlaceholder(c.View()))
+	}
+}
+
+// TestKittyChartOwnProbeOnlyInAuto: text and kitty mode never send the
+// chart's own query either.
+func TestKittyChartOwnProbeOnlyInAuto(t *testing.T) {
+	for _, mode := range []Graphics{GraphicsText, GraphicsKitty} {
+		t.Run(string(mode), func(t *testing.T) {
+			c := newHerdr(mode)
+			if out := joined(start(t, c, 60, 12)); strings.Contains(out, "a=q") {
+				t.Errorf("%s mode sent the query: %q", mode, out)
+			}
+		})
+	}
+}
+
+// TestKittyChartOwnProbeHonorsForced: a capability settled before the
+// chart starts (NTCHARTS_KITTY, ForceKittyCapability) is final in herdr
+// too: no query goes out, the settled state decides.
+func TestKittyChartOwnProbeHonorsForced(t *testing.T) {
+	tests := []struct {
+		probe Probe
+		want  string
+	}{
+		{ProbeNotDetected, "text chart (kitty: not detected)"},
+		{ProbeSupported, "image chart (kitty)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			env := herdr
+			c := NewKittyChart(KittyOptions{Mode: GraphicsAuto, Env: &env, Probe: fixedProbe(tt.probe), ProbeTimeout: time.Millisecond})
+			if out := joined(start(t, c, 60, 12)); strings.Contains(out, "a=q") {
+				t.Errorf("query sent despite a settled capability: %q", out)
+			}
+			if got := c.Mode(); got != tt.want {
+				t.Errorf("Mode() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestKittyChartNoOwnProbeInGhostty: where the picture package probes, the
+// chart does not add a query of its own.
+func TestKittyChartNoOwnProbeInGhostty(t *testing.T) {
+	c := newKitty(GraphicsAuto, ProbeNotDetected)
+	if out := joined(start(t, c, 60, 12)); strings.Contains(out, "i="+strconv.Itoa(probeImageID)) {
+		t.Errorf("own query sent in Ghostty: %q", out)
 	}
 }
 
