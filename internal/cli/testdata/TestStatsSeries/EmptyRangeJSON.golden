@@ -1,0 +1,18 @@
+{
+  "since": "2026-02-28T23:00:00.000Z",
+  "until": "2026-03-31T22:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "period": "month",
+  "by": "",
+  "keys": [],
+  "buckets": [
+    {
+      "start": "2026-02-28T23:00:00.000Z",
+      "label": "2026-03",
+      "sessions": 0,
+      "human": 0,
+      "agent": 0,
+      "cells": []
+    }
+  ]
+}

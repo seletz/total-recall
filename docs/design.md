@@ -88,6 +88,7 @@ internal/harness/claude   Adapter Claude Code (JSONL)
 internal/gitinfo          cwd -> git root, remote URL, branch (mit Cache)
 internal/redact           Maskieren von Geheimnissen
 internal/store            SQLite: Schema, Migrationen, Upserts, Abfragen, Backup
+internal/project          Projektname aus Git-Root bzw. Verzeichnis (reine Funktionen; `stats --by project`, TUI)
 internal/ingest           Orchestrierung: Quellen finden, Offsets, Locking, Store schreiben
 internal/skill            eingebetteter SKILL.md für `llm --skill`
 internal/config           TOML laden, Defaults, Env/Flag-Overrides, Pfad-Expansion
@@ -256,7 +257,7 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions), `--all-sessions` (sonst ohne Sessions ohne Events und Startzeit); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools) |
 | `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |
-| `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Basis für `monthly_stats.py` im Vault. |
+| `stats` | Kennzahlen für einen Zeitraum (`--month YYYY-MM` oder `--since/--until`): je Tag, je Wochentag×Stunde (lokale Zeit), je Repo: Sessions, human-, agent-Events. Mit `--period day\|week\|month`, `--by project\|agent\|directory`, `--top N` stattdessen eine Zeitreihe Periode × Schlüssel aus `store.ActivitySeries` (Text im Langformat, JSON), Ersatz für `monthly_stats.py` im Vault; Projektnamen aus `internal/project`. |
 | `sql QUERY` | Read-only-SQL (DB mit `mode=ro` und `PRAGMA query_only`), Ausgabe Tabelle/JSON/CSV |
 | `backup` | `VACUUM INTO` + gzip + Aufbewahrung; `--if-older DURATION` |
 | `restore BACKUP_FILE` | Backup (`.db.gz` oder alte `.db`) in eine DB-Datei entpacken; `--to PATH`, `--force` |
