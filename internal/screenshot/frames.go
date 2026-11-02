@@ -74,7 +74,7 @@ var (
 	monthNow = time.Date(2026, 10, 31, 12, 0, 0, 0, berlin)
 )
 
-// Shots are the screenshots of the docs, in the order of docs/tui.md.
+// Shots are the screenshots of the docs, in the order of docs/reference/30-tui.md.
 var Shots = []Shot{
 	{Name: "search", Width: Width, Height: Height, Demo: true, Start: tui.ViewSearch, Query: DemoQuery, Now: demoNow,
 		Caption: "Suche mit Vorschau"},
