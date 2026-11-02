@@ -1,0 +1,97 @@
+{
+  "since": "2025-12-29T03:00:00.000Z",
+  "until": "2026-01-05T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "human_only": true,
+  "days": [
+    {
+      "day": "2025-12-29",
+      "weekday": "Mon",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2025-12-30",
+      "weekday": "Tue",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2025-12-31",
+      "weekday": "Wed",
+      "first": "2025-12-31T22:40:00.000Z",
+      "last": "2025-12-31T23:05:00.000Z",
+      "first_local": "23:40",
+      "last_local": "00:05 (+1)",
+      "span_seconds": 1500,
+      "sessions": 1,
+      "human": 2,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-01",
+      "weekday": "Thu",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-02",
+      "weekday": "Fri",
+      "first": "2026-01-02T14:00:00.000Z",
+      "last": "2026-01-02T14:00:00.000Z",
+      "first_local": "15:00",
+      "last_local": "15:00",
+      "span_seconds": 0,
+      "sessions": 1,
+      "human": 1,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-03",
+      "weekday": "Sat",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-04",
+      "weekday": "Sun",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    }
+  ],
+  "total": {
+    "days": 2,
+    "span_seconds": 1500
+  }
+}

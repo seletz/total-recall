@@ -17,6 +17,11 @@
 # Time zone for evaluations (stats, day boundaries). Override: --tz.
 timezone = "Europe/Berlin"
 
+# Wall-clock time at which a day begins for the first/last activity per day
+# (`stats --workday`, TUI view "activity"): activity before it, e.g. at 01:30,
+# counts for the previous day and is shown as "01:30 (+1)".
+day_start = "04:00"
+
 # Log file for hook errors. Empty = total-recall.log next to the database.
 log = ""
 

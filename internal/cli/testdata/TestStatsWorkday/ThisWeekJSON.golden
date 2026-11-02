@@ -1,0 +1,97 @@
+{
+  "since": "2026-01-05T03:00:00.000Z",
+  "until": "2026-01-12T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "human_only": false,
+  "days": [
+    {
+      "day": "2026-01-05",
+      "weekday": "Mon",
+      "first": "2026-01-05T07:45:00.000Z",
+      "last": "2026-01-05T07:45:05.000Z",
+      "first_local": "08:45",
+      "last_local": "08:45",
+      "span_seconds": 5,
+      "sessions": 1,
+      "human": 1,
+      "agent": 1
+    },
+    {
+      "day": "2026-01-06",
+      "weekday": "Tue",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-07",
+      "weekday": "Wed",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-08",
+      "weekday": "Thu",
+      "first": "2026-01-08T16:30:00.000Z",
+      "last": "2026-01-08T16:55:05.000Z",
+      "first_local": "17:30",
+      "last_local": "17:55",
+      "span_seconds": 1505,
+      "sessions": 1,
+      "human": 2,
+      "agent": 3
+    },
+    {
+      "day": "2026-01-09",
+      "weekday": "Fri",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-10",
+      "weekday": "Sat",
+      "first": "",
+      "last": "",
+      "first_local": "",
+      "last_local": "",
+      "span_seconds": 0,
+      "sessions": 0,
+      "human": 0,
+      "agent": 0
+    },
+    {
+      "day": "2026-01-11",
+      "weekday": "Sun",
+      "first": "2026-01-11T18:00:00.000Z",
+      "last": "2026-01-11T18:00:05.000Z",
+      "first_local": "19:00",
+      "last_local": "19:00",
+      "span_seconds": 5,
+      "sessions": 1,
+      "human": 1,
+      "agent": 2
+    }
+  ],
+  "total": {
+    "days": 3,
+    "span_seconds": 1515
+  }
+}

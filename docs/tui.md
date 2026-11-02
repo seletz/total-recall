@@ -1,6 +1,6 @@
 # TUI
 
-`total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session und eine Statistik der Aktivität als Chart, Tabelle und Heatmap. Die Datenbank wird nur lesend geöffnet.
+`total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap und die erste und letzte Aktivität je Tag. Die Datenbank wird nur lesend geöffnet.
 
 !!! note "Spike"
     Die TUI ist das Ergebnis eines Spikes. Sie ist als eigenständiges Unterkommando gebaut, das sich wieder entfernen lässt. Entwurf, Abweichungen, Messwerte und Empfehlung stehen in [Spike: TUI](spike-tui.md#ergebnis). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe; alle Bildschirme auf dieser Seite sind erfundene Beispiele.
@@ -10,17 +10,18 @@
 ```sh
 total-recall tui                          # startet in der Suche
 total-recall tui stats                    # startet in der Statistik
+total-recall tui activity                 # startet in der Aktivität je Tag
 total-recall tui --query "goreleaser"     # Suche mit vorbelegtem Suchtext
 total-recall tui stats --graphics text    # Chart als Text, kein Bild
 ```
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` | Ansicht beim Start, Default `search` |
+| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort beim Start |
 | `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `auto`; siehe [Grafikmodi](#grafikmodi) |
 
-Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
+Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
 
 Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Zeichen breit. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap blendet sich aus.
 
@@ -28,8 +29,8 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Z
 
 Alle Ansichten teilen denselben Rahmen:
 
-- **Kopfzeile:** links der Programmname, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern (`[1 search]  2 stats`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
-- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • ? help • q quit`). Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
+- **Kopfzeile:** links der Programmname, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
+- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`). Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
 
 ```text
@@ -87,10 +88,10 @@ Alle Ansichten teilen denselben Rahmen:
 
 Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und die **Trefferliste**. Die Vorschau ist reine Anzeige und folgt der Markierung. Der Repo-Filter ist ein modales Feld, das `r` aus der Liste öffnet; er gehört nicht zur Reihenfolge.
 
-- ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1` und `2`; ++tab++ ist dafür nicht belegt.
+- ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1`, `2` und `3`; ++tab++ ist dafür nicht belegt.
 - ++esc++ geht eine Ebene zurück: aus dem Repo-Filter in die Liste (die Änderung wird verworfen), aus der Liste in die Eingabe. In der Eingabe tut ++esc++ nichts.
-- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `q`, `?`, `1` und `2` landen im Suchtext und lösen nichts aus.
-- Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1`, `2`, `?`, `q`.
+- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `q`, `?`, `1`, `2` und `3` landen im Suchtext und lösen nichts aus.
+- Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1`, `2`, `3`, `?`, `q`.
 - Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
 - Sichtbar ist der Fokus am Cursor und an der Markierung: in der Eingabe und im Repo-Filter steht der Cursor des Terminals im Feld; hat die Liste den Fokus, ist der markierte Treffer invertiert. Das `▸` vor dem markierten Treffer bleibt in jedem Fall, weil ++enter++ ihn aus beiden Elementen öffnet und die Vorschau ihn zeigt. Die Fußzeile nennt die Tasten des fokussierten Elements.
 
@@ -206,13 +207,46 @@ Die Dimensionen:
 
 Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mindesthöhe (Terminal unter 25 Zeilen, etwa 80×24), bleibt sie ausgeblendet und die Statuszeile sagt `heatmap needs more rows`.
 
+## Aktivität
+
+Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste und letzte Aktivität**: ein Notnagel für vergessenes Ein- und Ausstempeln. Dieselben Daten liefert [`stats --workday`](befehle.md#stats-workday) als Text und JSON.
+
+```text
+ total-recall                                                      1 search   2 stats  [3 activity]
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ period: day [week] month  count: [all] human        this week · 2026-W44 · 2026-10-26 – 2026-11-01
+ day             first  last          span  04       08       12       16       20       00
+ Mon 2026-10-26  08:12  18:40       10h28m  ·········████████████████████··························
+ Tue 2026-10-27  09:03  01:30 (+1)  16h27m  ···········█████████████████████████████████████·······
+ Wed 2026-10-28  -      -                -  ·······················································
+ Thu 2026-10-29  07:55  17:10        9h15m  ·········███████████████████···························
+ Fri 2026-10-30  10:20  15:45        5h25m  ··············██████████································
+ Sat 2026-10-31  -      -                -  ·······················································
+ Sun 2026-11-01  21:00  21:05           5m  ········································█··············
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ total: 5 days with activity, 41h40m
+ 7 days · 4 ms
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ d/w/m period • [ ] earlier/later • c/l this/last • h human only • 1 search • 2 stats • 3 activity …
+```
+
+- **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`all`: eigene Nachrichten und Agent-Events wie in der Statistik; `h` schaltet auf `human`, nur eigene Nachrichten). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag.
+- **Zeitfenster:** Start ist die aktuelle Woche. `[` und `]` verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
+- **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
+- **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
+- **Summenzeile** bei Woche und Monat: Summe der Spannen und Anzahl Tage mit Aktivität. Ein einzelner Tag braucht sie nicht.
+- **Statuszeile:** Anzahl Tage und Dauer der Abfrage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
+
+Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 55 Spalten entfällt er, die Uhrzeiten bleiben.
+
 ## Tasten
 
 ### Überall
 
 | Taste | Wirkung |
 |---|---|
-| `1` / `2` | Suche / Statistik; schließt eine offene Session |
+| `1` / `2` / `3` | Suche / Statistik / Aktivität; schließt eine offene Session |
 | ++tab++ / ++shift+tab++ | Fokus innerhalb der Ansicht wechseln: in der Suche Eingabe ↔ Liste. Wechselt nie die Ansicht |
 | `?` | Hilfe ein/aus |
 | ++esc++ | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
@@ -256,6 +290,17 @@ Im Repo-Filter: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft; siehe [Foku
 | `e` | Kennzahl: events → human → sessions |
 | `h` | Heatmap ein/aus |
 | `g` | Grafikmodus: auto → text → kitty → auto |
+
+### Aktivität
+
+| Taste | Wirkung |
+|---|---|
+| `d` / `w` / `m` | Fenster ein Tag / eine Woche / ein Monat |
+| `[` / `]` | eine Periode zurück / vor |
+| `c` | heute / diese Woche / dieser Monat |
+| `l` | gestern / letzte Woche / letzter Monat |
+| `h` | nur eigene Nachrichten zählen ein/aus |
+| ++up++ / `k`, ++down++ / `j` | blättern, wenn nicht alle Tage passen |
 
 ## Grafikmodi
 
@@ -324,6 +369,7 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Projektnamen** kommen aus einer Heuristik: Repositories heißen wie der Basisname ihres Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), Verzeichnisse ohne Repository erscheinen als Pfad, das Home-Verzeichnis darin als `~` (`~/notes`). Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
 - **Tabelle:** `sessions` ist über die Perioden summiert, nicht über das Fenster eindeutig gezählt.
 - **Heatmap** nur ab etwa 25 Terminalzeilen.
+- **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session.
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
 - **Keine Maus.** Bedienung nur über die Tastatur.
 - **Zwischenablage** über OSC 52; das Terminal muss es erlauben (in tmux `set -g set-clipboard on`).
