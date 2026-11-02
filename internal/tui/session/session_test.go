@@ -206,3 +206,16 @@ func TestHelp(t *testing.T) {
 		}
 	}
 }
+
+// TestWheel checks that the mouse wheel scrolls the transcript; the view is
+// low enough that the fixture session does not fit.
+func TestWheel(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := drive(t, st, Open{SessionID: sessionID(testfixture.ActivitySessionAlpha4)}, []string{"open", "resize:100:8"})
+	down := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelDown}
+	up := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelUp}
+	got := tuitest.Drive(t, m, down, down, up).(Model)
+	if got.vp.YOffset() != m.vp.MouseWheelDelta {
+		t.Errorf("YOffset = %d, want %d", got.vp.YOffset(), m.vp.MouseWheelDelta)
+	}
+}

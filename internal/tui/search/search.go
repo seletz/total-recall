@@ -169,6 +169,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.key(msg)
+	case tea.MouseWheelMsg:
+		return m.wheel(msg)
+	case tea.MouseClickMsg:
+		return m.click(msg)
 	case debounceMsg:
 		if msg.seq != m.seq || m.opts.Searcher == nil || m.input.Value() == "" {
 			return m, nil
@@ -249,6 +253,65 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m.changed(cmd)
+}
+
+// wheelLines is how far one wheel step scrolls the preview.
+const wheelLines = 3
+
+// wheel moves the mark when the pointer is over the list and scrolls the
+// preview when it is over the preview column. The repo filter is modal and
+// ignores the mouse.
+func (m Model) wheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
+	var delta int
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		delta = -1
+	case tea.MouseWheelDown:
+		delta = 1
+	default:
+		return m, nil
+	}
+	if m.focus == focusRepo {
+		return m, nil
+	}
+	if left, _ := m.columns(); msg.X > left {
+		m.scrollPreview(delta * wheelLines)
+		return m, nil
+	}
+	return m, m.move(delta)
+}
+
+// click marks the hit under the pointer and gives the list the focus; a
+// click on the hit that is marked while the list has the focus opens it.
+// A click on the input line moves the focus back into the input. Clicks on
+// the preview, the rule and below the hits do nothing, so do clicks while
+// the repo filter is typed.
+func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+	if msg.Button != tea.MouseLeft || m.focus == focusRepo {
+		return m, nil
+	}
+	if msg.Y == 0 {
+		m.focus = focusInput
+		m.input.Focus()
+		return m, nil
+	}
+	if left, _ := m.columns(); msg.X >= left {
+		return m, nil
+	}
+	row := msg.Y - (chromeRows - 1)
+	if row < 0 || row/linesPerHit >= m.visibleHits() {
+		return m, nil
+	}
+	i := m.offset + row/linesPerHit
+	if i >= len(m.hits) {
+		return m, nil
+	}
+	if i == m.cursor && m.focus == focusList {
+		return m, m.open()
+	}
+	m.focus = focusList
+	m.input.Blur()
+	return m, m.move(i - m.cursor)
 }
 
 // repoKey edits the repo filter: enter applies it, esc drops the edit.
