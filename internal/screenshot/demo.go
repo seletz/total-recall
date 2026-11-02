@@ -2,6 +2,7 @@ package screenshot
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,9 @@ const (
 	demoCwd      = "/home/mara/src/kompass"
 	demoWorktree = "/home/mara/src/kompass__worktrees/gpx"
 	demoRemote   = "https://git.invalid/mara/kompass"
+	// demoProjects is where the archive says the transcripts came from. They
+	// are written to a temp dir, whose path must not end up in the archive.
+	demoProjects = "/home/mara/.claude/projects"
 )
 
 // demoLoc is the time zone the demo conversations are written in.
@@ -65,14 +69,14 @@ var demoSessions = []demoSession{
 			{at: demoAt(time.October, 31, 22, 14),
 				prompt: "Lade den Homebrew-Cask mit goreleaser in den Tap hoch.",
 				tool:   "Read", input: ".goreleaser.yml",
-				output: "casks:\n  - name: kompass\n    repository:\n      owner: mara\n      name: homebrew-tap\n",
-				reply:  "goreleaser skips the cask upload when the tap token is missing. I added a check that fails the release early instead, so a missing HOMEBREW_TAP_GITHUB_TOKEN no longer leaves a half-published release.",
+				output:  "casks:\n  - name: kompass\n    repository:\n      owner: mara\n      name: homebrew-tap\n",
+				reply:   "goreleaser skips the cask upload when the tap token is missing. I added a check that fails the release early instead, so a missing HOMEBREW_TAP_GITHUB_TOKEN no longer leaves a half-published release.",
 				replyAt: 2 * time.Minute},
 			{at: demoAt(time.October, 31, 22, 17),
 				prompt: "Gut. Tagge v0.3.0 und starte das Release.",
 				tool:   "Bash", input: "git tag -s v0.3.0 -m 'v0.3.0' && git push origin v0.3.0",
-				output: "To git.invalid:mara/kompass\n * [new tag]         v0.3.0 -> v0.3.0\n",
-				reply:  "Tagged v0.3.0 and pushed the tag. The release workflow is running; goreleaser builds the binaries and publishes the cask to the tap.",
+				output:  "To git.invalid:mara/kompass\n * [new tag]         v0.3.0 -> v0.3.0\n",
+				reply:   "Tagged v0.3.0 and pushed the tag. The release workflow is running; goreleaser builds the binaries and publishes the cask to the tap.",
 				replyAt: 3 * time.Minute},
 		},
 	},
@@ -86,8 +90,8 @@ var demoSessions = []demoSession{
 			{at: demoAt(time.October, 28, 9, 12),
 				prompt: "Und der Lint-Job? Der schlägt seit gestern fehl.",
 				tool:   "Bash", input: "golangci-lint run ./...",
-				output: "route/cache.go:42:18: unused-parameter: parameter 'ctx' seems to be unused (revive)\n",
-				reply:  "The lint job fails on a new golangci-lint rule: an unused parameter in route/cache.go. I removed the parameter and the job is green again.",
+				output:  "route/cache.go:42:18: unused-parameter: parameter 'ctx' seems to be unused (revive)\n",
+				reply:   "The lint job fails on a new golangci-lint rule: an unused parameter in route/cache.go. I removed the parameter and the job is green again.",
 				replyAt: 4 * time.Minute},
 		},
 	},
@@ -106,8 +110,8 @@ var demoSessions = []demoSession{
 			{at: demoAt(time.October, 20, 10, 15),
 				prompt: "TestRouteCache schlägt gelegentlich fehl, bitte schau dir das an.",
 				tool:   "Bash", input: "go test -run TestRouteCache -count=200 ./route/",
-				output: "--- FAIL: TestRouteCache (0.01s)\n    cache_test.go:57: waypoints out of order\nFAIL\n",
-				reply:  "The test depended on map iteration order. I sort the waypoints before comparing them; 200 runs pass now.",
+				output:  "--- FAIL: TestRouteCache (0.01s)\n    cache_test.go:57: waypoints out of order\nFAIL\n",
+				reply:   "The test depended on map iteration order. I sort the waypoints before comparing them; 200 runs pass now.",
 				replyAt: 6 * time.Minute},
 		},
 	},
@@ -117,8 +121,8 @@ var demoSessions = []demoSession{
 			{at: demoAt(time.October, 15, 11, 5),
 				prompt: "Richte den Homebrew-Tap ein, damit goreleaser den Cask dorthin pusht.",
 				tool:   "Bash", input: "gh repo create mara/homebrew-tap --public",
-				output: "https://git.invalid/mara/homebrew-tap\n",
-				reply:  "Created the tap repository and a deploy key. goreleaser publishes the cask there; users install it with brew install --cask mara/tap/kompass.",
+				output:  "https://git.invalid/mara/homebrew-tap\n",
+				reply:   "Created the tap repository and a deploy key. goreleaser publishes the cask there; users install it with brew install --cask mara/tap/kompass.",
 				replyAt: 7 * time.Minute},
 		},
 	},
@@ -137,8 +141,8 @@ var demoSessions = []demoSession{
 			{at: demoAt(time.October, 24, 16, 0),
 				prompt: "Füge einen GPX-Import hinzu: Wegpunkte und Tracks, Streaming-Parser.",
 				tool:   "Bash", input: "go test ./internal/gpx/...",
-				output: "ok  \tkompass/internal/gpx\t0.412s\n",
-				reply:  "Added internal/gpx with a streaming parser for waypoints and tracks, plus tests with a small synthetic file.",
+				output:  "ok  \tkompass/internal/gpx\t0.412s\n",
+				reply:   "Added internal/gpx with a streaming parser for waypoints and tracks, plus tests with a small synthetic file.",
 				replyAt: 9 * time.Minute},
 		},
 	},
@@ -229,5 +233,30 @@ func BuildDemo(ctx context.Context, dir string) (string, error) {
 	if len(sum.Errors) > 0 {
 		return "", fmt.Errorf("demo: ingest %s: %w", sum.Errors[0].Path, sum.Errors[0].Err)
 	}
+	if err := st.Close(); err != nil {
+		return "", fmt.Errorf("demo: %w", err)
+	}
+	if err := relocate(ctx, path, projects, demoProjects); err != nil {
+		return "", fmt.Errorf("demo: %w", err)
+	}
 	return path, nil
+}
+
+// relocate rewrites the transcript paths of the archive at dbPath from the
+// directory they were read from to where the demo says they live.
+func relocate(ctx context.Context, dbPath, from, to string) error {
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	for _, q := range []string{
+		"UPDATE sources SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+		"UPDATE events SET source_path = ? || substr(source_path, ?) WHERE substr(source_path, 1, ?) = ?",
+	} {
+		if _, err := db.ExecContext(ctx, q, to, len(from)+1, len(from), from); err != nil {
+			return err
+		}
+	}
+	return nil
 }

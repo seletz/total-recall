@@ -3,6 +3,8 @@ package screenshot
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -62,10 +64,18 @@ func TestDemoIsSynthetic(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if hit, err := Scan(context.Background(), db, []string{"/Users", "seletz", "/tmp", t.TempDir()}); err != nil {
+	// The transcripts were written to a temp dir, which must not end up in
+	// the archive: its paths are the machine's, not the demo's.
+	if hit, err := Scan(context.Background(), db, []string{"/Users", "seletz", "/tmp", "/var/", os.TempDir(), filepath.Dir(path)}); err != nil {
 		t.Fatal(err)
 	} else if hit != "" {
 		t.Errorf("demo archive holds a real path in %s", hit)
+	}
+	if n := count(t, db, "SELECT count(*) FROM sources WHERE path NOT LIKE '"+demoProjects+"/%'"); n != 0 {
+		t.Errorf("%d sources outside %s", n, demoProjects)
+	}
+	if n := count(t, db, "SELECT count(*) FROM events WHERE source_path NOT LIKE '"+demoProjects+"/%'"); n != 0 {
+		t.Errorf("%d events with a source outside %s", n, demoProjects)
 	}
 	if n := count(t, db, "SELECT count(*) FROM sessions"); n != len(demoSessions) {
 		t.Errorf("sessions = %d, want %d", n, len(demoSessions))
