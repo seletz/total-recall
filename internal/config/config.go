@@ -113,15 +113,27 @@ type Work struct {
 	// target: below DailyLow it is under, above DailyHigh over.
 	DailyLow  Duration `toml:"daily_low"`
 	DailyHigh Duration `toml:"daily_high"`
+	// WeeklyLow and WeeklyHigh bound the working time of a week with five
+	// workdays that counts as on target; a week or a month with fewer
+	// workdays (holidays, a running period) scales them.
+	WeeklyLow  Duration `toml:"weekly_low"`
+	WeeklyHigh Duration `toml:"weekly_high"`
+	// Bundesland selects the public holidays (see internal/holiday); an
+	// unknown or empty name means the nationwide holidays only.
+	Bundesland string `toml:"bundesland"`
 }
 
 // Built-in working time: core hours 09:00–17:00, 8h per weekday, a span of
-// 6h to 9h is on target.
+// 6h to 9h per day and 32h to 48h per week is on target, holidays of
+// Baden-Württemberg.
 const (
-	DefaultWorkHours     = "09:00-17:00"
-	DefaultWorkTarget    = 8 * time.Hour
-	DefaultWorkDailyLow  = 6 * time.Hour
-	DefaultWorkDailyHigh = 9 * time.Hour
+	DefaultWorkHours      = "09:00-17:00"
+	DefaultWorkTarget     = 8 * time.Hour
+	DefaultWorkDailyLow   = 6 * time.Hour
+	DefaultWorkDailyHigh  = 9 * time.Hour
+	DefaultWorkWeeklyLow  = 32 * time.Hour
+	DefaultWorkWeeklyHigh = 48 * time.Hour
+	DefaultWorkBundesland = "Baden-Württemberg"
 )
 
 // Backup configures `total-recall backup`.
@@ -222,6 +234,9 @@ var keys = []struct {
 	{"work.target", func(c *Config) string { return c.Work.Target.String() }},
 	{"work.daily_low", func(c *Config) string { return c.Work.DailyLow.String() }},
 	{"work.daily_high", func(c *Config) string { return c.Work.DailyHigh.String() }},
+	{"work.weekly_low", func(c *Config) string { return c.Work.WeeklyLow.String() }},
+	{"work.weekly_high", func(c *Config) string { return c.Work.WeeklyHigh.String() }},
+	{"work.bundesland", func(c *Config) string { return c.Work.Bundesland }},
 }
 
 func formatList(l []string) string {
@@ -258,7 +273,12 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Actors:          Actors{PeerPrefixes: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"}},
 	}
 	c.Git.Resolve = true
-	c.Work = Work{Hours: DefaultWorkHours, Target: Duration{DefaultWorkTarget}, DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh}}
+	c.Work = Work{
+		Hours: DefaultWorkHours, Target: Duration{DefaultWorkTarget},
+		DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh},
+		WeeklyLow: Duration{DefaultWorkWeeklyLow}, WeeklyHigh: Duration{DefaultWorkWeeklyHigh},
+		Bundesland: DefaultWorkBundesland,
+	}
 	return c
 }
 
@@ -427,6 +447,12 @@ func (c *Config) validateWork() error {
 	}
 	if c.Work.DailyHigh.Duration < c.Work.DailyLow.Duration {
 		return fmt.Errorf("config: work.daily_high must not be below work.daily_low")
+	}
+	if c.Work.WeeklyLow.Duration < 0 {
+		return fmt.Errorf("config: work.weekly_low must be >= 0")
+	}
+	if c.Work.WeeklyHigh.Duration < c.Work.WeeklyLow.Duration {
+		return fmt.Errorf("config: work.weekly_high must not be below work.weekly_low")
 	}
 	return nil
 }
