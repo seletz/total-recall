@@ -2,8 +2,8 @@
 
 `total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap und die erste und letzte Aktivität je Tag. Die Datenbank wird nur lesend geöffnet.
 
-!!! note "Spike"
-    Die TUI ist das Ergebnis eines Spikes. Sie ist als eigenständiges Unterkommando gebaut, das sich wieder entfernen lässt. Entwurf, Abweichungen, Messwerte und Empfehlung stehen in [Spike: TUI](spike-tui.md#ergebnis). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe; alle Bildschirme auf dieser Seite sind erfundene Beispiele.
+!!! note "Herkunft"
+    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe; alle Bildschirme auf dieser Seite sind erfundene Beispiele.
 
 ## Aufruf
 
@@ -39,17 +39,17 @@ Alle Ansichten teilen denselben Rahmen:
 - **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
 
 ```text
- total-recall                                                                   1 search  [2 stats]
+ total-recall                                                        1 search  [2 stats]  3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
                 ╭──────────────────────────────────────────────────────────────────╮
                 │ keys: stats                                                      │
                 │                                                                  │
-                │ d days      p by project      [ earlier     1 search    ?   help │
-                │ w weeks     a by agent        ] later       2 stats     esc back │
-                │ m months    v by directory    - zoom out                q   quit │
-                │ e metric    h heatmap         + zoom in                          │
-                │                               g graphics                         │
+                │ d days      p by project     ← earlier    1 search    ?   help   │
+                │ w weeks     a by agent       → later      2 stats     esc back   │
+                │ m months    v by directory   - zoom out   3 activity  q   quit   │
+                │ e metric    h heatmap        + zoom in                           │
+                │                              g graphics                          │
                 │                                                                  │
                 │ esc or ? closes this help                                        │
                 ╰──────────────────────────────────────────────────────────────────╯
@@ -95,7 +95,7 @@ Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. 
 ## Suche
 
 ```text
- total-recall                                                                   [1 search]  2 stats
+ total-recall                                                        [1 search]  2 stats  3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  > goreleaser cask                                                   actor: all  since: 90d  repo: *
 ─────────────────────────────────────────────────┬──────────────────────────────────────────────────
@@ -152,10 +152,10 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 ## Session
 
-++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern, Markierung und Fokus zurück. `1` und `2` schließen die Detailansicht ebenfalls.
+++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern, Markierung und Fokus zurück. `1`, `2` und `3` schließen die Detailansicht ebenfalls.
 
 ```text
- total-recall                                                         [1 search] › session  2 stats
+ total-recall                                              [1 search] › session  2 stats  3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  Release v0.1.0                                         claude:9a1b2c3d-0000-4000-8000-000000000000
  seletz/total-recall  develop  2026-10-31 22:10 – 23:02 (52m)  3 human  14 agent
@@ -187,7 +187,7 @@ Good. Tag v0.1.0 and run the release.
 ## Statistik
 
 ```text
- total-recall                                                                   1 search  [2 stats]
+ total-recall                                                        1 search  [2 stats]  3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  period: [day] week month  by: [project] agent directory                     2026-10-05 – 2026-11-01
  ▎66 913 events  ▎3 411 human  ▎63 502 agent  ▎116 sessions  ▎27/28 days active
@@ -212,7 +212,7 @@ Good. Tag v0.1.0 and run the release.
  other                                             30              42        515      7 212     12 %
  text chart (kitty: not detected) · 28 days · 312 ms
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • p/a/v by • ←/→/-/+ range • 1 search • 2 stats • ? help • q quit
+ d/w/m period • p/a/v by • ←/→/-/+ range • 1 search • 2 stats • 3 activity • ? help • q quit
 ```
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
@@ -269,7 +269,7 @@ Reichen auch neun Zeilen nicht (Terminal unter 24 Zeilen), bleibt die Heatmap au
 Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste und letzte Aktivität**: ein Notnagel für vergessenes Ein- und Ausstempeln. Dieselben Daten liefert [`stats --workday`](befehle.md#stats-workday) als Text und JSON.
 
 ```text
- total-recall                                                      1 search   2 stats  [3 activity]
+ total-recall                                                        1 search  2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  period: day [week] month  count: all [human]        this week · 2026-W44 · 2026-10-26 – 2026-11-01
  week: 41h40m in 5 days · target 40h00m (5 workdays × 8h00m) · balance +1h40m · Sun 01 Allerheiligen
@@ -455,11 +455,10 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 **Wie das Bild entsteht.** Das Chart wird außerhalb der Hauptschleife als PNG gerendert, einmal je Änderung an das Terminal übertragen und über Unicode-Platzhalterzellen platziert; der Hintergrund ist transparent, Terminalfarben scheinen durch. Die Bildgröße folgt der Zellenzahl des Chart-Bereichs mal Zellgröße in Pixeln, die das Terminal auf Anfrage meldet (Rückfall 10×20 px). Ein Wechsel von Periode, Dimension, Kennzahl, Fenster oder Größe ersetzt das Bild; die Heatmap verkleinert den Chart-Bereich.
 
 !!! warning "Noch nicht in echten Terminals geprüft"
-    Der Bildpfad ist bisher nur in einem Pseudo-Terminal mit nachgestellten Ghostty-Antworten getestet. Die manuelle Prüfung in Ghostty (nativ, in tmux mit und ohne Passthrough), Terminal.app und bei 80×24 steht aus; siehe [Spike: TUI](spike-tui.md#nicht-gepruft-oder-nicht-umgesetzt).
+    Der Bildpfad ist bisher nur in einem Pseudo-Terminal mit nachgestellten Ghostty-Antworten getestet. Die manuelle Prüfung in Ghostty (nativ, in tmux mit und ohne Passthrough), Terminal.app und bei 80×24 steht aus ([#40](https://github.com/seletz/total-recall/issues/40)); der Textpfad ist davon unabhängig.
 
 ## Bekannte Grenzen
 
-- **Spike.** Die TUI kann in einer späteren Version wieder entfernt werden; siehe die Empfehlung im [Spike](spike-tui.md#empfehlung).
 - **Suche:** höchstens 200 Treffer je Abfrage, sortiert nach Rang. Der Zeitfilter startet bei `all`, nicht bei 90 Tagen. Die Filter `a`, `t`, `r` wirken nur, wenn die Liste den Fokus hat.
 - **Projektnamen** kommen aus einer Heuristik: Repositories heißen wie der Basisname ihres Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), Verzeichnisse ohne Repository erscheinen als Pfad, das Home-Verzeichnis darin als `~` (`~/notes`). Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
 - **Heatmap** nur ab etwa 25 Terminalzeilen.

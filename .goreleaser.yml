@@ -32,6 +32,9 @@ archives:
 checksum:
   name_template: "checksums-{{ .Tag }}.txt"
 
+# The release body starts with the notes for the tag from docs/aenderungen.md
+# (scripts/release-notes.sh, passed as --release-header by the workflow); the
+# generated changelog below lists the remaining commits.
 changelog:
   sort: asc
   filters:
