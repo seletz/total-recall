@@ -121,7 +121,20 @@ type Work struct {
 	// Bundesland selects the public holidays (see internal/holiday); an
 	// unknown or empty name means the nationwide holidays only.
 	Bundesland string `toml:"bundesland"`
+	// Count says which events the activity per day counts by default:
+	// CountHuman (own messages only) or CountAll (human and agent events).
+	Count string `toml:"count"`
 }
+
+// Values of Work.Count.
+const (
+	CountHuman = "human"
+	CountAll   = "all"
+)
+
+// HumanOnly reports whether the activity per day counts own messages
+// only by default.
+func (w Work) HumanOnly() bool { return w.Count != CountAll }
 
 // Built-in working time: core hours 09:00–17:00, 8h per weekday, a span of
 // 6h to 9h per day and 32h to 48h per week is on target, holidays of
@@ -134,6 +147,7 @@ const (
 	DefaultWorkWeeklyLow  = 32 * time.Hour
 	DefaultWorkWeeklyHigh = 48 * time.Hour
 	DefaultWorkBundesland = "Baden-Württemberg"
+	DefaultWorkCount      = CountHuman
 )
 
 // Backup configures `total-recall backup`.
@@ -237,6 +251,7 @@ var keys = []struct {
 	{"work.weekly_low", func(c *Config) string { return c.Work.WeeklyLow.String() }},
 	{"work.weekly_high", func(c *Config) string { return c.Work.WeeklyHigh.String() }},
 	{"work.bundesland", func(c *Config) string { return c.Work.Bundesland }},
+	{"work.count", func(c *Config) string { return c.Work.Count }},
 }
 
 func formatList(l []string) string {
@@ -277,7 +292,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Hours: DefaultWorkHours, Target: Duration{DefaultWorkTarget},
 		DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh},
 		WeeklyLow: Duration{DefaultWorkWeeklyLow}, WeeklyHigh: Duration{DefaultWorkWeeklyHigh},
-		Bundesland: DefaultWorkBundesland,
+		Bundesland: DefaultWorkBundesland, Count: DefaultWorkCount,
 	}
 	return c
 }
@@ -453,6 +468,9 @@ func (c *Config) validateWork() error {
 	}
 	if c.Work.WeeklyHigh.Duration < c.Work.WeeklyLow.Duration {
 		return fmt.Errorf("config: work.weekly_high must not be below work.weekly_low")
+	}
+	if c.Work.Count != CountHuman && c.Work.Count != CountAll {
+		return fmt.Errorf("config: work.count %q: want %s or %s", c.Work.Count, CountHuman, CountAll)
 	}
 	return nil
 }

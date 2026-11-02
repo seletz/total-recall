@@ -25,7 +25,7 @@ func defaultKeyMap() KeyMap {
 		Later:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "later")),
 		Current: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "this day/week/month")),
 		Last:    key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "last day/week/month")),
-		Human:   key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "human only")),
+		Human:   key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "human/all events")),
 		Figures: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "summary figures")),
 		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
 		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),

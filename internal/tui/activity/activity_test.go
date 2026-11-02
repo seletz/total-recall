@@ -40,7 +40,7 @@ var holidays = holiday.New("Baden-Württemberg")
 
 func newModel(t *testing.T, l Loader) Model {
 	t.Helper()
-	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays})
+	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true})
 }
 
 // drive starts m with the body size and applies the key names in order,
@@ -62,7 +62,7 @@ func TestFrames(t *testing.T) {
 		{"Day", []string{"d"}},
 		{"Month", []string{"m"}},
 		{"LastWeek", []string{"l"}},
-		{"LastWeekHuman", []string{"l", "h"}},
+		{"LastWeekAll", []string{"l", "h"}},
 		{"LastMonth", []string{"m", "l"}},
 		{"Yesterday", []string{"d", "l"}},
 		{"ShiftBack", []string{"["}},
@@ -70,7 +70,7 @@ func TestFrames(t *testing.T) {
 		{"ShiftBackForth", []string{"[", "]"}},
 		{"ShiftForwardEmpty", []string{"]"}},
 		{"CurrentAfterShift", []string{"[", "[", "c"}},
-		{"HumanOff", []string{"h", "h"}},
+		{"AllThenHuman", []string{"h", "h"}},
 		{"DayKeepsAnchor", []string{"[", "d"}},
 		{"MonthScroll", []string{"m", "l", "j", "j", "j"}},
 		{"MonthScrollKeys", []string{"m", "l", "down", "down", "up"}},
@@ -81,7 +81,7 @@ func TestFrames(t *testing.T) {
 		{"FiguresBackOn", []string{"s", "s"}},
 		{"MonthFiguresOff", []string{"m", "l", "s"}},
 		{"HolidayDay", []string{"d", "[", "[", "[", "[", "["}},
-		{"HolidayDayHuman", []string{"d", "[", "[", "[", "[", "[", "h"}},
+		{"HolidayDayAll", []string{"d", "[", "[", "[", "[", "[", "h"}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
@@ -276,7 +276,7 @@ func TestCache(t *testing.T) {
 		{"last and current", []string{"l", "c", "l"}, 2},
 		{"shift back and forth", []string{"[", "]"}, 2},
 		{"shift equals last", []string{"[", "l"}, 2},
-		{"human back and forth", []string{"h", "h", "h"}, 2},
+		{"all events back and forth", []string{"h", "h", "h"}, 2},
 		{"scrolling does not load", []string{"m", "j", "j", "k"}, 2},
 	}
 	for _, tt := range tests {

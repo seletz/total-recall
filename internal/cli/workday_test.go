@@ -31,10 +31,11 @@ func TestStatsWorkday(t *testing.T) {
 		{"DefaultIsThisWeek", nil},
 		{"SinceUntil", []string{"--since", "2025-12-29", "--until", "2026-01-04"}},
 		{"Month", []string{"--month", "2025-12"}},
-		{"HumanOnly", []string{"--range", "last-week", "--human-only"}},
+		{"AllEvents", []string{"--range", "last-week", "--all-events"}},
+		{"HumanOnlyDeprecated", []string{"--range", "last-week", "--human-only"}},
 		{"Empty", []string{"--since", "2026-03-02", "--until", "2026-03-08"}},
 		{"ThisWeekJSON", []string{"--range", "this-week", "--json"}},
-		{"LastWeekHumanOnlyJSON", []string{"--range", "last-week", "--human-only", "--json"}},
+		{"LastWeekAllEventsJSON", []string{"--range", "last-week", "--all-events", "--json"}},
 		{"EmptyJSON", []string{"--since", "2026-03-02", "--until", "2026-03-08", "--json"}},
 	}
 	e := newTestEnv(t)
@@ -64,13 +65,13 @@ func TestStatsWorkdayDayStart(t *testing.T) {
 	if out.DayStart != "04:00" || len(out.Days) != 2 {
 		t.Fatalf("default: day_start=%q days=%d", out.DayStart, len(out.Days))
 	}
-	if d := out.Days[0]; d.Day != "2025-12-31" || d.FirstLocal != "23:40" || d.LastLocal != "00:05 (+1)" || d.SpanSeconds != 25*60+5 {
+	if d := out.Days[0]; d.Day != "2025-12-31" || d.FirstLocal != "23:40" || d.LastLocal != "00:05 (+1)" || d.SpanSeconds != 25*60 {
 		t.Errorf("default day 0 = %+v", d)
 	}
 	if d := out.Days[1]; d.Day != "2026-01-01" || d.Sessions != 0 || d.First != "" || d.FirstLocal != "" {
 		t.Errorf("default day 1 = %+v", d)
 	}
-	if out.Total.Days != 1 || out.Total.SpanSeconds != 25*60+5 {
+	if out.Total.Days != 1 || out.Total.SpanSeconds != 25*60 {
 		t.Errorf("default total = %+v", out.Total)
 	}
 
@@ -89,7 +90,7 @@ func TestStatsWorkdayDayStart(t *testing.T) {
 	if d := out.Days[0]; d.FirstLocal != "23:40" || d.LastLocal != "23:40" || d.Sessions != 1 {
 		t.Errorf("midnight day 0 = %+v", d)
 	}
-	if d := out.Days[1]; d.FirstLocal != "00:05" || d.LastLocal != "00:05" || d.Human != 1 || d.Agent != 1 {
+	if d := out.Days[1]; d.FirstLocal != "00:05" || d.LastLocal != "00:05" || d.Human != 1 || d.Agent != 0 || d.Holiday != "Neujahr" {
 		t.Errorf("midnight day 1 = %+v", d)
 	}
 }
@@ -97,7 +98,8 @@ func TestStatsWorkdayDayStart(t *testing.T) {
 // TestStatsWorkdayTarget checks the target fields of the JSON: a weekday
 // is measured against 8h, a weekend and a holiday have no target and their
 // span is the difference, the total balances the spans against every
-// workday of the range (this week: five weekdays minus Epiphanias).
+// workday of the range (this week: five weekdays minus Epiphanias). Only
+// human messages count, so a day with one prompt has a span of zero.
 func TestStatsWorkdayTarget(t *testing.T) {
 	e := newTestEnv(t)
 	e.now = activityNow
@@ -110,7 +112,7 @@ func TestStatsWorkdayTarget(t *testing.T) {
 	for _, d := range out.Days {
 		byDay[d.Weekday] = d
 	}
-	if d := byDay["Mon"]; d.Weekend || d.TargetSeconds != 8*3600 || d.DiffSeconds != 5-8*3600 {
+	if d := byDay["Mon"]; d.Weekend || d.TargetSeconds != 8*3600 || d.DiffSeconds != -8*3600 {
 		t.Errorf("Mon = %+v", d)
 	}
 	if d := byDay["Tue"]; d.Weekend || d.Holiday != "Epiphanias" || d.TargetSeconds != 0 || d.DiffSeconds != 0 {
@@ -122,13 +124,13 @@ func TestStatsWorkdayTarget(t *testing.T) {
 	if d := byDay["Sat"]; !d.Weekend || d.TargetSeconds != 0 || d.DiffSeconds != 0 {
 		t.Errorf("Sat (inactive) = %+v", d)
 	}
-	if d := byDay["Sun"]; !d.Weekend || d.TargetSeconds != 0 || d.DiffSeconds != 5 {
+	if d := byDay["Sun"]; !d.Weekend || d.TargetSeconds != 0 || d.DiffSeconds != 0 {
 		t.Errorf("Sun = %+v", d)
 	}
 	if out.HolidayRegion != "Baden-Württemberg" {
 		t.Errorf("holiday_region = %q", out.HolidayRegion)
 	}
-	want := WorkdayTotalJSON{Days: 3, Workdays: 4, Holidays: 1, SpanSeconds: 1515, TargetSeconds: 32 * 3600, BalanceSeconds: 1515 - 32*3600}
+	want := WorkdayTotalJSON{Days: 3, Workdays: 4, Holidays: 1, SpanSeconds: 1500, TargetSeconds: 32 * 3600, BalanceSeconds: 1500 - 32*3600}
 	if out.Total != want {
 		t.Errorf("total = %+v, want %+v", out.Total, want)
 	}
@@ -142,7 +144,7 @@ func TestStatsWorkdayTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := runActivity(t, e, db, "--workday", "--range", "this-week")
-	if !strings.Contains(r.stdout, "core hours 08:00-16:00, target 7h00m per workday") || !strings.Contains(r.stdout, "-6h59m") {
+	if !strings.Contains(r.stdout, "core hours 08:00-16:00, target 7h00m per workday") || !strings.Contains(r.stdout, "-7h00m") {
 		t.Errorf("custom work hours not applied:\n%s", r.stdout)
 	}
 }
@@ -302,5 +304,48 @@ func TestStatsWorkdayRunningMonth(t *testing.T) {
 	out = decode[WorkdayJSON](t, runActivity(t, e, db, "--workday", "--range", "last-month", "--json").stdout)
 	if out.Total.Workdays != 21 || out.Total.Holidays != 2 {
 		t.Errorf("last month total = %+v", out.Total)
+	}
+}
+
+// TestStatsWorkdayCount checks the counting modes: human only by default,
+// --all-events for everything, the deprecated --human-only still accepted,
+// and [work] count = "all" as the default with --human-only overriding it.
+func TestStatsWorkdayCount(t *testing.T) {
+	e := newTestEnv(t)
+	e.now = activityNow
+	_, db := fixturedb.Activity(t)
+	tests := []struct {
+		name      string
+		config    string
+		args      []string
+		humanOnly bool
+		span      int // of Mon 2026-01-05: one prompt and one reply 5s later
+	}{
+		{"default", "", nil, true, 0},
+		{"all events", "", []string{"--all-events"}, false, 5},
+		{"deprecated human-only", "", []string{"--human-only"}, true, 0},
+		{"config all", "\n[work]\ncount = \"all\"\n", nil, false, 5},
+		{"config all, human-only flag", "\n[work]\ncount = \"all\"\n", []string{"--human-only"}, true, 0},
+		{"config human, all-events flag", "\n[work]\ncount = \"human\"\n", []string{"--all-events"}, false, 5},
+	}
+	base, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := os.WriteFile(e.configPath, append(append([]byte{}, base...), []byte(tt.config)...), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			args := append([]string{"--workday", "--range", "this-week", "--json"}, tt.args...)
+			out := decode[WorkdayJSON](t, runActivity(t, e, db, args...).stdout)
+			if out.HumanOnly != tt.humanOnly || out.Days[0].SpanSeconds != tt.span {
+				t.Errorf("human_only = %v, Mon span = %d; want %v, %d", out.HumanOnly, out.Days[0].SpanSeconds, tt.humanOnly, tt.span)
+			}
+		})
+	}
+	r := runActivity(t, e, db, "--workday", "--human-only")
+	if !strings.Contains(r.stderr, "deprecated") {
+		t.Errorf("--human-only without a deprecation note: %q", r.stderr)
 	}
 }

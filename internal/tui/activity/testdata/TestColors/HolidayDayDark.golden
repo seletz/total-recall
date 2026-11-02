@@ -1,4 +1,4 @@
- period: [7m[day][m week month  count: [7m[all][m human                           Tue 2026-01-06 · [38;2;227;119;194mEpiphanias[m 
+ period: [7m[day][m week month  count: all [7m[human][m                           Tue 2026-01-06 · [38;2;227;119;194mEpiphanias[m 
  [2mday             first  last     span     diff  04      08       12      16       20      00       [m 
  [38;2;227;119;194mTue 2026-01-06[m  -      -      [38;2;227;119;194m     -[m  [38;2;227;119;194m      -[m  [2m·[m[3;38;2;227;119;194mEpiphanias[m[2m········································[m 
                                                                                                     
@@ -23,4 +23,4 @@
                                                                                                     
                                                                                                     
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- 1 days · 0 ms · 1 holiday                                                                          
+ 1 days · 0 ms · human only · 1 holiday                                                             

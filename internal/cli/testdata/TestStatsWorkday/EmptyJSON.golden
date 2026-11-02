@@ -3,7 +3,7 @@
   "until": "2026-03-09T03:00:00.000Z",
   "timezone": "Europe/Berlin",
   "day_start": "04:00",
-  "human_only": false,
+  "human_only": true,
   "work_hours": "09:00-17:00",
   "target_seconds": 28800,
   "holiday_region": "Baden-Württemberg",

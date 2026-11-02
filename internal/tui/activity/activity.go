@@ -64,6 +64,9 @@ type Options struct {
 	Work store.WorkHours
 	// Holidays names the public holidays; nil means there are none.
 	Holidays store.Holidays
+	// HumanOnly starts the view counting own messages only; the key h
+	// switches to all events and back.
+	HumanOnly bool
 }
 
 func (o *Options) defaults() {
@@ -116,18 +119,19 @@ type Model struct {
 	styles        styles
 }
 
-// New returns the view for opts: the week containing now, human and agent
-// events.
+// New returns the view for opts: the week containing now, counting as
+// opts.HumanOnly says.
 func New(opts Options) Model {
 	opts.defaults()
 	m := Model{
-		opts:    opts,
-		keys:    defaultKeyMap(),
-		window:  window.Single(store.PeriodWeek, opts.Now(), opts.Location),
-		cache:   map[filter][]store.Workday{},
-		figures: true,
-		dark:    true,
-		styles:  newStyles(true),
+		opts:      opts,
+		keys:      defaultKeyMap(),
+		window:    window.Single(store.PeriodWeek, opts.Now(), opts.Location),
+		humanOnly: opts.HumanOnly,
+		cache:     map[filter][]store.Workday{},
+		figures:   true,
+		dark:      true,
+		styles:    newStyles(true),
 	}
 	m, m.initCmd = m.load()
 	return m
@@ -524,8 +528,17 @@ func plural(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
+// countMode names what is counted: "human only" or "all events".
+func (m Model) countMode() string {
+	if m.humanOnly {
+		return "human only"
+	}
+	return "all events"
+}
+
 // status is the bottom line: the state of the load and its duration, the
-// public holidays, and the visible rows while they do not all fit.
+// counting mode, the public holidays, and the visible rows while they do
+// not all fit.
 func (m Model) status() string {
 	switch {
 	case m.opts.Loader == nil:
@@ -537,7 +550,7 @@ func (m Model) status() string {
 	case !m.loaded:
 		return ""
 	}
-	s := fmt.Sprintf("%d days · %d ms", len(m.days), m.took.Milliseconds())
+	s := fmt.Sprintf("%d days · %d ms · %s", len(m.days), m.took.Milliseconds(), m.countMode())
 	if n := m.opts.Work.Balance(m.days, time.Time{}).Holidays; n > 0 {
 		s += " · " + plural(n, "holiday")
 	}

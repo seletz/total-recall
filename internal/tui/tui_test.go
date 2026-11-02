@@ -157,14 +157,14 @@ func TestSearchWiring(t *testing.T) {
 	}
 }
 
-// TestActivityWiring checks that New hands store, clock and day boundary to
-// the activity view: with the day beginning at 04:00 the fixture's New
-// Year's Eve session is one day ending past midnight.
+// TestActivityWiring checks that New hands store, clock, day boundary and
+// counting mode to the activity view: with the day beginning at 04:00 the
+// fixture's New Year's Eve session is one day ending past midnight.
 func TestActivityWiring(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	now := time.Date(2026, 1, 11, 12, 0, 0, 0, testfixture.ActivityLocation)
 	app, err := New(Options{Store: st, Start: ViewActivity, Location: testfixture.ActivityLocation,
-		Now: func() time.Time { return now }, DayStart: 4 * time.Hour})
+		Now: func() time.Time { return now }, DayStart: 4 * time.Hour, HumanOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestActivityWiring(t *testing.T) {
 	tuitest.WaitFor(t, tm, "last week")
 	final := tuitest.Final(t, tm).(App)
 	frame := tuitest.Frame(final)
-	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "week: 25m in 2 days"} {
+	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "week: 25m in 2 days", "human only"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}

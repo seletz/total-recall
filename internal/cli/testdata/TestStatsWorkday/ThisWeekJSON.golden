@@ -3,7 +3,7 @@
   "until": "2026-01-12T03:00:00.000Z",
   "timezone": "Europe/Berlin",
   "day_start": "04:00",
-  "human_only": false,
+  "human_only": true,
   "work_hours": "09:00-17:00",
   "target_seconds": 28800,
   "holiday_region": "Baden-Württemberg",
@@ -12,17 +12,17 @@
       "day": "2026-01-05",
       "weekday": "Mon",
       "first": "2026-01-05T07:45:00.000Z",
-      "last": "2026-01-05T07:45:05.000Z",
+      "last": "2026-01-05T07:45:00.000Z",
       "first_local": "08:45",
       "last_local": "08:45",
-      "span_seconds": 5,
+      "span_seconds": 0,
       "weekend": false,
       "holiday": "",
       "target_seconds": 28800,
-      "diff_seconds": -28795,
+      "diff_seconds": -28800,
       "sessions": 1,
       "human": 1,
-      "agent": 1
+      "agent": 0
     },
     {
       "day": "2026-01-06",
@@ -60,17 +60,17 @@
       "day": "2026-01-08",
       "weekday": "Thu",
       "first": "2026-01-08T16:30:00.000Z",
-      "last": "2026-01-08T16:55:05.000Z",
+      "last": "2026-01-08T16:55:00.000Z",
       "first_local": "17:30",
       "last_local": "17:55",
-      "span_seconds": 1505,
+      "span_seconds": 1500,
       "weekend": false,
       "holiday": "",
       "target_seconds": 28800,
-      "diff_seconds": -27295,
+      "diff_seconds": -27300,
       "sessions": 1,
       "human": 2,
-      "agent": 3
+      "agent": 0
     },
     {
       "day": "2026-01-09",
@@ -108,25 +108,25 @@
       "day": "2026-01-11",
       "weekday": "Sun",
       "first": "2026-01-11T18:00:00.000Z",
-      "last": "2026-01-11T18:00:05.000Z",
+      "last": "2026-01-11T18:00:00.000Z",
       "first_local": "19:00",
       "last_local": "19:00",
-      "span_seconds": 5,
+      "span_seconds": 0,
       "weekend": true,
       "holiday": "",
       "target_seconds": 0,
-      "diff_seconds": 5,
+      "diff_seconds": 0,
       "sessions": 1,
       "human": 1,
-      "agent": 2
+      "agent": 0
     }
   ],
   "total": {
     "days": 3,
     "workdays": 4,
     "holidays": 1,
-    "span_seconds": 1515,
+    "span_seconds": 1500,
     "target_seconds": 115200,
-    "balance_seconds": -113685
+    "balance_seconds": -113700
   }
 }

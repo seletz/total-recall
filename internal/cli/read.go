@@ -494,7 +494,7 @@ func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
 func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
-	var asJSON, workday, humanOnly bool
+	var asJSON, workday, humanOnly, allEvents bool
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, or first/last activity per day",
@@ -512,8 +512,10 @@ and the elapsed span, plus a total. A day begins at the configured day_start
 (default 04:00): activity before it counts for the previous day and is shown
 as e.g. "01:30 (+1)". The range comes from --range today|this-week|last-week|
 this-month|last-month (relative to now, weeks start on Monday), from
---since/--until or --month; default this-week. --human-only counts only
-human messages. Each weekday that is no public holiday is a workday with the
+--since/--until or --month; default this-week. Only your own messages are
+counted (agent events run on at night and stretch the span); --all-events
+counts human and agent events like the activity statistics; [work] count
+sets the default. Each weekday that is no public holiday is a workday with the
 daily target of the [work] config (default 8h): DIFF is the span minus the
 target, the total line balances all spans against target × workdays of the
 range (up to today). Holidays come from the configured Bundesland and are
@@ -526,10 +528,14 @@ named in the HOLIDAY column.`,
 			}
 			loc := cfg.Location()
 			series := period != "" || by != "" || cmd.Flags().Changed("top")
-			if err := checkWorkdayFlags(workday, series, rng, humanOnly, period, by); err != nil {
+			if err := checkWorkdayFlags(workday, series, rng, humanOnly || allEvents, period, by); err != nil {
 				return err
 			}
 			if workday {
+				if cmd.Flags().Changed("human-only") {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "stats: --human-only is deprecated: human messages are counted by default, --all-events counts everything")
+				}
+				humanOnly = (cfg.Work.HumanOnly() || humanOnly) && !allEvents
 				since, until, err := workdayRange(rng, month, sinceArg, untilArg, e.app.Now(), loc, cfg.DayStartOffset())
 				if err != nil {
 					return err
@@ -601,20 +607,22 @@ named in the HOLIDAY column.`,
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
-	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only")
+	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
+	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
+	_ = c.Flags().MarkHidden("human-only")
 	c.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return c
 }
 
 // checkWorkdayFlags rejects flag combinations across the three modes of
-// stats: --range and --human-only belong to --workday, which excludes the
+// stats: --range and the counting flags belong to --workday, which excludes the
 // series flags.
 func checkWorkdayFlags(workday, series bool, rng string, humanOnly bool, period, by string) error {
 	switch {
 	case !workday && rng != "":
 		return fmt.Errorf("--range requires --workday")
 	case !workday && humanOnly:
-		return fmt.Errorf("--human-only requires --workday")
+		return fmt.Errorf("--all-events requires --workday")
 	case workday && period != "":
 		return fmt.Errorf("--workday cannot be combined with --period")
 	case workday && by != "":

@@ -1,18 +1,18 @@
-2026-01-01 04:00 – 2026-02-01 03:59 (Europe/Berlin, day starts 04:00, human and agent events)
+2026-01-01 04:00 – 2026-02-01 03:59 (Europe/Berlin, day starts 04:00, human events only)
 core hours 09:00-17:00, target 8h00m per workday, holidays Baden-Württemberg
 
 DATE        DAY  FIRST  LAST   SPAN  DIFF    HOLIDAY
 2026-01-01  Thu  -      -      -     -       Neujahr
-2026-01-02  Fri  15:00  15:00  5s    -7h59m  -
+2026-01-02  Fri  15:00  15:00  0s    -8h00m  -
 2026-01-03  Sat  -      -      -     -       -
 2026-01-04  Sun  -      -      -     -       -
-2026-01-05  Mon  08:45  08:45  5s    -7h59m  -
+2026-01-05  Mon  08:45  08:45  0s    -8h00m  -
 2026-01-06  Tue  -      -      -     -       Epiphanias
 2026-01-07  Wed  -      -      -     -       -
-2026-01-08  Thu  17:30  17:55  25m   -7h34m  -
+2026-01-08  Thu  17:30  17:55  25m   -7h35m  -
 2026-01-09  Fri  -      -      -     -       -
 2026-01-10  Sat  -      -      -     -       -
-2026-01-11  Sun  19:00  19:00  5s    +0h00m  -
+2026-01-11  Sun  19:00  19:00  0s    +0h00m  -
 2026-01-12  Mon  -      -      -     -       -
 2026-01-13  Tue  -      -      -     -       -
 2026-01-14  Wed  -      -      -     -       -
@@ -34,4 +34,4 @@ DATE        DAY  FIRST  LAST   SPAN  DIFF    HOLIDAY
 2026-01-30  Fri  -      -      -     -       -
 2026-01-31  Sat  -      -      -     -       -
 
-total: 4 days with activity, 25m · target 40h00m (5 workdays × 8h00m) · balance -39h34m · 2 holidays
+total: 4 days with activity, 25m · target 40h00m (5 workdays × 8h00m) · balance -39h35m · 2 holidays

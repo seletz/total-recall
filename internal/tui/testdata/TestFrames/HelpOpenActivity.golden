@@ -8,16 +8,16 @@
 
 
 
-     ╭────────────────────────────────────────────────────────────────────────────────────────╮
-     │ keys: activity                                                                         │
-     │                                                                                        │
-     │ d one day       [ earlier                s   summary figures    1 search      ?   help │
-     │ w one week      ] later                  ↑/k scroll up          2 stats       esc back │
-     │ m one month     c this day/week/month    ↓/j scroll down        3 activity    q   quit │
-     │ h human only    l last day/week/month                                                  │
-     │                                                                                        │
-     │ esc or ? closes this help                                                              │
-     ╰────────────────────────────────────────────────────────────────────────────────────────╯
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ keys: activity                                                                               │
+  │                                                                                              │
+  │ d one day             [ earlier                s   summary figures    1 search      ?   help │
+  │ w one week            ] later                  ↑/k scroll up          2 stats       esc back │
+  │ m one month           c this day/week/month    ↓/j scroll down        3 activity    q   quit │
+  │ h human/all events    l last day/week/month                                                  │
+  │                                                                                              │
+  │ esc or ? closes this help                                                                    │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
 

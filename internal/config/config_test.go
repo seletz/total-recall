@@ -199,6 +199,7 @@ func TestLoadErrors(t *testing.T) {
 		{"work threshold negative", "[work]\ndaily_low = \"-1h\"\n", "work.daily_low"},
 		{"work weekly reversed", "[work]\nweekly_low = \"48h\"\nweekly_high = \"32h\"\n", "work.weekly"},
 		{"work weekly negative", "[work]\nweekly_low = \"-1h\"\n", "work.weekly_low"},
+		{"work count unknown", "[work]\ncount = \"agents\"\n", "work.count"},
 		{"negative keep", "[backup]\nkeep_daily = -1\n", "keep_daily"},
 		{"negative raw max", "[ingest]\nraw_max_bytes = -1\n", "raw_max_bytes"},
 		{"bad regex", "[redact]\nextra_patterns = [\"(\"]\n", "extra_patterns"},
@@ -364,6 +365,23 @@ func TestWork(t *testing.T) {
 	}
 }
 
+// TestWorkCount checks the default counting mode of the activity per day.
+func TestWorkCount(t *testing.T) {
+	for content, humanOnly := range map[string]bool{"": true, "[work]\ncount = \"human\"\n": true, "[work]\ncount = \"all\"\n": false} {
+		opts := Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)}
+		if content != "" {
+			opts.ConfigFile = writeFile(t, t.TempDir(), "c.toml", content)
+		}
+		c, err := Load(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := c.Work.HumanOnly(); got != humanOnly {
+			t.Errorf("%q: HumanOnly = %v, want %v", content, got, humanOnly)
+		}
+	}
+}
+
 func TestEntries(t *testing.T) {
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(map[string]string{"TOTAL_RECALL_DB": "/env/db"})})
 	if err != nil {
@@ -377,7 +395,7 @@ func TestEntries(t *testing.T) {
 		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.raw_max_bytes", "ingest.store_raw",
 		"harness.claude.enabled", "harness.claude.projects_dir", "harness.claude.skip_record_types",
 		"harness.claude.actors.peer_prefixes", "harness.claude.actors.automation_prefixes", "git.resolve",
-		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland"} {
+		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland", "work.count"} {
 		if _, ok := got[k]; !ok {
 			t.Errorf("missing entry %q", k)
 		}

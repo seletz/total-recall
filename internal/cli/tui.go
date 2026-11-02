@@ -42,7 +42,8 @@ the view shown first.`,
 			}
 			defer func() { _ = st.Close() }()
 			opts := tui.Options{Store: st, Location: cfg.Location(), Now: e.app.Now,
-				Start: start, Query: query, Graphics: g, DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Holidays: holidays(cfg), Home: cfg.Home}
+				Start: start, Query: query, Graphics: g, DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Holidays: holidays(cfg),
+				HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home}
 			return tui.Run(cmd.Context(), opts, e.app.Stdin, e.app.Stdout)
 		},
 	}

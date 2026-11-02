@@ -1,11 +1,11 @@
- period: day [week] month  count: [all] human        this week · 2026-W02 · 2026-01-05 – 2026-01-11
- week: 25m in 3 days · target 32h00m (4 workdays × 8h00m) · balance -31h34m · Tue 06 Epiphanias
+ period: day [week] month  count: all [human]        this week · 2026-W02 · 2026-01-05 – 2026-01-11
+ week: 25m in 3 days · target 32h00m (4 workdays × 8h00m) · balance -31h35m · Tue 06 Epiphanias
  day             first  last     span     diff  04      08       12      16       20      00
- Mon 2026-01-05  08:45  08:45      5s   -7h59m  ··········▓────────────────│·······················
+ Mon 2026-01-05  08:45  08:45      0s   -8h00m  ··········▓────────────────│·······················
  Tue 2026-01-06  -      -           -        -  ·Epiphanias········································
  Wed 2026-01-07  -      -           -        -  ··········│────────────────│·······················
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  first  median 17:30  mean 15:05  min 08:45  max 19:00
  last   median 17:55  mean 15:13  min 08:45  max 19:00
- span   median 5s     mean 8m     min 5s     max 25m
- 7 days · 0 ms · 1 holiday · rows 1–3 of 7, ↑↓ scroll
+ span   median 0s     mean 8m     min 0s     max 25m
+ 7 days · 0 ms · human only · 1 holiday · rows 1–3 of 7, ↑↓ scroll

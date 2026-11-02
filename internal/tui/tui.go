@@ -83,6 +83,8 @@ type Options struct {
 	// Holidays names the public holidays of the activity and stats views;
 	// nil means there are none.
 	Holidays store.Holidays
+	// HumanOnly makes the activity view start counting own messages only.
+	HumanOnly bool
 	// Home is the home directory, shown as "~" in project names of
 	// directories without a repository; empty keeps full paths.
 	Home string
@@ -170,7 +172,7 @@ func statsOptions(opts Options) stats.Options {
 // activityOptions is what the activity view gets from the app options; a
 // nil store stays a nil Loader.
 func activityOptions(opts Options) activity.Options {
-	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Holidays: opts.Holidays}
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly}
 	if opts.Store != nil {
 		ao.Loader = opts.Store
 	}
