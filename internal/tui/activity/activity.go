@@ -153,6 +153,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.key(msg)
+	case tea.MouseWheelMsg:
+		switch msg.Button {
+		case tea.MouseWheelUp:
+			m.offset--
+		case tea.MouseWheelDown:
+			m.offset++
+		}
+		m.clampOffset()
+		return m, nil
 	case resultMsg:
 		return m.result(msg), nil
 	case tea.BackgroundColorMsg:

@@ -20,6 +20,7 @@ total-recall tui stats --graphics text    # Chart als Text, kein Bild
 | `search` \| `stats` \| `activity` | Ansicht beim Start, Default `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort beim Start |
 | `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `auto`; siehe [Grafikmodi](#grafikmodi) |
+| `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus) |
 
 Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
 
@@ -32,6 +33,7 @@ Alle Ansichten teilen denselben Rahmen:
 - **Kopfzeile:** links der Programmname, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
 - **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`). Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
+- **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
 
 ```text
  total-recall                                                                   1 search  [2 stats]
@@ -52,6 +54,21 @@ Alle Ansichten teilen denselben Rahmen:
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  esc back • q quit
 ```
+
+## Maus
+
+Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, keine Bewegung). Damit gilt überall:
+
+| Maus | Wirkung |
+|---|---|
+| Rad | blättert, was unter dem Zeiger liegt: die Trefferliste (bewegt die Markierung wie ++up++/++down++), die Vorschau, den Verlauf einer Session, die Tage der Aktivität |
+| Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1`, `2`, `3`; schließt eine offene Session |
+| Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
+| Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
+
+Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. Das Mausrad in der Vorschau verschiebt den Austausch zeilenweise; mit dem nächsten Treffer springt die Vorschau wieder an die automatische Position mit dem Treffer im oberen Drittel.
+
+**Textauswahl:** Solange die Maus an das Programm geht, wählt einfaches Ziehen keinen Text mehr aus. Die Terminals erlauben die Auswahl trotzdem mit einer Zusatztaste: ++shift++ und Ziehen in Ghostty und kitty, ++option++ und Ziehen in Terminal.app und iTerm2. In herdr und tmux kommen die Mausmeldungen beim Programm an, die Auswahl mit Zusatztaste geht an das äußere Terminal. Wer ganz ohne Maus arbeiten will, startet mit `--no-mouse`; dann bleibt die Maus beim Terminal und die Bedienung ist rein über die Tastatur. Eine Einstellung in der Konfiguration folgt mit dem Abschnitt `[tui]` ([#49](https://github.com/seletz/total-recall/issues/49)).
 
 ## Suche
 
@@ -81,7 +98,7 @@ Alle Ansichten teilen denselben Rahmen:
 - **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer werden geholt; die Statuszeile sagt `200 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
 - **Trefferliste** links, zwei Zeilen je Treffer: Zeit, Session-Name und Actor, darunter der Textausschnitt mit hervorgehobenen Suchwörtern. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist er zusätzlich invertiert.
 - **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe): der Session-Kopf (Name, ID und Repo, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Der Treffer-Event ist mit `◄` markiert, die Suchwörter sind unterstrichen. Trifft die Suche einen Tool-Aufruf, lädt die Vorschau den vollen Verlauf inklusive Tools.
-- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die markierte Session (auch direkt aus der Eingabe).
+- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die markierte Session (auch direkt aus der Eingabe). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
 - **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), sonst `type to search`, `searching…`, `no hits` oder die Fehlermeldung.
 
 ### Fokus
@@ -93,6 +110,7 @@ Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und d
 - Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `q`, `?`, `1`, `2` und `3` landen im Suchtext und lösen nichts aus.
 - Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1`, `2`, `3`, `?`, `q`.
 - Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
+- Die **Maus** folgt derselben Ordnung: ein Klick auf einen Treffer gibt der Liste den Fokus, ein Klick auf die Eingabezeile der Eingabe; das Rad ändert den Fokus nicht. Solange der Repo-Filter offen ist, tut die Maus nichts.
 - Sichtbar ist der Fokus am Cursor und an der Markierung: in der Eingabe und im Repo-Filter steht der Cursor des Terminals im Feld; hat die Liste den Fokus, ist der markierte Treffer invertiert. Das `▸` vor dem markierten Treffer bleibt in jedem Fall, weil ++enter++ ihn aus beiden Elementen öffnet und die Vorschau ihn zeigt. Die Fußzeile nennt die Tasten des fokussierten Elements.
 
 Der Fokus bleibt beim Wechsel der Ansicht und beim Öffnen einer Session erhalten; ++esc++ aus der Session führt dorthin zurück, wo man war.
@@ -141,6 +159,7 @@ Good. Tag v0.1.0 and run the release.
 - **Kopf:** Name und volle Session-ID, darunter Repo, Branch, Zeitraum mit Dauer, Anzahl menschlicher und Agenten-Events, bei Subagent-Sessions die Eltern-ID. In schmalen Fenstern gewinnt der Name, die ID wird gekürzt.
 - **Trennlinie mit Status:** der oberste sichtbare Event (`3/17 events`), der gewählte Treffer (`hit 1/4`), `tools`, wenn Tool-Events eingeblendet sind, und kurz `copied` nach dem Kopieren.
 - **Verlauf** wie `show`: eine Trennzeile je Event mit Zeit und Actor, Tool-Aufrufe mit dem Werkzeugnamen, Text am Wortende umbrochen. Die Suchwörter sind unterstrichen, der gewählte Treffer ist invertiert, der markierte Event trägt `◄`. Beim Öffnen steht der Treffer-Event oben; ist er ein Tool-Event, werden Tools automatisch eingeblendet.
+- **Blättern** mit ++up++/++down++, ++pgup++/++pgdn++ oder dem Mausrad (drei Zeilen je Schritt).
 - `n`/`N` springen zum nächsten/vorigen Treffer, am Ende wieder von vorn. `T` blendet Tool-Aufrufe, Ergebnisse und Automatik ein und aus (wie `show --all`); die Position bleibt am markierten Event. `y` kopiert die Session-ID über OSC 52 in die Zwischenablage, für `show`, `sql` oder Agenten.
 
 ## Statistik
@@ -162,12 +181,12 @@ Good. Tag v0.1.0 and run the release.
         05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 01
  ██ webshop  ▓▓ infra  ▒▒ total-recall  ░░ notes  ·· other
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- project                                                     sessions      human      agent    share
- webshop                                                           56      1 204     21 870     37 %
- infra                                                             56        980     18 310     31 %
- total-recall                                                      21        310      6 120     10 %
- notes                                                             14        402      5 990     10 %
- other                                                             42        515      7 212     12 %
+ project                                     sessions    session-days      human      agent    share
+ webshop                                           31              56      1 204     21 870     37 %
+ infra                                             34              56        980     18 310     31 %
+ total-recall                                      12              21        310      6 120     10 %
+ notes                                              9              14        402      5 990     10 %
+ other                                             30              42        515      7 212     12 %
  text chart (kitty: not detected) · 28 days · 312 ms
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  d/w/m period • p/a/v by • [ ] -/+ range • 1 search • 2 stats • ? help • q quit
@@ -177,7 +196,7 @@ Good. Tag v0.1.0 and run the release.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. `[` und `]` verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
 - **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
-- **Tabelle:** dieselben Reihen mit Sessions, menschlichen und Agenten-Events und Anteil an allen Events. Die Spalte `sessions` summiert die Sessions je Periode: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal.
+- **Tabelle:** dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
 
 Die Dimensionen:
@@ -256,7 +275,7 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 - **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
 - **Kennzahlen** unter der Linie bei Woche und Monat: Median, Mittelwert, Minimum und Maximum von erster Aktivität, letzter Aktivität (als Uhrzeit, nach Mitternacht mit `(+1)`) und Spanne über die Tage mit Aktivität; die Spannen sind nach der Tagesbewertung gefärbt. `s` blendet den Block aus und ein; er weicht von selbst, wenn sonst weniger als drei Tageszeilen blieben.
 - **Farben** folgen dem Terminalhintergrund (hell oder dunkel, Abfrage beim Start) und kommen aus der Palette der Statistik-Charts; Magenta ist den Feiertagen vorbehalten.
-- **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
+- **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
 
 Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er (und mit ihm der Feiertagsname auf der Achse), die Uhrzeiten, Spanne und Differenz bleiben. Die Kopfzeile wird bei schmalen Fenstern rechts abgeschnitten (`…`); die Feiertage stehen dann noch in den Zeilen.
 
@@ -272,6 +291,7 @@ Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikm
 | ++esc++ | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
 | `q` | beenden (nicht, solange Eingabe oder Repo-Filter den Fokus haben) |
 | ++ctrl+c++ | beenden, immer |
+| Maus | Rad blättert, Klick auf einen Tab wechselt die Ansicht; siehe [Maus](#maus) |
 
 ### Suche
 
@@ -388,12 +408,11 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Spike.** Die TUI kann in einer späteren Version wieder entfernt werden; siehe die Empfehlung im [Spike](spike-tui.md#empfehlung).
 - **Suche:** höchstens 200 Treffer je Abfrage, sortiert nach Rang. Der Zeitfilter startet bei `all`, nicht bei 90 Tagen. Die Filter `a`, `t`, `r` wirken nur, wenn die Liste den Fokus hat.
 - **Projektnamen** kommen aus einer Heuristik: Repositories heißen wie der Basisname ihres Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), Verzeichnisse ohne Repository erscheinen als Pfad, das Home-Verzeichnis darin als `~` (`~/notes`). Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
-- **Tabelle:** `sessions` ist über die Perioden summiert, nicht über das Fenster eindeutig gezählt.
 - **Heatmap** nur ab etwa 25 Terminalzeilen.
 - **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session. Feiertage kennt nur Deutschland (je Bundesland); Urlaub und Krankheit sind der Ansicht unbekannt und zählen als Arbeitstage ohne Aktivität.
 - **Statistik:** Feiertage markiert nur das Text-Chart in der Achse; das Bild (Kitty Graphics) hat keine farbigen Achsenbeschriftungen.
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
-- **Keine Maus.** Bedienung nur über die Tastatur.
+- **Maus** nur für Rad, Tabs und Treffer: kein Klick in Vorschau, Statistik und Aktivität, kein Ziehen in Listen. Textauswahl nur mit Zusatztaste des Terminals oder mit `--no-mouse`.
 - **Zwischenablage** über OSC 52; das Terminal muss es erlauben (in tmux `set -g set-clipboard on`).
 - **Keine Konfiguration.** Grafikmodus und Startansicht nur als Flag bzw. Argument, kein Abschnitt `[tui]` in der Config.
 - **Große Sessions:** Vorschau und Detail laden den Verlauf vollständig; bei Sessions mit mehreren zehntausend Events dauert das Einblenden der Tools einen Moment (gemessen unter 0,1 s).

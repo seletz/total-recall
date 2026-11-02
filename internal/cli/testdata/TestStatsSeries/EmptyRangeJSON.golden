@@ -5,6 +5,12 @@
   "period": "month",
   "by": "",
   "keys": [],
+  "total": {
+    "sessions": 0,
+    "human": 0,
+    "agent": 0
+  },
+  "by_key": [],
   "buckets": [
     {
       "start": "2026-02-28T23:00:00.000Z",

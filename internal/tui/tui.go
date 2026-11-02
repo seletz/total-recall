@@ -5,7 +5,9 @@
 // Views live in their own packages (search, stats, …) and implement [View]
 // without importing this package. The app forwards key presses to the active
 // view and every other message to all views; the active view may claim the
-// keyboard with [Focused]. The session detail is a layer above the views:
+// keyboard with [Focused]. Mouse clicks and wheel turns in the body reach
+// the current view with coordinates relative to the body; clicks on the
+// header switch the view. The session detail is a layer above the views:
 // opened by the search view's OpenSession, closed by its Back, it replaces
 // the body while the search view keeps its state underneath.
 package tui
@@ -88,6 +90,9 @@ type Options struct {
 	// Home is the home directory, shown as "~" in project names of
 	// directories without a repository; empty keeps full paths.
 	Home string
+	// NoMouse leaves the mouse to the terminal: no wheel scrolling and no
+	// clicks, but text is selected by plain dragging.
+	NoMouse bool
 }
 
 func (o *Options) defaults() {

@@ -125,6 +125,12 @@ type ActivitySeries struct {
 	// any session is not listed. Empty for the other dimensions. Display
 	// code uses it to show such keys as paths (see internal/project).
 	Dirs []string
+	// Sessions counts the distinct sessions with activity anywhere in the
+	// window, each once; KeySessions does the same per entry of Keys, in
+	// the same order (OtherKey included). Unlike Activity.Sessions of the
+	// cells, a session active in several periods counts once here.
+	Sessions    int
+	KeySessions []int
 }
 
 // periodStart returns the start of the period containing t, in t's location.
@@ -243,7 +249,8 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	defer func() { _ = rows.Close() }()
 	periods := map[time.Time]map[string]*bucket{} // period start -> key -> bucket
 	totals := map[string]int{}
-	isDir := map[string]bool{} // DimProject key -> seen only as cwd (no git root)
+	window := map[string]map[string]bool{} // key -> sessions with activity in the window
+	isDir := map[string]bool{}             // DimProject key -> seen only as cwd (no git root)
 	var first, last time.Time
 	for rows.Next() {
 		var tsv sql.NullString
@@ -269,6 +276,10 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 			keys[key] = &bucket{}
 		}
 		keys[key].add(session, actor)
+		if window[key] == nil {
+			window[key] = map[string]bool{}
+		}
+		window[key][session] = true
 		totals[key]++
 		if first.IsZero() || start.Before(first) {
 			first = start
@@ -320,6 +331,30 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		}
 	}
 	sort.Strings(out.Dirs)
+	if len(keys) > 0 {
+		// A session has one key per dimension, so the distinct sessions of
+		// the window are the sum over the keys and OtherKey is the sum over
+		// the folded keys.
+		out.KeySessions = make([]int, len(keys))
+		var other int
+		for k, sessions := range window {
+			n := len(sessions)
+			out.Sessions += n
+			if fold && !top[k] {
+				other += n
+				continue
+			}
+			for i, kk := range keys {
+				if kk == k {
+					out.KeySessions[i] = n
+					break
+				}
+			}
+		}
+		if fold {
+			out.KeySessions[len(keys)-1] = other
+		}
+	}
 	if since.IsZero() || until.IsZero() {
 		return out, nil
 	}

@@ -28,7 +28,10 @@ jobs:
         run: go vet ./...
 
       - name: go test
-        run: go test ./...
+        # The race detector needs cgo on linux; the build stays static.
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./...
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9.3.0
@@ -44,3 +47,21 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: check
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+
+      - name: Install docs toolchain
+        run: uv sync --locked
+
+      - name: Build docs (strict)
+        # Same command as `mise run docs:build`; the deploy lives in docs.yml.
+        run: uv run --locked zensical build --clean --strict

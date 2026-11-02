@@ -309,3 +309,30 @@ func TestStaleResultDropped(t *testing.T) {
 		t.Errorf("stale result changed the view or was not cached:\n%s", tuitest.Frame(m))
 	}
 }
+
+// TestWheel checks that the mouse wheel scrolls the day rows like ↑/↓.
+func TestWheel(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	down := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelDown}
+	up := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelUp}
+	tests := []struct {
+		name string
+		msgs []tea.Msg
+		want int
+	}{
+		{"down", []tea.Msg{down}, 1},
+		{"down twice", []tea.Msg{down, down}, 2},
+		{"down then up", []tea.Msg{down, down, up}, 1},
+		{"up at the top stays", []tea.Msg{up}, 0},
+		{"week does not scroll", []tea.Msg{tuitest.Key("w"), down}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msgs := append([]tea.Msg{bodySize, tuitest.Key("m"), tuitest.Key("l")}, tt.msgs...)
+			m := tuitest.Drive(t, newModel(t, st), msgs...).(Model)
+			if m.offset != tt.want {
+				t.Errorf("offset = %d, want %d", m.offset, tt.want)
+			}
+		})
+	}
+}

@@ -3,3 +3,6 @@ PERIOD      KEY       SESSIONS  HUMAN  AGENT
 2025-12-03  /w/alpha  1         1      2
 2025-12-04  other     1         1      2
 2025-12-06  other     1         1      1
+total       /w/alpha  3         3      7
+total       other     2         2      3
+total       *         5         5      10

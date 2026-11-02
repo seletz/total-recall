@@ -477,7 +477,7 @@ func (m Model) View() tea.View {
 	}
 	parts = append(parts, strings.Repeat("─", m.width))
 	if tableH > 0 {
-		parts = append(parts, block(indent(newTable(m.spec, m.series, m.dim, m.width-1).View()), tableH))
+		parts = append(parts, block(indent(newTable(m.spec, m.series, m.window.Period, m.dim, m.width-1).View()), tableH))
 	}
 	parts = append(parts, " "+ansi.Truncate(m.status(), max(m.width-1, 0), "…"))
 	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, parts...))
