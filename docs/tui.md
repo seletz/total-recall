@@ -3,7 +3,7 @@
 `total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap und die erste und letzte Aktivität je Tag. Die Datenbank wird nur lesend geöffnet.
 
 !!! note "Herkunft"
-    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe; alle Bildschirme auf dieser Seite sind erfundene Beispiele.
+    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe. Die Textbeispiele auf dieser Seite sind erfunden; die Bilder zeigen Suche und Session mit erfundenen Sessions, Statistik und Aktivität aus einer anonymisierten Kopie eines Archivs (neutrale Projektnamen, keine Inhalte). Erzeugt werden sie mit `mise run docs:screenshots`.
 
 ## Aufruf
 
@@ -27,6 +27,11 @@ Die [globalen Optionen](befehle.md#globale-optionen) `--db`, `--tz` und `--confi
 Alle Tasten auf dieser Seite sind die Standardbelegung. Sie ist auf ein deutsches Mac-Layout ausgelegt und lässt sich über den Abschnitt `[keys]` der Konfiguration ändern, siehe [Tastenbelegung anpassen](#tastenbelegung-anpassen).
 
 Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Zeichen breit. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap wechselt in ein kompaktes Layout und blendet sich darunter aus.
+
+![Aktivität bei 80×24: Kopf- und Fußzeile werden gekürzt, die Zeitachse wird schmaler](assets/screenshots/compact.png)
+
+*Aktivität bei 80×24: Kopf- und Fußzeile werden gekürzt, die Zeitachse wird schmaler*
+
 
 ## Aufbau
 
@@ -94,6 +99,10 @@ Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. 
 
 ## Suche
 
+![Suche mit Vorschau: Trefferliste links, der Austausch um den markierten Treffer rechts](assets/screenshots/search.png)
+
+*Suche mit Vorschau: Trefferliste links, der Austausch um den markierten Treffer rechts*
+
 ```text
  total-recall                                                        [1 search]  2 stats  3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -154,6 +163,10 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 ++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern, Markierung und Fokus zurück. `1`, `2` und `3` schließen die Detailansicht ebenfalls.
 
+![Session-Detail mit Treffer, Tool-Aufrufe eingeblendet (`T`)](assets/screenshots/session.png)
+
+*Session-Detail mit Treffer, Tool-Aufrufe eingeblendet (`T`)*
+
 ```text
  total-recall                                              [1 search] › session  2 stats  3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -185,6 +198,10 @@ Good. Tag v0.1.0 and run the release.
 - `n`/`N` springen zum nächsten/vorigen Treffer, am Ende wieder von vorn. `T` blendet Tool-Aufrufe, Ergebnisse und Automatik ein und aus (wie `show --all`); die Position bleibt am markierten Event. `y` kopiert die Session-ID über OSC 52 in die Zwischenablage, für `show`, `sql` oder Agenten.
 
 ## Statistik
+
+![Statistik: gestapeltes Chart je Tag und Projekt, Kacheln mit Kennzahlen, Tabelle](assets/screenshots/stats.png)
+
+*Statistik: gestapeltes Chart je Tag und Projekt, Kacheln mit Kennzahlen, Tabelle*
 
 ```text
  total-recall                                                        1 search  [2 stats]  3 activity
@@ -235,6 +252,10 @@ Die Dimensionen:
 
 `h` blendet unter dem Chart die Heatmap Wochentag × Stunde für das Zeitfenster ein (Daten wie `stats`, Kennzahl wie das Chart). Je voller die Zelle (`░▒▓█`), desto näher am Maximum, das der Titel nennt; die Farbe läuft dazu von blass nach kräftig, auf dunklem Hintergrund von Dunkel- nach Hellblau, auf hellem umgekehrt. Leere Zellen bleiben frei.
 
+![Heatmap Wochentag × Stunde unter dem Chart](assets/screenshots/heatmap.png)
+
+*Heatmap Wochentag × Stunde unter dem Chart*
+
 ```text
  events by weekday × hour · max 412
  Mon│                        ░░░▒▒▒▓▓▓███▓▓▓▒▒▒▓▓▓▓▓▓▒▒▒░░░         ░░░
@@ -267,6 +288,14 @@ Reichen auch neun Zeilen nicht (Terminal unter 24 Zeilen), bleibt die Heatmap au
 ## Aktivität
 
 Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste und letzte Aktivität**: ein Notnagel für vergessenes Ein- und Ausstempeln. Dieselben Daten liefert [`stats --workday`](befehle.md#stats-workday) als Text und JSON.
+
+![Eine Woche: Kernzeit 09–17 als Band, Balken je Tag, Feiertag, Wochenarbeitszeit und Kennzahlen](assets/screenshots/activity-week.png)
+
+*Eine Woche: Kernzeit 09–17 als Band, Balken je Tag, Feiertag, Wochenarbeitszeit und Kennzahlen*
+
+![Ein Monat (`m`): Monatsarbeitszeit gegen das Soll der Arbeitstage, Feiertag ohne Soll](assets/screenshots/activity-month.png)
+
+*Ein Monat (`m`): Monatsarbeitszeit gegen das Soll der Arbeitstage, Feiertag ohne Soll*
 
 ```text
  total-recall                                                        1 search  2 stats  [3 activity]
