@@ -27,9 +27,13 @@ func clock() time.Time { return now }
 // bodySize is the window size the app shell hands the view at 100×30.
 var bodySize = tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height - 4}
 
+// home is the home directory of the view tests: the parent of the fixture
+// directories, so gamma (no repository) shows as ~/gamma.
+const home = "/w"
+
 func newModel(t *testing.T, l Loader) Model {
 	t.Helper()
-	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation})
+	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, Home: home})
 }
 
 // drive starts m with the body size and applies the key names in order,

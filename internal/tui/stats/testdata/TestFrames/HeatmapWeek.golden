@@ -7,7 +7,7 @@
     │                                                            █████ █████ █████ ▅▅▅▅▅ █████ █████
   0 ┼───────────────────────────────────────────────────────────────────────────────────────────────
      W39   W40   W41   W42   W43   W44   W45   W46   W47   W48   W49   W50   W51   W52   W01   W02
- ██ alpha  ██ beta  ██ gamma
+ ██ alpha  ██ beta  ██ ~/gamma
  events by weekday × hour · max 8
  Mon│▒▒▒▒                            ▒▒▒▒████
  Tue│                                ▒▒▒▒▒▒▒▒▓▓▓▓
@@ -22,5 +22,5 @@
  project                                                     sessions      human      agent    share
  alpha                                                             10         14         24     64 %
  beta                                                               4          5          8     22 %
- gamma                                                              3          3          5     13 %
+ ~/gamma                                                            3          3          5     13 %
  text chart · 16 weeks · 0 ms · heatmap

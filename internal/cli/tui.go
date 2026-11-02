@@ -39,7 +39,7 @@ the view shown first.`,
 			}
 			defer func() { _ = st.Close() }()
 			opts := tui.Options{Store: st, Location: cfg.Location(), Now: e.app.Now,
-				Start: start, Query: query, Graphics: g}
+				Start: start, Query: query, Graphics: g, Home: cfg.Home}
 			return tui.Run(cmd.Context(), opts, e.app.Stdin, e.app.Stdout)
 		},
 	}

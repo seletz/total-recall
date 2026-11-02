@@ -536,11 +536,10 @@ keys over the whole range and folds the rest into "other".`,
 				if err != nil {
 					return err
 				}
-				out := seriesJSON(as, opts, keyNames(as, opts), since, until, cfg.Timezone)
 				if asJSON {
-					return writeJSON(cmd.OutOrStdout(), out)
+					return writeJSON(cmd.OutOrStdout(), seriesJSON(as, opts, keyNames(as, opts, ""), since, until, cfg.Timezone))
 				}
-				return writeSeriesTable(cmd.OutOrStdout(), out)
+				return writeSeriesTable(cmd.OutOrStdout(), seriesJSON(as, opts, keyNames(as, opts, cfg.Home), since, until, cfg.Timezone))
 			}
 			s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
 			if err != nil {

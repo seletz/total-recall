@@ -120,6 +120,11 @@ type ActivityBucket struct {
 type ActivitySeries struct {
 	Buckets []ActivityBucket // every period between Since and Until, including empty ones
 	Keys    []string         // dimension values by total volume descending, then by key; OtherKey last
+	// Dirs are the Keys of DimProject that are working directories of
+	// sessions without a repository, sorted; a key that is the git root of
+	// any session is not listed. Empty for the other dimensions. Display
+	// code uses it to show such keys as paths (see internal/project).
+	Dirs []string
 }
 
 // periodStart returns the start of the period containing t, in t's location.
@@ -161,27 +166,28 @@ func periodLabel(start time.Time, p Period) string {
 }
 
 // activityKey derives the dimension value of a session. Parent columns are
-// empty when the session has no parent or the parent is unknown.
-func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parentGitRoot string) string {
+// empty when the session has no parent or the parent is unknown. dir is
+// true when the key of DimProject is a working directory, not a git root.
+func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parentGitRoot string) (key string, dir bool) {
 	switch d {
 	case DimAgent:
 		if parentID != "" {
-			return harness + " subagent"
+			return harness + " subagent", false
 		}
-		return harness + " main"
+		return harness + " main", false
 	case DimDirectory:
 		if parentCwd != "" {
-			return parentCwd
+			return parentCwd, false
 		}
-		return cwd
+		return cwd, false
 	}
 	if parentGitRoot != "" || parentCwd != "" {
 		gitRoot, cwd = parentGitRoot, parentCwd
 	}
 	if gitRoot != "" {
-		return gitRoot
+		return gitRoot, false
 	}
-	return cwd
+	return cwd, true
 }
 
 func (b *bucket) merge(o *bucket) {
@@ -237,6 +243,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	defer func() { _ = rows.Close() }()
 	periods := map[time.Time]map[string]*bucket{} // period start -> key -> bucket
 	totals := map[string]int{}
+	isDir := map[string]bool{} // DimProject key -> seen only as cwd (no git root)
 	var first, last time.Time
 	for rows.Next() {
 		var tsv sql.NullString
@@ -249,7 +256,10 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 			continue
 		}
 		start := periodStart(t.In(loc), f.Period)
-		key := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot)
+		key, dir := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot)
+		if seen, ok := isDir[key]; !ok || seen {
+			isDir[key] = dir
+		}
 		keys := periods[start]
 		if keys == nil {
 			keys = map[string]*bucket{}
@@ -304,6 +314,12 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		until = f.Until.In(loc)
 	}
 	out := ActivitySeries{Keys: keys}
+	for _, k := range keys {
+		if isDir[k] {
+			out.Dirs = append(out.Dirs, k)
+		}
+	}
+	sort.Strings(out.Dirs)
 	if since.IsZero() || until.IsZero() {
 		return out, nil
 	}

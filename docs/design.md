@@ -88,7 +88,7 @@ internal/harness/claude   Adapter Claude Code (JSONL)
 internal/gitinfo          cwd -> git root, remote URL, branch (mit Cache)
 internal/redact           Maskieren von Geheimnissen
 internal/store            SQLite: Schema, Migrationen, Upserts, Abfragen, Backup
-internal/project          Projektname aus Git-Root bzw. Verzeichnis (reine Funktionen; `stats --by project`, TUI)
+internal/project          Projektname aus Git-Root bzw. Verzeichnis, Home als `~` (reine Funktionen; `stats --by project`, TUI)
 internal/ingest           Orchestrierung: Quellen finden, Offsets, Locking, Store schreiben
 internal/skill            eingebetteter SKILL.md für `llm --skill`
 internal/config           TOML laden, Defaults, Env/Flag-Overrides, Pfad-Expansion

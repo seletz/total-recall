@@ -82,6 +82,9 @@ type Config struct {
 	PathOrigin Origin `toml:"-"`
 	// Loaded is true when Path existed and was read.
 	Loaded bool `toml:"-"`
+	// Home is the home directory the paths were expanded with (Options.Home
+	// or os.UserHomeDir()); display code abbreviates it to "~".
+	Home string `toml:"-"`
 
 	origins map[string]Origin
 	loc     *time.Location
@@ -248,6 +251,7 @@ func Load(opts Options) (*Config, error) {
 	expand := func(p string) string { return ExpandPath(p, opts.Home, opts.Getenv) }
 
 	c := defaults(opts.GOOS, opts.Home, opts.Getenv)
+	c.Home = opts.Home
 	c.origins = map[string]Origin{}
 
 	switch {
