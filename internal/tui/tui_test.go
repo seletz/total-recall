@@ -161,24 +161,24 @@ func TestSearchWiring(t *testing.T) {
 	}
 }
 
-// TestActivityWiring checks that New hands store, clock and day boundary to
-// the activity view: with the day beginning at 04:00 the fixture's New
-// Year's Eve session is one day ending past midnight.
+// TestActivityWiring checks that New hands store, clock, day boundary and
+// counting mode to the activity view: with the day beginning at 04:00 the
+// fixture's New Year's Eve session is one day ending past midnight.
 func TestActivityWiring(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	now := time.Date(2026, 1, 11, 12, 0, 0, 0, testfixture.ActivityLocation)
 	app, err := New(Options{Store: st, Start: ViewActivity, Location: testfixture.ActivityLocation,
-		Now: func() time.Time { return now }, DayStart: 4 * time.Hour})
+		Now: func() time.Time { return now }, DayStart: 4 * time.Hour, HumanOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	tm := tuitest.New(t, app)
-	tuitest.WaitFor(t, tm, "total:")
+	tuitest.WaitFor(t, tm, "week:")
 	tuitest.Press(tm, "l")
 	tuitest.WaitFor(t, tm, "last week")
 	final := tuitest.Final(t, tm).(App)
 	frame := tuitest.Frame(final)
-	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "total: 2 days with activity, 25m"} {
+	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "week: 25m in 2 days", "human only"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}
@@ -338,7 +338,7 @@ func TestDetailQuit(t *testing.T) {
 // them, and the old defaults of overridden actions are gone.
 func TestConfiguredKeys(t *testing.T) {
 	km, err := keys.Resolve(map[string][]string{
-		keys.GlobalStats: {"s"}, keys.GlobalQuit: {"x", "ctrl+q"}, keys.StatsWeeks: {"W"}, keys.StatsEarlier: {"<"},
+		keys.GlobalStats: {"S"}, keys.GlobalQuit: {"x", "ctrl+q"}, keys.StatsWeeks: {"W"}, keys.StatsEarlier: {"<"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -349,10 +349,10 @@ func TestConfiguredKeys(t *testing.T) {
 		wantActive int
 		wantFrame  []string
 	}{
-		{"configured key switches the view", []string{"tab", "s"}, 1, []string{"s stats", "x/^q quit", "d/W/m period", "</→/-/+ range"}},
+		{"configured key switches the view", []string{"tab", "S"}, 1, []string{"S stats", "x/^q quit", "d/W/m period", "</→/-/+ range"}},
 		{"old key is plain text in the input", []string{"2"}, 0, []string{"> 2"}},
 		{"old key does nothing in the list", []string{"tab", "2"}, 0, []string{"tab/esc input"}},
-		{"help shows the configured keys", []string{"tab", "s", "?"}, 1, []string{"W weeks", "earlier", "s stats", "x/^q quit", "^c   quit"}},
+		{"help shows the configured keys", []string{"tab", "S", "?"}, 1, []string{"W weeks", "earlier", "S stats", "x/^q quit", "^c   quit"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

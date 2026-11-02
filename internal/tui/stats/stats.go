@@ -72,6 +72,9 @@ type Options struct {
 	Dimension store.Dimension
 	// Keys are the effective key bindings; nil means the defaults.
 	Keys keys.Map
+	// Holidays names the public holidays marked on the day axis; nil
+	// means there are none.
+	Holidays store.Holidays
 }
 
 func (o *Options) defaults() {
@@ -422,6 +425,7 @@ func (m *Model) rebuild() tea.Cmd {
 	}
 	names := project.Names(m.series.Keys, m.series.Dirs, m.opts.Home)
 	m.spec = m.colors.Assign(chart.FromSeries(m.series, m.window.Period, m.metric, names))
+	m.spec.Marks = chart.DayMarks(m.series, m.window.Period, m.opts.Holidays)
 	return tea.Batch(m.chart.SetSpec(m.spec), m.chart.SetSize(m.chartSize()))
 }
 

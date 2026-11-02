@@ -9,8 +9,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
@@ -413,5 +415,35 @@ func TestConfiguredKeys(t *testing.T) {
 	}
 	if h := m.keys.Period.Help(); h.Key != "d/x/m" {
 		t.Errorf("period group help = %q", h.Key)
+	}
+}
+
+// TestHolidayMarks checks that a holiday calendar marks the day axis: the
+// default day window (28 days ending 2026-01-11) holds the Christmas
+// holidays, Neujahr and Epiphanias (Baden-Württemberg) and eight weekend
+// days; a week window has no marks.
+func TestHolidayMarks(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Home: home, Holidays: holiday.New("Baden-Württemberg")})
+	m = drive(t, m)
+	var names []string
+	weekends := 0
+	for i, mk := range m.spec.Marks {
+		if mk.Holiday != "" {
+			names = append(names, m.spec.Labels[i]+" "+mk.Holiday)
+		}
+		if mk.Weekend {
+			weekends++
+		}
+	}
+	if got := strings.Join(names, ", "); got != "25 Weihnachten, 26 Zweiter Weihnachtsfeiertag, 01 Neujahr, 06 Epiphanias" || weekends != 8 {
+		t.Errorf("marks: holidays %q, %d weekend days", got, weekends)
+	}
+	if out := m.View().Content; !strings.Contains(out, lipgloss.NewStyle().Foreground(chart.HolidayColor).Bold(true).Render("01")) {
+		t.Errorf("holiday label not coloured in the frame")
+	}
+	m = drive(t, m, "w")
+	if m.spec.Marks != nil {
+		t.Errorf("week window has marks: %v", m.spec.Marks)
 	}
 }

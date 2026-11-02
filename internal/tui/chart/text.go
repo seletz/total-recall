@@ -72,7 +72,7 @@ func RenderText(spec Spec, w, h int) string {
 		rows = append(rows, "")
 	}
 	axisRow := chartH - 2
-	rows[chartH-1] = axisLabels(spec.Labels, cw, bw, gap)
+	rows[chartH-1] = axisLabels(spec.Labels, spec.Marks, cw, bw, gap)
 	for i := range rows {
 		var left string
 		switch i {
@@ -101,11 +101,20 @@ func RenderText(spec Spec, w, h int) string {
 	return out.String()
 }
 
+// Styles of the marked axis labels: a holiday in HolidayColor, a weekend
+// faint.
+var (
+	holidayLabel = lipgloss.NewStyle().Foreground(HolidayColor).Bold(true)
+	weekendLabel = lipgloss.NewStyle().Faint(true)
+)
+
 // axisLabels lays the period labels under the bars: every k-th bar gets its
 // label at the bar's first column, where k is the smallest stride that
-// keeps the labels apart. Labels that would exceed width are dropped.
-func axisLabels(labels []string, width, barWidth, gap int) string {
+// keeps the labels apart. Labels that would exceed width are dropped. A
+// label with a mark (holiday, weekend) is styled; marks may be nil.
+func axisLabels(labels []string, marks []Mark, width, barWidth, gap int) string {
 	row := []rune(strings.Repeat(" ", width))
+	styled := map[int]lipgloss.Style{} // by first column
 	longest := 0
 	for _, l := range labels {
 		longest = max(longest, len([]rune(l)))
@@ -122,8 +131,37 @@ func axisLabels(labels []string, width, barWidth, gap int) string {
 			break
 		}
 		copy(row[x:], r)
+		if i < len(marks) {
+			switch {
+			case marks[i].Holiday != "":
+				styled[x] = holidayLabel
+			case marks[i].Weekend:
+				styled[x] = weekendLabel
+			}
+		}
 	}
-	return strings.TrimRight(string(row), " ")
+	plain := strings.TrimRight(string(row), " ")
+	if len(styled) == 0 {
+		return plain
+	}
+	// Re-emit the row, wrapping every styled label.
+	var b strings.Builder
+	runes := []rune(plain)
+	for x := 0; x < len(runes); {
+		st, ok := styled[x]
+		if !ok {
+			b.WriteRune(runes[x])
+			x++
+			continue
+		}
+		end := x
+		for end < len(runes) && runes[end] != ' ' {
+			end++
+		}
+		b.WriteString(st.Render(string(runes[x:end])))
+		x = end
+	}
+	return b.String()
 }
 
 // legend joins a coloured swatch and the name of every series on one line.

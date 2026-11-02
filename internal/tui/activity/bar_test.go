@@ -4,9 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 )
+
+// stripANSI removes the escape sequences.
+func stripANSI(s string) string { return ansi.Strip(s) }
 
 // TestCells classifies the cells of a 24-cell axis (one cell per hour from
 // 04:00) for the edge cases of the issue: work inside, before, after the
@@ -39,6 +44,9 @@ func TestCells(t *testing.T) {
 		{"weekend after midnight", work, day(sat, 23*h, 25*h), "···················██···"},
 		{"no working time", store.WorkHours{}, day(mon, 9*h+15*m, 9*h+40*m), "·····█··················"},
 		{"no working time inactive", store.WorkHours{}, store.Workday{Day: mon}, "························"},
+		{"inactive holiday has no band", work, store.Workday{Day: mon, Holiday: "Neujahr"}, "························"},
+		{"holiday", work, holidayAt(day(mon, 9*h+15*m, 11*h), "Neujahr"), "·····██·················"},
+		{"holiday on a weekend", work, holidayAt(day(sat, 11*h, 11*h), "Tag der deutschen Einheit"), "·······█················"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,6 +58,48 @@ func TestCells(t *testing.T) {
 			}
 			if string(got) != tt.want {
 				t.Errorf("cells =\n%s\nwant\n%s", string(got), tt.want)
+			}
+		})
+	}
+}
+
+// holidayAt marks a day as the named public holiday.
+func holidayAt(d store.Workday, name string) store.Workday {
+	d.Holiday = name
+	return d
+}
+
+// TestCaption checks where the holiday name goes: one cell in from the
+// left when the bar starts after it, after the bar otherwise, nowhere
+// without room or on an ordinary day.
+func TestCaption(t *testing.T) {
+	loc := testfixture.ActivityLocation
+	mon := time.Date(2026, 1, 5, 0, 0, 0, 0, loc)
+	day := func(first, last time.Duration, name string) store.Workday {
+		return store.Workday{Day: mon, First: mon.Add(first), Last: mon.Add(last), Holiday: name}
+	}
+	h := time.Hour
+	tests := []struct {
+		name string
+		day  store.Workday
+		want string
+	}{
+		{"ordinary day", store.Workday{Day: mon}, "·····│───────│··········"},
+		{"inactive holiday", store.Workday{Day: mon, Holiday: "Neujahr"}, "·Neujahr················"},
+		{"activity late", day(20*h, 21*h, "Neujahr"), "·Neujahr········█·······"},
+		{"activity early", day(5*h, 6*h, "Neujahr"), "·█·Neujahr··············"},
+		{"activity in the middle", day(10*h, 12*h, "Neujahr"), "······██·Neujahr········"},
+		{"name after a long bar", day(8*h, 20*h, "Neujahr"), "····████████████·Neujahr"},
+		{"no room", day(5*h, 22*h, "Neujahr"), "·█████████████████······"},
+		{"name too long", store.Workday{Day: mon, Holiday: "Ein sehr langer Feiertagsname"}, "························"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := layout{loc: loc, dayStart: 4 * time.Hour, work: work, bar: 24, styles: newStyles(true)}
+			cells := l.cells(tt.day)
+			got := l.renderBar(cells, l.caption(cells, tt.day))
+			if plain := stripANSI(got); plain != tt.want {
+				t.Errorf("bar =\n%s\nwant\n%s", plain, tt.want)
 			}
 		})
 	}

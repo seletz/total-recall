@@ -90,7 +90,7 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	}
 	return tui.Options{
 		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse,
-		DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Home: cfg.Home,
+		DayStart: cfg.DayStartOffset(), Work: workHours(cfg), Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow,
 		Keys: cfg.KeyMap(),
 	}, nil

@@ -16,12 +16,14 @@ import (
 // the view stays readable without colours.
 type styles struct {
 	// Bar segments.
-	core, outside, night, weekend lipgloss.Style
+	core, outside, night, weekend, holiday lipgloss.Style
 	// Axis background: outside the core hours, the core-hours band and the
 	// lines at its start and end.
 	empty, band, line lipgloss.Style
-	// Span and difference by rating; weekendText for a weekend's row.
-	under, on, over, weekendText lipgloss.Style
+	// Span and difference by rating; weekendText for a weekend's row,
+	// holidayText for a holiday's row and the holiday names, holidayName
+	// for the name on the axis.
+	under, on, over, weekendText, holidayText, holidayName lipgloss.Style
 	// Chrome.
 	faint, bold, label lipgloss.Style
 }
@@ -34,6 +36,9 @@ var (
 	colorRed    = chart.Palette[3]
 	colorPurple = chart.Palette[4]
 	colorTeal   = chart.Palette[5]
+	// colorMagenta marks public holidays; it is no series colour, so it
+	// stands apart from the weekend purple.
+	colorMagenta = lipgloss.Color("#e377c2")
 )
 
 // newStyles returns the styles for a dark or a light background.
@@ -55,6 +60,7 @@ func newStyles(dark bool) styles {
 		outside:     fg(tone(colorOrange)),
 		night:       fg(tone(colorRed)),
 		weekend:     fg(tone(colorPurple)),
+		holiday:     fg(tone(colorMagenta)),
 		empty:       lipgloss.NewStyle().Faint(true),
 		band:        fg(bandFG).Background(bandBG),
 		line:        fg(tone(colorBlue)).Background(bandBG),
@@ -62,6 +68,8 @@ func newStyles(dark bool) styles {
 		on:          fg(tone(colorGreen)),
 		over:        fg(tone(colorOrange)),
 		weekendText: fg(tone(colorPurple)),
+		holidayText: fg(tone(colorMagenta)),
+		holidayName: fg(tone(colorMagenta)).Italic(true),
 		faint:       lipgloss.NewStyle().Faint(true),
 		bold:        lipgloss.NewStyle().Bold(true),
 		label:       lipgloss.NewStyle().Bold(true).Foreground(tone(colorBlue)),
@@ -83,6 +91,8 @@ func (s styles) cell(k cellKind) lipgloss.Style {
 		return s.night
 	case cellWeekend:
 		return s.weekend
+	case cellHoliday:
+		return s.holiday
 	}
 	return s.empty
 }

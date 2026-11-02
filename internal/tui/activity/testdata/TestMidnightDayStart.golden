@@ -1,4 +1,5 @@
  period: day [week] month  count: [all] human        last week · 2026-W01 · 2025-12-29 – 2026-01-04
+ week: 15s in 3 days · target 40h00m (5 workdays × 8h00m) · balance -39h59m
  day             first  last     span     diff  00      04       08      12       16      20
  Mon 2025-12-29  -      -           -        -  ···················│────────────────│··············
  Tue 2025-12-30  -      -           -        -  ···················│────────────────│··············
@@ -18,9 +19,8 @@
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- total: 3 days with activity, 15s · target 24h00m (3 workdays × 8h00m) · balance -23h59m
- 7 days · 0 ms
+ first  median 15:00  mean 12:55  min 00:05  max 23:40
+ last   median 15:00  mean 12:55  min 00:05  max 23:40
+ span   median 5s     mean 5s     min 5s     max 5s
+ 7 days · 0 ms · all events

@@ -83,6 +83,11 @@ type Options struct {
 	// Work is the working time of the activity view; the zero value shows
 	// neither core hours nor a target.
 	Work store.WorkHours
+	// Holidays names the public holidays of the activity and stats views;
+	// nil means there are none.
+	Holidays store.Holidays
+	// HumanOnly makes the activity view start counting own messages only.
+	HumanOnly bool
 	// Home is the home directory, shown as "~" in project names of
 	// directories without a repository; empty keeps full paths.
 	Home string
@@ -198,7 +203,7 @@ func statsOptions(opts Options) (stats.Options, error) {
 	if err != nil {
 		return stats.Options{}, fmt.Errorf("stats dimension: %w", err)
 	}
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}
@@ -208,11 +213,10 @@ func statsOptions(opts Options) (stats.Options, error) {
 // activityOptions is what the activity view gets from the app options; a
 // nil store stays a nil Loader. The window name is parsed here.
 func activityOptions(opts Options) (activity.Options, error) {
-	w, err := store.ParsePeriod(opts.ActivityWindow)
-	if err != nil {
+	if _, err := store.ParsePeriod(opts.ActivityWindow); err != nil {
 		return activity.Options{}, fmt.Errorf("activity window: %w", err)
 	}
-	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: w, Keys: opts.Keys}
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly}
 	if opts.Store != nil {
 		ao.Loader = opts.Store
 	}

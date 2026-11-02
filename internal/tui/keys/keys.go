@@ -96,6 +96,7 @@ const (
 	ActivityCurrent = "activity_current"
 	ActivityLast    = "activity_last"
 	ActivityHuman   = "activity_human"
+	ActivityFigures = "activity_figures"
 	ActivityUp      = "activity_up"
 	ActivityDown    = "activity_down"
 )
@@ -152,7 +153,8 @@ var Actions = []Action{
 	{ActivityLater, Activity, []string{"right", ".", "]"}, "later"},
 	{ActivityCurrent, Activity, []string{"c"}, "this day/week/month"},
 	{ActivityLast, Activity, []string{"l"}, "last day/week/month"},
-	{ActivityHuman, Activity, []string{"h"}, "human only"},
+	{ActivityHuman, Activity, []string{"h"}, "human/all events"},
+	{ActivityFigures, Activity, []string{"s"}, "summary figures"},
 	{ActivityUp, Activity, []string{"up", "k"}, "scroll up"},
 	{ActivityDown, Activity, []string{"down", "j"}, "scroll down"},
 }

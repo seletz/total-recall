@@ -8,13 +8,35 @@ import (
 	"time"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/store"
 )
 
 // workHours is the configured working time as the store sees it.
 func workHours(cfg *config.Config) store.WorkHours {
 	start, end := cfg.WorkHours()
-	return store.WorkHours{Start: start, End: end, Target: cfg.Work.Target.Duration, Low: cfg.Work.DailyLow.Duration, High: cfg.Work.DailyHigh.Duration}
+	return store.WorkHours{
+		Start: start, End: end, Target: cfg.Work.Target.Duration,
+		Low: cfg.Work.DailyLow.Duration, High: cfg.Work.DailyHigh.Duration,
+		WeeklyLow: cfg.Work.WeeklyLow.Duration, WeeklyHigh: cfg.Work.WeeklyHigh.Duration,
+	}
+}
+
+// holidays is the holiday calendar of the configured Bundesland.
+func holidays(cfg *config.Config) *holiday.Calendar { return holiday.New(cfg.Work.Bundesland) }
+
+// workdayReport is the output of stats --workday: the days of a range with
+// the settings they were computed under.
+type workdayReport struct {
+	days         []store.Workday
+	since, until time.Time
+	loc          *time.Location
+	tz, dayStart string
+	humanOnly    bool
+	work         store.WorkHours
+	hours        string    // core hours as configured, "09:00-17:00"
+	region       string    // holiday region in use
+	asOf         time.Time // today as a local midnight; later days are no workdays yet
 }
 
 // Range names of stats --workday --range.
@@ -29,9 +51,12 @@ type WorkdayJSON struct {
 	DayStart  string `json:"day_start"`  // HH:MM, activity before it counts for the previous day
 	HumanOnly bool   `json:"human_only"` // only human events were counted
 	// WorkHours are the core hours ("09:00-17:00") and TargetSeconds the
-	// daily target on weekdays the days are measured against.
+	// daily target on workdays the days are measured against.
 	WorkHours     string `json:"work_hours"`
 	TargetSeconds int    `json:"target_seconds"`
+	// HolidayRegion is the Bundesland whose public holidays apply
+	// ("Deutschland" for the nationwide set).
+	HolidayRegion string `json:"holiday_region"`
 	// Days are all days of the range, in order; a day without activity has
 	// empty times and zero counts.
 	Days  []WorkdayDayJSON `json:"days"`
@@ -50,9 +75,10 @@ type WorkdayDayJSON struct {
 	LastLocal   string `json:"last_local"`
 	SpanSeconds int    `json:"span_seconds"` // elapsed time between first and last
 	Weekend     bool   `json:"weekend"`
-	// TargetSeconds is the day's target (zero on a weekend or without
-	// activity), DiffSeconds the span minus the target (zero without
-	// activity).
+	Holiday     string `json:"holiday"` // name of the public holiday, "" on an ordinary day
+	// TargetSeconds is the day's target (zero on a weekend, a holiday or
+	// without activity), DiffSeconds the span minus the target (zero
+	// without activity).
 	TargetSeconds int `json:"target_seconds"`
 	DiffSeconds   int `json:"diff_seconds"`
 	ActivityJSON
@@ -60,10 +86,14 @@ type WorkdayDayJSON struct {
 
 // WorkdayTotalJSON sums the range.
 type WorkdayTotalJSON struct {
-	Days        int `json:"days"`     // days with activity
-	Workdays    int `json:"workdays"` // active weekdays, the days with a target
+	Days int `json:"days"` // days with activity
+	// Workdays are the weekdays of the range that are no holiday, up to
+	// today, with or without activity; Holidays the public holidays of the
+	// range, weekends included.
+	Workdays    int `json:"workdays"`
+	Holidays    int `json:"holidays"`
 	SpanSeconds int `json:"span_seconds"`
-	// TargetSeconds is the target of the workdays, BalanceSeconds the sum
+	// TargetSeconds is the daily target × workdays, BalanceSeconds the sum
 	// of the spans minus it.
 	TargetSeconds  int `json:"target_seconds"`
 	BalanceSeconds int `json:"balance_seconds"`
@@ -121,67 +151,74 @@ func isDate(s string) bool {
 	return err == nil
 }
 
-// workdayJSON converts the days to their JSON form.
-func workdayJSON(days []store.Workday, since, until time.Time, loc *time.Location, tz, dayStart string, humanOnly bool, wh store.WorkHours, hours string) WorkdayJSON {
+// json converts the report to its JSON form.
+func (r workdayReport) json() WorkdayJSON {
 	out := WorkdayJSON{
-		Since: isoTime(since), Until: isoTime(until), Timezone: tz, DayStart: dayStart, HumanOnly: humanOnly,
-		WorkHours: hours, TargetSeconds: int(wh.Target.Seconds()),
-		Days: make([]WorkdayDayJSON, 0, len(days)),
+		Since: isoTime(r.since), Until: isoTime(r.until), Timezone: r.tz, DayStart: r.dayStart, HumanOnly: r.humanOnly,
+		WorkHours: r.hours, TargetSeconds: int(r.work.Target.Seconds()), HolidayRegion: r.region,
+		Days: make([]WorkdayDayJSON, 0, len(r.days)),
 	}
-	for _, d := range days {
-		diff, _ := wh.Diff(d)
+	for _, d := range r.days {
+		diff, _ := r.work.Diff(d)
 		out.Days = append(out.Days, WorkdayDayJSON{
 			Day: d.Label, Weekday: d.Day.Format("Mon"),
 			First: isoTime(d.First), Last: isoTime(d.Last),
-			FirstLocal: d.FirstClock(loc), LastLocal: d.LastClock(loc),
-			SpanSeconds: int(d.Span().Seconds()), Weekend: store.IsWeekend(d.Day),
-			TargetSeconds: int(wh.TargetFor(d).Seconds()), DiffSeconds: int(diff.Seconds()),
+			FirstLocal: d.FirstClock(r.loc), LastLocal: d.LastClock(r.loc),
+			SpanSeconds: int(d.Span().Seconds()), Weekend: store.IsWeekend(d.Day), Holiday: d.Holiday,
+			TargetSeconds: int(r.work.TargetFor(d).Seconds()), DiffSeconds: int(diff.Seconds()),
 			ActivityJSON: act(d.Activity),
 		})
 	}
-	b := wh.Balance(days)
+	b := r.work.Balance(r.days, r.asOf)
 	out.Total = WorkdayTotalJSON{
-		Days: b.Active, Workdays: b.Workdays, SpanSeconds: int(b.Span.Seconds()),
+		Days: b.Active, Workdays: b.Workdays, Holidays: b.Holidays, SpanSeconds: int(b.Span.Seconds()),
 		TargetSeconds: int(b.Target.Seconds()), BalanceSeconds: int(b.Balance.Seconds()),
 	}
 	return out
 }
 
-// writeWorkdayTable writes the range, one row per day (DATE DAY FIRST LAST
-// SPAN DIFF, "-" without activity) and the total line with the balance
-// against the target of the active weekdays.
-func writeWorkdayTable(w io.Writer, days []store.Workday, since, until time.Time, loc *time.Location, dayStart string, humanOnly bool, wh store.WorkHours, hours string) error {
+// table writes the range, one row per day (DATE DAY FIRST LAST SPAN DIFF
+// HOLIDAY, "-" where there is nothing, the holiday name on a public holiday) and
+// the total line with the balance against the target of the workdays.
+func (r workdayReport) table(w io.Writer) error {
 	rng := "all time"
-	if !since.IsZero() || !until.IsZero() {
+	if !r.since.IsZero() || !r.until.IsZero() {
 		end := ""
-		if !until.IsZero() {
-			end = localTime(until.Add(-time.Minute), loc)
+		if !r.until.IsZero() {
+			end = localTime(r.until.Add(-time.Minute), r.loc)
 		}
-		rng = localTime(since, loc) + " – " + end
+		rng = localTime(r.since, r.loc) + " – " + end
 	}
 	counted := "human and agent events"
-	if humanOnly {
+	if r.humanOnly {
 		counted = "human events only"
 	}
-	_, _ = fmt.Fprintf(w, "%s (%s, day starts %s, %s)\n", rng, loc, dayStart, counted)
-	_, _ = fmt.Fprintf(w, "core hours %s, target %s per weekday\n\n", hours, store.FormatSpan(wh.Target))
-	rows := make([][]string, 0, len(days))
-	for _, d := range days {
-		row := []string{d.Label, d.Day.Format("Mon"), "-", "-", "-", "-"}
-		if d.Active() {
-			row[2], row[3], row[4] = d.FirstClock(loc), d.LastClock(loc), duration(d.Span())
+	_, _ = fmt.Fprintf(w, "%s (%s, day starts %s, %s)\n", rng, r.loc, r.dayStart, counted)
+	_, _ = fmt.Fprintf(w, "core hours %s, target %s per workday, holidays %s\n\n", r.hours, store.FormatSpan(r.work.Target), r.region)
+	rows := make([][]string, 0, len(r.days))
+	for _, d := range r.days {
+		row := []string{d.Label, d.Day.Format("Mon"), "-", "-", "-", "-", "-"}
+		if d.IsHoliday() {
+			row[6] = d.Holiday
 		}
-		if diff, ok := wh.Diff(d); ok {
+		if d.Active() {
+			row[2], row[3], row[4] = d.FirstClock(r.loc), d.LastClock(r.loc), duration(d.Span())
+		}
+		if diff, ok := r.work.Diff(d); ok {
 			row[5] = store.FormatDiff(diff)
 		}
 		rows = append(rows, row)
 	}
-	if err := table(w, []string{"DATE", "DAY", "FIRST", "LAST", "SPAN", "DIFF"}, rows); err != nil {
+	if err := table(w, []string{"DATE", "DAY", "FIRST", "LAST", "SPAN", "DIFF", "HOLIDAY"}, rows); err != nil {
 		return err
 	}
-	b := wh.Balance(days)
-	_, _ = fmt.Fprintf(w, "\ntotal: %s with activity, %s · target %s (%s × %s) · balance %s\n",
-		plural(b.Active, "day"), store.FormatSpan(b.Span), store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(wh.Target), store.FormatDiff(b.Balance))
+	b := r.work.Balance(r.days, r.asOf)
+	_, _ = fmt.Fprintf(w, "\ntotal: %s with activity, %s · target %s (%s × %s) · balance %s",
+		plural(b.Active, "day"), store.FormatSpan(b.Span), store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(r.work.Target), store.FormatDiff(b.Balance))
+	if b.Holidays > 0 {
+		_, _ = fmt.Fprintf(w, " · %s", plural(b.Holidays, "holiday"))
+	}
+	_, _ = fmt.Fprintln(w)
 	return nil
 }
 

@@ -833,10 +833,10 @@ func TestTUIOptions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Keys == nil {
-				t.Error("Keys not set")
+			if got.Keys == nil || got.Holidays == nil || !got.HumanOnly {
+				t.Errorf("keys, holidays or human-only not set: %+v", got)
 			}
-			got.Keys, got.Location, got.Work = nil, nil, store.WorkHours{}
+			got.Keys, got.Location, got.Work, got.Holidays, got.HumanOnly = nil, nil, store.WorkHours{}, nil, false
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("tuiOptions = %+v\nwant %+v", got, tt.want)
 			}
