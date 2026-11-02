@@ -362,7 +362,7 @@ func TestSkillOutputContract(t *testing.T) {
 // (Europe/Berlin in the test config): 11:00-12:00 local is 09:00-10:00 UTC.
 func TestSkillShowWindow(t *testing.T) {
 	e := skillEnv(t)
-	s1 := "claude:" + tf.DemoSession1
+	s1 := "claude:" + tf.SmallSession1
 	events := func(args ...string) []map[string]any {
 		t.Helper()
 		out := decode[map[string]any](t, e.mustRun(t, append([]string{"show", s1, "--json"}, args...)...))
@@ -382,7 +382,7 @@ func TestSkillShowWindow(t *testing.T) {
 			e.mustRun(t, args...)
 		}
 	}
-	hits := decode[[]map[string]any](t, e.mustRun(t, "search", "count", "--json", "--session", tf.DemoSession1[:8]))
+	hits := decode[[]map[string]any](t, e.mustRun(t, "search", "count", "--json", "--session", tf.SmallSession1[:8]))
 	if len(hits) == 0 {
 		t.Fatal("search --session: no hits")
 	}

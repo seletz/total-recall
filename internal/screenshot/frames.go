@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui"
@@ -20,20 +21,16 @@ const (
 	CompactWidth, CompactHeight = 80, 24
 )
 
-// Shot describes one screenshot: which archive it reads, the view it starts
-// in, the clock the view sees and the keys pressed before the frame is
-// captured. The clock pins the windows of the stats and activity views to
-// fixed dates, so a rerun yields the same frame as long as the archive's
-// past does not change.
+// Shot describes one screenshot: the view it starts in, the clock the view
+// sees and the keys pressed before the frame is captured. The clock pins
+// the windows of the stats and activity views to fixed dates, so a rerun
+// yields the same frame as long as the archive does not change.
 type Shot struct {
 	Name          string
 	Width, Height int
-	// Demo selects the synthetic demo archive; otherwise the anonymized
-	// copy of the real archive is read.
-	Demo  bool
-	Start string
-	Query string
-	Now   time.Time
+	Start         string
+	Query         string
+	Now           time.Time
 	// Keys are pressed in order: single characters, "enter", "tab", "esc".
 	Keys []string
 	// Caption describes the shot for the docs.
@@ -65,24 +62,27 @@ func must(loc *time.Location, err error) *time.Location {
 	return loc
 }
 
-// Clocks of the shots. The demo conversations end on 2026-10-31; the stats
-// window ends with the week of 2026-11-01 (Allerheiligen, a Sunday) and the
-// month shot shows October 2026 (Tag der Deutschen Einheit, a Saturday).
+// Clocks of the shots, all in the demo archive's past. The search shots use
+// the archive's own clock, the morning after its last conversation. The
+// stats window is the 28 days up to 2026-11-01, all of October. The
+// activity shots show the hand-laid week of 2026-06-01 with Fronleichnam on
+// the Thursday, and June 2026 as the month.
 var (
-	demoNow  = time.Date(2026, 11, 2, 10, 0, 0, 0, berlin)
-	weekNow  = time.Date(2026, 11, 1, 12, 0, 0, 0, berlin)
-	monthNow = time.Date(2026, 10, 31, 12, 0, 0, 0, berlin)
+	searchNow = demo.Now
+	statsNow  = time.Date(2026, 11, 1, 12, 0, 0, 0, berlin)
+	weekNow   = time.Date(2026, 6, 7, 12, 0, 0, 0, berlin)
+	monthNow  = time.Date(2026, 6, 30, 12, 0, 0, 0, berlin)
 )
 
 // Shots are the screenshots of the docs, in the order of docs/reference/30-tui.md.
 var Shots = []Shot{
-	{Name: "search", Width: Width, Height: Height, Demo: true, Start: tui.ViewSearch, Query: DemoQuery, Now: demoNow,
+	{Name: "search", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Caption: "Suche mit Vorschau"},
-	{Name: "session", Width: Width, Height: Height, Demo: true, Start: tui.ViewSearch, Query: DemoQuery, Now: demoNow,
+	{Name: "session", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Keys: []string{"enter", "T"}, Caption: "Session-Detail mit Treffer, Tool-Aufrufe eingeblendet"},
-	{Name: "stats", Width: Width, Height: Height, Start: tui.ViewStats, Now: weekNow,
+	{Name: "stats", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow,
 		Caption: "Statistik: gestapeltes Chart je Tag und Projekt mit Tabelle"},
-	{Name: "heatmap", Width: Width, Height: Height, Start: tui.ViewStats, Now: weekNow, Keys: []string{"h"},
+	{Name: "heatmap", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"h"},
 		Caption: "Heatmap Wochentag × Stunde unter dem Chart"},
 	{Name: "activity-week", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Aktivität je Tag, eine Woche mit Kernzeit, Feiertag und Kennzahlen"},
@@ -90,12 +90,6 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, ein Monat mit Monatsarbeitszeit"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
-}
-
-// Archives are the two stores the shots read from. Either may be nil, then
-// the shots that need it fail.
-type Archives struct {
-	Anon, Demo *store.Store
 }
 
 // workHours mirrors the defaults of the [work] config table.
@@ -106,32 +100,26 @@ var workHours = store.WorkHours{
 
 // options builds the app options of a shot: the config defaults (time zone
 // Europe/Berlin, day start 04:00, working time, holidays of
-// Baden-Württemberg, own messages only), text charts and the shot's clock.
-func options(s Shot, a Archives) (tui.Options, error) {
-	st := a.Anon
-	if s.Demo {
-		st = a.Demo
-	}
+// Baden-Württemberg, own messages only), the demo's home directory, text
+// charts and the shot's clock.
+func options(s Shot, st *store.Store) (tui.Options, error) {
 	if st == nil {
 		return tui.Options{}, fmt.Errorf("shot %s: no archive", s.Name)
 	}
 	now := s.Now
-	home := "/w"
-	if s.Demo {
-		home = "/home/mara"
-	}
 	return tui.Options{
 		Store: st, Location: berlin, Now: func() time.Time { return now },
 		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, NoMouse: true,
-		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: home,
+		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: demo.Home,
 	}, nil
 }
 
-// Render drives the app of a shot headlessly and returns its final frame.
-// Commands run synchronously as they are returned, so every load has
-// landed when the frame is taken.
-func Render(s Shot, a Archives) (Frame, error) {
-	opts, err := options(s, a)
+// Render drives the app of a shot headlessly against the archive st (the
+// demo archive, see package demo) and returns its final frame. Commands
+// run synchronously as they are returned, so every load has landed when
+// the frame is taken.
+func Render(s Shot, st *store.Store) (Frame, error) {
+	opts, err := options(s, st)
 	if err != nil {
 		return Frame{}, err
 	}
@@ -149,10 +137,10 @@ func Render(s Shot, a Archives) (Frame, error) {
 }
 
 // RenderAll renders every one of Shots.
-func RenderAll(a Archives) ([]Frame, error) {
+func RenderAll(st *store.Store) ([]Frame, error) {
 	out := make([]Frame, 0, len(Shots))
 	for _, s := range Shots {
-		f, err := Render(s, a)
+		f, err := Render(s, st)
 		if err != nil {
 			return nil, err
 		}

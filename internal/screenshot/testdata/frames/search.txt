@@ -1,0 +1,36 @@
+ total-recall                                                                         [1 search]  2 stats   3 activity
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > goreleaser cask                                                                      actor: all  since: all  repo: *
+───────────────────────────────────────────────────────────┬────────────────────────────────────────────────────────────
+▸2026-10-31 22:14  Release v0.3.0                     human│ Release v0.3.0
+  Lade den Homebrew-Cask mit goreleaser in den Tap hoch.   │ claude:7d1e4c20-0001-4000-8000-000000000001  mara/kompass
+ 2026-10-15 11:05  Homebrew-Tap einrichten            human│ 2026-10-31 22:14 – 22:20 (6m)  main
+  Richte den Homebrew-Tap ein, damit goreleaser den Cask d…│────────────────────────────────────────────────────────────
+ 2026-10-28 09:05  CI pipeline                        agent│── 22:14  human ◄
+  goreleaser needs HOMEBREW_TAP_GITHUB_TOKEN in the workfl…│Lade den Homebrew-Cask mit goreleaser in den Tap hoch.
+ 2026-10-28 09:02  CI pipeline                        human│
+  can we build the cask in goreleaser and push it to the t…│── 22:16  agent
+ 2026-10-15 11:12  Homebrew-Tap einrichten            agent│goreleaser skips the cask upload when the tap token is
+  …goreleaser publishes the cask there; users install it w…│missing. I added a check that fails the release early
+ 2026-10-12 15:45  Packaging                          agent│instead, so a missing HOMEBREW_TAP_GITHUB_TOKEN no longer
+  …the binary to kompass and set the cask name. goreleaser…│leaves a half-published release.
+ 2026-10-22 17:34  Signierte Releases                 agent│
+  Yes: goreleaser signs the checksums file with cosign aft…│
+ 2026-10-31 22:20  Release v0.3.0                     agent│
+  …The release workflow is running; goreleaser builds the …│
+ 2026-10-31 22:16  Release v0.3.0                     agent│
+  goreleaser skips the cask upload when the tap token is m…│
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ 9 hits (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab list • enter open • ^r raw fts • ^c quit

@@ -27,10 +27,16 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      - name: Build the demo archive
+        # Same command as `mise run demo:db`; the tests that need a
+        # populated archive read it through TOTAL_RECALL_DEMO_DB.
+        run: go run ./tools/demo -out build/demo.db
+
       - name: go test
         # The race detector needs cgo on linux; the build stays static.
         env:
           CGO_ENABLED: "1"
+          TOTAL_RECALL_DEMO_DB: ${{ github.workspace }}/build/demo.db
         run: go test -race ./...
 
       - name: golangci-lint

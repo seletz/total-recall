@@ -3,6 +3,9 @@ package fixturedb
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -222,16 +225,72 @@ func TestDayBoundary(t *testing.T) {
 	}
 }
 
-func TestDemo(t *testing.T) {
-	st, _ := Demo(t)
+func TestSmall(t *testing.T) {
+	st, _ := Small(t)
 	_, rows, err := st.Query(ctx, `SELECT count(*) FROM sessions`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := rows[0][0].(int64); got != 3 {
-		t.Errorf("Demo sessions = %d, want 3", got)
+		t.Errorf("Small sessions = %d, want 3", got)
 	}
 }
+
+// TestDemo: the demo archive opens read-only and is populated; a prebuilt
+// one named by DemoEnv and one built by the test hold the same sessions.
+func TestDemo(t *testing.T) {
+	st, path := Demo(t)
+	_, rows, err := st.Query(ctx, `SELECT count(*) FROM sessions`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	built := rows[0][0].(int64)
+	if built < 100 {
+		t.Errorf("Demo sessions = %d, want hundreds", built)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("path %s: %v", path, err)
+	}
+	t.Setenv(DemoEnv, path)
+	st2, path2 := Demo(t)
+	if path2 != path {
+		t.Errorf("with %s set, path = %s, want %s", DemoEnv, path2, path)
+	}
+	_, rows, err = st2.Query(ctx, `SELECT count(*) FROM sessions`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rows[0][0].(int64); got != built {
+		t.Errorf("prebuilt archive has %d sessions, built one %d", got, built)
+	}
+}
+
+// TestDemoMissing: a DemoEnv that names no file is an error with a hint,
+// not a silent rebuild.
+func TestDemoMissing(t *testing.T) {
+	t.Setenv(DemoEnv, filepath.Join(t.TempDir(), "missing.db"))
+	ft := &fakeT{TB: t}
+	func() {
+		defer func() { _ = recover() }()
+		Demo(ft)
+	}()
+	if !strings.Contains(ft.msg, "mise run demo:db") {
+		t.Errorf("fatal message %q lacks the hint", ft.msg)
+	}
+}
+
+// fakeT records the Fatalf message and panics instead of exiting.
+type fakeT struct {
+	testing.TB
+	msg string
+}
+
+func (f *fakeT) Fatalf(format string, args ...any) {
+	f.msg = fmt.Sprintf(format, args...)
+	panic(f.msg)
+}
+
+func (f *fakeT) Helper() {}
 
 // TestActivityMonthsAndDirs checks the month split and the directory
 // dimension documented on testfixture.Activity.
