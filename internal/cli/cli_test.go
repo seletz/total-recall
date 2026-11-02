@@ -38,7 +38,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	dir := t.TempDir()
 	e := &testEnv{
 		dir:        dir,
-		projects:   tf.Demo(t, dir),
+		projects:   tf.Small(t, dir),
 		db:         filepath.Join(dir, "data", "archive.db"),
 		log:        filepath.Join(dir, "data", "total-recall.log"),
 		backups:    filepath.Join(dir, "backups"),
@@ -185,7 +185,7 @@ func TestHookContract(t *testing.T) {
 		{"database from a newer binary",
 			func(e *testEnv, t *testing.T) string { return e.hookPayload(t, "Stop") },
 			func(e *testEnv, t *testing.T) {
-				e.mustRun(t, "ingest", filepath.Join(e.projects, "-w-beta", tf.DemoSession2+".jsonl"))
+				e.mustRun(t, "ingest", filepath.Join(e.projects, "-w-beta", tf.SmallSession2+".jsonl"))
 				db, err := sql.Open("sqlite", e.db)
 				if err != nil {
 					t.Fatal(err)
@@ -254,9 +254,9 @@ func TestHookMissingTranscript(t *testing.T) {
 			}, 0, 0, "gone.jsonl"},
 		{"SubagentStop with missing agent transcript still ingests the session",
 			func(e *testEnv) string {
-				return `{"session_id":"` + tf.DemoSession1 + `","transcript_path":"` + filepath.Join(e.projects, "-w-alpha", tf.DemoSession1+".jsonl") +
+				return `{"session_id":"` + tf.SmallSession1 + `","transcript_path":"` + filepath.Join(e.projects, "-w-alpha", tf.SmallSession1+".jsonl") +
 					`","hook_event_name":"SubagentStop","agent_id":"a99","agent_transcript_path":"` +
-					filepath.Join(e.projects, "-w-alpha", tf.DemoSession1, "subagents", "agent-a99.jsonl") + `"}`
+					filepath.Join(e.projects, "-w-alpha", tf.SmallSession1, "subagents", "agent-a99.jsonl") + `"}`
 			}, 5, 1, "agent-a99.jsonl"},
 		{"SessionStart of a session not yet on disk still reads everything",
 			func(e *testEnv) string {
@@ -409,7 +409,7 @@ func TestEndToEnd(t *testing.T) {
 		byName[string(s.DisplayName)] = s
 	}
 	s1, s2 := byName["List files"], byName["Beta work"]
-	if s1.HumanEvents != 2 || s1.AgentEvents != 3 || s1.NativeID != tf.DemoSession1 || s1.DurationSeconds != 5405 {
+	if s1.HumanEvents != 2 || s1.AgentEvents != 3 || s1.NativeID != tf.SmallSession1 || s1.DurationSeconds != 5405 {
 		t.Errorf("session 1 = %+v", s1)
 	}
 	if s2.HumanEvents != 1 || s2.AgentEvents != 1 || s2.Name != "Beta work" {
@@ -425,7 +425,7 @@ func TestEndToEnd(t *testing.T) {
 		t.Errorf("--until (whole day) = %+v", f)
 	}
 	table := e.mustRun(t, "sessions")
-	for _, want := range []string{"START", "List files", "Beta work", "2026-10-05 10:00", "1h30m", tf.DemoSession1[:8]} {
+	for _, want := range []string{"START", "List files", "Beta work", "2026-10-05 10:00", "1h30m", tf.SmallSession1[:8]} {
 		if !strings.Contains(table, want) {
 			t.Errorf("sessions table lacks %q:\n%s", want, table)
 		}
@@ -435,14 +435,14 @@ func TestEndToEnd(t *testing.T) {
 		Session SessionJSON `json:"session"`
 		Events  []EventJSON `json:"events"`
 	}
-	sh := decode[showOut](t, e.mustRun(t, "show", tf.DemoSession1[:8], "--json"))
-	if sh.Session.ID != "claude:"+tf.DemoSession1 || len(sh.Events) != 4 {
+	sh := decode[showOut](t, e.mustRun(t, "show", tf.SmallSession1[:8], "--json"))
+	if sh.Session.ID != "claude:"+tf.SmallSession1 || len(sh.Events) != 4 {
 		t.Errorf("show = %+v", sh)
 	}
-	if all := decode[showOut](t, e.mustRun(t, "show", "claude:"+tf.DemoSession1, "--json", "--all")); len(all.Events) != 5 {
+	if all := decode[showOut](t, e.mustRun(t, "show", "claude:"+tf.SmallSession1, "--json", "--all")); len(all.Events) != 5 {
 		t.Errorf("show --all events = %d", len(all.Events))
 	}
-	text := e.mustRun(t, "show", tf.DemoSession1)
+	text := e.mustRun(t, "show", tf.SmallSession1)
 	for _, want := range []string{"List files", "please list the files", "Forty-two lines.", "human", "agent"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("show lacks %q:\n%s", want, text)
@@ -508,7 +508,7 @@ func TestSQL(t *testing.T) {
 	if out := e.mustRun(t, "sql", q); !strings.Contains(out, "harness") || !strings.Contains(out, "claude") {
 		t.Errorf("table = %q", out)
 	}
-	if out := e.mustRun(t, "sql", "--json", "SELECT display_name FROM sessions WHERE native_id = '"+tf.DemoSession1+"'"); !strings.Contains(out, "List files") {
+	if out := e.mustRun(t, "sql", "--json", "SELECT display_name FROM sessions WHERE native_id = '"+tf.SmallSession1+"'"); !strings.Contains(out, "List files") {
 		t.Errorf("display_name = %s", out)
 	}
 	for _, w := range []string{"DELETE FROM sessions", "DROP TABLE events", "INSERT INTO dirs(cwd) VALUES ('x')"} {
@@ -947,7 +947,7 @@ func TestDeferredConfigErrors(t *testing.T) {
 }
 
 // TestShowWindow covers --since/--until (local time per config), --limit,
-// --offset and --from-event of show. Demo session 1 has four conversation
+// --offset and --from-event of show. Small session 1 has four conversation
 // events at 08:00:00Z, 08:00:02Z, 09:30:00Z and 09:30:05Z, i.e. 10:00 and
 // 11:30 in Europe/Berlin (CEST).
 func TestShowWindow(t *testing.T) {
@@ -957,7 +957,7 @@ func TestShowWindow(t *testing.T) {
 		Session SessionJSON `json:"session"`
 		Events  []EventJSON `json:"events"`
 	}
-	full := decode[showOut](t, e.mustRun(t, "show", tf.DemoSession1, "--json"))
+	full := decode[showOut](t, e.mustRun(t, "show", tf.SmallSession1, "--json"))
 	if len(full.Events) != 4 {
 		t.Fatalf("show = %d events", len(full.Events))
 	}
@@ -986,9 +986,9 @@ func TestShowWindow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args := append([]string{"show", tf.DemoSession1[:8], "--json"}, tt.args...)
+			args := append([]string{"show", tf.SmallSession1[:8], "--json"}, tt.args...)
 			sh := decode[showOut](t, e.mustRun(t, args...))
-			if sh.Session.ID != "claude:"+tf.DemoSession1 {
+			if sh.Session.ID != "claude:"+tf.SmallSession1 {
 				t.Errorf("session = %s", sh.Session.ID)
 			}
 			got := make([]string, 0, len(sh.Events))
@@ -999,14 +999,14 @@ func TestShowWindow(t *testing.T) {
 				t.Errorf("events = %q, want %q", got, tt.want)
 			}
 			// The text output lists the same events.
-			text := e.mustRun(t, append([]string{"show", tf.DemoSession1[:8]}, tt.args...)...)
+			text := e.mustRun(t, append([]string{"show", tf.SmallSession1[:8]}, tt.args...)...)
 			if n := strings.Count(text, "\n── "); n != len(tt.want) {
 				t.Errorf("text output has %d events, want %d:\n%s", n, len(tt.want), text)
 			}
 		})
 	}
 	// An empty window is an empty list, not null.
-	if out := e.mustRun(t, "show", tf.DemoSession1[:8], "--json", "--until", "2026-10-04"); !strings.Contains(out, `"events": []`) {
+	if out := e.mustRun(t, "show", tf.SmallSession1[:8], "--json", "--until", "2026-10-04"); !strings.Contains(out, `"events": []`) {
 		t.Errorf("empty window = %s", out)
 	}
 	bad := []struct {
@@ -1023,13 +1023,13 @@ func TestShowWindow(t *testing.T) {
 	}
 	for _, tt := range bad {
 		t.Run(tt.name, func(t *testing.T) {
-			r := e.run(t, "", append([]string{"show", tf.DemoSession1[:8]}, tt.args...)...)
+			r := e.run(t, "", append([]string{"show", tf.SmallSession1[:8]}, tt.args...)...)
 			if r.code == 0 || !strings.Contains(r.stderr, tt.msg) {
 				t.Errorf("%v = exit %d, stderr %q, want %q", tt.args, r.code, r.stderr, tt.msg)
 			}
 		})
 	}
-	if r := e.run(t, "", "show", tf.DemoSession2[:8], "--from-event", third); r.code == 0 || !strings.Contains(r.stderr, "no event") {
+	if r := e.run(t, "", "show", tf.SmallSession2[:8], "--from-event", third); r.code == 0 || !strings.Contains(r.stderr, "no event") {
 		t.Errorf("from-event of another session = %+v", r)
 	}
 }
@@ -1062,7 +1062,7 @@ func TestShowHint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id := big
 			if tt.name == "small session" {
-				id = tf.DemoSession1
+				id = tf.SmallSession1
 			}
 			r := e.run(t, "", append([]string{"show", id}, tt.args...)...)
 			if r.code != 0 {
@@ -1091,11 +1091,11 @@ func TestSearchSession(t *testing.T) {
 		want          int
 		wantSession   string
 	}{
-		{"full id", "claude:" + tf.DemoSession2, []string{"release"}, 2, "claude:" + tf.DemoSession2},
-		{"native id", tf.DemoSession2, []string{"release"}, 2, "claude:" + tf.DemoSession2},
-		{"prefix", tf.DemoSession2[:4], []string{"release"}, 2, "claude:" + tf.DemoSession2},
-		{"prefix of other session", tf.DemoSession1[:4], []string{"release"}, 0, ""},
-		{"prefix with filters", tf.DemoSession1[:4], []string{"files", "--actor", "human"}, 1, "claude:" + tf.DemoSession1},
+		{"full id", "claude:" + tf.SmallSession2, []string{"release"}, 2, "claude:" + tf.SmallSession2},
+		{"native id", tf.SmallSession2, []string{"release"}, 2, "claude:" + tf.SmallSession2},
+		{"prefix", tf.SmallSession2[:4], []string{"release"}, 2, "claude:" + tf.SmallSession2},
+		{"prefix of other session", tf.SmallSession1[:4], []string{"release"}, 0, ""},
+		{"prefix with filters", tf.SmallSession1[:4], []string{"files", "--actor", "human"}, 1, "claude:" + tf.SmallSession1},
 		{"subagent", "agent-a01", []string{"counted"}, 1, "claude:agent-a01"},
 	}
 	for _, tt := range tests {
@@ -1118,7 +1118,7 @@ func TestSearchSession(t *testing.T) {
 	if r := e.run(t, "", "search", "release", "--session", "zzz"); r.code == 0 || !strings.Contains(r.stderr, "no session") {
 		t.Errorf("unknown session = %+v", r)
 	}
-	if out := e.mustRun(t, "search", "release", "--session", tf.DemoSession2[:8]); !strings.Contains(out, "Beta work") {
+	if out := e.mustRun(t, "search", "release", "--session", tf.SmallSession2[:8]); !strings.Contains(out, "Beta work") {
 		t.Errorf("table = %q", out)
 	}
 }

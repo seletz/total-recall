@@ -1,13 +1,15 @@
 // Command screenshots renders the TUI screenshots of the documentation; see
-// internal/screenshot. It anonymizes a copy of the configured archive
-// (never writing to it), builds the synthetic demo archive, drives the TUI
-// headlessly for every shot, checks the frames for anything that looks
-// like the original data and draws them as PNG files.
+// internal/screenshot. It drives the TUI headlessly against the synthetic
+// demo archive for every shot, checks the frames for anything that looks
+// like this machine, writes the text frames as the goldens of the
+// screenshot tests and draws the frames as PNG files.
 //
-//	go run ./tools/screenshots -out docs/assets/screenshots
+//	go run ./tools/screenshots -db build/demo.db -out docs/assets/screenshots -golden internal/screenshot/testdata/frames
 //
-// The anonymized copy and the demo archive live in the work directory
-// below the temp dir, never in the repository.
+// Without -db the demo archive is built in the work directory below the
+// temp dir. Any other archive, such as an anonymized copy from
+// tools/anonymize, can be passed instead; the goldens are then best left
+// out (-golden "").
 package main
 
 import (
@@ -18,9 +20,8 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/screenshot"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -34,60 +35,34 @@ func main() {
 
 func run() error {
 	var (
-		live   = flag.String("live", "", "archive to anonymize (default: db of the config)")
-		work   = flag.String("work", filepath.Join(os.TempDir(), "total-recall-screenshots"), "work directory for the anonymized copy, the demo archive and the frames")
+		db     = flag.String("db", "", "archive to render (default: the demo archive, built in the work directory)")
+		work   = flag.String("work", filepath.Join(os.TempDir(), "total-recall-screenshots"), "work directory for the frames and a built demo archive")
 		out    = flag.String("out", "docs/assets/screenshots", "directory of the PNG files")
-		reuse  = flag.Bool("reuse", false, "keep an existing anonymized copy in the work directory")
+		golden = flag.String("golden", screenshot.GoldenDir, "directory of the text frames the tests compare with; empty writes none")
 		noPNG  = flag.Bool("no-png", false, "stop after the frames; write no images")
 	)
 	flag.Parse()
 	ctx := context.Background()
-	if *live == "" {
-		c, err := config.Load(config.Options{})
-		if err != nil {
-			return err
-		}
-		*live = c.DB
-	}
 	if err := os.MkdirAll(*work, 0o755); err != nil {
 		return err
 	}
-
-	anonPath := filepath.Join(*work, "anonymized.db")
-	var needles []string
-	if _, err := os.Stat(anonPath); err == nil && *reuse {
-		fmt.Fprintf(os.Stderr, "reusing %s\n", anonPath)
-	} else {
-		fmt.Fprintf(os.Stderr, "anonymizing a copy of %s …\n", *live)
-		start := time.Now()
-		rep, err := screenshot.Anonymize(ctx, *live, anonPath)
+	if *db == "" {
+		*db = filepath.Join(*work, "demo.db")
+		fmt.Fprintf(os.Stderr, "building the demo archive at %s …\n", *db)
+		sum, err := demo.Build(ctx, *db)
 		if err != nil {
 			return err
 		}
-		needles = rep.Needles
-		fmt.Fprintf(os.Stderr, "  %d sessions, %d events, %d names to check, %s\n", rep.Sessions, rep.Events, len(rep.Needles), time.Since(start).Round(time.Second))
+		fmt.Fprintf(os.Stderr, "  %d sessions, %d events\n", sum.Sessions, sum.Events)
 	}
-	needles = append(needles, machineNeedles()...)
-
-	fmt.Fprintln(os.Stderr, "building the demo archive …")
-	demoPath, err := screenshot.BuildDemo(ctx, filepath.Join(*work, "demo"))
+	st, err := store.OpenReadOnly(*db)
 	if err != nil {
 		return err
 	}
-
-	anon, err := store.OpenReadOnly(anonPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = anon.Close() }()
-	demo, err := store.OpenReadOnly(demoPath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = demo.Close() }()
+	defer func() { _ = st.Close() }()
 
 	fmt.Fprintln(os.Stderr, "rendering frames …")
-	frames, err := screenshot.RenderAll(screenshot.Archives{Anon: anon, Demo: demo})
+	frames, err := screenshot.RenderAll(st)
 	if err != nil {
 		return err
 	}
@@ -95,6 +70,7 @@ func run() error {
 	if err := os.MkdirAll(framesDir, 0o755); err != nil {
 		return err
 	}
+	needles := machineNeedles()
 	var leaks []string
 	for _, f := range frames {
 		plain := f.Plain()
@@ -111,7 +87,13 @@ func run() error {
 		fmt.Fprintf(os.Stderr, "  %-16s %dx%d  %s\n", f.Shot.Name, f.Shot.Width, f.Shot.Height, f.Shot.Caption)
 	}
 	if len(leaks) > 0 {
-		return fmt.Errorf("frames hold original names, nothing written to %s:\n  %s", *out, strings.Join(leaks, "\n  "))
+		return fmt.Errorf("frames hold names of this machine, nothing written to %s:\n  %s", *out, strings.Join(leaks, "\n  "))
+	}
+	if *golden != "" {
+		if err := screenshot.WriteGoldens(*golden, frames); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "goldens in %s\n", *golden)
 	}
 	if *noPNG {
 		fmt.Fprintf(os.Stderr, "frames in %s\n", framesDir)
@@ -144,14 +126,14 @@ func writePNG(path string, f screenshot.Frame) error {
 }
 
 // machineNeedles are strings that identify this machine and must not show
-// up in a frame: the user name and the home directory, plus the macOS and
-// Linux home prefixes.
+// up in a frame: the user name and the home directory, plus the macOS home
+// prefix. The demo's own home below /home is allowed.
 func machineNeedles() []string {
-	out := []string{"/Users/", "/home/"}
-	if h, err := os.UserHomeDir(); err == nil && h != "" {
+	out := []string{"/Users/"}
+	if h, err := os.UserHomeDir(); err == nil && h != "" && !strings.HasPrefix(demo.Home, h) {
 		out = append(out, h)
 	}
-	if u, err := user.Current(); err == nil && len(u.Username) >= 4 {
+	if u, err := user.Current(); err == nil && len(u.Username) >= 4 && u.Username != "mara" {
 		out = append(out, u.Username)
 	}
 	return out

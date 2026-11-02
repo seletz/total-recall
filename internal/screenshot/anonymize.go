@@ -1,12 +1,14 @@
 // Package screenshot renders the TUI screenshots of the documentation: it
-// anonymizes a copy of the archive for the stats, heatmap and activity
-// views, builds a small synthetic archive for the search and session views,
-// and drives the TUI headlessly at a fixed size to capture the frames
-// (tools/screenshots turns them into images with freeze).
+// drives the TUI headlessly at a fixed size and a fixed clock against the
+// synthetic demo archive (package demo) and captures the frames;
+// tools/screenshots draws them as PNG files and writes the text frames as
+// the goldens of TestFramesGolden, which fails when the TUI drifts from
+// the checked-in images.
 //
-// Nothing in this package holds real data: the anonymization assigns
-// neutral names by activity rank from a fixed word list, blanks every text
-// and rebuilds the full-text index; the synthetic archive is invented.
+// Anonymize is an optional local tool (tools/anonymize) that copies a real
+// archive with every name and text removed, to look at the stats of one's
+// own archive without its contents; the docs do not use it. Nothing in
+// this package holds real data.
 package screenshot
 
 import (

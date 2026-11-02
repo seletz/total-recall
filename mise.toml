@@ -14,13 +14,20 @@ VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o total-recall ./cmd/total-recall
 """
 
+[tasks."demo:db"]
+description = "Build the synthetic demo archive (build/demo.db): the shared fixture of tests and screenshots"
+run = "go run ./tools/demo -out build/demo.db"
+
 [tasks.test]
-description = "Run all tests"
+description = "Run all tests against the prebuilt demo archive"
+depends = ["demo:db"]
+env = { TOTAL_RECALL_DEMO_DB = "{{config_root}}/build/demo.db" }
 run = "go test ./..."
 
 [tasks."test:race"]
 description = "Run all tests with the race detector (needs cgo on linux)"
-env = { CGO_ENABLED = "1" }
+depends = ["demo:db"]
+env = { CGO_ENABLED = "1", TOTAL_RECALL_DEMO_DB = "{{config_root}}/build/demo.db" }
 run = "go test -race ./..."
 
 [tasks.lint]
@@ -41,8 +48,9 @@ depends = ["uv:sync"]
 run = "uv run --locked zensical serve --open"
 
 [tasks."docs:screenshots"]
-description = "Render the TUI screenshots for the docs from an anonymized copy of the archive and a synthetic demo archive"
-run = "go run ./tools/screenshots -out docs/assets/screenshots"
+description = "Render the TUI screenshots for the docs from the demo archive and update the goldens of the screenshot tests"
+depends = ["demo:db"]
+run = "go run ./tools/screenshots -db build/demo.db -out docs/assets/screenshots -golden internal/screenshot/testdata/frames"
 
 [tasks."docs:build"]
 description = "Build documentation site (strict)"
