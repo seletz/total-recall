@@ -60,6 +60,7 @@ homebrew_casks:
     commit_msg_template: "Update {{ .ProjectName }} to {{ .Tag }}"
     directory: Casks
     homepage: "https://github.com/seletz/total-recall"
+    license: "MIT"
     description: "Archive coding-agent sessions into a local SQLite database"
     completions:
       bash: completions/total-recall.bash

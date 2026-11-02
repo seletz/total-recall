@@ -32,3 +32,5 @@ Claude Code löscht alte Transkripte. Der Schalter dafür heißt `cleanupPeriodD
     Alle Befehle auf der Seite [Befehle](befehle.md) sind umgesetzt. Unterstützt wird bisher nur Claude Code.
 
 Die verbindliche Spezifikation steht in [Design (Spezifikation)](design.md).
+
+Diese Dokumentation wird unter <https://seletz.github.io/total-recall/> veröffentlicht. Die Quellen liegen im Repository unter `docs/`.
