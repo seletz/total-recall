@@ -94,9 +94,6 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.Stats):
 		a.active, a.showDetail = 1, false
 		return a, nil
-	case key.Matches(msg, a.keys.Next):
-		a.active, a.showDetail = (a.active+1)%len(a.views), false
-		return a, nil
 	}
 	return a.forward(msg)
 }
