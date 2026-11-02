@@ -286,7 +286,7 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | Befehl | Zweck |
 |---|---|
 | `ingest` | siehe oben |
-| `status` | DB-Pfad, Größe, Anzahl Sessions/Events, letzter Ingest je Harness, letzte Fehler aus dem Log, letztes Backup |
+| `status` | DB-Pfad, Größe, Anzahl Sessions/Events, letzter Ingest je Harness, Fehler aus dem Log der letzten 24 h (ältere nur als Anzahl, `--all-errors`; fehlende Transkripte zählen nie), letztes Backup |
 | `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions), `--all-sessions` (sonst ohne Sessions ohne Events und Startzeit); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools); Fenster über `--since`/`--until` (Semantik und Zeitformate wie `search`, lokale Zeit), `--limit`/`--offset` zum Blättern, `--from-event ID` ab einem Event (z. B. Treffer aus `search`); ohne Grenzen vollständig, ab 2000 Events mit Hinweis auf stderr |
 | `search QUERY` | FTS5-Suche mit Snippets; Filter wie `sessions`, `--actor`, `--session ID` (eindeutiges Präfix erlaubt, mehrdeutig = Fehler), `--raw` (FTS5-Syntax, sonst werden die Wörter quotiert) |

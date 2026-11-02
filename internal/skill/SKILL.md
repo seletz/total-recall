@@ -20,7 +20,7 @@ Every read command accepts `--json`. Prefer `--json` and parse the output.
 
 | Command | Use it for |
 |---|---|
-| `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, recent errors. Check this first if results look empty. |
+| `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, errors of the last 24h (`recent_errors` with `at` and `message`; `older_errors` counts the rest, `--all-errors` lists them). Check this first if results look empty. |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents] [--all-sessions]` | list sessions (newest first) with start, duration, display name, repo, branch, #human, #agent; subagent sessions only with `--subagents`; sessions without events and start time only with `--all-sessions` |
 | `total-recall show SESSION --json [--all] [--since T] [--until T] [--limit N] [--offset N] [--from-event ID]` | conversation of one session (full id, native id or unique prefix); `--all` adds tool calls/results, automation, system events; without bounds the whole session (can be tens of thousands of events), so use a time window (local time, same formats as `search`), `--limit`/`--offset` to page, or `--from-event` with the `event_id` of a search hit |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text search with snippets, best first (default 20 hits); all words must match; `--session` restricts to one session (unique prefix ok); `--raw` passes FTS5 syntax through |

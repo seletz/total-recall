@@ -78,7 +78,8 @@ Zeigt den Zustand des Archivs.
 ```sh
 total-recall status
 total-recall status --json
-total-recall status --errors 20     # mehr Fehlerzeilen aus dem Log
+total-recall status --all-errors        # alle Fehler des Logs, unabhängig vom Alter
+total-recall status --errors 20         # bis zu 20 Fehlerzeilen statt 5
 ```
 
 ```text
@@ -92,11 +93,14 @@ last ingest (claude)  2026-11-01 14:59  (2m ago)
 last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.gz  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
 
-recent errors:
-  2026-10-30T08:12:01Z ERROR hook Stop: /Users/me/.claude/projects/x/y.jsonl: permission denied
+recent errors (last 24h, since 2026-10-31 15:01): 1
+  2026-11-01 08:12  (6h49m ago)  hook Stop: /Users/me/.claude/projects/x/y.jsonl: permission denied
+older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Library/Application Support/total-recall/total-recall.log)
 ```
 
-`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `last_ingest`, `last_backup`, `recent_errors`, …).
+**Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
+
+`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
