@@ -91,8 +91,10 @@ func TestFrames(t *testing.T) {
 }
 
 // TestHeatmapLayout checks the split of the body with the heatmap on: the
-// table shrinks first, the bar chart keeps MinChartHeight, and when even
-// that leaves no room the heatmap is left out and the status line says so.
+// table shrinks first, the bar chart keeps MinChartHeight, the heatmap
+// switches to its compact layout when the full one no longer fits, and when
+// even that leaves no room the heatmap is left out and the status line says
+// so.
 func TestHeatmapLayout(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -100,7 +102,10 @@ func TestHeatmapLayout(t *testing.T) {
 	}{
 		{"Full", tuitest.Width, tuitest.Height - 4},
 		{"TableShrinks", tuitest.Width, 24},
-		{"NoRoom", 80, 20},
+		// The app shell at 80×24 gives the body 20 rows: the compact heatmap.
+		{"Compact", 80, 20},
+		{"CompactNarrow", 50, 20},
+		{"NoRoom", 80, 19},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {

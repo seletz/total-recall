@@ -3,6 +3,7 @@ package chart
 import (
 	"fmt"
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas"
@@ -14,13 +15,70 @@ import (
 
 // Layout constants of RenderHeatmapText.
 const (
-	// HeatmapHeight is the number of lines RenderHeatmapText draws: the
-	// title, one row per weekday, the axis and the hour labels.
-	HeatmapHeight = 1 + 7 + 2
+	// HeatmapHeight is the number of lines the full layout draws: the title,
+	// one row per weekday, the axis and the hour labels.
+	HeatmapHeight = 1 + 7 + 1 + 1
+	// HeatmapCompactHeight is the number of lines the compact layout draws:
+	// the title with the legend, one row per weekday and the hour labels in
+	// the axis row.
+	HeatmapCompactHeight = 1 + 7 + 1
 	// HeatmapMinWidth is the narrowest area that fits the weekday labels, the
 	// axis and one cell per hour.
 	HeatmapMinWidth = 3 + 1 + 24
 )
+
+// HeatmapLayout is the arrangement RenderHeatmapText chooses for an area.
+type HeatmapLayout int
+
+// Layouts of the heatmap, from none to the largest.
+const (
+	// HeatmapNone fits nowhere: the area is too small for any heatmap.
+	HeatmapNone HeatmapLayout = iota
+	// HeatmapCompact fits small windows (the body of an 80×24 terminal): the
+	// hour labels share the axis row, the colour legend sits in the title.
+	HeatmapCompact
+	// HeatmapFull is the layout for larger windows, with its own axis row.
+	HeatmapFull
+)
+
+// String implements fmt.Stringer.
+func (l HeatmapLayout) String() string {
+	switch l {
+	case HeatmapNone:
+		return "none"
+	case HeatmapCompact:
+		return "compact"
+	case HeatmapFull:
+		return "full"
+	}
+	return fmt.Sprintf("HeatmapLayout(%d)", int(l))
+}
+
+// Height is the number of lines the layout draws; 0 for HeatmapNone.
+func (l HeatmapLayout) Height() int {
+	switch l {
+	case HeatmapCompact:
+		return HeatmapCompactHeight
+	case HeatmapFull:
+		return HeatmapHeight
+	}
+	return 0
+}
+
+// HeatmapLayoutFor chooses the layout for an area of w × h cells: the full
+// layout when it fits, the compact one when only that fits, and none below
+// HeatmapCompactHeight lines or HeatmapMinWidth cells. The width only
+// decides whether a heatmap fits at all: both layouts narrow their cells
+// down to one per hour and thin out the hour labels on their own.
+func HeatmapLayoutFor(w, h int) HeatmapLayout {
+	switch {
+	case w < HeatmapMinWidth || h < HeatmapCompactHeight:
+		return HeatmapNone
+	case h < HeatmapHeight:
+		return HeatmapCompact
+	}
+	return HeatmapFull
+}
 
 // HeatScale is the colour scale of the heatmap from cool to hot: four
 // shades of the first Palette colour, so the heatmap matches the bar chart.
@@ -49,15 +107,18 @@ var (
 )
 
 // RenderHeatmapText renders stats.ByWeekdayHour as a weekday × hour grid
-// of exactly HeatmapHeight lines, none wider than w cells: a title line
-// naming the metric and the maximum, one row per weekday from Monday at
-// the top, the hours along the bottom. A cell's intensity is its value
-// relative to the maximum, drawn as a shade character in a colour of
-// HeatScale (the same colour as background, so colour terminals show solid
-// blocks and plain output the shades); cells without activity stay blank.
-// Below HeatmapHeight lines or HeatmapMinWidth cells the result is "".
+// in the layout HeatmapLayoutFor picks for w × h: exactly that layout's
+// Height lines, none wider than w cells. A title line names the metric and
+// the maximum, one row per weekday follows from Monday at the top, the
+// hours run along the bottom. A cell's intensity is its value relative to
+// the maximum, drawn as a shade character in a colour of HeatScale (the
+// same colour as background, so colour terminals show solid blocks and
+// plain output the shades); cells without activity stay blank. The compact
+// layout drops the axis row and shows the shades as a legend in the title
+// instead. For HeatmapNone the result is "".
 func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
-	if h < HeatmapHeight || w < HeatmapMinWidth {
+	layout := HeatmapLayoutFor(w, h)
+	if layout == HeatmapNone {
 		return ""
 	}
 	maxValue := 0.0
@@ -66,6 +127,9 @@ func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
 			maxValue = max(maxValue, metric.value(a))
 		}
 	}
+	// The linechart underneath reserves an axis row and a label row below the
+	// grid; the compact layout keeps the labels in the axis row and cuts the
+	// label row off the view.
 	hm := heatmap.New(w, HeatmapHeight-1,
 		heatmap.WithXLabels(hourLabels),
 		heatmap.WithYLabels(weekdayLabels),
@@ -82,10 +146,27 @@ func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
 		}
 	}
 	hm.Draw()
-	decorate(&hm)
 
 	title := fmt.Sprintf("%s by weekday × hour · max %.0f", metric, maxValue)
-	return ansi.Truncate(title, w, "…") + "\n" + hm.View()
+	if layout == HeatmapFull {
+		decorate(&hm)
+		return ansi.Truncate(title, w, "…") + "\n" + hm.View()
+	}
+	decorateCompact(&hm)
+	title = fmt.Sprintf("%s by weekday × hour · %s · max %.0f", metric, heatLegend(), maxValue)
+	view := hm.View()
+	view = view[:strings.LastIndex(view, "\n")]
+	return ansi.Truncate(title, w, "…") + "\n" + view
+}
+
+// heatLegend is the colour ramp as one shade character per HeatScale index,
+// each in its colour, for the title of the compact layout.
+func heatLegend() string {
+	var b strings.Builder
+	for i, c := range HeatScale {
+		b.WriteString(lipgloss.NewStyle().Foreground(c).Render(string(heatRunes[i])))
+	}
+	return b.String()
 }
 
 // decorate moves the hour labels down to the last row, draws the axes in
@@ -93,12 +174,31 @@ func RenderHeatmapText(stats store.Stats, metric Metric, w, h int) string {
 // cell the shade character of its scale index in the same colour.
 func decorate(hm *heatmap.Model) {
 	o := hm.Origin()
-	top := o.Y - hm.GraphHeight()
 	for x := 0; x < hm.Width(); x++ {
 		p := canvas.Point{X: x, Y: o.Y}
 		hm.Canvas.SetCell(canvas.Point{X: x, Y: o.Y + 1}, hm.Canvas.Cell(p))
 		hm.Canvas.SetRune(p, ' ')
 	}
+	shade(hm)
+	hm.Canvas.SetRune(o, '┼')
+	for x := o.X + 1; x < hm.Width(); x++ {
+		hm.Canvas.SetRune(canvas.Point{X: x, Y: o.Y}, '─')
+	}
+}
+
+// decorateCompact leaves the hour labels in the axis row, closes the
+// vertical axis below the last weekday with a tick and gives every coloured
+// cell the shade character of its scale index in the same colour.
+func decorateCompact(hm *heatmap.Model) {
+	shade(hm)
+	hm.Canvas.SetRune(hm.Origin(), '╵')
+}
+
+// shade draws the vertical axis left of the grid and gives every coloured
+// cell the shade character of its scale index in the same colour.
+func shade(hm *heatmap.Model) {
+	o := hm.Origin()
+	top := o.Y - hm.GraphHeight()
 	for y := top; y < o.Y; y++ {
 		hm.Canvas.SetRune(canvas.Point{X: o.X, Y: y}, '│')
 		for x := o.X + 1; x < hm.Width(); x++ {
@@ -111,10 +211,6 @@ func decorate(hm *heatmap.Model) {
 				hm.Canvas.SetRuneWithStyle(p, heatRunes[i], st.Foreground(HeatScale[i]))
 			}
 		}
-	}
-	hm.Canvas.SetRune(o, '┼')
-	for x := o.X + 1; x < hm.Width(); x++ {
-		hm.Canvas.SetRune(canvas.Point{X: x, Y: o.Y}, '─')
 	}
 }
 
