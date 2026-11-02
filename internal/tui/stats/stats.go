@@ -29,6 +29,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/window"
 )
 
 // TopN is how many dimension values the chart stacks; the rest is "other".
@@ -128,7 +129,7 @@ type Model struct {
 	opts   Options
 	keys   KeyMap
 	dim    store.Dimension
-	window Window
+	window window.Window
 	metric chart.Metric
 
 	// seq counts changes of the filter; results carry the value they were
@@ -159,7 +160,7 @@ func New(opts Options) Model {
 	m := Model{
 		opts:   opts,
 		keys:   defaultKeyMap(),
-		window: NewWindow(store.PeriodDay, opts.Now(), opts.Location),
+		window: window.New(store.PeriodDay, opts.Now(), opts.Location),
 		cache:  map[filter]store.ActivitySeries{},
 		colors: &chart.Colors{},
 		chart:  opts.Chart,
@@ -270,7 +271,7 @@ func (m Model) setDimension(d store.Dimension) (tea.Model, tea.Cmd) {
 	return m.load()
 }
 
-func (m Model) setWindow(w Window) (tea.Model, tea.Cmd) {
+func (m Model) setWindow(w window.Window) (tea.Model, tea.Cmd) {
 	if w.Equal(m.window) {
 		return m, nil
 	}
