@@ -20,7 +20,7 @@ import (
 
 var ctx = context.Background()
 
-const sid = tf.DemoSession1
+const sid = tf.SmallSession1
 
 // fakeGit counts Resolve calls per cwd.
 type fakeGit struct {
@@ -111,9 +111,9 @@ func run(t *testing.T, e *env, paths ...string) Summary {
 	return sum
 }
 
-func TestAllDemoTree(t *testing.T) {
+func TestAllSmallTree(t *testing.T) {
 	e := newEnv(t)
-	tf.Demo(t, e.dir)
+	tf.Small(t, e.dir)
 	sum, err := All(ctx, e.deps)
 	if err != nil {
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestGitNegativeCacheExpires(t *testing.T) {
 	}
 	p := tf.WriteFile(t, e.projects, "-w/"+sid+".jsonl", tf.Join(
 		tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/alpha", "a"),
-		tf.User(tf.DemoSession2, "u2", "2026-10-01T10:00:00Z", "/w/fresh", "b"),
+		tf.User(tf.SmallSession2, "u2", "2026-10-01T10:00:00Z", "/w/fresh", "b"),
 		tf.User("33333333-3333-4333-8333-333333333333", "u3", "2026-10-01T10:00:00Z", "/w/wt", "c"),
 	))
 	run(t, e, p)
@@ -410,7 +410,7 @@ func TestRawMaxBytes(t *testing.T) {
 
 func TestRegit(t *testing.T) {
 	e := newEnv(t)
-	s2 := tf.DemoSession2
+	s2 := tf.SmallSession2
 	s3 := "33333333-3333-4333-8333-333333333333"
 	// Session 1 in /w/stale: not a repo at first ingest (cached negative).
 	// Session 2 in /w/alpha: a repo that later becomes unresolvable (deleted

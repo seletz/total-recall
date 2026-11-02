@@ -16,6 +16,7 @@ Harness-neutral archive of coding-agent sessions (Claude Code first) in a local 
 - Commits: signed when 1Password signing works; unsigned commits are fine in this private repo (`git -c commit.gpgsign=false commit`). If SSH push fails, push over HTTPS with gh credentials.
 - Never mention Claude/AI in commits, PRs, issues.
 - Branch from `develop`, PR into `develop`. Conventional commit style (`feat(store): …`).
+- **TUI change → regenerate the screenshots:** `mise run docs:screenshots` and commit the images and the goldens in `internal/screenshot/testdata/frames/`. `TestFramesGolden` fails otherwise. The screenshots and the tests that need a populated archive use the synthetic demo archive (`mise run demo:db`, `internal/demo`); never anything real.
 
 ## Layout
 
@@ -23,4 +24,4 @@ See `docs/explanation/design.md`, section Architektur. Shared types are in `inte
 
 ## Tasks
 
-`mise run build | test | lint | docs:serve | docs:build`
+`mise run build | test | lint | demo:db | docs:serve | docs:build | docs:screenshots`

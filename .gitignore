@@ -1,5 +1,6 @@
 /total-recall
 /dist/
+/build/
 /site/
 *.db
 *.db-wal

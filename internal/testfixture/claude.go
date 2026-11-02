@@ -95,21 +95,21 @@ func AppendFile(t testing.TB, path, content string) {
 	}
 }
 
-// Session IDs and timestamps used by Demo.
+// Session IDs of the Small fixture.
 const (
-	DemoSession1 = "11111111-1111-4111-8111-111111111111"
-	DemoSession2 = "22222222-2222-4222-8222-222222222222"
+	SmallSession1 = "11111111-1111-4111-8111-111111111111"
+	SmallSession2 = "22222222-2222-4222-8222-222222222222"
 )
 
-// Demo writes a small projects tree below dir: two sessions in two project
+// Small writes a small projects tree below dir: two sessions in two project
 // directories, one with a subagent and a workflow journal. It returns the
 // projects dir. Counts: session 1 has 2 human and 3 agent events (one is a
 // tool_use), its subagent 1 human-ish (peer) and 1 agent event; session 2 has
 // 1 human and 1 agent event.
-func Demo(t testing.TB, dir string) string {
+func Small(t testing.TB, dir string) string {
 	t.Helper()
 	projects := filepath.Join(dir, "projects")
-	s1, s2 := DemoSession1, DemoSession2
+	s1, s2 := SmallSession1, SmallSession2
 	WriteFile(t, projects, "-w-alpha/"+s1+".jsonl", Join(
 		User(s1, "a1", "2026-10-05T08:00:00.000Z", "/w/alpha", "please list the files"),
 		ToolUse(s1, "a2", "2026-10-05T08:00:01.000Z", "/w/alpha", "Bash", "ls"),
