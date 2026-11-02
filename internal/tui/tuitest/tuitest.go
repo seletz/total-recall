@@ -1,3 +1,7 @@
+// frame; and CollapseRepaints keeps only one paint. The terminal queries
+// the program writes from its own goroutine (synchronized output, unicode
+// core, kitty keyboard, and the background colour the views ask for) are
+// removed as well (StripQueries).
 // Package tuitest drives Bubble Tea models in tests, so every view package
 // tests the same way. It wraps teatest with the fixed terminal size,
 // colourless profile and clock the TUI golden tests share (New, Press,
@@ -155,9 +159,10 @@ var SlowTicker = tea.WithFPS(1)
 // the program runs with SlowTicker, so a start-up that quits within a second
 // is painted once, by the final flush; the model must already have its size
 // when the program starts, so a tick that does come first paints the same
-// frame; and CollapseRepaints keeps only one paint. The terminal capability
-// queries the program writes from its own goroutine are removed as well
-// (StripQueries).
+// frame; and CollapseRepaints keeps only one paint. The terminal queries
+// the program writes from its own goroutine (synchronized output, unicode
+// core, kitty keyboard, and the background colour the views ask for) are
+// removed as well (StripQueries).
 func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 	tb.Helper()
 	_ = tm.Quit()
@@ -171,7 +176,7 @@ func RequireOutput(tb testing.TB, tm *teatest.TestModel) {
 // StripQueries removes the start-up capability queries from raw program
 // output; see RequireOutput.
 func StripQueries(out []byte) []byte {
-	for _, q := range []string{ansi.RequestModeSynchronizedOutput, ansi.RequestModeUnicodeCore, ansi.RequestKittyKeyboard} {
+	for _, q := range []string{ansi.RequestModeSynchronizedOutput, ansi.RequestModeUnicodeCore, ansi.RequestKittyKeyboard, ansi.RequestBackgroundColor} {
 		out = bytes.ReplaceAll(out, []byte(q), nil)
 	}
 	return out

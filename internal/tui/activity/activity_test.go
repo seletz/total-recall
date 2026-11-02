@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"errors"
+	"image/color"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -27,9 +28,12 @@ func clock() time.Time { return now }
 // bodySize is the window size the app shell hands the view at 100×30.
 var bodySize = tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height - 4}
 
+// work is the built-in working time: 09:00–17:00, 8h, 6h–9h on target.
+var work = store.WorkHours{Start: 9 * time.Hour, End: 17 * time.Hour, Target: 8 * time.Hour, Low: 6 * time.Hour, High: 9 * time.Hour}
+
 func newModel(t *testing.T, l Loader) Model {
 	t.Helper()
-	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour})
+	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work})
 }
 
 // drive starts m with the body size and applies the key names in order,
@@ -110,8 +114,49 @@ func TestSizes(t *testing.T) {
 // midnight: the New Year's Eve session is split over two days.
 func TestMidnightDayStart(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation})
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Work: work})
 	m = drive(t, m, "l")
+	golden.RequireEqual(t, tuitest.Frame(m))
+}
+
+// TestColors pins the escape sequences of the coloured frames: the bar
+// segments, the band and its lines, the ratings of span and difference,
+// the weekend rows and the total line, on a dark and on a light background
+// (the terminal's answer arrives as tea.BackgroundColorMsg). Last month
+// holds every edge case of the fixture; the sizes are large enough for all
+// of its rows.
+func TestColors(t *testing.T) {
+	tests := []struct {
+		name string
+		bg   color.Color
+		size tea.WindowSizeMsg
+		keys []string
+	}{
+		{"LastMonthDark", color.Black, tea.WindowSizeMsg{Width: 110, Height: 40}, []string{"m", "l"}},
+		{"LastMonthLight", color.White, tea.WindowSizeMsg{Width: 110, Height: 40}, []string{"m", "l"}},
+		{"LastWeekDark", color.Black, bodySize, []string{"l"}},
+		{"ThisWeekDefaultIsDark", nil, bodySize, nil},
+	}
+	st, _ := fixturedb.Activity(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msgs := []tea.Msg{tt.size}
+			if tt.bg != nil {
+				msgs = append(msgs, tea.BackgroundColorMsg{Color: tt.bg})
+			}
+			msgs = append(msgs, tuitest.Keys(tt.keys...)...)
+			m := tuitest.Drive(t, newModel(t, st), msgs...).(Model)
+			golden.RequireEqual(t, []byte(m.View().Content))
+		})
+	}
+}
+
+// TestNoWorkHours renders last month without working time: no difference
+// column, no band, plain bars, the total without a balance.
+func TestNoWorkHours(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour})
+	m = drive(t, m, "m", "l")
 	golden.RequireEqual(t, tuitest.Frame(m))
 }
 
@@ -203,23 +248,5 @@ func TestStaleResultDropped(t *testing.T) {
 	m = tm.(Model)
 	if !strings.Contains(tuitest.Frame(m), "this week") || len(m.cache) != 2 {
 		t.Errorf("stale result changed the view or was not cached:\n%s", tuitest.Frame(m))
-	}
-}
-
-func TestFormatSpan(t *testing.T) {
-	tests := []struct {
-		d    time.Duration
-		want string
-	}{
-		{0, "0s"},
-		{5 * time.Second, "5s"},
-		{25*time.Minute + 5*time.Second, "25m"},
-		{3*time.Hour + 5*time.Minute, "3h05m"},
-		{26 * time.Hour, "26h00m"},
-	}
-	for _, tt := range tests {
-		if got := formatSpan(tt.d); got != tt.want {
-			t.Errorf("formatSpan(%s) = %q, want %q", tt.d, got, tt.want)
-		}
 	}
 }

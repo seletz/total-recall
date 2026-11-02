@@ -41,6 +41,11 @@ func TestRenderHeatmapText(t *testing.T) {
 		{"Narrow40x10", stats, MetricEvents, 40, 10},
 		{"Wide120x10", stats, MetricEvents, 120, 10},
 		{"Empty80x10", store.Stats{}, MetricEvents, 80, 10},
+		// The compact layout: the body of an 80×24 terminal leaves 9 rows.
+		{"Compact79x9", stats, MetricEvents, 79, 9},
+		{"CompactHuman79x9", stats, MetricHuman, 79, 9},
+		{"CompactNarrow40x9", stats, MetricEvents, 40, 9},
+		{"CompactEmpty79x9", store.Stats{}, MetricEvents, 79, 9},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,8 +76,9 @@ func TestRenderHeatmapTextTooSmall(t *testing.T) {
 		name string
 		w, h int
 	}{
-		{"short", 80, HeatmapHeight - 1},
+		{"short", 80, HeatmapCompactHeight - 1},
 		{"narrow", HeatmapMinWidth - 1, HeatmapHeight},
+		{"narrowCompact", HeatmapMinWidth - 1, HeatmapCompactHeight},
 		{"zero", 0, 0},
 	}
 	for _, tt := range tests {
@@ -90,6 +96,58 @@ func TestRenderHeatmapTextColours(t *testing.T) {
 	out := RenderHeatmapText(fixtureStats(t), MetricEvents, 80, 10)
 	if !strings.Contains(out, "\x1b[") {
 		t.Fatal("output has no escape sequences; cells are not coloured")
+	}
+	if !strings.Contains(out, "█") {
+		t.Error("no cell at full intensity")
+	}
+}
+
+// TestHeatmapLayoutFor checks which layout an area gets: the full one from
+// HeatmapHeight rows up, the compact one down to HeatmapCompactHeight, none
+// below that or below HeatmapMinWidth.
+func TestHeatmapLayoutFor(t *testing.T) {
+	tests := []struct {
+		name   string
+		w, h   int
+		want   HeatmapLayout
+		height int
+	}{
+		{"acceptance size", 80, 10, HeatmapFull, HeatmapHeight},
+		{"tall", 120, 30, HeatmapFull, HeatmapHeight},
+		{"narrow but tall", HeatmapMinWidth, 10, HeatmapFull, HeatmapHeight},
+		{"80x24 body", 79, 9, HeatmapCompact, HeatmapCompactHeight},
+		{"narrow and low", HeatmapMinWidth, 9, HeatmapCompact, HeatmapCompactHeight},
+		{"too low", 80, 8, HeatmapNone, 0},
+		{"too narrow", HeatmapMinWidth - 1, 10, HeatmapNone, 0},
+		{"zero", 0, 0, HeatmapNone, 0},
+		{"negative", -1, -1, HeatmapNone, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HeatmapLayoutFor(tt.w, tt.h)
+			if got != tt.want {
+				t.Errorf("HeatmapLayoutFor(%d, %d) = %v, want %v", tt.w, tt.h, got, tt.want)
+			}
+			if got.Height() != tt.height {
+				t.Errorf("Height() = %d, want %d", got.Height(), tt.height)
+			}
+		})
+	}
+}
+
+// TestRenderHeatmapTextCompactColours checks that the compact layout keeps
+// the colour ramp: coloured cells, the hottest at full intensity, and the
+// legend in the title showing every shade.
+func TestRenderHeatmapTextCompactColours(t *testing.T) {
+	out := RenderHeatmapText(fixtureStats(t), MetricEvents, 79, HeatmapCompactHeight)
+	if !strings.Contains(out, "\x1b[") {
+		t.Fatal("output has no escape sequences; cells are not coloured")
+	}
+	title := strings.SplitN(ansi.Strip(out), "\n", 2)[0]
+	for _, r := range heatRunes {
+		if !strings.ContainsRune(title, r) {
+			t.Errorf("title %q lacks legend shade %q", title, r)
+		}
 	}
 	if !strings.Contains(out, "█") {
 		t.Error("no cell at full intensity")

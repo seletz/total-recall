@@ -417,14 +417,15 @@ func (m *Model) rebuild() tea.Cmd {
 }
 
 // layout splits the body height between the chart, the heatmap and the
-// table: the heatmap, when on, takes its fixed height as long as the chart
-// keeps MinChartHeight beside it; the table gets one line per series plus
-// its header, but shrinks before the chart goes below MinChartHeight; the
-// chart gets the rest.
+// table: the heatmap, when on, takes the height of the largest layout that
+// fits while the chart keeps MinChartHeight beside it (see
+// chart.HeatmapLayoutFor); the table gets one line per series plus its
+// header, but shrinks before the chart goes below MinChartHeight; the chart
+// gets the rest.
 func (m Model) layout() (chartH, heatH, tableH int) {
 	avail := max(m.height-chromeRows, 0)
-	if m.heat.on && avail-MinChartHeight >= chart.HeatmapHeight {
-		heatH = chart.HeatmapHeight
+	if m.heat.on {
+		heatH = chart.HeatmapLayoutFor(max(m.width-1, 0), avail-MinChartHeight).Height()
 		avail -= heatH
 	}
 	want := 0
@@ -468,7 +469,7 @@ func (m Model) View() tea.View {
 		parts = append(parts, block(m.chartView(chartH), chartH))
 	}
 	if heatH > 0 {
-		parts = append(parts, block(m.heatView(), heatH))
+		parts = append(parts, block(m.heatView(heatH), heatH))
 	}
 	parts = append(parts, strings.Repeat("─", m.width))
 	if tableH > 0 {
@@ -525,16 +526,16 @@ func (m Model) hint() string {
 	return ""
 }
 
-// heatView is the heatmap area: the rendered heatmap, or the hint while
-// there is nothing to draw.
-func (m Model) heatView() string {
+// heatView is the heatmap area of h rows: the rendered heatmap in the
+// layout for that height, or the hint while there is nothing to draw.
+func (m Model) heatView(h int) string {
 	switch {
 	case m.heat.err != nil:
 		return " " + faintStyle.Render("The heatmap query failed; see the status line.")
 	case !m.heat.loaded:
 		return " " + faintStyle.Render("Loading heatmap…")
 	}
-	return indent(chart.RenderHeatmapText(m.heat.stats, m.metric, max(m.width-1, 0), chart.HeatmapHeight))
+	return indent(chart.RenderHeatmapText(m.heat.stats, m.metric, max(m.width-1, 0), h))
 }
 
 // status is the bottom line: the chart mode, the state of the load and
