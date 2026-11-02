@@ -101,10 +101,19 @@ func (w WorkHours) Diff(d Workday) (diff time.Duration, ok bool) {
 // Rate rates the span of an active workday against Low and High; a
 // weekend, a holiday, an inactive day and no working time are RatingNone.
 func (w WorkHours) Rate(d Workday) Rating {
-	if w.IsZero() || !d.Active() || d.IsOff() {
+	if !d.Active() || d.IsOff() {
 		return RatingNone
 	}
-	return rate(d.Span(), w.Low, w.High)
+	return w.RateSpan(d.Span())
+}
+
+// RateSpan rates a span of one day against Low and High; RatingNone
+// without working time.
+func (w WorkHours) RateSpan(span time.Duration) Rating {
+	if w.IsZero() {
+		return RatingNone
+	}
+	return rate(span, w.Low, w.High)
 }
 
 // Balance sums the days: the spans of the active days against Target ×

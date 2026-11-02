@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
@@ -28,12 +29,18 @@ func clock() time.Time { return now }
 // bodySize is the window size the app shell hands the view at 100×30.
 var bodySize = tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height - 4}
 
-// work is the built-in working time: 09:00–17:00, 8h, 6h–9h on target.
-var work = store.WorkHours{Start: 9 * time.Hour, End: 17 * time.Hour, Target: 8 * time.Hour, Low: 6 * time.Hour, High: 9 * time.Hour}
+// work is the built-in working time: 09:00–17:00, 8h, 6h–9h per day and
+// 32h–48h per week on target.
+var work = store.WorkHours{Start: 9 * time.Hour, End: 17 * time.Hour, Target: 8 * time.Hour, Low: 6 * time.Hour, High: 9 * time.Hour, WeeklyLow: 32 * time.Hour, WeeklyHigh: 48 * time.Hour}
+
+// holidays are those of Baden-Württemberg: the fixture has Weihnachten and
+// Zweiter Weihnachtsfeiertag in last month, Neujahr in last week and
+// Epiphanias (Tue 2026-01-06) in this week.
+var holidays = holiday.New("Baden-Württemberg")
 
 func newModel(t *testing.T, l Loader) Model {
 	t.Helper()
-	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work})
+	return New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays})
 }
 
 // drive starts m with the body size and applies the key names in order,
@@ -70,6 +77,11 @@ func TestFrames(t *testing.T) {
 		{"MonthScrollEnd", []string{"m", "l", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j"}},
 		{"ScrollResetsOnWindow", []string{"m", "l", "j", "j", "]"}},
 		{"UnknownKeyIgnored", []string{"x", "q", "1", "e"}},
+		{"FiguresOff", []string{"s"}},
+		{"FiguresBackOn", []string{"s", "s"}},
+		{"MonthFiguresOff", []string{"m", "l", "s"}},
+		{"HolidayDay", []string{"d", "[", "[", "[", "[", "["}},
+		{"HolidayDayHuman", []string{"d", "[", "[", "[", "[", "[", "h"}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
@@ -93,6 +105,8 @@ func TestSizes(t *testing.T) {
 		{"NarrowMonth", 80, 20, []string{"m", "l"}},
 		{"NoBar", 50, 20, nil},
 		{"Tiny", 40, 8, []string{"m", "l"}},
+		{"TinyWeek", 40, 8, nil},
+		{"LowWeek", 100, 11, nil},
 		{"Wide", 140, 40, []string{"m", "l"}},
 	}
 	st, _ := fixturedb.Activity(t)
@@ -136,6 +150,7 @@ func TestColors(t *testing.T) {
 		{"LastMonthLight", color.White, tea.WindowSizeMsg{Width: 110, Height: 40}, []string{"m", "l"}},
 		{"LastWeekDark", color.Black, bodySize, []string{"l"}},
 		{"ThisWeekDefaultIsDark", nil, bodySize, nil},
+		{"HolidayDayDark", color.Black, bodySize, []string{"d", "[", "[", "[", "[", "["}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
@@ -152,12 +167,56 @@ func TestColors(t *testing.T) {
 }
 
 // TestNoWorkHours renders last month without working time: no difference
-// column, no band, plain bars, the total without a balance.
+// column, no band, plain bars, the headline without a balance; the
+// holidays are still named.
 func TestNoWorkHours(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour})
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Holidays: holidays})
 	m = drive(t, m, "m", "l")
 	golden.RequireEqual(t, tuitest.Frame(m))
+}
+
+// TestNoHolidays renders this week without a holiday calendar: Tuesday is
+// an ordinary workday, the week has five.
+func TestNoHolidays(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work})
+	m = drive(t, m)
+	golden.RequireEqual(t, tuitest.Frame(m))
+}
+
+// holidayFunc adapts a function to store.Holidays.
+type holidayFunc func(time.Time) string
+
+func (f holidayFunc) Name(day time.Time) string { return f(day) }
+
+// TestHolidayWithActivity marks days of this week with activity as
+// holidays: Monday (activity early, the name follows the bar), Thursday
+// (activity late, the name comes first) and the Sunday (a holiday on a
+// weekend with activity: holiday colour and name). The week keeps three
+// workdays.
+func TestHolidayWithActivity(t *testing.T) {
+	names := map[int]string{5: "Testtag", 8: "Fest der Prüfung", 11: "Sonntagsfeiertag"}
+	st, _ := fixturedb.Activity(t)
+	cal := holidayFunc(func(d time.Time) string { return names[d.Day()] })
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: cal})
+	m = drive(t, m)
+	golden.RequireEqual(t, tuitest.Frame(m))
+}
+
+// TestFutureDaysNoWorkdays renders this week as of Wednesday: Thursday
+// and Friday are no workdays yet, so the target is two days (Monday and
+// Wednesday; Tuesday is Epiphanias).
+func TestFutureDaysNoWorkdays(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	wed := func() time.Time { return time.Date(2026, 1, 7, 15, 0, 0, 0, testfixture.ActivityLocation) }
+	m := New(Options{Loader: st, Now: wed, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays})
+	m = drive(t, m)
+	f := tuitest.Frame(m)
+	if !strings.Contains(f, "target 16h00m (2 workdays × 8h00m)") {
+		t.Errorf("workdays up to today not applied:\n%s", f)
+	}
+	golden.RequireEqual(t, f)
 }
 
 // TestProgram runs the view in a test program: the first load arrives
@@ -165,7 +224,7 @@ func TestNoWorkHours(t *testing.T) {
 func TestProgram(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	tm := tuitest.New(t, newModel(t, st))
-	tuitest.WaitFor(t, tm, "total:")
+	tuitest.WaitFor(t, tm, "week:")
 	final := tuitest.Final(t, tm).(Model)
 	golden.RequireEqual(t, tuitest.Frame(final))
 }

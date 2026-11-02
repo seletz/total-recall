@@ -169,12 +169,12 @@ func TestActivityWiring(t *testing.T) {
 		t.Fatal(err)
 	}
 	tm := tuitest.New(t, app)
-	tuitest.WaitFor(t, tm, "total:")
+	tuitest.WaitFor(t, tm, "week:")
 	tuitest.Press(tm, "l")
 	tuitest.WaitFor(t, tm, "last week")
 	final := tuitest.Final(t, tm).(App)
 	frame := tuitest.Frame(final)
-	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "total: 2 days with activity, 25m"} {
+	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "week: 25m in 2 days"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}

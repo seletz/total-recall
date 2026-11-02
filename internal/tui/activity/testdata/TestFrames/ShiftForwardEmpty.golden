@@ -1,4 +1,5 @@
  period: day [week] month  count: [all] human                    2026-W03 · 2026-01-12 – 2026-01-18
+ week: 0s in 0 days · target 0s (0 workdays × 8h00m) · balance +0h00m
  day             first  last     span     diff  04      08       12      16       20      00
  Mon 2026-01-12  -      -           -        -  ··········│────────────────│·······················
  Tue 2026-01-13  -      -           -        -  ··········│────────────────│·······················
@@ -18,9 +19,8 @@
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- total: 0 days with activity, 0s · target 0s (0 workdays × 8h00m) · balance +0h00m
+ first  median -  mean -  min -  max -
+ last   median -  mean -  min -  max -
+ span   median -  mean -  min -  max -
  7 days · 0 ms
