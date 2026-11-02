@@ -513,9 +513,11 @@ and the elapsed span, plus a total. A day begins at the configured day_start
 as e.g. "01:30 (+1)". The range comes from --range today|this-week|last-week|
 this-month|last-month (relative to now, weeks start on Monday), from
 --since/--until or --month; default this-week. --human-only counts only
-human messages. Each weekday with activity is measured against the daily
-target of the [work] config (default 8h): DIFF is the span minus the target,
-the total line balances all spans against target × active weekdays.`,
+human messages. Each weekday that is no public holiday is a workday with the
+daily target of the [work] config (default 8h): DIFF is the span minus the
+target, the total line balances all spans against target × workdays of the
+range (up to today). Holidays come from the configured Bundesland and are
+named in the HOLIDAY column.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := e.loadConfig()
@@ -537,17 +539,21 @@ the total line balances all spans against target × active weekdays.`,
 					return err
 				}
 				defer func() { _ = st.Close() }()
+				cal := holidays(cfg)
 				days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
-					Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly,
+					Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal,
 				})
 				if err != nil {
 					return err
 				}
-				wh := workHours(cfg)
-				if asJSON {
-					return writeJSON(cmd.OutOrStdout(), workdayJSON(days, since, until, loc, cfg.Timezone, cfg.DayStart, humanOnly, wh, cfg.Work.Hours))
+				r := workdayReport{
+					days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
+					work: workHours(cfg), hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
 				}
-				return writeWorkdayTable(cmd.OutOrStdout(), days, since, until, loc, cfg.DayStart, humanOnly, wh, cfg.Work.Hours)
+				if asJSON {
+					return writeJSON(cmd.OutOrStdout(), r.json())
+				}
+				return r.table(cmd.OutOrStdout())
 			}
 			since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
 			if err != nil {

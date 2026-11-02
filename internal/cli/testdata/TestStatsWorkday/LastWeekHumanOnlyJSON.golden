@@ -6,6 +6,7 @@
   "human_only": true,
   "work_hours": "09:00-17:00",
   "target_seconds": 28800,
+  "holiday_region": "Baden-Württemberg",
   "days": [
     {
       "day": "2025-12-29",
@@ -16,6 +17,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -31,6 +33,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -46,6 +49,7 @@
       "last_local": "00:05 (+1)",
       "span_seconds": 1500,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 28800,
       "diff_seconds": -27300,
       "sessions": 1,
@@ -61,6 +65,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "Neujahr",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -76,6 +81,7 @@
       "last_local": "15:00",
       "span_seconds": 0,
       "weekend": false,
+      "holiday": "",
       "target_seconds": 28800,
       "diff_seconds": -28800,
       "sessions": 1,
@@ -91,6 +97,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": true,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -106,6 +113,7 @@
       "last_local": "",
       "span_seconds": 0,
       "weekend": true,
+      "holiday": "",
       "target_seconds": 0,
       "diff_seconds": 0,
       "sessions": 0,
@@ -115,9 +123,10 @@
   ],
   "total": {
     "days": 2,
-    "workdays": 2,
+    "workdays": 4,
+    "holidays": 1,
     "span_seconds": 1500,
-    "target_seconds": 57600,
-    "balance_seconds": -56100
+    "target_seconds": 115200,
+    "balance_seconds": -113700
   }
 }

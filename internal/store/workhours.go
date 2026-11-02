@@ -6,18 +6,28 @@ import (
 )
 
 // WorkHours is the normal working time the days of Workday are measured
-// against: the core hours of a calendar day, the daily target of a weekday
-// and the span that counts as on target. The zero value means no working
-// time is configured: no core hours, no target, every rating RatingNone.
+// against: the core hours of a calendar day, the daily target of a workday
+// (a weekday that is no public holiday) and the spans that count as on
+// target per day and per week. The zero value means no working time is
+// configured: no core hours, no target, every rating RatingNone.
 type WorkHours struct {
 	// Start and End are the core hours as offsets from local midnight
 	// (09:00–17:00 = 9h, 17h).
 	Start, End time.Duration
-	// Target is the daily target on weekdays; weekends have none.
+	// Target is the daily target on workdays; weekends and holidays have
+	// none.
 	Target time.Duration
 	// Low and High bound the span of a day that counts as on target.
 	Low, High time.Duration
+	// WeeklyLow and WeeklyHigh bound the working time of a week with five
+	// workdays that counts as on target; a range with another number of
+	// workdays scales them (see RateBalance). Both zero means the daily
+	// bounds times the workdays are used instead.
+	WeeklyLow, WeeklyHigh time.Duration
 }
+
+// WorkdaysPerWeek is the number of workdays the weekly bounds refer to.
+const WorkdaysPerWeek = 5
 
 // Rating says how a span or a balance relates to the target.
 type Rating int
@@ -46,10 +56,11 @@ func (r Rating) String() string {
 // Balance sums a range of days against the target.
 type Balance struct {
 	Span     time.Duration // sum of the spans of the active days
-	Target   time.Duration // target of the active weekdays
+	Target   time.Duration // Target × Workdays
 	Balance  time.Duration // Span minus Target
 	Active   int           // days with activity
-	Workdays int           // active weekdays, the days with a target
+	Workdays int           // workdays of the range: weekdays that are no holiday, up to asOf
+	Holidays int           // public holidays in the range, weekends included
 }
 
 // IsZero reports whether no working time is configured.
@@ -68,10 +79,10 @@ func (w WorkHours) Core(day time.Time) (start, end time.Time) {
 	return DayBoundary(day, w.Start), DayBoundary(day, w.End)
 }
 
-// TargetFor returns the target of the day: Target on an active weekday,
-// zero on a weekend or a day without activity.
+// TargetFor returns the target of the day: Target on an active workday,
+// zero on a weekend, a holiday or a day without activity.
 func (w WorkHours) TargetFor(d Workday) time.Duration {
-	if !d.Active() || IsWeekend(d.Day) {
+	if !d.Active() || d.IsOff() {
 		return 0
 	}
 	return w.Target
@@ -79,7 +90,7 @@ func (w WorkHours) TargetFor(d Workday) time.Duration {
 
 // Diff returns the span of the day minus its target; ok is false on a day
 // without activity or without working time, where there is nothing to
-// compare. On a weekend the whole span is the difference.
+// compare. On a weekend or a holiday the whole span is the difference.
 func (w WorkHours) Diff(d Workday) (diff time.Duration, ok bool) {
 	if w.IsZero() || !d.Active() {
 		return 0, false
@@ -87,44 +98,57 @@ func (w WorkHours) Diff(d Workday) (diff time.Duration, ok bool) {
 	return d.Span() - w.TargetFor(d), true
 }
 
-// Rate rates the span of an active weekday against Low and High; a
-// weekend, an inactive day and no working time are RatingNone.
+// Rate rates the span of an active workday against Low and High; a
+// weekend, a holiday, an inactive day and no working time are RatingNone.
 func (w WorkHours) Rate(d Workday) Rating {
-	if w.IsZero() || !d.Active() || IsWeekend(d.Day) {
+	if w.IsZero() || !d.Active() || d.IsOff() {
 		return RatingNone
 	}
 	return rate(d.Span(), w.Low, w.High)
 }
 
-// Balance sums the days: the spans of the active days against the target
-// of the active weekdays.
-func (w WorkHours) Balance(days []Workday) Balance {
+// Balance sums the days: the spans of the active days against Target ×
+// the workdays of the range. A workday is a weekday that is no public
+// holiday, with or without activity; days after asOf (a local midnight,
+// usually today) are not workdays yet, a zero asOf counts every day. So
+// a day without activity on a past workday lowers the balance, a holiday
+// or a weekend does not.
+func (w WorkHours) Balance(days []Workday, asOf time.Time) Balance {
 	var b Balance
 	for _, d := range days {
-		if !d.Active() {
+		if d.IsHoliday() {
+			b.Holidays++
+		}
+		if d.Active() {
+			b.Span += d.Span()
+			b.Active++
+		}
+		if w.IsZero() || d.IsOff() || (!asOf.IsZero() && d.Day.After(asOf)) {
 			continue
 		}
-		b.Span += d.Span()
-		b.Active++
-		if w.IsZero() || IsWeekend(d.Day) {
-			continue
-		}
-		b.Target += w.Target
 		b.Workdays++
 	}
+	b.Target = w.Target * time.Duration(b.Workdays)
 	b.Balance = b.Span - b.Target
 	return b
 }
 
-// RateBalance rates a balance with the daily tolerance scaled by the
-// workdays: on target between Workdays × (Low − Target) and Workdays ×
-// (High − Target). Without a workday there is nothing to rate.
+// RateBalance rates the working time of a range against the weekly
+// bounds scaled by its workdays: on target between WeeklyLow ×
+// Workdays/5 and WeeklyHigh × Workdays/5, so a full week is measured
+// against the bounds as configured. Without weekly bounds the daily
+// bounds times the workdays apply. Without a workday there is nothing to
+// rate.
 func (w WorkHours) RateBalance(b Balance) Rating {
 	if w.IsZero() || b.Workdays == 0 {
 		return RatingNone
 	}
 	n := time.Duration(b.Workdays)
-	return rate(b.Balance, n*(w.Low-w.Target), n*(w.High-w.Target))
+	low, high := n*w.Low, n*w.High
+	if w.WeeklyLow > 0 || w.WeeklyHigh > 0 {
+		low, high = w.WeeklyLow*n/WorkdaysPerWeek, w.WeeklyHigh*n/WorkdaysPerWeek
+	}
+	return rate(b.Span, low, high)
 }
 
 func rate(v, low, high time.Duration) Rating {

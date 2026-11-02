@@ -22,6 +22,15 @@ type WorkdayFilter struct {
 	DayStart time.Duration
 	// HumanOnly counts human events only; otherwise human and agent events.
 	HumanOnly bool
+	// Holidays names the public holidays; nil means there are none.
+	Holidays Holidays
+}
+
+// Holidays names public holidays; *holiday.Calendar implements it.
+type Holidays interface {
+	// Name returns the name of the holiday on the calendar date of day (in
+	// day's location), or "" on an ordinary day.
+	Name(day time.Time) string
 }
 
 // Workday is the first and the last activity of one day under the
@@ -32,11 +41,21 @@ type Workday struct {
 	// First and Last are the instants of the first and the last counted
 	// event; zero on a day without activity.
 	First, Last time.Time
+	// Holiday is the name of the public holiday on the day, "" on an
+	// ordinary day (see WorkdayFilter.Holidays).
+	Holiday string
 	Activity
 }
 
 // Active reports whether the day has any counted activity.
 func (d Workday) Active() bool { return !d.First.IsZero() }
+
+// IsHoliday reports whether the day is a public holiday.
+func (d Workday) IsHoliday() bool { return d.Holiday != "" }
+
+// IsOff reports whether the day is a weekend day or a public holiday: a
+// day without a target.
+func (d Workday) IsOff() bool { return IsWeekend(d.Day) || d.IsHoliday() }
 
 // Span is the elapsed time between the first and the last activity.
 func (d Workday) Span() time.Duration {
@@ -109,7 +128,8 @@ func DayBoundary(day time.Time, dayStart time.Duration) time.Time {
 // with the day beginning at f.DayStart; days without activity are included
 // as inactive entries, so the result is gap-free from the first to the last
 // day of the range. The range of days is DayOf(Since) to DayOf(Until) minus
-// one; an open bound takes the first or last day with activity.
+// one; an open bound takes the first or last day with activity. With
+// f.Holidays every day carries the name of its public holiday.
 func (s *Store) Workday(ctx context.Context, f WorkdayFilter) ([]Workday, error) {
 	if f.DayStart < 0 || f.DayStart >= 24*time.Hour {
 		return nil, fmt.Errorf("store: workday: day start %s out of range", f.DayStart)
@@ -189,6 +209,9 @@ func (s *Store) Workday(ctx context.Context, f WorkdayFilter) ([]Workday, error)
 	var out []Workday
 	for day := from; !day.After(to); day = day.AddDate(0, 0, 1) {
 		w := Workday{Day: day, Label: day.Format("2006-01-02")}
+		if f.Holidays != nil {
+			w.Holiday = f.Holidays.Name(day)
+		}
 		if a := days[day]; a != nil {
 			w.First, w.Last, w.Activity = a.first, a.last, a.activity()
 		}

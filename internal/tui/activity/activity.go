@@ -398,7 +398,7 @@ func (m Model) total() string {
 	if !m.loaded {
 		return ""
 	}
-	st, b := m.styles, m.opts.Work.Balance(m.days)
+	st, b := m.styles, m.opts.Work.Balance(m.days, time.Time{})
 	s := st.label.Render("total:") + fmt.Sprintf(" %s with activity, %s", plural(b.Active, "day"), st.bold.Render(store.FormatSpan(b.Span)))
 	if m.opts.Work.IsZero() {
 		return s
