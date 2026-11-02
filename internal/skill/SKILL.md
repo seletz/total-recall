@@ -25,6 +25,7 @@ Every read command accepts `--json`. Prefer `--json` and parse the output.
 | `total-recall show SESSION --json [--all]` | conversation of one session (full id, native id or unique prefix); `--all` adds tool calls/results, automation, system events |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--raw] [--limit N]` | full-text search with snippets, best first (default 20 hits); all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`; default current month) | total, per day, per repo, and all 7x24 weekday x hour cells (local time): sessions, human and agent events |
+| `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory] [--top N] [range as above]` | time series: one bucket per period (local time, ISO weeks), with `--by` broken down per project name, `claude main`/`claude subagent` or working directory; `--top N` folds the rest into `other` |
 | `total-recall sql --json "SELECT ..."` | read-only SQL; `--format table|json|csv`; writes are impossible |
 | `total-recall doctor --json` | checks the harness transcripts for format drift (unknown record/block types, missing fields); exit 2 = findings. Not needed for queries. |
 | `total-recall llm --skill` | prints this document |
@@ -33,7 +34,7 @@ Dates for `--since/--until` are local time: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM` or 
 
 Global flags: `--db PATH`, `--config PATH`, `--tz ZONE` (default `Europe/Berlin`, used by `stats`, day boundaries and displayed times).
 
-`sessions --json` objects have: `id`, `harness`, `native_id`, `parent_id`, `display_name`, `name`, `ai_title`, `agent_name`, `cwd`, `git_root`, `git_remote_url`, `repo`, `git_branch`, `model`, `started_at`, `ended_at`, `duration_seconds`, `human_events`, `agent_events`, `events`. `show --json` returns `{"session": {...}, "events": [{id, ts, kind, role, actor, text, tool_name, model, tokens_in, tokens_out}]}`. `search --json` hits: `session_id`, `session_name`, `repo`, `event_id`, `ts`, `actor`, `kind`, `snippet`, `rank`. `stats --json`: `since`, `until`, `timezone`, `total`, `by_day[]`, `by_repo[]`, `by_weekday_hour[]` (`weekday` 0 = Monday).
+`sessions --json` objects have: `id`, `harness`, `native_id`, `parent_id`, `display_name`, `name`, `ai_title`, `agent_name`, `cwd`, `git_root`, `git_remote_url`, `repo`, `git_branch`, `model`, `started_at`, `ended_at`, `duration_seconds`, `human_events`, `agent_events`, `events`. `show --json` returns `{"session": {...}, "events": [{id, ts, kind, role, actor, text, tool_name, model, tokens_in, tokens_out}]}`. `search --json` hits: `session_id`, `session_name`, `repo`, `event_id`, `ts`, `actor`, `kind`, `snippet`, `rank`. `stats --json`: `since`, `until`, `timezone`, `total`, `by_day[]`, `by_repo[]`, `by_weekday_hour[]` (`weekday` 0 = Monday). `stats --period --json`: `since`, `until`, `timezone`, `period`, `by`, `keys[]`, `buckets[]` with `start` (UTC), `label`, `sessions`, `human`, `agent` and `cells[]` (`key`, `sessions`, `human`, `agent`; only keys with activity).
 
 Session ids look like `claude:f2b299a1-b3c1-4cf8-b1d7-8c4840eab467` (`<harness>:<native id>`).
 

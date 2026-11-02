@@ -74,7 +74,7 @@ internal/tui/search          Suchansicht: Eingabe, Trefferliste, Vorschau
 internal/tui/session         Session-Detailansicht (Viewport über Events)
 internal/tui/stats           Statistikansicht: Umschalter, Tabelle, Chart-Container
 internal/tui/chart           Chart-Spezifikation aus Aggregaten; Text-Rendering (ntcharts); Bild-Rendering (go-analyze/charts, chartpicture)
-internal/tui/project         Projekt-Heuristik (reine Funktion)
+internal/project             Projekt-Heuristik (reine Funktion; seit `stats --by project` außerhalb der TUI)
 internal/store/activity.go   Aggregation Periode × Dimension (neu, nur lesend, additive Datei)
 ```
 
@@ -138,7 +138,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 
 Die Abfrage liest wie `Store.Stats` nur `ts`, `actor`, `session_id` plus die Dimensionsspalten (`git_root`, `cwd`, `parent_id`, `harness`) und bucketet in Go in der konfigurierten Zeitzone. Das ist bewusst dieselbe Technik wie bei `Stats`: SQLite kennt keine Zeitzonen, und `events.ts_local` steht fest auf der Zeitzone beim Einlesen. Lücken werden aufgefüllt, damit Charts eine durchgehende Zeitachse haben. Gemessen an der echten Datenbank (etwa 60.000 human/agent-Events im Oktober 2026) liegt `stats` heute bei unter 0,4 s inklusive Prozessstart; das reicht für interaktive Umschalter, und das Ergebnis wird je Filterkombination gecacht.
 
-Dimension `DimAgent` liefert `<harness> main` für Sessions ohne `parent_id` und `<harness> subagent` für Sessions mit `parent_id`. Dimension `DimDirectory` liefert `cwd`. Dimension `DimProject` liefert den Rohschlüssel (`git_root`, sonst `cwd`); die Abbildung auf einen Projektnamen macht `internal/tui/project`, damit der Store keine Darstellungsregeln kennt. Kennzahlen je Zelle: Sessions (distinct), human-Events, agent-Events. Weitere Kennzahlen (Tokens, aktive Minuten) sind [offen](#offene-fragen).
+Dimension `DimAgent` liefert `<harness> main` für Sessions ohne `parent_id` und `<harness> subagent` für Sessions mit `parent_id`. Dimension `DimDirectory` liefert `cwd`. Dimension `DimProject` liefert den Rohschlüssel (`git_root`, sonst `cwd`); die Abbildung auf einen Projektnamen macht `internal/project`, damit der Store keine Darstellungsregeln kennt. Kennzahlen je Zelle: Sessions (distinct), human-Events, agent-Events. Weitere Kennzahlen (Tokens, aktive Minuten) sind [offen](#offene-fragen).
 
 ### Projekt-Heuristik
 
@@ -294,6 +294,7 @@ Fallmatrix:
 | Terminal | Verhalten |
 |---|---|
 | Ghostty ≥ 1.0, kitty | Bild (Platzhalter) |
+| herdr in Ghostty | Bild, wenn herdr die `a=q`-Abfrage beantwortet. chartpicture sondiert dort nicht (`TERM_PROGRAM=herdr` ist ihm unbekannt), die TUI schickt die Abfrage selbst; siehe [#41](https://github.com/seletz/total-recall/issues/41) |
 | WezTerm, Konsole, Warp | antworten auf `a=q`, können aber keine Platzhalter: Bild käme kaputt. Im Spike: Bildmodus nur, wenn `TERM_PROGRAM` ghostty oder `TERM` xterm-kitty ist, sonst Text trotz positiver Sondierung. Offen für später. |
 | Alacritty, Terminal.app, iTerm2 stabil, Windows Terminal | Text |
 | tmux ohne Passthrough, Zellij | Text, Hinweis in der Fußzeile |

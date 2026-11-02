@@ -100,18 +100,32 @@ func EnvFrom(getenv func(string) string) Env {
 }
 
 // placeholders reports whether the environment points at a terminal that
-// renders Kitty Graphics through Unicode placeholders: Ghostty and kitty.
-// WezTerm and Konsole answer the probe but draw placeholders as garbage.
+// renders Kitty Graphics through Unicode placeholders: Ghostty, kitty and
+// herdr, a multiplexer that draws placeholders itself and forwards the
+// image to its outer terminal. WezTerm and Konsole answer the probe but
+// draw placeholders as garbage.
 func (e Env) placeholders() bool {
 	switch e.Term {
 	case "xterm-kitty", "xterm-ghostty":
 		return true
 	}
 	switch e.TermProgram {
-	case "ghostty", "kitty":
+	case "ghostty", "kitty", "herdr":
 		return true
 	}
 	return e.Tmux && e.Ghostty
+}
+
+// ownProbe reports whether the chart has to send the Kitty query itself.
+// The picture package sends its probe only to terminals it recognizes by
+// their environment; a herdr pane (TERM_PROGRAM=herdr, TERM=xterm-256color,
+// no Ghostty variables) is not among them and would resolve to "not
+// detected" without a byte on the wire. herdr answers the query only while
+// it has Kitty Graphics on and an outer terminal that can draw them, so the
+// query stays the gate. In tmux the package probes anyway, wrapped in
+// passthrough, and herdr is not visible there.
+func (e Env) ownProbe() bool {
+	return e.TermProgram == "herdr" && !e.Tmux
 }
 
 // name is how the status line calls the terminal.
@@ -160,8 +174,8 @@ const ghosttyPlaceholderMajor, ghosttyPlaceholderMinor = 1, 4
 
 // Decide is the mode decision table: text never draws an image, kitty always
 // does, auto draws one only when the probe succeeded and the environment
-// names a terminal with working placeholders; in tmux additionally not for
-// Ghostty before 1.4.
+// names a terminal with working placeholders (Ghostty, kitty, herdr); in
+// tmux additionally not for Ghostty before 1.4.
 func Decide(mode Graphics, probe Probe, env Env) Decision {
 	switch mode {
 	case GraphicsText:
@@ -175,8 +189,13 @@ func Decide(mode Graphics, probe Probe, env Env) Decision {
 	case ProbeNotDetected:
 		return Decision{Reason: "not detected"}
 	case ProbeTimeout:
-		if env.Tmux {
+		switch {
+		case env.Tmux:
 			return Decision{Reason: "no answer; tmux allow-passthrough?"}
+		case env.TermProgram == "herdr":
+			// herdr stops answering when terminal.kitty_graphics is off
+			// or the outer terminal has no Kitty Graphics.
+			return Decision{Reason: "no answer; herdr kitty_graphics off?"}
 		}
 		return Decision{Reason: "no answer"}
 	case ProbeSkipped:

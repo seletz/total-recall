@@ -1,0 +1,49 @@
+{
+  "since": "2025-11-30T23:00:00.000Z",
+  "until": "2026-01-11T23:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "period": "month",
+  "by": "agent",
+  "keys": [
+    "claude main",
+    "other"
+  ],
+  "buckets": [
+    {
+      "start": "2025-11-30T23:00:00.000Z",
+      "label": "2025-12",
+      "sessions": 13,
+      "human": 16,
+      "agent": 28,
+      "cells": [
+        {
+          "key": "claude main",
+          "sessions": 12,
+          "human": 16,
+          "agent": 26
+        },
+        {
+          "key": "other",
+          "sessions": 1,
+          "human": 0,
+          "agent": 2
+        }
+      ]
+    },
+    {
+      "start": "2025-12-31T23:00:00.000Z",
+      "label": "2026-01",
+      "sessions": 5,
+      "human": 6,
+      "agent": 9,
+      "cells": [
+        {
+          "key": "claude main",
+          "sessions": 5,
+          "human": 6,
+          "agent": 9
+        }
+      ]
+    }
+  ]
+}
