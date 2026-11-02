@@ -215,30 +215,31 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
  total-recall                                                      1 search   2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  period: day [week] month  count: [all] human        this week · 2026-W44 · 2026-10-26 – 2026-11-01
- day             first  last          span  04       08       12       16       20       00
- Mon 2026-10-26  08:12  18:40       10h28m  ·········████████████████████··························
- Tue 2026-10-27  09:03  01:30 (+1)  16h27m  ···········█████████████████████████████████████·······
- Wed 2026-10-28  -      -                -  ·······················································
- Thu 2026-10-29  07:55  17:10        9h15m  ·········███████████████████···························
- Fri 2026-10-30  10:20  15:45        5h25m  ··············██████████································
- Sat 2026-10-31  -      -                -  ·······················································
- Sun 2026-11-01  21:00  21:05           5m  ········································█··············
+ day             first  last          span     diff  04     08      12      16     20      00
+ Mon 2026-10-26  08:12  18:40       10h28m   +2h28m  ········▓▓███████████████▓▓▓▓·················
+ Tue 2026-10-27  09:03  01:30 (+1)  16h27m   +8h27m  ·········████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒····
+ Wed 2026-10-28  -      -                -        -  ·········│──────────────│·····················
+ Thu 2026-10-29  07:55  17:10        9h15m   +1h15m  ·······▓▓▓███████████████▓····················
+ Fri 2026-10-30  10:20  15:45        5h25m   -2h35m  ·········│──███████████─│·····················
+ Sat 2026-10-31  -      -                -        -  ··············································
+ Sun 2026-11-01  21:00  21:05           5m   +0h05m  ································█·············
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- total: 5 days with activity, 41h40m
+ total: 5 days with activity, 41h40m · target 32h00m (4 workdays × 8h00m) · balance +9h40m
  7 days · 4 ms
-────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • [ ] earlier/later • c/l this/last • h human only • 1 search • 2 stats • 3 activity …
 ```
 
 - **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`all`: eigene Nachrichten und Agent-Events wie in der Statistik; `h` schaltet auf `human`, nur eigene Nachrichten). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag.
 - **Zeitfenster:** Start ist die aktuelle Woche. `[` und `]` verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
-- **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
+- **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen, die Differenz zum Tagessoll und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
+- **Normalarbeitszeit:** Kernzeit und Tagessoll kommen aus `[work]` in der [Konfiguration](konfiguration.md#work), Standard 09:00–17:00 und 8 h. Die Kernzeit liegt als Band mit Linien an Anfang und Ende auf der Achse jedes Werktags (`│───│`, farbig hinterlegt). Der Balken ist innerhalb der Kernzeit blau (`█`), davor und danach orange (`▓`), nach Mitternacht rot (`▒`); am Wochenende violett ohne Band. Ohne Farben (`NO_COLOR`) unterscheiden die Zeichen.
+- **Spanne und Differenz:** Die Spanne eines Werktags wird gegen `daily_low`/`daily_high` bewertet und mit der Differenz zum Soll (`+1h15m`, `-2h35m`) gefärbt: türkis unter, grün im Rahmen, orange deutlich über Soll. Das Wochenende hat kein Soll, seine ganze Spanne ist die Differenz; ein Tag ohne Aktivität hat keine (`-`) und zählt nicht als Arbeitstag, also auch Urlaub oder Feiertag nicht.
 - **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
-- **Summenzeile** bei Woche und Monat: Summe der Spannen und Anzahl Tage mit Aktivität. Ein einzelner Tag braucht sie nicht.
+- **Summenzeile** bei Woche und Monat: Anzahl Tage mit Aktivität, Summe der Spannen, das Soll (Tagessoll × Werktage mit Aktivität) und der Saldo dagegen, gefärbt mit der um die Werktage skalierten Tagestoleranz. Ein einzelner Tag braucht sie nicht.
+- **Farben** folgen dem Terminalhintergrund (hell oder dunkel, Abfrage beim Start) und kommen aus der Palette der Statistik-Charts.
 - **Statuszeile:** Anzahl Tage und Dauer der Abfrage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
 
-Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 55 Spalten entfällt er, die Uhrzeiten bleiben.
+Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er, die Uhrzeiten, Spanne und Differenz bleiben.
 
 ## Tasten
 

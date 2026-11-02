@@ -513,7 +513,9 @@ and the elapsed span, plus a total. A day begins at the configured day_start
 as e.g. "01:30 (+1)". The range comes from --range today|this-week|last-week|
 this-month|last-month (relative to now, weeks start on Monday), from
 --since/--until or --month; default this-week. --human-only counts only
-human messages.`,
+human messages. Each weekday with activity is measured against the daily
+target of the [work] config (default 8h): DIFF is the span minus the target,
+the total line balances all spans against target × active weekdays.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := e.loadConfig()

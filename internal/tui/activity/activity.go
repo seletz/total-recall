@@ -518,7 +518,7 @@ func (l layout) row(d store.Workday) string {
 		diff = store.FormatDiff(v)
 	}
 	date := d.Day.Format("Mon 2006-01-02")
-	text := lipgloss.NewStyle()
+	var text lipgloss.Style
 	switch {
 	case !d.Active():
 		text = st.faint
