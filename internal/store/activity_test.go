@@ -307,3 +307,41 @@ func TestPeriodDimensionString(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePeriodDimension(t *testing.T) {
+	periods := []struct {
+		in      string
+		want    Period
+		wantErr bool
+	}{
+		{"day", PeriodDay, false},
+		{"week", PeriodWeek, false},
+		{"month", PeriodMonth, false},
+		{"", 0, true},
+		{"Day", 0, true},
+		{"year", 0, true},
+	}
+	for _, tt := range periods {
+		got, err := ParsePeriod(tt.in)
+		if (err != nil) != tt.wantErr || got != tt.want {
+			t.Errorf("ParsePeriod(%q) = %v, %v; want %v, err %v", tt.in, got, err, tt.want, tt.wantErr)
+		}
+	}
+	dims := []struct {
+		in      string
+		want    Dimension
+		wantErr bool
+	}{
+		{"project", DimProject, false},
+		{"agent", DimAgent, false},
+		{"directory", DimDirectory, false},
+		{"", 0, true},
+		{"repo", 0, true},
+	}
+	for _, tt := range dims {
+		got, err := ParseDimension(tt.in)
+		if (err != nil) != tt.wantErr || got != tt.want {
+			t.Errorf("ParseDimension(%q) = %v, %v; want %v, err %v", tt.in, got, err, tt.want, tt.wantErr)
+		}
+	}
+}

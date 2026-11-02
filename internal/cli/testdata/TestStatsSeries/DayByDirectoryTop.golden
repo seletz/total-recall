@@ -1,0 +1,5 @@
+PERIOD      KEY       SESSIONS  HUMAN  AGENT
+2025-12-01  /w/alpha  2         2      5
+2025-12-03  /w/alpha  1         1      2
+2025-12-04  other     1         1      2
+2025-12-06  other     1         1      1

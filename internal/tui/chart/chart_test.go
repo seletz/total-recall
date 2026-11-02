@@ -12,10 +12,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
-	"github.com/seletz/total-recall/internal/tui/project"
 )
 
 // series builds an ActivitySeries with one bucket per row of cells; each

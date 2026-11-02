@@ -200,6 +200,56 @@ Die JSON-Ausgabe ist die Grundlage für `monthly_stats.py` im Vault:
 
 `by_weekday_hour` enthält immer alle 7 × 24 Zellen, `weekday` 0 ist Montag. `repo` ist die Remote-URL, sonst der Git-Root, sonst das Arbeitsverzeichnis.
 
+### Zeitreihe: `--period`, `--by`, `--top` { #stats-period }
+
+Mit `--period` oder `--by` liefert `stats` statt der drei Tabellen eine Zeitreihe: eine Zeile je Periode und, mit `--by`, je Projekt, Agent-Typ oder Arbeitsverzeichnis. Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`; Periodengrenzen liegen in lokaler Zeit, Wochen sind ISO-Wochen ab Montag. Das ersetzt `monthly_stats.py` im Vault.
+
+```sh
+total-recall stats --period week --by project --since 2026-08-01 --until 2026-10-31
+total-recall stats --period month --by agent --top 6 --json
+total-recall stats --month 2026-10 --period day --by directory
+total-recall stats --period month --since 2026-01-01          # nur je Monat, ohne Aufschlüsselung
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0 |
+| `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots, sonst des Verzeichnisses; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
+| `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
+
+Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt.
+
+```text
+PERIOD    KEY           SESSIONS  HUMAN  AGENT
+2026-W40  total-recall  12        240    4100
+2026-W40  infra         3         31     410
+2026-W41  total-recall  9         180    3300
+```
+
+JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in UTC, `start` der Periodenbeginn in UTC, `label` die Periode in lokaler Zeit (`2026-10-05`, `2026-W41`, `2026-10`). Jede Periode des Zeitraums ist enthalten, auch leere; `sessions`, `human`, `agent` auf Periodenebene sind die Summe über alle Schlüssel. `cells` enthält nur Schlüssel mit Aktivität. Ohne `--by` sind `by` leer, `keys` und `cells` leere Listen.
+
+```json
+{
+  "since": "2026-09-30T22:00:00.000Z",
+  "until": "2026-10-31T23:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "period": "week",
+  "by": "project",
+  "keys": ["total-recall", "infra", "other"],
+  "buckets": [
+    {
+      "start": "2026-10-04T22:00:00.000Z",
+      "label": "2026-W41",
+      "sessions": 12, "human": 240, "agent": 4100,
+      "cells": [
+        {"key": "total-recall", "sessions": 9, "human": 180, "agent": 3300},
+        {"key": "infra", "sessions": 3, "human": 60, "agent": 800}
+      ]
+    }
+  ]
+}
+```
+
 ## `tui` { #tui }
 
 Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](tui.md).

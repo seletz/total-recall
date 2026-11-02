@@ -32,6 +32,16 @@ func (p Period) String() string {
 	return fmt.Sprintf("Period(%d)", int(p))
 }
 
+// ParsePeriod returns the Period named by s: day, week or month.
+func ParsePeriod(s string) (Period, error) {
+	for _, p := range []Period{PeriodDay, PeriodWeek, PeriodMonth} {
+		if p.String() == s {
+			return p, nil
+		}
+	}
+	return 0, fmt.Errorf("invalid period %q (day, week, month)", s)
+}
+
 // Dimension is the grouping of an ActivitySeries within each period.
 type Dimension int
 
@@ -59,6 +69,17 @@ func (d Dimension) String() string {
 		return "directory"
 	}
 	return fmt.Sprintf("Dimension(%d)", int(d))
+}
+
+// ParseDimension returns the Dimension named by s: project, agent or
+// directory.
+func ParseDimension(s string) (Dimension, error) {
+	for _, d := range []Dimension{DimProject, DimAgent, DimDirectory} {
+		if d.String() == s {
+			return d, nil
+		}
+	}
+	return 0, fmt.Errorf("invalid dimension %q (project, agent, directory)", s)
 }
 
 // OtherKey is the key under which ActivitySeries folds the dimension values

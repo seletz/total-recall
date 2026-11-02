@@ -26,6 +26,13 @@ Für Skripte:
 total-recall stats --month 2026-10 --json > oktober.json
 ```
 
+Als Zeitreihe, je Woche und Projekt (Details: [`stats --period`](befehle.md#stats-period)):
+
+```sh
+total-recall stats --period week --by project --since 2026-08-01
+total-recall stats --period month --by agent --top 5 --json
+```
+
 ## Suchen mit `search`
 
 ```sh
