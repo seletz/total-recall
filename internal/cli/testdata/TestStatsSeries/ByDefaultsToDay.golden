@@ -2,3 +2,6 @@ PERIOD      KEY    SESSIONS  HUMAN  AGENT
 2025-12-01  alpha  2         2      5
 2025-12-03  alpha  1         1      2
 2025-12-04  beta   1         1      2
+total       alpha  3         3      7
+total       beta   1         1      2
+total       *      4         4      9

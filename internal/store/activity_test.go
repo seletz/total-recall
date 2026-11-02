@@ -73,13 +73,18 @@ func TestActivitySeries(t *testing.T) {
 	seedActivity(t, s)
 	loc := berlin(t)
 	tests := []struct {
-		name    string
-		f       ActivityFilter
-		keys    []string
-		dirs    []string            // keys without a repository
-		labels  []string            // all bucket labels in order
-		cells   map[string][]string // label -> non-zero cells
-		wantErr bool
+		name   string
+		f      ActivityFilter
+		keys   []string
+		dirs   []string            // keys without a repository
+		labels []string            // all bucket labels in order
+		cells  map[string][]string // label -> non-zero cells
+		// sessions and keySessions are the distinct sessions of the whole
+		// window, in total and per key: a session active in several
+		// periods counts once here and once per period in cells.
+		sessions    int
+		keySessions []int
+		wantErr     bool
 	}{
 		{
 			name: "day boundary in Berlin, project, subagent inherits parent key",
@@ -91,22 +96,25 @@ func TestActivitySeries(t *testing.T) {
 				"2026-10-31": {"/w/app:2/0/3"},
 				"2026-11-01": {"/w/app:1/1/0"},
 			},
+			sessions: 2, keySessions: []int{2}, // p1 spans the day boundary
 		},
 		{
 			name: "day in UTC",
 			f: ActivityFilter{Since: ts("2026-10-31T00:00:00Z"), Until: ts("2026-11-01T00:00:00Z"),
 				Location: time.UTC, Period: PeriodDay, Dimension: DimProject},
-			keys:   []string{"/w/app"},
-			labels: []string{"2026-10-31"},
-			cells:  map[string][]string{"2026-10-31": {"/w/app:2/1/3"}},
+			keys:     []string{"/w/app"},
+			labels:   []string{"2026-10-31"},
+			cells:    map[string][]string{"2026-10-31": {"/w/app:2/1/3"}},
+			sessions: 2, keySessions: []int{2},
 		},
 		{
 			name: "empty periods are filled, Since inside a period",
 			f: ActivityFilter{Since: ts("2026-10-28T12:00:00Z"), Until: ts("2026-10-31T23:00:00Z"),
 				Location: loc, Period: PeriodDay, Dimension: DimDirectory},
-			keys:   []string{"/w/app"},
-			labels: []string{"2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"},
-			cells:  map[string][]string{"2026-10-31": {"/w/app:2/0/3"}},
+			keys:     []string{"/w/app"},
+			labels:   []string{"2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"},
+			cells:    map[string][]string{"2026-10-31": {"/w/app:2/0/3"}},
+			sessions: 2, keySessions: []int{2},
 		},
 		{
 			name: "ISO week across the year boundary",
@@ -119,6 +127,7 @@ func TestActivitySeries(t *testing.T) {
 				"2025-W52": {"/w/docs:1/1/0"},
 				"2026-W01": {"/w/docs:1/1/0"},
 			},
+			sessions: 1, keySessions: []int{1}, // p2 spans the week boundary
 		},
 		{
 			name: "months, keys by total volume, agent dimension",
@@ -132,6 +141,7 @@ func TestActivitySeries(t *testing.T) {
 				"2026-10": {"other main:1/1/4", "claude main:1/0/1", "claude subagent:1/0/2"},
 				"2026-11": {"claude main:1/1/0"},
 			},
+			sessions: 4, keySessions: []int{1, 2, 1},
 		},
 		{
 			name: "TopN folds the rest into other, always last",
@@ -145,22 +155,25 @@ func TestActivitySeries(t *testing.T) {
 				"2026-10": {"/w/tool:1/1/4", "/w/app:2/0/3"},
 				"2026-11": {"/w/app:1/1/0"},
 			},
+			sessions: 4, keySessions: []int{1, 2, 1},
 		},
 		{
 			name: "TopN larger than the number of keys adds no other",
 			f: ActivityFilter{Since: ts("2026-10-01T00:00:00Z"), Until: ts("2026-10-31T23:00:00Z"),
 				Location: loc, Period: PeriodMonth, Dimension: DimProject, TopN: 5},
-			keys:   []string{"/w/tool", "/w/app"},
-			labels: []string{"2026-10"},
-			cells:  map[string][]string{"2026-10": {"/w/tool:1/1/4", "/w/app:2/0/3"}},
+			keys:     []string{"/w/tool", "/w/app"},
+			labels:   []string{"2026-10"},
+			cells:    map[string][]string{"2026-10": {"/w/tool:1/1/4", "/w/app:2/0/3"}},
+			sessions: 3, keySessions: []int{1, 2},
 		},
 		{
 			name: "directory dimension, subagent counts under the parent cwd",
 			f: ActivityFilter{Since: ts("2026-10-31T00:00:00Z"), Until: ts("2026-11-01T00:00:00Z"),
 				Location: time.UTC, Period: PeriodDay, Dimension: DimDirectory},
-			keys:   []string{"/w/app"},
-			labels: []string{"2026-10-31"},
-			cells:  map[string][]string{"2026-10-31": {"/w/app:2/1/3"}},
+			keys:     []string{"/w/app"},
+			labels:   []string{"2026-10-31"},
+			cells:    map[string][]string{"2026-10-31": {"/w/app:2/1/3"}},
+			sessions: 2, keySessions: []int{2},
 		},
 		{
 			name: "range without events yields empty buckets and no keys",
@@ -221,6 +234,12 @@ func TestActivitySeries(t *testing.T) {
 			}
 			if strings.Join(labels, ",") != strings.Join(tt.labels, ",") {
 				t.Errorf("labels = %q, want %q", labels, tt.labels)
+			}
+			if got.Sessions != tt.sessions {
+				t.Errorf("sessions = %d, want %d", got.Sessions, tt.sessions)
+			}
+			if fmt.Sprint(got.KeySessions) != fmt.Sprint(tt.keySessions) {
+				t.Errorf("key sessions = %v, want %v", got.KeySessions, tt.keySessions)
 			}
 		})
 	}

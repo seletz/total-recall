@@ -14,27 +14,39 @@ import (
 // Widths of the number columns; the name column takes the rest.
 const (
 	sessionsWidth = 10
+	periodsWidth  = 14 // "session-months"
 	eventsWidth   = 9
 	shareWidth    = 7
 	columnGap     = 2
 )
 
+// sessionPeriodsTitle names the column of sessions summed over the
+// periods: session-days, session-weeks or session-months.
+func sessionPeriodsTitle(p store.Period) string {
+	return "session-" + p.String() + "s"
+}
+
 // newTable returns the table of a series: one row per series of spec (by
-// volume, "other" last) with sessions, human and agent events and the share
-// of all events in the window. Sessions are summed over the periods, so a
-// session active in several periods counts once per period; the store has
-// no distinct count over the whole window. The table is not interactive:
+// volume, "other" last) with the distinct sessions of the window, the
+// sessions summed over the periods (session-days, -weeks or -months: a
+// session active in three periods counts three), human and agent events
+// and the share of all events in the window. The table is not interactive:
 // no cursor, no key map.
-func newTable(spec chart.Spec, series store.ActivitySeries, dim store.Dimension, width int) table.Model {
+func newTable(spec chart.Spec, series store.ActivitySeries, period store.Period, dim store.Dimension, width int) table.Model {
 	total := 0
-	rows := make([][3]int, len(spec.Series))
+	rows := make([][4]int, len(spec.Series))
+	for j := range spec.Series {
+		if j < len(series.KeySessions) {
+			rows[j][0] = series.KeySessions[j]
+		}
+	}
 	for _, b := range series.Buckets {
 		for j := range spec.Series {
 			if j < len(b.Cells) {
 				a := b.Cells[j].Activity
-				rows[j][0] += a.Sessions
-				rows[j][1] += a.Human
-				rows[j][2] += a.Agent
+				rows[j][1] += a.Sessions
+				rows[j][2] += a.Human
+				rows[j][3] += a.Agent
 				total += a.Human + a.Agent
 			}
 		}
@@ -43,20 +55,22 @@ func newTable(spec chart.Spec, series store.ActivitySeries, dim store.Dimension,
 	for j, s := range spec.Series {
 		share := ""
 		if total > 0 {
-			share = fmt.Sprintf("%d %%", (rows[j][1]+rows[j][2])*100/total)
+			share = fmt.Sprintf("%d %%", (rows[j][2]+rows[j][3])*100/total)
 		}
 		trows[j] = table.Row{
 			s.Name,
 			right(group(rows[j][0]), sessionsWidth),
-			right(group(rows[j][1]), eventsWidth),
+			right(group(rows[j][1]), periodsWidth),
 			right(group(rows[j][2]), eventsWidth),
+			right(group(rows[j][3]), eventsWidth),
 			right(share, shareWidth),
 		}
 	}
-	nameWidth := max(width-sessionsWidth-2*eventsWidth-shareWidth-4*columnGap, 1)
+	nameWidth := max(width-sessionsWidth-periodsWidth-2*eventsWidth-shareWidth-5*columnGap, 1)
 	cols := []table.Column{
 		{Title: dim.String(), Width: nameWidth},
 		{Title: right("sessions", sessionsWidth), Width: sessionsWidth},
+		{Title: right(sessionPeriodsTitle(period), periodsWidth), Width: periodsWidth},
 		{Title: right("human", eventsWidth), Width: eventsWidth},
 		{Title: right("agent", eventsWidth), Width: eventsWidth},
 		{Title: right("share", shareWidth), Width: shareWidth},

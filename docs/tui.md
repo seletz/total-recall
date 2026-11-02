@@ -162,12 +162,12 @@ Good. Tag v0.1.0 and run the release.
         05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 01
  ██ webshop  ▓▓ infra  ▒▒ total-recall  ░░ notes  ·· other
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- project                                                     sessions      human      agent    share
- webshop                                                           56      1 204     21 870     37 %
- infra                                                             56        980     18 310     31 %
- total-recall                                                      21        310      6 120     10 %
- notes                                                             14        402      5 990     10 %
- other                                                             42        515      7 212     12 %
+ project                                     sessions    session-days      human      agent    share
+ webshop                                           31              56      1 204     21 870     37 %
+ infra                                             34              56        980     18 310     31 %
+ total-recall                                      12              21        310      6 120     10 %
+ notes                                              9              14        402      5 990     10 %
+ other                                             30              42        515      7 212     12 %
  text chart (kitty: not detected) · 28 days · 312 ms
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  d/w/m period • p/a/v by • [ ] -/+ range • 1 search • 2 stats • ? help • q quit
@@ -177,7 +177,7 @@ Good. Tag v0.1.0 and run the release.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. `[` und `]` verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
 - **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos.
-- **Tabelle:** dieselben Reihen mit Sessions, menschlichen und Agenten-Events und Anteil an allen Events. Die Spalte `sessions` summiert die Sessions je Periode: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal.
+- **Tabelle:** dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
 
 Die Dimensionen:
@@ -382,7 +382,6 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Spike.** Die TUI kann in einer späteren Version wieder entfernt werden; siehe die Empfehlung im [Spike](spike-tui.md#empfehlung).
 - **Suche:** höchstens 200 Treffer je Abfrage, sortiert nach Rang. Der Zeitfilter startet bei `all`, nicht bei 90 Tagen. Die Filter `a`, `t`, `r` wirken nur, wenn die Liste den Fokus hat.
 - **Projektnamen** kommen aus einer Heuristik: Repositories heißen wie der Basisname ihres Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), Verzeichnisse ohne Repository erscheinen als Pfad, das Home-Verzeichnis darin als `~` (`~/notes`). Die Projekt-Ebene aus [#4](https://github.com/seletz/total-recall/issues/4) ersetzt das später.
-- **Tabelle:** `sessions` ist über die Perioden summiert, nicht über das Fenster eindeutig gezählt.
 - **Heatmap** nur ab etwa 25 Terminalzeilen.
 - **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session.
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
