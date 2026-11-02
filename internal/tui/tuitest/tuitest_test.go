@@ -26,6 +26,8 @@ func TestKey(t *testing.T) {
 		{"space", tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}},
 		{"ctrl+c", tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}},
 		{"ctrl+space", tea.KeyPressMsg{Code: tea.KeySpace, Mod: tea.ModCtrl}},
+		{"shift+tab", tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}},
+		{"ctrl+shift+a", tea.KeyPressMsg{Code: 'a', Mod: tea.ModCtrl | tea.ModShift}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

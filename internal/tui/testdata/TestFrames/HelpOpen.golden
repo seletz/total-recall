@@ -7,17 +7,17 @@
 
 
 
-                     ╭────────────────────────────────────────────────────────╮
-                     │ keys: search                                           │
-                     │                                                        │
-                     │ tab   list     a  actor      1   search       ?   help │
-                     │ esc   input    t  time       2   stats        esc back │
-                     │ enter open     r  repo       tab next view    q   quit │
-                     │ ↑/k   up       ^r raw fts                              │
-                     │ ↓/j   down                                             │
-                     │                                                        │
-                     │ esc or ? closes this help                              │
-                     ╰────────────────────────────────────────────────────────╯
+                      ╭─────────────────────────────────────────────────────╮
+                      │ keys: search                                        │
+                      │                                                     │
+                      │ tab     list     a  actor      1 search    ?   help │
+                      │ tab/esc input    t  time       2 stats     esc back │
+                      │ enter   open     r  repo                   q   quit │
+                      │ ↑/k     up       ^r raw fts                         │
+                      │ ↓/j     down                                        │
+                      │                                                     │
+                      │ esc or ? closes this help                           │
+                      ╰─────────────────────────────────────────────────────╯
 
 
 

@@ -5,6 +5,11 @@ import "charm.land/bubbles/v2/key"
 // KeyMap holds the bindings of the search view. The footer and the help
 // overlay are generated from it. Move exists for the footer only: it names
 // the pair ↑/↓ in one entry.
+//
+// Focus: List and Input move the focus between the input and the hit list
+// with tab and shift+tab (both directions, the view never gives tab to the
+// app); esc is the "one level back" of Input and Cancel. See docs/tui.md,
+// section Fokus.
 type KeyMap struct {
 	Up    key.Binding
 	Down  key.Binding
@@ -26,14 +31,14 @@ func defaultKeyMap() KeyMap {
 		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
 		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
 		Open:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open")),
-		List:    key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "list")),
-		Input:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "input")),
+		List:    key.NewBinding(key.WithKeys("tab", "shift+tab"), key.WithHelp("tab", "list")),
+		Input:   key.NewBinding(key.WithKeys("tab", "shift+tab", "esc"), key.WithHelp("tab/esc", "input")),
 		Actor:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "actor")),
 		Time:    key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "time")),
 		Repo:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "repo")),
 		Raw:     key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("^r", "raw fts")),
 		Move:    key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "move")),
-		Confirm: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply")),
+		Confirm: key.NewBinding(key.WithKeys("enter", "tab", "shift+tab"), key.WithHelp("enter", "apply")),
 		Cancel:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 	}
 }

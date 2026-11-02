@@ -2,12 +2,14 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
@@ -185,10 +187,15 @@ func TestFocused(t *testing.T) {
 	}{
 		{"start", nil, true},
 		{"tab to list", []string{"tab"}, false},
-		{"tab twice stays in list", []string{"tab", "tab"}, false},
+		{"tab cycles back to input", []string{"tab", "tab"}, true},
+		{"shift+tab to list", []string{"shift+tab"}, false},
+		{"shift+tab back to input", []string{"tab", "shift+tab"}, true},
 		{"esc back to input", []string{"tab", "esc"}, true},
+		{"esc in input stays", []string{"esc"}, true},
 		{"repo filter typed", []string{"tab", "r"}, true},
 		{"repo filter applied", []string{"tab", "r", "enter"}, false},
+		{"repo filter applied with tab", []string{"tab", "r", "tab"}, false},
+		{"repo filter applied with shift+tab", []string{"tab", "r", "shift+tab"}, false},
 		{"repo filter cancelled", []string{"tab", "r", "esc"}, false},
 	}
 	for _, tt := range tests {
@@ -200,6 +207,62 @@ func TestFocused(t *testing.T) {
 			if got := m.(Model).Focused(); got != tt.want {
 				t.Errorf("Focused() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+// focusFrame is the frame followed by what the app shows of the focus and
+// the plain frame cannot: the cursor position, whether the marked hit is
+// inverted, and the short help of the focused element (the footer).
+func focusFrame(m Model) string {
+	v := m.View()
+	cursor := "none"
+	if v.Cursor != nil {
+		cursor = fmt.Sprintf("%d,%d", v.Cursor.X, v.Cursor.Y)
+	}
+	mark := "plain"
+	if strings.Contains(v.Content, "\x1b[7m▸") {
+		mark = "inverted"
+	}
+	h := help.New()
+	h.SetWidth(tuitest.Width)
+	return tuitest.Frame(m) + "cursor: " + cursor + "\nmark: " + mark + "\nkeys: " + ansi.Strip(h.ShortHelpView(m.ShortHelp())) + "\n"
+}
+
+// TestFocusFrames pins the focus contract (docs/tui.md, Fokus): tab and
+// shift+tab cycle input ↔ list without leaving the view, esc goes one level
+// back, letters in the input are text, the repo filter is applied by enter
+// or tab and dropped by esc, and the focused element is the one with the
+// cursor or the inverted mark. The view is driven synchronously; see
+// focusFrame for what the golden holds besides the frame.
+func TestFocusFrames(t *testing.T) {
+	tests := []struct {
+		name string
+		keys []string
+	}{
+		{"InputMarksHit", nil},
+		{"TabToList", []string{"tab"}},
+		{"TabCyclesToInput", []string{"tab", "tab"}},
+		{"ShiftTabToList", []string{"shift+tab"}},
+		{"ShiftTabCyclesToInput", []string{"tab", "shift+tab"}},
+		{"EscToInput", []string{"tab", "esc"}},
+		{"EscInInputIgnored", []string{"esc"}},
+		{"FilterKeysAreText", []string{"a", "t", "r"}},
+		{"GlobalKeysAreText", []string{"q", "1", "2", "?"}},
+		{"MarkKeptAcrossFocus", []string{"tab", "j", "tab"}},
+		{"RepoTyping", []string{"tab", "r", "x"}},
+		{"RepoTabApplies", []string{"tab", "r", "x", "tab"}},
+		{"RepoEnterApplies", []string{"tab", "r", "x", "enter"}},
+		{"RepoEscDiscards", []string{"tab", "r", "x", "esc"}},
+	}
+	st, _ := fixturedb.Activity(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := Options{Searcher: st, Loader: st, Query: "release", Now: tuitest.Clock,
+				Location: testfixture.ActivityLocation, Debounce: time.Millisecond}
+			msgs := append([]tea.Msg{tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}}, tuitest.Keys(tt.keys...)...)
+			final := tuitest.Drive(t, New(opts), msgs...)
+			golden.RequireEqual(t, focusFrame(final.(Model)))
 		})
 	}
 }
