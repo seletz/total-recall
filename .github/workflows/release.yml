@@ -22,7 +22,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # The section "## <tag>" of docs/aenderungen.md becomes the head of the
+      # The section "## <tag>" of docs/reference/90-aenderungen.md becomes the head of the
       # release body; goreleaser appends its commit changelog below it. A tag
       # without a section fails here, before anything is published.
       - name: Extract release notes

@@ -7,7 +7,7 @@
 //
 // The suite copies the fixture tree to a temporary directory for every check
 // (so it may truncate and rewrite files) and verifies the adapter contract
-// that ingest relies on (see docs/design.md, "Neue Harness anbinden"):
+// that ingest relies on (see docs/explanation/design.md, "Neue Harness anbinden"):
 //
 //   - Sources is deterministic and returns absolute, existing, unique paths.
 //   - Parse consumes complete lines only: a partial trailing line is left for

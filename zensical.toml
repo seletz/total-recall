@@ -6,20 +6,17 @@ site_url = "https://seletz.github.io/total-recall/"
 repo_url = "https://github.com/seletz/total-recall"
 copyright = "Copyright &copy; 2026 Stefan Eletzhofer"
 
-nav = [
-  { "Start" = "index.md" },
-  { "Installation" = "installation.md" },
-  { "Konfiguration" = "konfiguration.md" },
-  { "Hooks einrichten" = "hooks.md" },
-  { "Befehle" = "befehle.md" },
-  { "Auswertung" = "auswertung.md" },
-  { "TUI" = "tui.md" },
-  { "Für Agenten" = "agenten.md" },
-  { "Datenschutz" = "datenschutz.md" },
-  { "Änderungen" = "aenderungen.md" },
-  { "Design (Spezifikation)" = "design.md" },
-  { "Spike: TUI (Historie)" = "spike-tui.md" },
-]
+# Strict: tote interne Links und kaputte Anker brechen den Build, statt nur
+# zu warnen. Was lokal grün ist, bleibt auch in der CI grün.
+strict = true
+
+# Kein explizites `nav`: die Sidebar ist ordnergetrieben aus den vier
+# Diátaxis-Ordnern docs/tutorials, docs/how-to, docs/reference und
+# docs/explanation. Jeder Ordner trägt eine index.md als Landing-Page
+# (`navigation.indexes`), die auch den Abschnittstitel liefert
+# (`section_renamed`) und über `weight:` die Reihenfolge der Quadranten
+# (Tutorials, How-To, Referenz, Erklärungen). Seiten sind nach Dateiname
+# sortiert; Zahlenpräfixe, wo die Reihenfolge zählt.
 
 # Zensical replaces (does not merge) the default extension list when this key
 # is set, so everything in use is listed explicitly.
@@ -41,6 +38,12 @@ md_in_html = {}
 
 [project.markdown_extensions.toc]
 permalink = true
+
+# Icons im Text (:lucide-wrench:, :octicons-arrow-right-24:) für die Karten
+# der Startseite.
+[project.markdown_extensions."pymdownx.emoji"]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
 
 [project.markdown_extensions."pymdownx.highlight"]
 anchor_linenums = true
@@ -64,6 +67,7 @@ features = [
     "content.code.select",
     "content.tabs.link",
     "navigation.footer",
+    "navigation.indexes",
     "navigation.top",
     "navigation.tracking",
     "search.highlight",
@@ -81,3 +85,7 @@ toggle.name = "Helles Design"
 
 [project.theme.icon]
 logo = "lucide/archive"
+
+# Abschnittstitel aus der index.md des Ordners („Referenz“ statt „Reference“).
+[project.plugins."mkdocs-nav-weight"]
+section_renamed = true

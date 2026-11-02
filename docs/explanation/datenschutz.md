@@ -1,3 +1,7 @@
+---
+title: Datenschutz
+icon: lucide/shield-check
+---
 # Datenschutz
 
 Das Archiv enthält alles, was du mit deinen Agenten besprochen hast. Es bleibt auf deinem Rechner. Diese Seite erklärt, was gespeichert wird, was maskiert wird und wo die Dateien liegen.
@@ -36,7 +40,7 @@ Nicht maskiert werden zum Beispiel Git-SHAs, UUIDs und `op://`-Referenzen. Die s
 !!! warning "Grenzen"
     Die Maskierung ist nicht umkehrbar. Sie fängt typische Formate, aber nicht alles. Ein Passwort in Fließtext („das Passwort ist Sommer2026“) erkennt sie nicht. Behandle die Datenbank deshalb wie vertrauliche Daten.
 
-Eigene Muster und Ausnahmen: `[redact]` in der [Konfiguration](konfiguration.md#redact).
+Eigene Muster und Ausnahmen: `[redact]` in der [Konfiguration](../reference/20-konfiguration.md#redact).
 
 ## Wo die Dateien liegen
 
@@ -55,7 +59,7 @@ SQLite schreibt im WAL-Modus. Neben `archive.db` liegen dann `archive.db-wal` un
 
 ## Backups in iCloud
 
-`total-recall backup` schreibt mit `VACUUM INTO` eine **konsistente** Kopie, komprimiert sie mit gzip und legt sie als einzelne Datei ab. Die ist sicher für iCloud. Zurückholen mit [`total-recall restore`](befehle.md#restore). Der Default-Ordner `~/Documents/total-recall` wird über iCloud Drive synchronisiert, wenn „Schreibtisch- & Dokumente-Ordner“ aktiv ist.
+`total-recall backup` schreibt mit `VACUUM INTO` eine **konsistente** Kopie, komprimiert sie mit gzip und legt sie als einzelne Datei ab. Die ist sicher für iCloud. Zurückholen mit [`total-recall restore`](../reference/10-befehle.md#restore). Der Default-Ordner `~/Documents/total-recall` wird über iCloud Drive synchronisiert, wenn „Schreibtisch- & Dokumente-Ordner“ aktiv ist.
 
 Aufbewahrt werden die letzten 7 Tageskopien und die letzte Kopie jedes Monats.
 

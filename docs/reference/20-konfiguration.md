@@ -1,3 +1,7 @@
+---
+title: Konfiguration
+icon: lucide/settings
+---
 # Konfiguration
 
 Alles steht in einer TOML-Datei. Du brauchst sie nicht: Fehlt sie, gelten die Defaults.
@@ -104,13 +108,13 @@ activity_window = "week"         # Aktivität beim Start: day, week, month
 ### Oberste Ebene
 
 `db`
-:   Pfad zur SQLite-Datenbank. Default auf macOS: `~/Library/Application Support/total-recall/archive.db`. Auf Linux: `$XDG_DATA_HOME/total-recall/archive.db`. Override: `--db`, `TOTAL_RECALL_DB`. Die Datei gehört **nicht** in iCloud, siehe [Datenschutz](datenschutz.md).
+:   Pfad zur SQLite-Datenbank. Default auf macOS: `~/Library/Application Support/total-recall/archive.db`. Auf Linux: `$XDG_DATA_HOME/total-recall/archive.db`. Override: `--db`, `TOTAL_RECALL_DB`. Die Datei gehört **nicht** in iCloud, siehe [Datenschutz](../explanation/datenschutz.md).
 
 `timezone`
 :   Zeitzone für Auswertungen. Bestimmt, wo ein Tag anfängt und aufhört, etwa in `stats` und in der View `daily_activity`. In der Datenbank selbst stehen alle Zeiten in UTC. Default: `Europe/Berlin`. Override: `--tz`.
 
 `day_start` { #day_start }
-:   Uhrzeit (`HH:MM`, Ortszeit), zu der ein Tag für die erste und letzte Aktivität je Tag beginnt ([`stats --workday`](befehle.md#stats-workday), TUI-Ansicht „activity“). Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt. `00:00` ist die Kalendermitternacht. Default: `04:00`. Wirkt nicht auf `stats` ohne `--workday` und nicht auf `daily_activity`.
+:   Uhrzeit (`HH:MM`, Ortszeit), zu der ein Tag für die erste und letzte Aktivität je Tag beginnt ([`stats --workday`](10-befehle.md#stats-workday), TUI-Ansicht „activity“). Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt. `00:00` ist die Kalendermitternacht. Default: `04:00`. Wirkt nicht auf `stats` ohne `--workday` und nicht auf `daily_activity`.
 
 `log`
 :   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
@@ -164,7 +168,7 @@ activity_window = "week"         # Aktivität beim Start: day, week, month
 
 ### `[harness.claude.actors]`
 
-Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein anderer Agent oder eine Automatik. Die Regeln stehen im [Design](design.md#actor-klassifikation-claude-code). Hier ergänzt du eigene Präfixe.
+Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein anderer Agent oder eine Automatik. Die Regeln stehen im [Design](../explanation/design.md#actor-klassifikation-claude-code). Hier ergänzt du eigene Präfixe.
 
 `peer_prefixes`
 :   Nachrichten, die mit einem dieser Texte beginnen, gelten als `peer` (ein anderer Agent).
@@ -174,7 +178,7 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 
 ### `[work]` { #work }
 
-Normalarbeitszeit und Feiertage für die Aktivität je Tag ([`stats --workday`](befehle.md#stats-workday), TUI-Ansicht „activity“; die Feiertage auch in der Statistik-Ansicht).
+Normalarbeitszeit und Feiertage für die Aktivität je Tag ([`stats --workday`](10-befehle.md#stats-workday), TUI-Ansicht „activity“; die Feiertage auch in der Statistik-Ansicht).
 
 `hours`
 :   Kernzeit als `HH:MM-HH:MM` (Ortszeit des Kalendertags, Beginn vor Ende, nicht vor `day_start`). Die TUI zeigt sie als Band auf der Zeitachse und färbt Aktivität davor und danach als früh bzw. spät. Default: `09:00-17:00`.
@@ -201,16 +205,16 @@ Normalarbeitszeit und Feiertage für die Aktivität je Tag ([`stats --workday`](
 
 ### `[tui]` { #tui }
 
-Defaults für [`total-recall tui`](tui.md). Flags und das Argument der Ansicht gehen vor: **Flag > Config > Default**.
+Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansicht gehen vor: **Flag > Config > Default**.
 
 `view`
 :   Ansicht beim Start: `search`, `stats` oder `activity`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
 
 `graphics`
-:   Darstellung des Charts in der Statistik: `auto`, `text` oder `kitty`, siehe [Grafikmodi](tui.md#grafikmodi). Override: `--graphics`. Default: `auto`.
+:   Darstellung des Charts in der Statistik: `auto`, `text` oder `kitty`, siehe [Grafikmodi](30-tui.md#grafikmodi). Override: `--graphics`. Default: `auto`.
 
 `mouse`
-:   `true`: Mausrad und Klicks gehen an die TUI. `false`: die Maus bleibt beim Terminal, Text lässt sich durch einfaches Ziehen auswählen, siehe [Maus](tui.md#maus). Override: `--no-mouse` bzw. `--no-mouse=false`. Default: `true`.
+:   `true`: Mausrad und Klicks gehen an die TUI. `false`: die Maus bleibt beim Terminal, Text lässt sich durch einfaches Ziehen auswählen, siehe [Maus](30-tui.md#maus). Override: `--no-mouse` bzw. `--no-mouse=false`. Default: `true`.
 
 `stats_period`, `stats_dimension`
 :   Periode (`day`, `week`, `month`) und Dimension (`project`, `agent`, `directory`), mit denen die Statistik startet. Default: `day` und `project`.
@@ -220,7 +224,7 @@ Defaults für [`total-recall tui`](tui.md). Flags und das Argument der Ansicht g
 
 ### `[keys]` { #keys }
 
-Tastenbelegung der TUI: je Aktion eine Taste (`global_quit = "x"`) oder eine Liste (`global_quit = ["q", "ctrl+q"]`). Nur genannte Aktionen ändern sich. Die Aktionen, ihre Standardbelegung, die erlaubten Tastennamen und die Regeln für Konflikte stehen unter [Tastenbelegung anpassen](tui.md#tastenbelegung-anpassen). Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler für `tui`; `config show` und `doctor` melden ihn, alle anderen Befehle laufen weiter (siehe [Prüfung](#pruefung)). `config show` zeigt jede Aktion als `keys.<aktion>` mit Belegung und Herkunft.
+Tastenbelegung der TUI: je Aktion eine Taste (`global_quit = "x"`) oder eine Liste (`global_quit = ["q", "ctrl+q"]`). Nur genannte Aktionen ändern sich. Die Aktionen, ihre Standardbelegung, die erlaubten Tastennamen und die Regeln für Konflikte stehen unter [Tastenbelegung anpassen](30-tui.md#tastenbelegung-anpassen). Ein unbekannter Aktionsname, eine unbekannte Taste oder ein Konflikt ist ein Fehler für `tui`; `config show` und `doctor` melden ihn, alle anderen Befehle laufen weiter (siehe [Prüfung](#pruefung)). `config show` zeigt jede Aktion als `keys.<aktion>` mit Belegung und Herkunft.
 
 ## Umgebungsvariablen
 

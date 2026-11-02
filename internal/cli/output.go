@@ -18,7 +18,7 @@ import (
 )
 
 // This file is the output contract of the read commands (see
-// docs/design.md, CLI): --format table|json|jsonl (sql also csv), --json as
+// docs/explanation/design.md, CLI): --format table|json|jsonl (sql also csv), --json as
 // a shortcut, --no-truncate; every documented JSON key is always present
 // and empty strings are null; errors in a JSON format are one JSON object on
 // stdout; table cells are cut only on a terminal.

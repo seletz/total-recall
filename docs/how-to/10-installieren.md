@@ -1,4 +1,8 @@
-# Installation
+---
+title: Installieren
+icon: lucide/download
+---
+# Installieren
 
 ## Mit Homebrew
 
@@ -54,6 +58,7 @@ Die Version zeigt dann `dev`, weil sie beim Release-Build gesetzt wird.
 
 ## Nächste Schritte
 
-1. [Konfiguration](konfiguration.md) anlegen (optional, die Defaults passen meist).
-2. [Hooks einrichten](hooks.md).
-3. Einmal alles nachlesen: `total-recall ingest --all`.
+1. [Hooks einrichten](20-hooks-einrichten.md) und einmal alles nachlesen: `total-recall ingest --all`.
+2. Optional eine [Konfiguration](../reference/20-konfiguration.md) anlegen; die Defaults passen meist.
+
+Wer das Ganze einmal von vorn bis hinten durchspielen will, nimmt das Tutorial [Erste Schritte](../tutorials/erste-schritte.md).

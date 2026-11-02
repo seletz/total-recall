@@ -1,5 +1,5 @@
 // Package redact masks secrets in text and raw JSON lines before they are
-// stored (see docs/design.md, section "Redaction"). Masked spans are replaced
+// stored (see docs/explanation/design.md, section "Redaction"). Masked spans are replaced
 // with «redacted:<kind>»; masking is not reversible.
 //
 // Detected:
