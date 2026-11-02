@@ -3,6 +3,12 @@
 // effective value came from (see docs/design.md, section "Konfiguration").
 //
 // Precedence: flag > environment variable > config file > default.
+//
+// Load validates the core settings (paths, time zone, day boundary, backup,
+// ingest, redaction). The tables [work], [tui] and [keys] are only parsed:
+// their values are checked when a command uses them (WorkHours, KeyMap,
+// ValidateTUI), so a mistake there never stops hooks and ingest. Problems
+// lists every such error for `config show` and `doctor`.
 package config
 
 import (
@@ -14,12 +20,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // static builds must not depend on the system zoneinfo
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
 // Environment variables understood by Load.
@@ -82,6 +91,11 @@ type Config struct {
 	// Work is the normal working time the activity per day is measured
 	// against (stats --workday, TUI activity).
 	Work Work `toml:"work"`
+	// TUI holds the start-up defaults of `total-recall tui`.
+	TUI TUI `toml:"tui"`
+	// Keys overrides key bindings of the TUI: action name → keys; see
+	// package keys for the names. Only listed actions change.
+	Keys map[string]KeyList `toml:"keys"`
 
 	// Path is the config file that was considered (it may not exist).
 	Path string `toml:"-"`
@@ -93,11 +107,59 @@ type Config struct {
 	// or os.UserHomeDir()); display code abbreviates it to "~".
 	Home string `toml:"-"`
 
-	origins            map[string]Origin
-	loc                *time.Location
-	dayStart           time.Duration
-	workStart, workEnd time.Duration
+	origins  map[string]Origin
+	loc      *time.Location
+	dayStart time.Duration
 }
+
+// KeyList is the value of one [keys] entry: a key name or a list of them.
+type KeyList []string
+
+// UnmarshalTOML implements toml.Unmarshaler: a string or an array of strings.
+func (l *KeyList) UnmarshalTOML(v any) error {
+	switch v := v.(type) {
+	case string:
+		*l = KeyList{v}
+	case []any:
+		out := make(KeyList, 0, len(v))
+		for _, e := range v {
+			s, ok := e.(string)
+			if !ok {
+				return fmt.Errorf("want a key name, got %v", e)
+			}
+			out = append(out, s)
+		}
+		*l = out
+	default:
+		return fmt.Errorf("want a key name or a list of key names, got %v", v)
+	}
+	return nil
+}
+
+// TUI configures `total-recall tui`. Flags override every value.
+type TUI struct {
+	// View is the view shown first: search, stats or activity.
+	View string `toml:"view"`
+	// Graphics is the chart mode: auto, text or kitty (--graphics).
+	Graphics string `toml:"graphics"`
+	// Mouse enables wheel scrolling and clicks (--no-mouse turns it off).
+	Mouse bool `toml:"mouse"`
+	// StatsPeriod and StatsDimension are the period (day, week, month) and
+	// the dimension (project, agent, directory) the stats view starts with.
+	StatsPeriod    string `toml:"stats_period"`
+	StatsDimension string `toml:"stats_dimension"`
+	// ActivityWindow is the window the activity view starts with: day,
+	// week or month.
+	ActivityWindow string `toml:"activity_window"`
+}
+
+// Allowed values of the [tui] table.
+var (
+	TUIViews      = []string{"search", "stats", "activity"}
+	TUIGraphics   = []string{"auto", "text", "kitty"}
+	TUIPeriods    = []string{"day", "week", "month"}
+	TUIDimensions = []string{"project", "agent", "directory"}
+)
 
 // DefaultDayStart is the built-in day boundary for the activity per day.
 const DefaultDayStart = "04:00"
@@ -219,8 +281,8 @@ type Entry struct {
 	Origin Origin
 }
 
-// keys lists every configuration key with a formatter, in display order.
-var keys = []struct {
+// fields lists every configuration key with a formatter, in display order.
+var fields = []struct {
 	key    string
 	format func(*Config) string
 }{
@@ -252,6 +314,12 @@ var keys = []struct {
 	{"work.weekly_high", func(c *Config) string { return c.Work.WeeklyHigh.String() }},
 	{"work.bundesland", func(c *Config) string { return c.Work.Bundesland }},
 	{"work.count", func(c *Config) string { return c.Work.Count }},
+	{"tui.view", func(c *Config) string { return c.TUI.View }},
+	{"tui.graphics", func(c *Config) string { return c.TUI.Graphics }},
+	{"tui.mouse", func(c *Config) string { return strconv.FormatBool(c.TUI.Mouse) }},
+	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
+	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
+	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
 }
 
 func formatList(l []string) string {
@@ -294,6 +362,8 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		WeeklyLow: Duration{DefaultWorkWeeklyLow}, WeeklyHigh: Duration{DefaultWorkWeeklyHigh},
 		Bundesland: DefaultWorkBundesland, Count: DefaultWorkCount,
 	}
+	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}
+	c.Keys = map[string]KeyList{}
 	return c
 }
 
@@ -389,10 +459,13 @@ func (c *Config) readFile(expand func(string) string) error {
 		return fmt.Errorf("config %s: unknown keys: %s", c.Path, strings.Join(names, ", "))
 	}
 	c.Loaded = true
-	for _, k := range keys {
+	for _, k := range fields {
 		if md.IsDefined(strings.Split(k.key, ".")...) {
 			c.origins[k.key] = OriginFile
 		}
+	}
+	for name := range c.Keys {
+		c.origins["keys."+name] = OriginFile
 	}
 	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Harness.Claude.ProjectsDir} {
 		*p = expand(*p)
@@ -411,9 +484,6 @@ func (c *Config) validate() error {
 		return fmt.Errorf("config: day_start %q: %w", c.DayStart, err)
 	}
 	c.dayStart = d
-	if err := c.validateWork(); err != nil {
-		return err
-	}
 	if c.Backup.KeepDaily < 0 {
 		return fmt.Errorf("config: backup.keep_daily must be >= 0")
 	}
@@ -439,21 +509,31 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// validateWork checks the [work] table against day_start.
-func (c *Config) validateWork() error {
+// WorkHours validates the [work] table against day_start and returns the
+// core hours as offsets from local midnight (09:00–17:00 = 9h, 17h). The
+// error names the first bad value; commands that do not use the working
+// time never see it.
+func (c *Config) WorkHours() (start, end time.Duration, err error) {
 	from, to, ok := strings.Cut(c.Work.Hours, "-")
 	start, err1 := parseClock(from)
 	end, err2 := parseClock(to)
 	if !ok || err1 != nil || err2 != nil {
-		return fmt.Errorf("config: work.hours %q: want HH:MM-HH:MM", c.Work.Hours)
+		return 0, 0, fmt.Errorf("config: work.hours %q: want HH:MM-HH:MM", c.Work.Hours)
 	}
 	if start >= end {
-		return fmt.Errorf("config: work.hours %q: start must be before end", c.Work.Hours)
+		return 0, 0, fmt.Errorf("config: work.hours %q: start must be before end", c.Work.Hours)
 	}
 	if start < c.dayStart {
-		return fmt.Errorf("config: work.hours %q: must not start before day_start %s", c.Work.Hours, c.DayStart)
+		return 0, 0, fmt.Errorf("config: work.hours %q: must not start before day_start %s", c.Work.Hours, c.DayStart)
 	}
-	c.workStart, c.workEnd = start, end
+	if err := c.validateWorkBounds(); err != nil {
+		return 0, 0, err
+	}
+	return start, end, nil
+}
+
+// validateWorkBounds checks the target, the bounds and the count of [work].
+func (c *Config) validateWorkBounds() error {
 	if t := c.Work.Target.Duration; t <= 0 || t > 24*time.Hour {
 		return fmt.Errorf("config: work.target %s: want more than 0 and at most 24h", t)
 	}
@@ -475,9 +555,63 @@ func (c *Config) validateWork() error {
 	return nil
 }
 
-// WorkHours returns the configured core hours as offsets from local
-// midnight (09:00–17:00 = 9h, 17h).
-func (c *Config) WorkHours() (start, end time.Duration) { return c.workStart, c.workEnd }
+// ValidateTUI checks the values of the [tui] table.
+func (c *Config) ValidateTUI() error {
+	for _, v := range []struct {
+		key, value string
+		allowed    []string
+	}{
+		{"tui.view", c.TUI.View, TUIViews},
+		{"tui.graphics", c.TUI.Graphics, TUIGraphics},
+		{"tui.stats_period", c.TUI.StatsPeriod, TUIPeriods},
+		{"tui.stats_dimension", c.TUI.StatsDimension, TUIDimensions},
+		{"tui.activity_window", c.TUI.ActivityWindow, TUIPeriods},
+	} {
+		if !slices.Contains(v.allowed, v.value) {
+			return fmt.Errorf("config: %s %q: use %s", v.key, v.value, orList(v.allowed))
+		}
+	}
+	return nil
+}
+
+// KeyMap resolves the [keys] table against the defaults and validates it:
+// unknown actions, bad key names and conflicts are errors (see package
+// keys). Commands that do not use the key bindings never see them.
+func (c *Config) KeyMap() (keys.Map, error) {
+	overrides := make(map[string][]string, len(c.Keys))
+	for name, l := range c.Keys {
+		overrides[name] = l
+	}
+	m, err := keys.Resolve(overrides)
+	if err != nil {
+		return nil, fmt.Errorf("config: %w", err)
+	}
+	return m, nil
+}
+
+// Problems returns the errors of the tables that Load does not validate
+// ([work], [tui], [keys]), in that order; nil when they are all fine.
+func (c *Config) Problems() []error {
+	var out []error
+	if _, _, err := c.WorkHours(); err != nil {
+		out = append(out, err)
+	}
+	if err := c.ValidateTUI(); err != nil {
+		out = append(out, err)
+	}
+	if _, err := c.KeyMap(); err != nil {
+		out = append(out, err)
+	}
+	return out
+}
+
+// orList joins "a, b or c".
+func orList(l []string) string {
+	if len(l) < 2 {
+		return strings.Join(l, "")
+	}
+	return strings.Join(l[:len(l)-1], ", ") + " or " + l[len(l)-1]
+}
 
 // Origin returns where the value of key (dotted, e.g. "backup.dir") came from.
 func (c *Config) Origin(key string) Origin {
@@ -487,11 +621,21 @@ func (c *Config) Origin(key string) Origin {
 	return OriginDefault
 }
 
-// Entries returns all effective values with their origin, in a stable order.
+// Entries returns all effective values with their origin, in a stable
+// order: the fields, then every key-bound action of the TUI with the keys
+// as configured (or the default), whether or not they resolve.
 func (c *Config) Entries() []Entry {
-	out := make([]Entry, len(keys))
-	for i, k := range keys {
-		out[i] = Entry{Key: k.key, Value: k.format(c), Origin: c.Origin(k.key)}
+	out := make([]Entry, 0, len(fields)+len(keys.Actions))
+	for _, k := range fields {
+		out = append(out, Entry{Key: k.key, Value: k.format(c), Origin: c.Origin(k.key)})
+	}
+	for _, a := range keys.Actions {
+		k := "keys." + a.Name
+		ks := a.Keys
+		if l, ok := c.Keys[a.Name]; ok {
+			ks = l
+		}
+		out = append(out, Entry{Key: k, Value: formatList(ks), Origin: c.Origin(k)})
 	}
 	return out
 }

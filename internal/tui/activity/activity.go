@@ -37,6 +37,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/window"
 )
@@ -64,6 +65,12 @@ type Options struct {
 	// Work is the working time the days are measured against; the zero
 	// value shows neither core hours nor a target.
 	Work store.WorkHours
+	// Window is the initial window: "day", "week" or "month", the one
+	// containing now; empty means a week. The app validates the name, an
+	// unknown one falls back to a week here.
+	Window string
+	// Keys are the effective key bindings; nil means the defaults.
+	Keys keys.Map
 	// Holidays names the public holidays; nil means there are none.
 	Holidays store.Holidays
 	// HumanOnly starts the view counting own messages only; the key h
@@ -123,14 +130,14 @@ type Model struct {
 	styles styles
 }
 
-// New returns the view for opts: the week containing now, counting as
-// opts.HumanOnly says.
+// New returns the view for opts: the configured window containing now,
+// counting as opts.HumanOnly says.
 func New(opts Options) Model {
 	opts.defaults()
 	m := Model{
 		opts:      opts,
-		keys:      defaultKeyMap(),
-		window:    window.Single(store.PeriodWeek, opts.Now(), opts.Location),
+		keys:      newKeyMap(opts.Keys),
+		window:    window.Single(initialPeriod(opts.Window), opts.Now(), opts.Location),
 		humanOnly: opts.HumanOnly,
 		cache:     map[filter][]store.Workday{},
 		figures:   true,
@@ -139,6 +146,14 @@ func New(opts Options) Model {
 	}
 	m, m.initCmd = m.load()
 	return m
+}
+
+// initialPeriod parses Options.Window; empty or unknown means a week.
+func initialPeriod(name string) store.Period {
+	if p, err := store.ParsePeriod(name); err == nil {
+		return p
+	}
+	return store.PeriodWeek
 }
 
 // Title implements tui.View.

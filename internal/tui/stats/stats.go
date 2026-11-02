@@ -30,6 +30,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/window"
 )
@@ -69,6 +70,12 @@ type Options struct {
 	// Home is the home directory, abbreviated to "~" in the project names
 	// of directories without a repository; empty keeps full paths.
 	Home string
+	// Period and Dimension are the initial period and dimension; the zero
+	// values are days by project.
+	Period    store.Period
+	Dimension store.Dimension
+	// Keys are the effective key bindings; nil means the defaults.
+	Keys keys.Map
 	// Holidays names the public holidays marked on the day axis; nil
 	// means there are none.
 	Holidays store.Holidays
@@ -166,14 +173,16 @@ type Model struct {
 	th theme.Theme
 }
 
-// New returns the view for opts: days by project, the default window ending
-// today, metric events.
+// New returns the view for opts: the initial period and dimension (days by
+// project unless configured), the default window ending today, metric
+// events.
 func New(opts Options) Model {
 	opts.defaults()
 	m := Model{
 		opts:   opts,
-		keys:   defaultKeyMap(),
-		window: window.New(store.PeriodDay, opts.Now(), opts.Location),
+		keys:   newKeyMap(opts.Keys),
+		dim:    opts.Dimension,
+		window: window.New(opts.Period, opts.Now(), opts.Location),
 		cache:  map[filter]store.ActivitySeries{},
 		colors: &chart.Colors{},
 		chart:  opts.Chart,

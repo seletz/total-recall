@@ -6,20 +6,20 @@
 
 
 
-              ╭─────────────────────────────────────────────────────────────────────╮
-              │ keys: session                                                       │
-              │                                                                     │
-              │ ↑/k    up             n   next hit           1 search      ?   help │
-              │ ↓/j    down           N   previous hit       2 stats       esc back │
-              │ b/pgup page up        T   tools on/off       3 activity    q   quit │
-              │ f/pgdn page down      y   copy session id                           │
-              │ u      ½ page up      esc back                                      │
-              │ d      ½ page down                                                  │
-              │ g/home top                                                          │
-              │ G/end  bottom                                                       │
-              │                                                                     │
-              │ esc or ? closes this help                                           │
-              ╰─────────────────────────────────────────────────────────────────────╯
+           ╭───────────────────────────────────────────────────────────────────────────╮
+           │ keys: session                                                             │
+           │                                                                           │
+           │ ↑/k          up             n   next hit           1 search      ?   help │
+           │ ↓/j          down           N   previous hit       2 stats       esc back │
+           │ b/pgup       page up        T   tools on/off       3 activity    q   quit │
+           │ f/pgdn/space page down      y   copy session id                  ^c  quit │
+           │ u/^u         ½ page up      esc back                                      │
+           │ d/^d         ½ page down                                                  │
+           │ g/home       top                                                          │
+           │ G/end        bottom                                                       │
+           │                                                                           │
+           │ esc or ? closes this help                                                 │
+           ╰───────────────────────────────────────────────────────────────────────────╯
 
 
 

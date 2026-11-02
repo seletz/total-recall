@@ -16,6 +16,7 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -334,5 +335,37 @@ func TestWheel(t *testing.T) {
 				t.Errorf("offset = %d, want %d", m.offset, tt.want)
 			}
 		})
+	}
+}
+
+// TestStartWindow: the view starts with the configured window.
+func TestStartWindow(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	for name, p := range map[string]store.Period{"": store.PeriodWeek, "day": store.PeriodDay, "week": store.PeriodWeek, "month": store.PeriodMonth, "bogus": store.PeriodWeek} {
+		m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Window: name})
+		if m.window.Period != p || m.window.Count != 1 {
+			t.Errorf("Window %q: start = %+v", name, m.window)
+		}
+	}
+}
+
+// TestConfiguredKeys: the view acts on the configured keys only and shows
+// them in its help.
+func TestConfiguredKeys(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	km, err := keys.Resolve(map[string][]string{keys.ActivityEarlier: {"<"}, keys.ActivityLater: {">"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Keys: km})
+	start := m.window
+	if got := drive(t, m, "["); !got.window.Equal(start) {
+		t.Errorf("[ still shifts the window")
+	}
+	if got := drive(t, m, "<", "<", ">"); !got.window.Equal(start.Shift(-1)) {
+		t.Errorf("< and > do not shift: %v", got.window)
+	}
+	if h := m.keys.Range.Help(); h.Key != "</>" {
+		t.Errorf("range group help = %q", h.Key)
 	}
 }

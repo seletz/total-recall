@@ -9,14 +9,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
 	tf "github.com/seletz/total-recall/internal/testfixture"
+	"github.com/seletz/total-recall/internal/tui"
 )
 
 // testEnv is an isolated installation: config, DB, log, backups and a
@@ -783,5 +786,115 @@ func TestTUICommand(t *testing.T) {
 				t.Errorf("%v = %+v, want exit != 0 and %q in stderr", tt.args, r, tt.want)
 			}
 		})
+	}
+}
+
+// TestTUIOptions checks the precedence flag > config > default for the
+// [tui] table and that the key map reaches the app.
+func TestTUIOptions(t *testing.T) {
+	base := func() *config.Config {
+		return &config.Config{Timezone: "UTC",
+			Work: config.Work{Hours: "09:00-17:00", Target: config.Duration{Duration: 8 * time.Hour}, DailyHigh: config.Duration{Duration: 9 * time.Hour}, WeeklyHigh: config.Duration{Duration: 48 * time.Hour}, Count: "human"},
+			TUI:  config.TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}}
+	}
+	tests := []struct {
+		name    string
+		cfg     func(*config.Config)
+		flags   tuiFlags
+		want    tui.Options
+		wantErr string
+	}{
+		{"defaults", nil, tuiFlags{},
+			tui.Options{Start: "search", Graphics: "auto", NoMouse: false, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}, ""},
+		{"config", func(c *config.Config) {
+			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}
+		}, tuiFlags{},
+			tui.Options{Start: "stats", Graphics: "text", NoMouse: true, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}, ""},
+		{"flags over config", func(c *config.Config) {
+			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}
+		}, tuiFlags{View: "activity", Graphics: "kitty", GraphicsSet: true, NoMouse: false, NoMouseSet: true, Query: "x"},
+			tui.Options{Start: "activity", Graphics: "kitty", NoMouse: false, Query: "x", StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}, ""},
+		{"unset bool flag keeps config", func(c *config.Config) { c.TUI.Mouse = false }, tuiFlags{NoMouse: false},
+			tui.Options{Start: "search", Graphics: "auto", NoMouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}, ""},
+		{"bad view flag", nil, tuiFlags{View: "bogus"}, tui.Options{}, `unknown view "bogus"`},
+		{"bad keys table", func(c *config.Config) { c.Keys = map[string]config.KeyList{"stats_days": {"e"}} }, tuiFlags{}, tui.Options{}, "stats_metric"},
+		{"bad tui table", func(c *config.Config) { c.TUI.View = "help" }, tuiFlags{View: "search"}, tui.Options{}, "tui.view"},
+		{"bad work table", func(c *config.Config) { c.Work.Hours = "9-17" }, tuiFlags{}, tui.Options{}, "work.hours"},
+		{"bad graphics flag", nil, tuiFlags{Graphics: "sixel", GraphicsSet: true}, tui.Options{}, "graphics"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			if tt.cfg != nil {
+				tt.cfg(cfg)
+			}
+			got, err := tuiOptions(cfg, tt.flags)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("tuiOptions error = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Keys == nil || got.Holidays == nil || !got.HumanOnly {
+				t.Errorf("keys, holidays or human-only not set: %+v", got)
+			}
+			got.Keys, got.Location, got.Work, got.Holidays, got.HumanOnly = nil, nil, store.WorkHours{}, nil, false
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("tuiOptions = %+v\nwant %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDeferredConfigErrors: a broken [keys] or [work] table must never stop
+// archiving. Hooks and search run, tui and stats --workday fail with the
+// error, config show and doctor report it.
+func TestDeferredConfigErrors(t *testing.T) {
+	e := newTestEnv(t)
+	b, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(e.configPath, append(b, []byte("\n[work]\nhours = \"9-17\"\n[keys]\nstats_days = \"e\"\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := e.run(t, e.hookPayload(t, "Stop"), "ingest", "--hook"); r.code != 0 {
+		t.Fatalf("hook with a broken [keys] table: %+v", r)
+	}
+	if n := e.count(t, "select count(*) from sessions"); n == 0 {
+		t.Error("hook archived nothing")
+	}
+	if r := e.run(t, "", "search", "x"); r.code != 0 {
+		t.Errorf("search with a broken [keys] table: %+v", r)
+	}
+	fails := [][]string{{"tui"}, {"stats", "--workday"}}
+	for _, args := range fails {
+		r := e.run(t, "", args...)
+		if r.code == 0 || !strings.Contains(r.stderr, "config:") {
+			t.Errorf("%v = %+v, want failure with the config error", args, r)
+		}
+	}
+	r := e.run(t, "", "config", "show")
+	if r.code == 0 || !strings.Contains(r.stdout, "ORIGIN") || !strings.Contains(r.stdout, "stats_metric") || !strings.Contains(r.stdout, "work.hours") {
+		t.Errorf("config show = %+v, want the table plus both problems and exit != 0", r)
+	}
+	r = e.run(t, "", "config", "show", "--json")
+	c := decode[ConfigJSON](t, r.stdout)
+	if r.code == 0 || len(c.Problems) != 2 || !strings.Contains(c.Problems[1], "stats_metric") {
+		t.Errorf("config show --json = exit %d, problems %v", r.code, c.Problems)
+	}
+	r = e.run(t, "", "doctor")
+	if r.code != 2 || !strings.Contains(r.stdout, "stats_metric") || !strings.Contains(r.stdout, "work.hours") {
+		t.Errorf("doctor = %+v, want exit 2 and the problems", r)
+	}
+	r = e.run(t, "", "doctor", "--json")
+	if r.code != 2 || !strings.Contains(r.stderr, "stats_metric") {
+		t.Errorf("doctor --json = %+v, want exit 2 and the problems on stderr", r)
+	}
+	if reps := decode[[]harness.FormatReport](t, r.stdout); len(reps) != 1 {
+		t.Errorf("doctor --json reports = %+v", reps)
 	}
 }

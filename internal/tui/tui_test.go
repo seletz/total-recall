@@ -11,6 +11,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -330,4 +331,116 @@ func TestDetailQuit(t *testing.T) {
 	p.st.wait(t, 1, true, false)
 	tuitest.Press(tm, "q")
 	tuitest.WaitQuit(t, tm)
+}
+
+// TestConfiguredKeys checks that a [keys] table reaches the shell and the
+// views: the configured keys act, the footer and the help overlay name
+// them, and the old defaults of overridden actions are gone.
+func TestConfiguredKeys(t *testing.T) {
+	km, err := keys.Resolve(map[string][]string{
+		keys.GlobalStats: {"S"}, keys.GlobalQuit: {"x", "ctrl+q"}, keys.StatsWeeks: {"W"}, keys.StatsEarlier: {"<"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name       string
+		keys       []string
+		wantActive int
+		wantFrame  []string
+	}{
+		{"configured key switches the view", []string{"tab", "S"}, 1, []string{"S stats", "x/^q quit", "d/W/m period", "</→/-/+ range"}},
+		{"old key is plain text in the input", []string{"2"}, 0, []string{"> 2"}},
+		{"old key does nothing in the list", []string{"tab", "2"}, 0, []string{"tab/esc input"}},
+		{"help shows the configured keys", []string{"tab", "S", "?"}, 1, []string{"W weeks", "earlier", "S stats", "x/^q quit", "^c   quit"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := New(Options{Now: tuitest.Clock, Keys: km})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tm := tuitest.New(t, app)
+			tuitest.Press(tm, tt.keys...)
+			final := tuitest.Final(t, tm).(App)
+			if final.active != tt.wantActive {
+				t.Errorf("active = %d, want %d", final.active, tt.wantActive)
+			}
+			frame := tuitest.Frame(final)
+			for _, want := range tt.wantFrame {
+				if !strings.Contains(frame, want) {
+					t.Errorf("frame lacks %q:\n%s", want, frame)
+				}
+			}
+			golden.RequireEqual(t, frame)
+		})
+	}
+}
+
+// TestConfiguredQuit: the configured quit key quits from the list, with
+// ctrl also from the input; ctrl+c always; the old key no longer does.
+func TestConfiguredQuit(t *testing.T) {
+	km, err := keys.Resolve(map[string][]string{keys.GlobalQuit: {"x", "ctrl+q"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, keys := range [][]string{{"tab", "x"}, {"ctrl+q"}, {"a", "b", "ctrl+q"}, {"ctrl+c"}} {
+		app, err := New(Options{Now: tuitest.Clock, Keys: km})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tm := tuitest.New(t, app)
+		tuitest.Press(tm, keys...)
+		tuitest.WaitQuit(t, tm)
+	}
+	app, err := New(Options{Now: tuitest.Clock, Keys: km})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm := tuitest.New(t, app)
+	tuitest.Press(tm, "tab", "q")
+	if final := tuitest.Final(t, tm).(App); final.active != 0 {
+		t.Errorf("q quit or switched the view with global_quit = x")
+	}
+}
+
+// TestStartOptions checks the start-up state of the stats and activity
+// views and the validation of its names.
+func TestStartOptions(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    Options
+		wantErr string
+		want    []string // in the frame
+	}{
+		{"stats defaults", Options{Start: ViewStats}, "", []string{"[day]", "[project]"}},
+		{"stats configured", Options{Start: ViewStats, StatsPeriod: "week", StatsDimension: "agent"}, "", []string{"[week]", "[agent]"}},
+		{"activity default", Options{Start: ViewActivity}, "", []string{"week"}},
+		{"activity configured", Options{Start: ViewActivity, ActivityWindow: "month"}, "", []string{"2026-10"}},
+		{"bad period", Options{StatsPeriod: "year"}, "stats period", nil},
+		{"bad dimension", Options{StatsDimension: "repo"}, "stats dimension", nil},
+		{"bad window", Options{ActivityWindow: "days"}, "activity window", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.opts.Now = tuitest.Clock
+			app, err := New(tt.opts)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("New error = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			tm := tuitest.New(t, app)
+			frame := tuitest.Frame(tuitest.Final(t, tm).(App))
+			for _, want := range tt.want {
+				if !strings.Contains(frame, want) {
+					t.Errorf("frame lacks %q:\n%s", want, frame)
+				}
+			}
+		})
+	}
 }

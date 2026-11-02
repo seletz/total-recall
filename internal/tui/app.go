@@ -81,7 +81,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if key.Matches(msg, a.keys.Quit) && msg.Mod.Contains(tea.ModCtrl) {
+	// ctrl+c and a quit key with ctrl quit in every state, even while a
+	// view holds the keyboard.
+	if key.Matches(msg, a.keys.ForceQuit) || key.Matches(msg, a.keys.Quit) && msg.Mod.Contains(tea.ModCtrl) {
 		return a, tea.Quit
 	}
 	if a.help {
@@ -293,7 +295,7 @@ func (a App) helpView() string {
 	groups := append(a.current().FullHelp(), a.keys.FullHelp()...)
 	panel := lipgloss.JoinVertical(lipgloss.Left,
 		a.th.Title.Render("keys: "+a.current().Title()), "", h.FullHelpView(groups), "",
-		a.th.Muted.Render("esc or ? closes this help"))
+		a.th.Muted.Render(a.keys.Back.Help().Key+" or "+a.keys.Help.Help().Key+" closes this help"))
 	box := a.th.Border.Border(lipgloss.RoundedBorder()).Padding(0, 1).Render(panel)
 	body := a.bodySize()
 	return lipgloss.Place(body.Width, body.Height, lipgloss.Center, lipgloss.Center, box)
