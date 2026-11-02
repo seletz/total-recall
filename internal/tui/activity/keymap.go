@@ -10,6 +10,7 @@ type KeyMap struct {
 	Earlier, Later   key.Binding
 	Current, Last    key.Binding
 	Human            key.Binding
+	Figures          key.Binding
 	Up, Down         key.Binding
 	// Footer groups.
 	Period, Range, Quick key.Binding
@@ -24,7 +25,8 @@ func defaultKeyMap() KeyMap {
 		Later:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "later")),
 		Current: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "this day/week/month")),
 		Last:    key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "last day/week/month")),
-		Human:   key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "human only")),
+		Human:   key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "human/all events")),
+		Figures: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "summary figures")),
 		Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
 		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
 		Period:  key.NewBinding(key.WithKeys("d", "w", "m"), key.WithHelp("d/w/m", "period")),
@@ -35,7 +37,7 @@ func defaultKeyMap() KeyMap {
 
 // ShortHelp returns the grouped bindings for the footer.
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Period, k.Range, k.Quick, k.Human}
+	return []key.Binding{k.Period, k.Range, k.Quick, k.Human, k.Figures}
 }
 
 // FullHelp returns every binding for the help overlay, in three columns.
@@ -43,6 +45,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Day, k.Week, k.Month, k.Human},
 		{k.Earlier, k.Later, k.Current, k.Last},
-		{k.Up, k.Down},
+		{k.Figures, k.Up, k.Down},
 	}
 }

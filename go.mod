@@ -16,6 +16,7 @@ require (
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261101151554-27ecf3e4d454
 	github.com/go-analyze/charts v0.6.4
 	github.com/spf13/cobra v1.10.2
+	github.com/wlbr/feiertage v1.17.0
 	modernc.org/sqlite v1.61.1
 )
 

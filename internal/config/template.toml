@@ -77,6 +77,22 @@ target = "8h"
 # above daily_high as over the target; in between it is on target.
 daily_low = "6h"
 daily_high = "9h"
+# The working time of a week with five workdays below weekly_low counts as
+# under, above weekly_high as over the target. A week or a month with fewer
+# workdays (holidays, the running period) scales the bounds.
+weekly_low = "32h"
+weekly_high = "48h"
+# Bundesland for the public holidays (no target, named in the views):
+# Baden-Württemberg, Bayern, Berlin, Brandenburg, Bremen, Hamburg, Hessen,
+# Mecklenburg-Vorpommern, Niedersachsen, Nordrhein-Westfalen, Rheinland-Pfalz,
+# Saarland, Sachsen, Sachsen-Anhalt, Schleswig-Holstein, Thüringen or
+# Deutschland (nationwide only); an unknown name means Deutschland.
+bundesland = "Baden-Württemberg"
+# Which events the activity per day counts by default: "human" (own messages
+# only; agent events run on at night and stretch the span) or "all" (human
+# and agent events). stats --workday --all-events and the key h in the TUI
+# switch for one run.
+count = "human"
 
 [git]
 # Resolve git root, remote URL and branch for session working directories.

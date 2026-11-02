@@ -24,6 +24,36 @@ func workdayAt(day time.Time, first, last time.Duration) Workday {
 	return Workday{Day: day, Label: day.Format("2006-01-02"), First: day.Add(first), Last: day.Add(last)}
 }
 
+// holidayAt builds an active day on the named public holiday.
+func holidayAt(day time.Time, name string, first, last time.Duration) Workday {
+	d := workdayAt(day, first, last)
+	d.Holiday = name
+	return d
+}
+
+func TestWorkdayOff(t *testing.T) {
+	mon := berlinDay(t, 2026, 1, 5)
+	sat := berlinDay(t, 2026, 1, 10)
+	tests := []struct {
+		name           string
+		day            Workday
+		holiday, isOff bool
+	}{
+		{"weekday", Workday{Day: mon}, false, false},
+		{"weekend", Workday{Day: sat}, false, true},
+		{"holiday", Workday{Day: mon, Holiday: "Neujahr"}, true, true},
+		{"holiday on a weekend", Workday{Day: sat, Holiday: "Neujahr"}, true, true},
+	}
+	for _, tt := range tests {
+		if got := tt.day.IsHoliday(); got != tt.holiday {
+			t.Errorf("%s: IsHoliday = %v, want %v", tt.name, got, tt.holiday)
+		}
+		if got := tt.day.IsOff(); got != tt.isOff {
+			t.Errorf("%s: IsOff = %v, want %v", tt.name, got, tt.isOff)
+		}
+	}
+}
+
 func TestIsWeekend(t *testing.T) {
 	// 2026-01-05 is a Monday.
 	for d, want := range map[int]bool{5: false, 9: false, 10: true, 11: true, 12: false} {
@@ -66,6 +96,9 @@ func TestWorkHoursDiffAndRating(t *testing.T) {
 		{"over", workdayAt(mon, 8*time.Hour, 17*time.Hour+1*time.Second), 8 * time.Hour, time.Hour + time.Second, true, RatingOver},
 		{"seconds only", workdayAt(mon, 15*time.Hour, 15*time.Hour+5*time.Second), 8 * time.Hour, -(8*time.Hour - 5*time.Second), true, RatingUnder},
 		{"weekend has no target", workdayAt(sat, 11*time.Hour, 13*time.Hour), 0, 2 * time.Hour, true, RatingNone},
+		{"holiday has no target", holidayAt(mon.AddDate(0, 0, 1), "Epiphanias", 9*time.Hour, 12*time.Hour), 0, 3 * time.Hour, true, RatingNone},
+		{"inactive holiday", Workday{Day: mon.AddDate(0, 0, 1), Holiday: "Epiphanias"}, 0, 0, false, RatingNone},
+		{"holiday on a weekend", holidayAt(sat, "Tag der deutschen Einheit", 9*time.Hour, 12*time.Hour), 0, 3 * time.Hour, true, RatingNone},
 		{"past midnight", workdayAt(mon, 23*time.Hour+40*time.Minute, 24*time.Hour+5*time.Minute), 8 * time.Hour, -(7*time.Hour + 35*time.Minute), true, RatingUnder},
 	}
 	for _, tt := range tests {
@@ -97,56 +130,110 @@ func TestWorkHoursZero(t *testing.T) {
 	if got := none.Rate(d); got != RatingNone {
 		t.Errorf("zero hours: Rate = %v", got)
 	}
-	if b := none.Balance([]Workday{d}); b.Target != 0 || b.Span != 8*time.Hour || b.Balance != 8*time.Hour || b.Active != 1 || b.Workdays != 0 {
+	if b := none.Balance([]Workday{d}, time.Time{}); b.Target != 0 || b.Span != 8*time.Hour || b.Balance != 8*time.Hour || b.Active != 1 || b.Workdays != 0 {
 		t.Errorf("zero hours: Balance = %+v", b)
 	}
 }
 
+// TestWorkHoursBalance checks the sum of a range: every weekday that is
+// no holiday is a workday, with or without activity, up to asOf.
 func TestWorkHoursBalance(t *testing.T) {
 	mon := berlinDay(t, 2026, 1, 5)
 	days := []Workday{
-		workdayAt(mon, 9*time.Hour, 18*time.Hour),                                  // Mon 9h: +1h
-		{Day: mon.AddDate(0, 0, 1)},                                                // Tue off: no target
-		workdayAt(mon.AddDate(0, 0, 2), 10*time.Hour, 15*time.Hour),                // Wed 5h: −3h
-		workdayAt(mon.AddDate(0, 0, 5), 11*time.Hour, 12*time.Hour),                // Sat 1h: +1h, no target
-		workdayAt(mon.AddDate(0, 0, 6), 23*time.Hour, 24*time.Hour+30*time.Minute), // Sun 1h30m: +1h30m
-		workdayAt(mon.AddDate(0, 0, 7), 8*time.Hour, 8*time.Hour+5*time.Second),    // Mon 5s: −7h59m55s
+		workdayAt(mon, 9*time.Hour, 18*time.Hour),                                  // Mon 9h
+		{Day: mon.AddDate(0, 0, 1), Holiday: "Epiphanias"},                         // Tue holiday: no target
+		workdayAt(mon.AddDate(0, 0, 2), 10*time.Hour, 15*time.Hour),                // Wed 5h
+		{Day: mon.AddDate(0, 0, 3)},                                                // Thu off: still a workday
+		holidayAt(mon.AddDate(0, 0, 4), "Brückentag", 9*time.Hour, 11*time.Hour),   // Fri holiday with 2h activity
+		workdayAt(mon.AddDate(0, 0, 5), 11*time.Hour, 12*time.Hour),                // Sat 1h, no target
+		workdayAt(mon.AddDate(0, 0, 6), 23*time.Hour, 24*time.Hour+30*time.Minute), // Sun 1h30m
+		workdayAt(mon.AddDate(0, 0, 7), 8*time.Hour, 8*time.Hour+5*time.Second),    // Mon 5s
+		{Day: mon.AddDate(0, 0, 8)},                                                // Tue, future with asOf = second Mon
 	}
-	b := defaultHours.Balance(days)
-	want := Balance{
-		Span:     16*time.Hour + 30*time.Minute + 5*time.Second,
-		Target:   24 * time.Hour,
-		Balance:  -(7*time.Hour + 29*time.Minute + 55*time.Second),
-		Active:   5,
-		Workdays: 3,
-	}
-	if b != want {
-		t.Errorf("Balance = %+v, want %+v", b, want)
-	}
-	if got := defaultHours.RateBalance(b); got != RatingUnder {
-		t.Errorf("RateBalance = %v, want under", got)
-	}
-	// The balance tolerance scales with the workdays: 3 × (6h−8h) … 3 × (9h−8h).
 	tests := []struct {
-		balance time.Duration
-		want    Rating
+		name string
+		asOf time.Time
+		want Balance
 	}{
-		{-6 * time.Hour, RatingOn},
-		{-6*time.Hour - time.Second, RatingUnder},
-		{3 * time.Hour, RatingOn},
-		{3*time.Hour + time.Second, RatingOver},
-		{0, RatingOn},
+		{
+			name: "whole range",
+			want: Balance{
+				Span:     18*time.Hour + 30*time.Minute + 5*time.Second,
+				Target:   40 * time.Hour, // Mon, Wed, Thu, Mon, Tue
+				Balance:  -(21*time.Hour + 29*time.Minute + 55*time.Second),
+				Active:   6,
+				Workdays: 5,
+				Holidays: 2,
+			},
+		},
+		{
+			name: "as of the second Monday",
+			asOf: mon.AddDate(0, 0, 7),
+			want: Balance{
+				Span:     18*time.Hour + 30*time.Minute + 5*time.Second,
+				Target:   32 * time.Hour,
+				Balance:  -(13*time.Hour + 29*time.Minute + 55*time.Second),
+				Active:   6,
+				Workdays: 4,
+				Holidays: 2,
+			},
+		},
+		{
+			name: "as of before the range",
+			asOf: mon.AddDate(0, 0, -1),
+			want: Balance{
+				Span:     18*time.Hour + 30*time.Minute + 5*time.Second,
+				Balance:  18*time.Hour + 30*time.Minute + 5*time.Second,
+				Active:   6,
+				Holidays: 2,
+			},
+		},
 	}
 	for _, tt := range tests {
-		if got := defaultHours.RateBalance(Balance{Balance: tt.balance, Workdays: 3}); got != tt.want {
-			t.Errorf("RateBalance(%s) = %v, want %v", tt.balance, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if b := defaultHours.Balance(days, tt.asOf); b != tt.want {
+				t.Errorf("Balance = %+v, want %+v", b, tt.want)
+			}
+		})
 	}
-	if got := defaultHours.RateBalance(Balance{}); got != RatingNone {
-		t.Errorf("RateBalance(empty) = %v, want none", got)
+}
+
+// TestRateBalance checks the rating of a range: with weekly bounds they
+// scale with the workdays (32h–48h for five), without them the daily
+// bounds times the workdays apply.
+func TestRateBalance(t *testing.T) {
+	weekly := defaultHours
+	weekly.WeeklyLow, weekly.WeeklyHigh = 32*time.Hour, 48*time.Hour
+	tests := []struct {
+		name     string
+		w        WorkHours
+		span     time.Duration
+		workdays int
+		want     Rating
+	}{
+		{"full week on", weekly, 40 * time.Hour, 5, RatingOn},
+		{"full week at low", weekly, 32 * time.Hour, 5, RatingOn},
+		{"full week under", weekly, 32*time.Hour - time.Second, 5, RatingUnder},
+		{"full week at high", weekly, 48 * time.Hour, 5, RatingOn},
+		{"full week over", weekly, 48*time.Hour + time.Second, 5, RatingOver},
+		{"four workdays scale to 25h36m–38h24m", weekly, 25*time.Hour + 36*time.Minute, 4, RatingOn},
+		{"four workdays under", weekly, 25*time.Hour + 35*time.Minute, 4, RatingUnder},
+		{"four workdays over", weekly, 38*time.Hour + 25*time.Minute, 4, RatingOver},
+		{"a month of 20 workdays", weekly, 160 * time.Hour, 20, RatingOn},
+		{"a month under", weekly, 127 * time.Hour, 20, RatingUnder},
+		{"one workday", weekly, 7 * time.Hour, 1, RatingOn},
+		{"no workday", weekly, 7 * time.Hour, 0, RatingNone},
+		{"daily bounds: 3 × 6h–9h", defaultHours, 18 * time.Hour, 3, RatingOn},
+		{"daily bounds under", defaultHours, 18*time.Hour - time.Second, 3, RatingUnder},
+		{"daily bounds over", defaultHours, 27*time.Hour + time.Second, 3, RatingOver},
+		{"no working time", WorkHours{}, 40 * time.Hour, 5, RatingNone},
 	}
-	if got := defaultHours.RateBalance(Balance{Balance: 2 * time.Hour, Active: 1}); got != RatingNone {
-		t.Errorf("RateBalance(weekend only) = %v, want none", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.w.RateBalance(Balance{Span: tt.span, Workdays: tt.workdays}); got != tt.want {
+				t.Errorf("RateBalance = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
