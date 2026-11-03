@@ -55,6 +55,14 @@ func AITitle(session, title string) Line {
 	return Line{"type": "ai-title", "aiTitle": title, "sessionId": session}
 }
 
+// SessionOwner returns a session-owner record (Claude Code 2.1.317+): account
+// and organization of the session, repeated several times per transcript,
+// without a timestamp. The adapter skips it.
+func SessionOwner(session string) Line {
+	return Line{"type": "session-owner", "accountUuid": "acc00000-0000-4000-8000-000000000001",
+		"organizationUuid": "org00000-0000-4000-8000-000000000001", "sessionId": session}
+}
+
 // Join concatenates lines as JSONL.
 func Join(lines ...Line) string {
 	var b strings.Builder
@@ -111,10 +119,12 @@ func Small(t testing.TB, dir string) string {
 	projects := filepath.Join(dir, "projects")
 	s1, s2 := SmallSession1, SmallSession2
 	WriteFile(t, projects, "-w-alpha/"+s1+".jsonl", Join(
+		SessionOwner(s1),
 		User(s1, "a1", "2026-10-05T08:00:00.000Z", "/w/alpha", "please list the files"),
 		ToolUse(s1, "a2", "2026-10-05T08:00:01.000Z", "/w/alpha", "Bash", "ls"),
 		Assistant(s1, "a3", "2026-10-05T08:00:02.000Z", "/w/alpha", "There are two files."),
 		AITitle(s1, "List files"),
+		SessionOwner(s1),
 		User(s1, "a4", "2026-10-05T09:30:00.000Z", "/w/alpha", "thanks, now count the lines"),
 		Assistant(s1, "a5", "2026-10-05T09:30:05.000Z", "/w/alpha", "Forty-two lines."),
 	))

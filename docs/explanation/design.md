@@ -230,7 +230,7 @@ Ein Assistant-Eintrag mit mehreren Content-Blöcken ergibt mehrere Events (`<uui
 
 ### Welche Claude-Records
 
-Eingelesen: `user`, `assistant`, `system`, `custom-title`, `ai-title`, `agent-name`, `summary`. Alle anderen (`attachment`, `api-request*`, `bridge-session`, `file-history-*`, `queue-operation`, `mode`, …) werden übersprungen, der Offset läuft trotzdem weiter. Die Liste der bekannten, bewusst übersprungenen Typen steht im Adapter (`claude.SkippedRecordTypes`); `doctor` meldet Typen, die in keiner der beiden Listen stehen. `custom-title`/`ai-title`/`agent-name`/`summary` erzeugen kein Event, sondern setzen Felder der Session (`summary` und `ai-title` → `ai_title`, damit ein eigener Titel nie überschrieben wird).
+Eingelesen: `user`, `assistant`, `system`, `custom-title`, `ai-title`, `agent-name`, `summary`. Alle anderen (`attachment`, `api-request*`, `bridge-session`, `file-history-*`, `queue-operation`, `mode`, `session-owner`, …) werden übersprungen, der Offset läuft trotzdem weiter. Die Liste der bekannten, bewusst übersprungenen Typen steht im Adapter (`claude.SkippedRecordTypes`); `doctor` meldet Typen, die in keiner der beiden Listen stehen. `custom-title`/`ai-title`/`agent-name`/`summary` erzeugen kein Event, sondern setzen Felder der Session (`summary` und `ai-title` → `ai_title`, damit ein eigener Titel nie überschrieben wird).
 
 ## Neue Harness anbinden
 

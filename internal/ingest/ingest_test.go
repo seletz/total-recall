@@ -456,3 +456,27 @@ func TestRegit(t *testing.T) {
 		t.Errorf("second Regit = %+v %v", sum, err)
 	}
 }
+
+// TestSessionOwnerIsNotStored: session-owner records (Claude Code 2.1.317)
+// are skipped by the adapter, so neither an event nor a raw line reaches the
+// store, whatever store_raw says.
+func TestSessionOwnerIsNotStored(t *testing.T) {
+	e := newEnv(t)
+	s := "44444444-4444-4444-8444-444444444444"
+	p := tf.WriteFile(t, e.projects, "-w-delta/"+s+".jsonl", tf.Join(
+		tf.SessionOwner(s),
+		tf.User(s, "d1", "2026-10-08T10:00:00.000Z", "/w/delta", "hello"),
+		tf.SessionOwner(s),
+		tf.Assistant(s, "d2", "2026-10-08T10:00:05.000Z", "/w/delta", "hi"),
+	))
+	sum := run(t, e, p)
+	if sum.Events != 2 {
+		t.Errorf("events ingested = %d, want 2: %+v", sum.Events, sum)
+	}
+	if n := e.count(t, `SELECT count(*) FROM events WHERE raw LIKE '%session-owner%' OR raw LIKE '%acc00000%'`); n != 0 {
+		t.Errorf("%d events carry session-owner data in raw", n)
+	}
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
+		t.Errorf("sessions = %d, want 1", n)
+	}
+}
