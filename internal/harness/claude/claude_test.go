@@ -168,7 +168,7 @@ func TestParseFixture(t *testing.T) {
 		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
 	}
 
-	// 7 ingested records (permission-mode and attachment skipped).
+	// 7 ingested records (permission-mode, session-owner and attachment skipped).
 	if len(recs) != 7 {
 		t.Fatalf("records = %d, want 7", len(recs))
 	}
@@ -450,7 +450,7 @@ func TestParseAITitle(t *testing.T) {
 func TestSkippedRecordTypes(t *testing.T) {
 	types := []string{"attachment", "api-request", "api-request-blob", "api-request-shape", "bridge-session", "last-prompt",
 		"mode", "atis-latch", "permission-mode", "pr-link", "queue-operation", "file-history-snapshot", "file-history-delta",
-		"cost-state", "tools-used", "started", "result", "something-new"}
+		"cost-state", "tools-used", "started", "result", "session-owner", "something-new"}
 	for _, typ := range types {
 		t.Run(typ, func(t *testing.T) {
 			p := writeFile(t, "p/"+sid+".jsonl", `{"type":"`+typ+`","uuid":"z","sessionId":"`+sid+`","message":{"role":"user","content":"x"}}`+"\n")
