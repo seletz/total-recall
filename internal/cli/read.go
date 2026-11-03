@@ -640,10 +640,10 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents bool
+	var workday, humanOnly, allEvents, worktime, sessions bool
 	c := &cobra.Command{
 		Use:   "stats",
-		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, or first/last activity per day",
+		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
 		Long: `Counts sessions, human and agent events in a time range, per local day, per
 repository and per weekday × hour. Default range: the current month.
 
@@ -665,7 +665,18 @@ sets the default. Each weekday that is no public holiday is a workday with the
 daily target of the [work] config (default 8h): DIFF is the span minus the
 target, the total line balances all spans against target × workdays of the
 range (up to today). Holidays come from the configured Bundesland and are
-named in the HOLIDAY column.`,
+named in the HOLIDAY column.
+
+With --worktime the output is the estimated working time per day and
+category (for timesheets): the gap between two of your own messages, across
+all sessions, counts for the project of the later one, in full up to the
+configured max_gap (default 20m), otherwise min_credit (default 3m); the sum
+per category and day is rounded to the grid (default up to 15m). Projects
+are mapped to categories by the [worktime] rules; a project without a rule
+is its own category. Ranges as with --workday. --sessions lists the sessions
+and projects of every cell with their titles as a template for booking
+texts (JSON always has them). Meetings and work without an agent leave no
+messages: the values are a lower bound.`,
 		Args: usageArgs(cobra.NoArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
@@ -675,8 +686,11 @@ named in the HOLIDAY column.`,
 		}
 		loc := cfg.Location()
 		series := period != "" || by != "" || cmd.Flags().Changed("top")
-		if err := checkWorkdayFlags(workday, series, rng, humanOnly || allEvents, period, by); err != nil {
+		if err := checkWorkdayFlags(workday, worktime, sessions, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
+		}
+		if worktime {
+			return e.runWorktime(cmd, cfg, o, rng, month, sinceArg, untilArg, sessions)
 		}
 		if workday {
 			if cmd.Flags().Changed("human-only") {
@@ -756,7 +770,9 @@ named in the HOLIDAY column.`,
 	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent or directory (implies --period day)")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
-	c.Flags().StringVar(&rng, "range", "", "with --workday: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
+	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
+	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
+	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
 	_ = c.Flags().MarkHidden("human-only")
@@ -764,21 +780,30 @@ named in the HOLIDAY column.`,
 	return c
 }
 
-// checkWorkdayFlags rejects flag combinations across the three modes of
-// stats: --range and the counting flags belong to --workday, which excludes the
-// series flags.
-func checkWorkdayFlags(workday, series bool, rng string, humanOnly bool, period, by string) error {
+// checkWorkdayFlags rejects flag combinations across the four modes of
+// stats: --range belongs to --workday and --worktime, the counting flags to
+// --workday and --sessions to --worktime; both exclude the series flags and
+// each other.
+func checkWorkdayFlags(workday, worktime, sessions, series bool, rng string, humanOnly bool, period, by string) error {
+	mode := "--workday"
+	if worktime {
+		mode = "--worktime"
+	}
 	switch {
-	case !workday && rng != "":
-		return usagef("--range requires --workday")
+	case workday && worktime:
+		return usagef("--worktime cannot be combined with --workday")
+	case !workday && !worktime && rng != "":
+		return usagef("--range requires --workday or --worktime")
 	case !workday && humanOnly:
 		return usagef("--all-events requires --workday")
-	case workday && period != "":
-		return usagef("--workday cannot be combined with --period")
-	case workday && by != "":
-		return usagef("--workday cannot be combined with --by")
-	case workday && series:
-		return usagef("--workday cannot be combined with --top")
+	case !worktime && sessions:
+		return usagef("--sessions requires --worktime")
+	case (workday || worktime) && period != "":
+		return usagef("%s cannot be combined with --period", mode)
+	case (workday || worktime) && by != "":
+		return usagef("%s cannot be combined with --by", mode)
+	case (workday || worktime) && series:
+		return usagef("%s cannot be combined with --top", mode)
 	}
 	return nil
 }

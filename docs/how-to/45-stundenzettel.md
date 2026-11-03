@@ -1,0 +1,106 @@
+---
+title: Stundenzettel füllen
+icon: lucide/receipt
+---
+# Stundenzettel füllen
+
+Wie viele Stunden gingen gestern in welches Projekt? `total-recall` schätzt das aus deinen eigenen Nachrichten an den Agenten: je Tag und Kategorie die aktive Zeit, roh und auf ein Raster gerundet, dazu die Sessions mit Titel als Vorlage für den Buchungstext. Die Anwesenheit (erste und letzte Aktivität) liefert daneben [`stats --workday`](40-arbeitszeit.md).
+
+!!! warning "Eine Untergrenze"
+    Gezählt wird nur, was Spuren im Archiv hinterlässt: die Lücken zwischen deinen Nachrichten an einen Agenten. Meetings, Lesen, Denken, Telefonate und alles, was ohne Agent passiert, fehlen. Die Werte sind eine Untergrenze und ein Gedächtnis, keine Zeiterfassung.
+
+## Die Methode
+
+- Alle eigenen Nachrichten (`actor = 'human'`) aller Sessions bilden eine Zeitlinie, ein Tag beginnt um `day_start` (Standard 04:00).
+- Die Lücke zwischen zwei aufeinanderfolgenden Nachrichten zählt für das Projekt der späteren: bis 20 Minuten voll, darüber nur 3 Minuten (eine Pause oder ein Meeting zählt also nicht, die Nachricht danach ein wenig). Die erste Nachricht eines Tages zählt 3 Minuten, die Zeit nach der letzten gar nicht.
+- Projekte werden Kategorien zugeordnet, etwa je Kunde. Die Summe je Kategorie und Tag wird auf 15 Minuten aufgerundet.
+
+Alle Zahlen sind einstellbar, siehe [`[worktime]`](../reference/20-konfiguration.md#worktime).
+
+## Kategorien einrichten
+
+Ohne Regeln ist jedes Projekt seine eigene Kategorie, benannt wie in `stats --by project`. Für den Stundenzettel sind meist Kunden oder Kostenstellen gefragt; die Regeln stehen in der Konfiguration, in Reihenfolge, die erste passende gewinnt:
+
+```toml
+[[worktime.category]]
+name = "kunde-a"
+match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
+
+[[worktime.category]]
+name = "intern"
+match = ["total-recall", "dotfiles", "~/notizen"]
+
+[[worktime.category]]
+name = "sonstiges"
+match = "*"
+```
+
+Ein Muster passt auf den Projektnamen, den Git-Root (als Pfad oder mit `~`) oder die Remote-URL; `*` steht für beliebigen Text, auch über `/` hinweg. Was keine Regel trifft, bleibt sein eigenes Projekt; die letzte Regel mit `*` sammelt es ein, wenn du das möchtest. `total-recall config show` zeigt die wirksamen Regeln, ein Fehler darin stoppt nur `stats --worktime`, nie die Hooks.
+
+## Den Tag oder die Woche abrufen
+
+```sh
+total-recall stats --worktime --range today
+total-recall stats --worktime --range last-week
+total-recall stats --worktime --since 2026-10-26 --until 2026-10-30
+```
+
+```text
+2026-10-26 04:00 – 2026-10-31 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+DATE        DAY  CATEGORY     RAW    ROUNDED  HOLIDAY
+2026-10-26  Mon  fahrtenbuch  45m    45m      -
+2026-10-26  Mon  kompass      2h32m  2h45m    -
+2026-10-26  Mon  wetterwarte  26m    30m      -
+2026-10-27  Tue  fahrtenbuch  55m    1h00m    -
+2026-10-27  Tue  kompass      3h13m  3h15m    -
+…
+
+CATEGORY     RAW     ROUNDED  DAYS
+fahrtenbuch  3h05m   3h15m    3
+kompass      11h29m  12h00m   4
+wetterwarte  1h19m   1h30m    2
+total        15h53m  16h45m   4
+```
+
+`ROUNDED` ist der Wert für den Stundenzettel, `RAW` die Summe der Gutschriften. Ein Tag ohne Nachrichten erscheint mit `-`: Urlaub, Meeting-Tag oder vergessen, das weiß das Archiv nicht.
+
+## Buchungstexte aus den Sessions
+
+`--sessions` listet je Tag und Kategorie die Sessions mit ihrem Titel; Tage ohne Aktivität entfallen:
+
+```sh
+total-recall stats --worktime --range last-week --sessions
+```
+
+```text
+2026-10-26 Mon: 3h43m raw, 4h00m rounded
+  fahrtenbuch: 45m raw, 45m rounded
+       45m  7d1e02c0  Fahrten zusammenfassen
+  kompass: 2h32m raw, 2h45m rounded
+       45m  7d1e02bb  GPX-Export
+        9m  7d1e02bc  Tiles-Cache nach Neustart leer
+       44m  7d1e02bd  Wegpunkte stabil sortieren
+       53m  7d1e02bf  Umlaute in Ortsnamen
+  wetterwarte: 26m raw, 30m rounded
+       26m  7d1e02be  Frostwarnung
+```
+
+Die Titel sind die von Claude Code vergebenen oder deine eigenen (`/rename`); `total-recall show 7d1e02bb` zeigt die Session dahinter. Fasst eine Kategorie mehrere Projekte zusammen, steht ihre Aufteilung als Zeile `projects:` darüber.
+
+## Für Skripte und Agenten
+
+`--json` liefert dieselben Werte in Sekunden, Projekte und Sessions immer eingeschlossen; `--format jsonl` eine Zeile. Alle Felder: [`stats --worktime`](../reference/10-befehle.md#stats-worktime). Ein Agent mit dem [Skill](50-agenten-anbinden.md) kann den Stundenzettel damit vorbereiten, etwa je Tag und Kategorie eine Buchung mit den Session-Titeln als Text.
+
+## Rundung anpassen
+
+```toml
+[worktime]
+grid = "6m"            # Zehntelstunden
+rounding = "nearest"   # kaufmännisch statt aufrunden
+scope = "project"      # jedes Projekt einzeln runden, die Kategorie ist die Summe
+```
+
+`scope = "project"` rundet bei mehreren Projekten je Kategorie stärker auf; `category` (Standard) rundet die Summe einmal. `grid = "0m"` schaltet die Rundung ab, dann sind `RAW` und `ROUNDED` gleich.

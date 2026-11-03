@@ -1,0 +1,17 @@
+2025-12-15 04:00 – 2025-12-22 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+DATE        DAY  CATEGORY  RAW  ROUNDED  HOLIDAY
+2025-12-15  Mon  -         -    -        -
+2025-12-16  Tue  /w/gamma  3m   15m      -
+2025-12-17  Wed  -         -    -        -
+2025-12-18  Thu  alpha     33m  45m      -
+2025-12-19  Fri  -         -    -        -
+2025-12-20  Sat  -         -    -        -
+2025-12-21  Sun  -         -    -        -
+
+CATEGORY  RAW  ROUNDED  DAYS
+/w/gamma  3m   15m      1
+alpha     33m  45m      1
+total     36m  1h00m    2
