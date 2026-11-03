@@ -27,6 +27,7 @@ var (
 		"attachment", "api-request", "api-request-blob", "api-request-shape", "last-prompt", "mode",
 		"permission-mode", "atis-latch", "pr-link", "queue-operation", "bridge-session",
 		"file-history-snapshot", "file-history-delta", "cost-state", "tools-used",
+		"session-owner",     // account and organization of the session (2.1.317+), no timestamp
 		"started", "result", // workflow journal.jsonl
 	}
 	handledUserBlocks      = []string{"text", "tool_result"}
@@ -38,12 +39,13 @@ var (
 	toolResultBlocks = []string{"text", "image", "document", "tool_reference"}
 	// expectedFields are the top-level fields every record of a type should have.
 	expectedFields = map[string][]string{
-		"user":         {"timestamp", "sessionId", "uuid", "cwd"},
-		"assistant":    {"timestamp", "sessionId", "uuid", "cwd"},
-		"system":       {"timestamp", "sessionId", "uuid", "cwd"},
-		"custom-title": {"sessionId"},
-		"ai-title":     {"sessionId"},
-		"agent-name":   {"sessionId"},
+		"user":          {"timestamp", "sessionId", "uuid", "cwd"},
+		"assistant":     {"timestamp", "sessionId", "uuid", "cwd"},
+		"system":        {"timestamp", "sessionId", "uuid", "cwd"},
+		"custom-title":  {"sessionId"},
+		"ai-title":      {"sessionId"},
+		"agent-name":    {"sessionId"},
+		"session-owner": {"sessionId"},
 	}
 )
 

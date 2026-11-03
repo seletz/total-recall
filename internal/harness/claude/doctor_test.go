@@ -179,3 +179,23 @@ func TestKnownBlockTypesMatchParser(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckFormatSessionOwner: Claude Code 2.1.317 writes session-owner
+// records (account and organization, no timestamp) several times per
+// session. They are known meta records and must not count as drift.
+func TestCheckFormatSessionOwner(t *testing.T) {
+	owner := `{"type":"session-owner","accountUuid":"acc00000-0000-4000-8000-000000000001","organizationUuid":"org00000-0000-4000-8000-000000000001","sessionId":"s"}`
+	dir := writeTree(t, map[string]string{
+		"-w/s.jsonl": owner + "\n" + drUserLine("u1", "2.1.317", `"hi"`) + "\n" + owner + "\n",
+	})
+	r, err := New(dir).CheckFormat(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Clean() {
+		t.Errorf("session-owner reported as drift: %+v", r)
+	}
+	if r.Lines != 3 {
+		t.Errorf("lines = %d, want 3", r.Lines)
+	}
+}

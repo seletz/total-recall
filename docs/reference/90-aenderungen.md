@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v0.3.1 (unveröffentlicht)
+
+### Behoben
+
+- Claude Code 2.1.317 schreibt den neuen Record-Typ `session-owner` (Account und Organisation der Session, mehrfach je Transkript, ohne Zeitstempel). Der Adapter kennt ihn jetzt als Meta-Record: `doctor` meldet ihn nicht mehr als unbekannt, Ingest überspringt ihn wie bisher ohne Meldung. Gespeichert wird nichts davon ([#97](https://github.com/seletz/total-recall/issues/97), Schritt 1).
+
 ## v0.3.0
 
 ### Neu in der CLI
