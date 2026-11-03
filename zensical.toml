@@ -60,7 +60,7 @@ combine_header_slug = true
 [project.theme]
 language = "de"
 # No instant navigation: Safari leaves the address bar on the old URL after
-# history.pushState (see sichtung#523).
+# history.pushState.
 features = [
     "content.code.annotate",
     "content.code.copy",

@@ -154,7 +154,7 @@ Nur lesend, reine Funktion `project.Name(gitRoot, cwd string) string`, tabelleng
 1. `git_root` gesetzt: Basisname des Git-Roots. `gitinfo` löst Worktrees bereits auf das Hauptrepo auf (`git rev-parse --git-common-dir`, Layout `<repo>__worktrees/<name>`), daher landen Worktree-Sessions beim Repo.
 2. Kein Git-Root: Basisname des `cwd`, mit Präfix `~` markiert, zum Beispiel `~vault`.
 3. Subagent-Sessions erben den Schlüssel der Eltern-Session (sie teilen ohnehin das `cwd`).
-4. Kollision (zwei Git-Roots mit gleichem Basisnamen): Elternverzeichnis dazu, `dipa/dipa` statt `dipa`. Die Kollisionsprüfung macht `project.Names(keys []string) map[string]string` über alle Schlüssel einer Serie.
+4. Kollision (zwei Git-Roots mit gleichem Basisnamen): Elternverzeichnis dazu, `iris/iris` statt `iris`. Die Kollisionsprüfung macht `project.Names(keys []string) map[string]string` über alle Schlüssel einer Serie.
 
 In der echten Datenbank ergibt das heute rund 24 Projekte aus 214 Verzeichnissen. Wenn [#4](https://github.com/seletz/total-recall/issues/4) kommt, ersetzt die dort definierte Zuordnung Schritt 1 bis 4; die Schnittstelle (Schlüssel → Name) bleibt.
 
@@ -174,15 +174,15 @@ Alle Mockups 100×30 Zeichen. Die Oberfläche ist Englisch wie die CLI; Hilfetex
 │ > goreleaser cask_                                   actor: all  since: 90d  repo: * │
 ├────────────────────────────────────────────┬─────────────────────────────────────────┤
 │ 2026-10-31 22:14  Release v0.1.0      human │ Release v0.1.0                          │
-│   …upload the cask to the homebrew tap wi… │ claude:f2b299a1-…  seletz/total-recall  │
+│   …upload the cask to the homebrew tap wi… │ claude:7d1e4c20-…  seletz/total-recall  │
 │ 2026-10-31 22:16  Release v0.1.0      agent │ 2026-10-31 22:10 – 23:02 (52m)  develop  │
 │   …goreleaser skips the cask when the tap… │─────────────────────────────────────────│
 │ 2026-10-28 09:02  CI pipeline         human │ ── 22:14 human                           │
 │   …can we build the cask in goreleaser…    │ Please also upload the cask to the       │
 │ 2026-10-28 09:05  CI pipeline         agent │ homebrew tap with goreleaser, the token  │
 │   …goreleaser needs HOMEBREW_TAP_GITHUB_T… │ is in the repo secrets.                  │
-│ 2026-10-12 15:40  odoo-work-cli       agent │                                          │
-│   …copied .goreleaser.yml from odoo-work-… │ ── 22:16 agent                           │
+│ 2026-10-12 15:40  zeiterfassung       agent │                                          │
+│   …copied .goreleaser.yml from zeiterfass… │ ── 22:16 agent                           │
 │                                            │ goreleaser skips the cask upload when    │
 │                                            │ the tap token is missing. I added …      │
 │                                            │                                          │
@@ -205,7 +205,7 @@ Alle Mockups 100×30 Zeichen. Die Oberfläche ist Englisch wie die CLI; Hilfetex
 
 ```
 ┌ total-recall ───────────────────────────────── 1 search  2 stats  ? help  q quit ┐
-│ Release v0.1.0                                           claude:f2b299a1-b3c1-4cf8… │
+│ Release v0.1.0                                           claude:7d1e4c20-b3c1-4cf8… │
 │ seletz/total-recall  develop  2026-10-31 22:10 – 23:02 (52m)  3 human  14 agent      │
 ├───────────────────────────────────────────────────────────────────────────────────────┤
 │ ── 22:10 human                                                                        │
@@ -250,12 +250,12 @@ Alle Mockups 100×30 Zeichen. Die Oberfläche ist Englisch wie die CLI; Hilfetex
 │    0 ┼─────────────────────────────────────────────────────────────────────────────── │
 │       05  07  09  11  13  15  17  19  21  23  25  27  29  31                            │
 │                                                                                       │
-│ ███ dipa  ▒▒▒ dg-k8s  ░░░ sichtung  ▓▓▓ total-recall  ··· other                      │
+│ ███ iris  ▒▒▒ webapp  ░░░ notizbox  ▓▓▓ total-recall  ··· other                      │
 ├───────────────────────────────────────────────────────────────────────────────────────┤
 │ project         sessions   human    agent   share                                     │
-│ dipa                  56    1 204   21 870   37 %                                     │
-│ dg-k8s                56      980   18 310   31 %                                     │
-│ sichtung              21      310    6 120   10 %                                     │
+│ iris                  56    1 204   21 870   37 %                                     │
+│ webapp                56      980   18 310   31 %                                     │
+│ notizbox              21      310    6 120   10 %                                     │
 │ total-recall          14      402    5 990   10 %                                     │
 │ other                 42      515    7 212   12 %                                     │
 ├───────────────────────────────────────────────────────────────────────────────────────┤
