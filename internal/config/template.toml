@@ -94,6 +94,36 @@ bundesland = "Baden-Württemberg"
 # switch for one run.
 count = "human"
 
+[worktime]
+# Working time per project and day, estimated from your own messages
+# (`stats --worktime`), as a basis for timesheets. The gap between two
+# consecutive own messages, across all sessions, counts for the project of
+# the later one: in full up to max_gap, otherwise (a break, a meeting, the
+# first message of a day) min_credit. Meetings and work without an agent
+# leave no messages: the values are a lower bound.
+max_gap = "20m"
+min_credit = "3m"
+# The sum per category and day is rounded to grid (0 = no rounding), in the
+# direction rounding: up, down or nearest.
+grid = "15m"
+rounding = "up"
+# What is rounded: "category" (the sum of a category per day, once) or
+# "project" (every project per day; the category is the sum of its
+# rounded projects).
+scope = "category"
+# Categories, as an ordered list of rules; the first rule with a matching
+# pattern wins. A pattern is matched whole against the project name (as in
+# `stats --by project`), the git root or working directory (as a path and
+# with the home directory as "~") and the remote URL; "*" matches anything,
+# also "/", "?" one character. A project no rule matches is its own
+# category, named like the project; a last rule with "*" collects the rest.
+# [[worktime.category]]
+# name = "kunde-a"
+# match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
+# [[worktime.category]]
+# name = "sonstiges"
+# match = "*"
+
 [git]
 # Resolve git root, remote URL and branch for session working directories.
 resolve = true

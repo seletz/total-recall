@@ -5,10 +5,11 @@
 // Precedence: flag > environment variable > config file > default.
 //
 // Load validates the core settings (paths, time zone, day boundary, backup,
-// ingest, redaction). The tables [work], [tui] and [keys] are only parsed:
-// their values are checked when a command uses them (WorkHours, KeyMap,
-// ValidateTUI), so a mistake there never stops hooks and ingest. Problems
-// lists every such error for `config show` and `doctor`.
+// ingest, redaction). The tables [work], [worktime], [tui] and [keys] are
+// only parsed: their values are checked when a command uses them
+// (WorkHours, WorktimeSettings, KeyMap, ValidateTUI), so a mistake there never
+// stops hooks and ingest. Problems lists every such error for `config show`
+// and `doctor`.
 package config
 
 import (
@@ -29,6 +30,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // Environment variables understood by Load.
@@ -91,6 +93,9 @@ type Config struct {
 	// Work is the normal working time the activity per day is measured
 	// against (stats --workday, TUI activity).
 	Work Work `toml:"work"`
+	// Worktime holds the parameters of the working time per project
+	// (stats --worktime).
+	Worktime Worktime `toml:"worktime"`
 	// TUI holds the start-up defaults of `total-recall tui`.
 	TUI TUI `toml:"tui"`
 	// Keys overrides key bindings of the TUI: action name → keys; see
@@ -112,29 +117,72 @@ type Config struct {
 	dayStart time.Duration
 }
 
+// StringList is a TOML value that is a string or a list of strings.
+type StringList []string
+
 // KeyList is the value of one [keys] entry: a key name or a list of them.
-type KeyList []string
+type KeyList = StringList
 
 // UnmarshalTOML implements toml.Unmarshaler: a string or an array of strings.
-func (l *KeyList) UnmarshalTOML(v any) error {
+func (l *StringList) UnmarshalTOML(v any) error {
 	switch v := v.(type) {
 	case string:
-		*l = KeyList{v}
+		*l = StringList{v}
 	case []any:
-		out := make(KeyList, 0, len(v))
+		out := make(StringList, 0, len(v))
 		for _, e := range v {
 			s, ok := e.(string)
 			if !ok {
-				return fmt.Errorf("want a key name, got %v", e)
+				return fmt.Errorf("want a string, got %v", e)
 			}
 			out = append(out, s)
 		}
 		*l = out
 	default:
-		return fmt.Errorf("want a key name or a list of key names, got %v", v)
+		return fmt.Errorf("want a string or a list of strings, got %v", v)
 	}
 	return nil
 }
+
+// Worktime configures the working time per project and day that
+// `stats --worktime` estimates from the user's own messages (see
+// internal/worktime for the method).
+type Worktime struct {
+	// MaxGap is the longest gap between two own messages that counts in
+	// full; MinCredit is what a longer gap (a break, a meeting, the first
+	// message of a day) counts.
+	MaxGap    Duration `toml:"max_gap"`
+	MinCredit Duration `toml:"min_credit"`
+	// Grid is the rounding grid (0 = no rounding), Rounding the direction
+	// (up, down, nearest) and Scope what is rounded: the sum per category
+	// and day (category) or every project per day (project).
+	Grid     Duration `toml:"grid"`
+	Rounding string   `toml:"rounding"`
+	Scope    string   `toml:"scope"`
+	// Categories are the ordered rules that map projects to categories
+	// ([[worktime.category]]); the first match wins, a project without a
+	// match is its own category.
+	Categories []Category `toml:"category"`
+}
+
+// Category is one [[worktime.category]] rule: the category name and the
+// glob patterns matched against the project name, its git root (as a
+// path and with "~") and its remote URL.
+type Category struct {
+	Name  string     `toml:"name"`
+	Match StringList `toml:"match"`
+}
+
+// Built-in working time per project: gaps up to 20 minutes count in full,
+// longer ones 3 minutes, the sum per category and day is rounded up to
+// 15 minutes.
+const (
+	DefaultWorktimeMaxGap    = 20 * time.Minute
+	DefaultWorktimeMinCredit = 3 * time.Minute
+	DefaultWorktimeGrid      = 15 * time.Minute
+	DefaultWorktimeRounding  = "up"
+	DefaultWorktimeScope     = "category"
+)
 
 // TUI configures `total-recall tui`. Flags override every value.
 type TUI struct {
@@ -314,12 +362,27 @@ var fields = []struct {
 	{"work.weekly_high", func(c *Config) string { return c.Work.WeeklyHigh.String() }},
 	{"work.bundesland", func(c *Config) string { return c.Work.Bundesland }},
 	{"work.count", func(c *Config) string { return c.Work.Count }},
+	{"worktime.max_gap", func(c *Config) string { return c.Worktime.MaxGap.String() }},
+	{"worktime.min_credit", func(c *Config) string { return c.Worktime.MinCredit.String() }},
+	{"worktime.grid", func(c *Config) string { return c.Worktime.Grid.String() }},
+	{"worktime.rounding", func(c *Config) string { return c.Worktime.Rounding }},
+	{"worktime.scope", func(c *Config) string { return c.Worktime.Scope }},
+	{"worktime.category", func(c *Config) string { return formatCategories(c.Worktime.Categories) }},
 	{"tui.view", func(c *Config) string { return c.TUI.View }},
 	{"tui.graphics", func(c *Config) string { return c.TUI.Graphics }},
 	{"tui.mouse", func(c *Config) string { return strconv.FormatBool(c.TUI.Mouse) }},
 	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
+}
+
+// formatCategories formats the category rules as `[name = ["glob", …], …]`.
+func formatCategories(cs []Category) string {
+	parts := make([]string, len(cs))
+	for i, c := range cs {
+		parts[i] = c.Name + " = " + formatList(c.Match)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 func formatList(l []string) string {
@@ -361,6 +424,10 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh},
 		WeeklyLow: Duration{DefaultWorkWeeklyLow}, WeeklyHigh: Duration{DefaultWorkWeeklyHigh},
 		Bundesland: DefaultWorkBundesland, Count: DefaultWorkCount,
+	}
+	c.Worktime = Worktime{
+		MaxGap: Duration{DefaultWorktimeMaxGap}, MinCredit: Duration{DefaultWorktimeMinCredit}, Grid: Duration{DefaultWorktimeGrid},
+		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, Categories: []Category{},
 	}
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}
 	c.Keys = map[string]KeyList{}
@@ -555,6 +622,42 @@ func (c *Config) validateWorkBounds() error {
 	return nil
 }
 
+// WorktimeSettings validates the [worktime] table and returns it as the settings
+// of the working-time estimate, the category rules compiled. The error
+// names the first bad value; commands that do not estimate working time
+// never see it.
+func (c *Config) WorktimeSettings() (worktime.Settings, error) {
+	w := c.Worktime
+	s := worktime.Settings{MaxGap: w.MaxGap.Duration, MinCredit: w.MinCredit.Duration, Grid: w.Grid.Duration}
+	if s.MaxGap <= 0 {
+		return s, fmt.Errorf("config: worktime.max_gap %s: want more than 0", s.MaxGap)
+	}
+	if s.MinCredit < 0 || s.MinCredit > s.MaxGap {
+		return s, fmt.Errorf("config: worktime.min_credit %s: want between 0 and worktime.max_gap (%s)", s.MinCredit, s.MaxGap)
+	}
+	if s.Grid < 0 || s.Grid > 24*time.Hour {
+		return s, fmt.Errorf("config: worktime.grid %s: want between 0 (no rounding) and 24h", s.Grid)
+	}
+	var err error
+	if s.Rounding, err = worktime.ParseRounding(w.Rounding); err != nil {
+		return s, fmt.Errorf("config: worktime.rounding %q: use %s", w.Rounding, orList(worktime.Roundings))
+	}
+	if s.Scope, err = worktime.ParseScope(w.Scope); err != nil {
+		return s, fmt.Errorf("config: worktime.scope %q: use %s", w.Scope, orList(worktime.Scopes))
+	}
+	for i, cat := range w.Categories {
+		r, err := worktime.NewRule(cat.Name, cat.Match)
+		if err != nil {
+			return s, fmt.Errorf("config: worktime.category[%d]: %w", i, err)
+		}
+		s.Rules = append(s.Rules, r)
+	}
+	if err := worktime.ValidateRules(s.Rules); err != nil {
+		return s, fmt.Errorf("config: worktime.category: %w", err)
+	}
+	return s, nil
+}
+
 // ValidateTUI checks the values of the [tui] table.
 func (c *Config) ValidateTUI() error {
 	for _, v := range []struct {
@@ -590,10 +693,14 @@ func (c *Config) KeyMap() (keys.Map, error) {
 }
 
 // Problems returns the errors of the tables that Load does not validate
-// ([work], [tui], [keys]), in that order; nil when they are all fine.
+// ([work], [worktime], [tui], [keys]), in that order; nil when they are
+// all fine.
 func (c *Config) Problems() []error {
 	var out []error
 	if _, _, err := c.WorkHours(); err != nil {
+		out = append(out, err)
+	}
+	if _, err := c.WorktimeSettings(); err != nil {
 		out = append(out, err)
 	}
 	if err := c.ValidateTUI(); err != nil {

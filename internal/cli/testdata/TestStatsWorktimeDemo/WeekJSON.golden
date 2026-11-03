@@ -1,0 +1,127 @@
+{
+  "since": "2026-10-26T03:00:00.000Z",
+  "until": "2026-10-27T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "max_gap_seconds": 1200,
+  "min_credit_seconds": 180,
+  "grid_seconds": 900,
+  "rounding": "up",
+  "rounding_scope": "category",
+  "holiday_region": "Baden-Württemberg",
+  "days": [
+    {
+      "day": "2026-10-26",
+      "weekday": "Mon",
+      "weekend": false,
+      "holiday": null,
+      "raw_seconds": 13402,
+      "rounded_seconds": 14400,
+      "categories": [
+        {
+          "category": "fahrtenbuch",
+          "raw_seconds": 2700,
+          "rounded_seconds": 2700,
+          "projects": [
+            {
+              "project": "fahrtenbuch",
+              "key": "/home/mara/src/fahrtenbuch",
+              "remote": "https://git.invalid/mara/fahrtenbuch",
+              "raw_seconds": 2700,
+              "rounded_seconds": 2700
+            }
+          ],
+          "sessions": [
+            {
+              "id": "claude:7d1e02c0-02c0-4000-8000-0000000002c0",
+              "title": "Fahrten zusammenfassen",
+              "raw_seconds": 2700
+            }
+          ]
+        },
+        {
+          "category": "kompass",
+          "raw_seconds": 9142,
+          "rounded_seconds": 9900,
+          "projects": [
+            {
+              "project": "kompass",
+              "key": "/home/mara/src/kompass",
+              "remote": "https://git.invalid/mara/kompass",
+              "raw_seconds": 9142,
+              "rounded_seconds": 9900
+            }
+          ],
+          "sessions": [
+            {
+              "id": "claude:7d1e02bb-02bb-4000-8000-0000000002bb",
+              "title": "GPX-Export",
+              "raw_seconds": 2712
+            },
+            {
+              "id": "claude:7d1e02bc-02bc-4000-8000-0000000002bc",
+              "title": "Tiles-Cache nach Neustart leer",
+              "raw_seconds": 540
+            },
+            {
+              "id": "claude:7d1e02bd-02bd-4000-8000-0000000002bd",
+              "title": "Wegpunkte stabil sortieren",
+              "raw_seconds": 2680
+            },
+            {
+              "id": "claude:7d1e02bf-02bf-4000-8000-0000000002bf",
+              "title": "Umlaute in Ortsnamen",
+              "raw_seconds": 3210
+            }
+          ]
+        },
+        {
+          "category": "wetterwarte",
+          "raw_seconds": 1560,
+          "rounded_seconds": 1800,
+          "projects": [
+            {
+              "project": "wetterwarte",
+              "key": "/home/mara/src/wetterwarte",
+              "remote": "https://git.invalid/mara/wetterwarte",
+              "raw_seconds": 1560,
+              "rounded_seconds": 1800
+            }
+          ],
+          "sessions": [
+            {
+              "id": "claude:7d1e02be-02be-4000-8000-0000000002be",
+              "title": "Frostwarnung",
+              "raw_seconds": 1560
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "category": "fahrtenbuch",
+      "raw_seconds": 2700,
+      "rounded_seconds": 2700,
+      "days": 1
+    },
+    {
+      "category": "kompass",
+      "raw_seconds": 9142,
+      "rounded_seconds": 9900,
+      "days": 1
+    },
+    {
+      "category": "wetterwarte",
+      "raw_seconds": 1560,
+      "rounded_seconds": 1800,
+      "days": 1
+    }
+  ],
+  "total": {
+    "raw_seconds": 13402,
+    "rounded_seconds": 14400,
+    "days": 1
+  }
+}

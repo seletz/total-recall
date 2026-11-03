@@ -205,7 +205,7 @@ Ohne `--raw` wird jedes Wort in Anführungszeichen gesetzt. Dann müssen alle W�
 
 ## `stats` { #stats }
 
-Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
+Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
 
 ```sh
 total-recall stats                                   # aktueller Monat
@@ -374,7 +374,99 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
 }
 ```
 
-`--workday` lässt sich nicht mit `--period`, `--by` oder `--top` kombinieren.
+`--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
+
+### Arbeitszeit je Projekt: `--worktime` { #stats-worktime }
+
+Mit `--worktime` schätzt `stats` die **aktive Arbeitszeit je Tag und Kategorie** aus deinen eigenen Nachrichten, als Grundlage für Stundenzettel: roh und gerundet, mit den beteiligten Projekten und Sessions. Das Rezept dazu: [Stundenzettel füllen](../how-to/45-stundenzettel.md).
+
+```sh
+total-recall stats --worktime                         # diese Woche
+total-recall stats --worktime --range last-week
+total-recall stats --worktime --range last-month --sessions
+total-recall stats --worktime --since 2026-10-26 --until 2026-10-30 --json
+```
+
+```text
+2026-10-26 04:00 – 2026-10-31 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+DATE        DAY  CATEGORY     RAW    ROUNDED  HOLIDAY
+2026-10-26  Mon  fahrtenbuch  45m    45m      -
+2026-10-26  Mon  kompass      2h32m  2h45m    -
+2026-10-26  Mon  wetterwarte  26m    30m      -
+2026-10-27  Tue  fahrtenbuch  55m    1h00m    -
+2026-10-27  Tue  kompass      3h13m  3h15m    -
+2026-10-28  Wed  kompass      2h52m  3h00m    -
+2026-10-28  Wed  wetterwarte  53m    1h00m    -
+2026-10-29  Thu  -            -      -        -
+2026-10-30  Fri  fahrtenbuch  1h25m  1h30m    -
+2026-10-30  Fri  kompass      2h50m  3h00m    -
+
+CATEGORY     RAW     ROUNDED  DAYS
+fahrtenbuch  3h05m   3h15m    3
+kompass      11h29m  12h00m   4
+wetterwarte  1h19m   1h30m    2
+total        15h53m  16h45m   4
+```
+
+**Methode.** Grundlage sind nur deine eigenen Nachrichten (`actor = 'human'`), über alle Sessions hinweg in einer Zeitlinie. Die Lücke zwischen zwei aufeinanderfolgenden Nachrichten zählt für das Projekt der späteren: bis `max_gap` (Default 20 min) voll, darüber (Pause, Meeting, erste Nachricht des Tages) nur `min_credit` (Default 3 min). Die Zeit nach der letzten Nachricht eines Tages zählt nicht. Die Summe je Kategorie und Tag wird auf `grid` gerundet (Default 15 min aufwärts). Alles kommt aus [`[worktime]`](20-konfiguration.md#worktime).
+
+**Untergrenze.** Meetings, Lesen, Denken und alles, was ohne Agent passiert, hinterlässt keine Nachricht und fehlt. Die Werte sind eine Untergrenze, kein Ersatz für eine Zeiterfassung; `--workday` liefert die Anwesenheit dazu.
+
+**Kategorien.** Projekte (Git-Root, sonst Arbeitsverzeichnis, Namen wie bei `--by project`) werden über die Regeln `[[worktime.category]]` zugeordnet, die erste passende gewinnt. Ein Projekt ohne Regel ist seine eigene Kategorie und heißt wie das Projekt, Verzeichnisse ohne Repository als Pfad mit `~`. Eine letzte Regel mit `match = "*"` sammelt den Rest.
+
+| Option | Bedeutung |
+|---|---|
+| `--range`, `--since`, `--until`, `--month` | wie bei [`--workday`](#stats-workday): Tage ab der Tagesgrenze, `--until` einschließlich, ohne Zeitraum `this-week` |
+| `--sessions` | in der Textausgabe je Tag und Kategorie die Sessions mit Titel (Vorlage für Buchungstexte) und, bei mehr als einem Projekt je Kategorie, die Projekte; Tage ohne Aktivität entfallen dort. JSON enthält beides immer |
+
+```text
+2026-10-26 Mon: 3h43m raw, 4h00m rounded
+  fahrtenbuch: 45m raw, 45m rounded
+       45m  7d1e02c0  Fahrten zusammenfassen
+  kompass: 2h32m raw, 2h45m rounded
+       45m  7d1e02bb  GPX-Export
+        9m  7d1e02bc  Tiles-Cache nach Neustart leer
+       44m  7d1e02bd  Wegpunkte stabil sortieren
+       53m  7d1e02bf  Umlaute in Ortsnamen
+  wetterwarte: 26m raw, 30m rounded
+       26m  7d1e02be  Frostwarnung
+```
+
+**Tagesgrenze und Feiertage.** Wie bei `--workday`: ein Tag beginnt um `day_start`, Nachrichten davor zählen zum Vortag (die Lücke läuft über Mitternacht weiter). Alle Tage des Zeitraums erscheinen, Feiertage aus `bundesland` in `[work]` mit Namen; ein Feiertag oder Wochenende ändert an der Zählung nichts.
+
+JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_seconds`, `grid_seconds`, `rounding`, `rounding_scope`, `holiday_region`), je Tag `raw_seconds`, `rounded_seconds`, `weekend`, `holiday` und die Liste `categories` mit je Kategorie den Projekten (`project`, `key`, `remote`, roh und einzeln gerundet) und Sessions (`id`, `title`, `raw_seconds`, in Reihenfolge der ersten Nachricht), dann `categories` mit den Summen je Kategorie über den Zeitraum und `total`. Gerundete Summen sind Summen der gerundeten Tageszellen. Ein Tag ohne Aktivität hat eine leere Liste und Nullen.
+
+```json
+{
+  "since": "2026-10-26T03:00:00.000Z",
+  "until": "2026-10-27T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "max_gap_seconds": 1200, "min_credit_seconds": 180,
+  "grid_seconds": 900, "rounding": "up", "rounding_scope": "category",
+  "holiday_region": "Baden-Württemberg",
+  "days": [
+    {
+      "day": "2026-10-26", "weekday": "Mon", "weekend": false, "holiday": null,
+      "raw_seconds": 13402, "rounded_seconds": 14400,
+      "categories": [
+        {
+          "category": "kompass", "raw_seconds": 9142, "rounded_seconds": 9900,
+          "projects": [{"project": "kompass", "key": "/home/mara/src/kompass", "remote": "https://git.invalid/mara/kompass", "raw_seconds": 9142, "rounded_seconds": 9900}],
+          "sessions": [{"id": "claude:7d1e02bb-02bb-4000-8000-0000000002bb", "title": "GPX-Export", "raw_seconds": 2712}]
+        }
+      ]
+    }
+  ],
+  "categories": [{"category": "kompass", "raw_seconds": 9142, "rounded_seconds": 9900, "days": 1}],
+  "total": {"raw_seconds": 13402, "rounded_seconds": 14400, "days": 1}
+}
+```
+
+`--worktime` lässt sich nicht mit `--workday`, `--all-events`, `--period`, `--by` oder `--top` kombinieren. Ein Fehler in `[worktime]` bricht nur diesen Befehl ab (`kind` `config`).
 
 ## `tui` { #tui }
 

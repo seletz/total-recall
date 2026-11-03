@@ -237,7 +237,7 @@ View: per local day (configured zone) and session.
 
 - **Redaction:** secrets were masked before storage as `«redacted:<kind>»`. The originals are gone; still treat the content as confidential.
 - **Coverage:** data starts when ingestion started. The harness deletes old transcripts (Claude Code: `cleanupPeriodDays`), so sessions before the first ingest may be missing. Absence is not proof that no work happened.
-- **Session duration** is `ended_at - started_at` including idle time: an upper bound, not worked time.
+- **Session duration** is `ended_at - started_at` including idle time: an upper bound, not worked time. `stats --worktime` estimates worked time from the gaps between the user's messages: a lower bound, because meetings and work without an agent leave no messages.
 - If results look empty, run `total-recall status --json` to confirm the DB path and that ingestion is current.
 
 ## Scope
@@ -256,6 +256,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory] [--top N]` | time series per period, optionally per key |
 | `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
+| `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell (`--sessions` adds them to the text output). Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
 | `total-recall llm --skill` | prints this document |
 
@@ -421,3 +422,80 @@ One object per hit.
 | `span_seconds` | |
 | `target_seconds` | target x workdays |
 | `balance_seconds` | span minus target |
+
+#### `stats --json --worktime`
+
+Working time per day and category, estimated from the gaps between the user's own messages (all sessions in one timeline; a gap counts for the project of the later message, in full up to `max_gap_seconds`, else `min_credit_seconds`). Projects are mapped to categories by the `[worktime]` rules of the config; a project without a rule is its own category, named like the project. A lower bound: meetings and work without an agent are not in it.
+
+| field | meaning |
+|---|---|
+| `since` | start of the range (UTC) |
+| `until` | end of the range (UTC) |
+| `timezone` | |
+| `day_start` | `HH:MM`; activity before it counts for the previous day |
+| `max_gap_seconds` | longest gap that counts in full |
+| `min_credit_seconds` | what a longer gap (or the first message of a day) counts |
+| `grid_seconds` | rounding grid, 0 = no rounding |
+| `rounding` | `up`, `down` or `nearest` |
+| `rounding_scope` | `category` (the sum per category and day is rounded once) or `project` (every project is rounded, the category is the sum) |
+| `holiday_region` | region of the public holidays |
+| `days` | all days of the range, see below |
+| `categories` | per category over the range, see below |
+| `total` | see below |
+
+#### `stats --json --worktime` days[]
+
+| field | meaning |
+|---|---|
+| `day` | `YYYY-MM-DD` local |
+| `weekday` | `Mon` … `Sun` |
+| `weekend` | |
+| `holiday` | name of the public holiday, else `null` |
+| `raw_seconds` | credited time of the day |
+| `rounded_seconds` | sum of the rounded categories |
+| `categories` | categories with time on the day, sorted by name; empty without activity |
+
+#### `stats --json --worktime` days[].categories[]
+
+| field | meaning |
+|---|---|
+| `category` | |
+| `raw_seconds` | credited time |
+| `rounded_seconds` | time to book |
+| `projects` | projects of the category with time on the day, sorted by name |
+| `sessions` | sessions of the category on the day, in order of their first message; titles are the template for booking texts |
+
+#### `stats --json --worktime` days[].categories[].projects[]
+
+| field | meaning |
+|---|---|
+| `project` | project name as in `stats --by project` |
+| `key` | git root, else working directory |
+| `remote` | remote URL, `null` without a repository |
+| `raw_seconds` | |
+| `rounded_seconds` | the project rounded alone; with `rounding_scope` `category` the projects can sum to more than the category |
+
+#### `stats --json --worktime` days[].categories[].sessions[]
+
+| field | meaning |
+|---|---|
+| `id` | session id, for `show` |
+| `title` | display name, `null` without |
+| `raw_seconds` | |
+
+#### `stats --json --worktime` categories[]
+
+| field | meaning |
+|---|---|
+| `category` | |
+| `raw_seconds` | |
+| `rounded_seconds` | sum of the rounded day cells |
+| `days` | days with time |
+
+#### `stats --json --worktime` total
+
+| field | meaning |
+|---|---|
+| `raw_seconds` | |
+| `rounded_seconds` | sum of the rounded day cells |
+| `days` | days with time |

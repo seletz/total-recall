@@ -38,7 +38,7 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 Beim Laden prüft jeder Befehl die Kerneinstellungen streng: Pfade, `timezone`, `day_start`, `[backup]`, `[ingest]`, `[redact]`, unbekannte Schlüssel und falsche Typen. Ein Fehler dort bricht jeden Befehl ab.
 
-Die Abschnitte `[work]`, `[tui]` und `[keys]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --workday` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
+Die Abschnitte `[work]`, `[worktime]`, `[tui]` und `[keys]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --workday`, `stats --worktime` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
 
 ## Vollständige Vorlage
 
@@ -70,6 +70,16 @@ weekly_low = "32h"               # Wochenarbeitszeit (5 Arbeitstage) darunter: u
 weekly_high = "48h"              # darüber: deutlich über Soll
 bundesland = "Baden-Württemberg" # gesetzliche Feiertage; unbekannt/leer = bundesweit
 count = "human"                  # was zählt: "human" (eigene Nachrichten) oder "all"
+
+[worktime]
+max_gap = "20m"                  # Lücke zwischen eigenen Nachrichten, die voll zählt
+min_credit = "3m"                # was eine längere Lücke zählt
+grid = "15m"                     # Rundungsraster, 0 = keine Rundung
+rounding = "up"                  # up | down | nearest
+scope = "category"               # category | project: was gerundet wird
+# [[worktime.category]]          # Regeln in Reihenfolge, die erste passende gewinnt
+# name = "kunde-a"
+# match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
 
 [ingest]
 tool_result_max_bytes = 4096
@@ -197,6 +207,42 @@ Normalarbeitszeit und Feiertage für die Aktivität je Tag ([`stats --workday`](
 
 `count`
 :   Was die Aktivität je Tag zählt: `human` (nur eigene Nachrichten; Agent-Events laufen nachts weiter und dehnen die Spanne) oder `all` (eigene Nachrichten und Agent-Events wie die Aktivitätsstatistik). `stats --workday --all-events` und die Taste `h` in der TUI schalten für einen Lauf um. Default: `human`.
+
+### `[worktime]` { #worktime }
+
+Arbeitszeit je Projekt und Tag aus deinen eigenen Nachrichten ([`stats --worktime`](10-befehle.md#stats-worktime)), als Grundlage für Stundenzettel. Die Lücke zwischen zwei aufeinanderfolgenden eigenen Nachrichten, über alle Sessions hinweg, zählt für das Projekt der späteren. Meetings und Arbeit ohne Agent hinterlassen keine Nachricht: die Werte sind eine Untergrenze.
+
+`max_gap`
+:   Längste Lücke, die voll zählt. Default: `20m`.
+
+`min_credit`
+:   Was eine längere Lücke zählt (Pause, Meeting, erste Nachricht des Tages). Zwischen 0 und `max_gap`. Default: `3m`.
+
+`grid`
+:   Rundungsraster für die Summe; `0m` rundet nicht. Default: `15m`.
+
+`rounding`
+:   Richtung: `up` (aufrunden), `down` (abrunden) oder `nearest` (kaufmännisch, halbe Raster aufwärts). Default: `up`.
+
+`scope`
+:   Was gerundet wird: `category` rundet die Summe einer Kategorie je Tag einmal; `project` rundet jedes Projekt je Tag, die Kategorie ist die Summe der gerundeten Projekte (rundet bei mehreren Projekten je Kategorie stärker auf). Default: `category`.
+
+`[[worktime.category]]`
+:   Regeln, die Projekte Kategorien zuordnen, in der Reihenfolge der Datei; die erste passende gewinnt. Je Regel `name` (die Kategorie) und `match` (ein Muster oder eine Liste). Ein Muster wird als Ganzes gegen den Projektnamen (wie bei `stats --by project`), den Git-Root bzw. das Arbeitsverzeichnis (als Pfad und mit `~` für das Home-Verzeichnis) und die Remote-URL geprüft; `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Projekt ohne passende Regel ist seine eigene Kategorie und heißt wie das Projekt. Eine letzte Regel mit `match = "*"` sammelt den Rest. Gleiche Namen zweimal, eine Regel ohne Namen oder ohne Muster sind Fehler. Default: keine Regeln.
+
+```toml
+[[worktime.category]]
+name = "kunde-a"
+match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
+
+[[worktime.category]]
+name = "intern"
+match = ["total-recall", "dotfiles"]
+
+[[worktime.category]]
+name = "sonstiges"
+match = "*"
+```
 
 ### `[git]`
 

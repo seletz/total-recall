@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // env returns a lookup func over a fixed map.
@@ -658,5 +659,108 @@ func TestWorkErrors(t *testing.T) {
 	}
 	if ps := c.Problems(); ps != nil {
 		t.Errorf("Problems of the defaults = %v", ps)
+	}
+}
+
+// TestWorktime checks the defaults and the parsing of [worktime], including
+// the ordered category rules.
+func TestWorktime(t *testing.T) {
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := c.WorktimeSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.MaxGap != 20*time.Minute || s.MinCredit != 3*time.Minute || s.Grid != 15*time.Minute || s.Rounding != worktime.Up || s.Scope != worktime.ScopeCategory || len(s.Rules) != 0 {
+		t.Errorf("defaults = %+v", s)
+	}
+	content := `[worktime]
+max_gap = "30m"
+min_credit = "5m"
+grid = "6m"
+rounding = "nearest"
+scope = "project"
+
+[[worktime.category]]
+name = "kunde"
+match = ["https://example.test/kunde/*", "~/src/kunde-*"]
+
+[[worktime.category]]
+name = "sonstiges"
+match = "*"
+`
+	c, err = Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", content)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err = c.WorktimeSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.MaxGap != 30*time.Minute || s.MinCredit != 5*time.Minute || s.Grid != 6*time.Minute || s.Rounding != worktime.Nearest || s.Scope != worktime.ScopeProject {
+		t.Errorf("file = %+v", s)
+	}
+	if len(s.Rules) != 2 || s.Rules[0].Name != "kunde" || len(s.Rules[0].Patterns) != 2 || s.Rules[1].Name != "sonstiges" || !s.Rules[1].Matches("anything") {
+		t.Errorf("rules = %+v", s.Rules)
+	}
+	if got := c.Origin("worktime.category"); got != OriginFile {
+		t.Errorf("origin of worktime.category = %s", got)
+	}
+	entries := map[string]Entry{}
+	for _, e := range c.Entries() {
+		entries[e.Key] = e
+	}
+	if e := entries["worktime.category"]; e.Value != `[kunde = ["https://example.test/kunde/*", "~/src/kunde-*"], sonstiges = ["*"]]` {
+		t.Errorf("category entry = %+v", e)
+	}
+	if e := entries["worktime.max_gap"]; e.Value != "30m0s" || e.Origin != OriginFile {
+		t.Errorf("max_gap entry = %+v", e)
+	}
+}
+
+// TestWorktimeErrors: a bad [worktime] table loads, but Worktime and
+// Problems report it.
+func TestWorktimeErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"max gap zero", "[worktime]\nmax_gap = \"0m\"\n", "worktime.max_gap"},
+		{"min credit negative", "[worktime]\nmin_credit = \"-1m\"\n", "worktime.min_credit"},
+		{"min credit above max gap", "[worktime]\nmax_gap = \"5m\"\nmin_credit = \"6m\"\n", "worktime.min_credit"},
+		{"grid negative", "[worktime]\ngrid = \"-15m\"\n", "worktime.grid"},
+		{"grid too coarse", "[worktime]\ngrid = \"25h\"\n", "worktime.grid"},
+		{"rounding unknown", "[worktime]\nrounding = \"ceil\"\n", "worktime.rounding"},
+		{"scope unknown", "[worktime]\nscope = \"cell\"\n", "worktime.scope"},
+		{"category without name", "[[worktime.category]]\nmatch = [\"*\"]\n", "worktime.category"},
+		{"category without patterns", "[[worktime.category]]\nname = \"a\"\n", "worktime.category"},
+		{"category empty pattern", "[[worktime.category]]\nname = \"a\"\nmatch = [\"\"]\n", "worktime.category"},
+		{"category twice", "[[worktime.category]]\nname = \"a\"\nmatch = [\"x\"]\n[[worktime.category]]\nname = \"a\"\nmatch = [\"y\"]\n", "worktime.category"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.content)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err != nil {
+				t.Fatalf("Load must not fail on [worktime]: %v", err)
+			}
+			if _, err := c.WorktimeSettings(); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("WorktimeSettings error = %v, want containing %q", err, tt.wantErr)
+			}
+			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.wantErr) {
+				t.Errorf("Problems = %v, want one containing %q", ps, tt.wantErr)
+			}
+		})
+	}
+	// A grid of zero disables rounding and is fine.
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", "[worktime]\ngrid = \"0m\"\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, err := c.WorktimeSettings(); err != nil || s.Grid != 0 {
+		t.Errorf("grid 0 = %+v, %v", s, err)
 	}
 }

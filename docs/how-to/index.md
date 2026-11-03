@@ -13,4 +13,5 @@ Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 - [Hooks einrichten](20-hooks-einrichten.md): der Block für Claude Code, erstes Einlesen, Prüfen, nach einem Claude-Code-Update.
 - [Archiv auswerten](30-auswerten.md): Kennzahlen mit `stats`, Volltextsuche mit `search`, eigene Abfragen mit `sql`.
 - [Arbeitszeit nachvollziehen](40-arbeitszeit.md): erste und letzte Aktivität je Tag mit Soll und Saldo, in CLI und TUI.
+- [Stundenzettel füllen](45-stundenzettel.md): Arbeitszeit je Tag und Kategorie aus den Lücken zwischen den eigenen Nachrichten, Buchungstexte aus den Session-Titeln.
 - [Agenten anbinden](50-agenten-anbinden.md): den eingebetteten Skill für Claude Code ablegen.
