@@ -29,6 +29,35 @@ archives:
     files:
       - completions/*
 
+# One CycloneDX SBOM per platform next to the archive, cataloged from the
+# released binary itself (the linked modules differ per platform). tools/sbom
+# runs the pinned cyclonedx-gomod (mise.toml), names the main component after
+# the project and checks the document before goreleaser checksums and uploads
+# it; the checksum file lists the SBOMs like the archives. goreleaser runs the
+# command inside dist/, hence the relative paths.
+sboms:
+  - id: binary
+    artifacts: binary
+    documents:
+      - "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}.cdx.json"
+    cmd: go
+    args:
+      - run
+      - ../tools/sbom
+      - generate
+      - -sum
+      - ../go.sum
+      - -binary
+      - $artifact
+      - -out
+      - $document
+      - -goos
+      - "{{ .Os }}"
+      - -goarch
+      - "{{ .Arch }}"
+      - -version
+      - "{{ .Version }}"
+
 checksum:
   name_template: "checksums-{{ .Tag }}.txt"
 

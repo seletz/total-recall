@@ -62,6 +62,38 @@ jobs:
           version: "~> v2"
           args: check
 
+  # Same commands as `mise run sbom:check`: a snapshot release into dist/
+  # (nothing is published) and the check of its SBOMs. The release workflow
+  # runs the identical goreleaser config, so what passes here ships.
+  release-snapshot:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install cyclonedx-gomod
+        # Same version as the pin in mise.toml (task release:snapshot) and in release.yml.
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: goreleaser snapshot
+        uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+
+      - name: Check the SBOMs
+        run: go run ./tools/sbom check dist
+
   docs:
     runs-on: ubuntu-latest
     steps:
