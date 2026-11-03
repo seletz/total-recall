@@ -154,6 +154,7 @@ func bgOr(bg color.Color) color.Color {
 func shape(img *image.RGBA, r image.Rectangle, ch rune, fg color.Color) bool {
 	w, h := r.Dx(), r.Dy()
 	cx, cy := r.Min.X+w/2, r.Min.Y+h/2
+	rad := min(w, h) / 2 // radius of the rounded corners
 	hline := func(x0, x1 int) { fill(img, image.Rect(x0, cy-stroke/2, x1, cy-stroke/2+stroke), fg) }
 	vline := func(y0, y1 int) { fill(img, image.Rect(cx-stroke/2, y0, cx-stroke/2+stroke, y1), fg) }
 	switch ch {
@@ -190,18 +191,42 @@ func shape(img *image.RGBA, r image.Rectangle, ch rune, fg color.Color) bool {
 	case '┤':
 		vline(r.Min.Y, r.Max.Y)
 		hline(r.Min.X, cx)
-	case '┌', '╭':
+	case '╵':
+		vline(r.Min.Y, cy+stroke/2)
+	case '╷':
+		vline(cy-stroke/2, r.Max.Y)
+	case '╴':
+		hline(r.Min.X, cx+stroke/2)
+	case '╶':
+		hline(cx-stroke/2, r.Max.X)
+	case '┌':
 		hline(cx, r.Max.X)
 		vline(cy, r.Max.Y)
-	case '┐', '╮':
+	case '┐':
 		hline(r.Min.X, cx)
 		vline(cy, r.Max.Y)
-	case '└', '╰':
+	case '└':
 		hline(cx, r.Max.X)
 		vline(r.Min.Y, cy)
-	case '┘', '╯':
+	case '┘':
 		hline(r.Min.X, cx)
 		vline(r.Min.Y, cy)
+	case '╭':
+		arc(img, cx+rad, cy+rad, rad, -1, -1, fg)
+		hline(cx+rad, r.Max.X)
+		vline(cy+rad, r.Max.Y)
+	case '╮':
+		arc(img, cx-rad, cy+rad, rad, 1, -1, fg)
+		hline(r.Min.X, cx-rad)
+		vline(cy+rad, r.Max.Y)
+	case '╰':
+		arc(img, cx+rad, cy-rad, rad, -1, 1, fg)
+		hline(cx+rad, r.Max.X)
+		vline(r.Min.Y, cy-rad)
+	case '╯':
+		arc(img, cx-rad, cy-rad, rad, 1, 1, fg)
+		hline(r.Min.X, cx-rad)
+		vline(r.Min.Y, cy-rad)
 	case '▸', '▶':
 		triangle(img, r, fg, true)
 	case '◄', '◀':
@@ -210,6 +235,24 @@ func shape(img *image.RGBA, r image.Rectangle, ch rune, fg color.Color) bool {
 		return false
 	}
 	return true
+}
+
+// arc draws the quarter of a circle of radius rad around (ox, oy) that
+// lies towards sx, sy (each -1 or +1), as a stroke of the usual thickness
+// with soft edges.
+func arc(img *image.RGBA, ox, oy, rad, sx, sy int, c color.Color) {
+	for y := oy - rad - stroke; y <= oy+rad+stroke; y++ {
+		for x := ox - rad - stroke; x <= ox+rad+stroke; x++ {
+			dx, dy := float64(x)+0.5-float64(ox), float64(y)+0.5-float64(oy)
+			if dx*float64(sx) < 0 || dy*float64(sy) < 0 {
+				continue
+			}
+			d := math.Abs(math.Hypot(dx, dy) - float64(rad))
+			if t := float64(stroke)/2 + 0.5 - d; t > 0 {
+				img.Set(x, y, blend(c, img.RGBAAt(x, y), math.Min(t, 1)))
+			}
+		}
+	}
 }
 
 // triangle draws a right- or left-pointing triangle in the middle of r.

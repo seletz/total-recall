@@ -162,7 +162,12 @@ In der echten Datenbank ergibt das heute rund 24 Projekte aus 214 Verzeichnissen
 
 Alle Mockups 100×30 Zeichen. Die Oberfläche ist Englisch wie die CLI; Hilfetexte in der Doku Deutsch.
 
+!!! note "Entwurfsskizzen"
+    Die Skizzen in diesem Abschnitt sind der Entwurf vom 1. November 2026, von Hand gezeichnet und nicht nachgeführt: Rahmen, Fußzeile, Tasten und Projektnamen weichen von der fertigen TUI ab, siehe [Abweichungen vom Entwurf](#abweichungen-vom-entwurf). Wie die Ansichten heute aussehen, zeigen die Screenshots aus dem Demo-Archiv in der [TUI-Referenz](../reference/30-tui.md).
+
 ### Suche
+
+*Entwurfsskizze; die fertige Ansicht zeigt [Suche](../reference/30-tui.md#suche) als Screenshot.*
 
 ```
 ┌ total-recall ───────────────────────────────── 1 search  2 stats  ? help  q quit ┐
@@ -196,6 +201,8 @@ Alle Mockups 100×30 Zeichen. Die Oberfläche ist Englisch wie die CLI; Hilfetex
 
 ### Session
 
+*Entwurfsskizze; die fertige Ansicht zeigt [Session](../reference/30-tui.md#session) als Screenshot.*
+
 ```
 ┌ total-recall ───────────────────────────────── 1 search  2 stats  ? help  q quit ┐
 │ Release v0.1.0                                           claude:f2b299a1-b3c1-4cf8… │
@@ -224,6 +231,8 @@ Alle Mockups 100×30 Zeichen. Die Oberfläche ist Englisch wie die CLI; Hilfetex
 - ++y++ kopiert die Session-ID (OSC 52, von Bubble Tea v2 unterstützt; Ghostty kann es). Für `show`, `sql` und Agenten.
 
 ### Statistik
+
+*Entwurfsskizze; die fertige Ansicht zeigt [Statistik](../reference/30-tui.md#statistik) als Screenshot.*
 
 ```
 ┌ total-recall ───────────────────────────────── 1 search  2 stats  ? help  q quit ┐
