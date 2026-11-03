@@ -1,0 +1,57 @@
+2025-12-01 04:00 – 2026-01-01 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+2025-12-01 Mon: 6m raw, 15m rounded
+  alpha: 6m raw, 15m rounded
+        6m  a1a1a1a1  (untitled)
+
+2025-12-03 Wed: 3m raw, 15m rounded
+  alpha: 3m raw, 15m rounded
+        3m  a1a1a1a1  (untitled)
+
+2025-12-04 Thu: 3m raw, 15m rounded
+  beta: 3m raw, 15m rounded
+        3m  b2b2b2b2  Beta release
+
+2025-12-06 Sat: 3m raw, 15m rounded
+  /w/gamma: 3m raw, 15m rounded
+        3m  d3d3d3d3  (untitled)
+
+2025-12-07 Sun: 3m raw, 15m rounded
+  alpha: 3m raw, 15m rounded
+        3m  c1c1c1c1  (untitled)
+
+2025-12-09 Tue: 23m raw, 30m rounded
+  beta: 23m raw, 30m rounded
+       23m  b2b2b2b2  (untitled)
+
+2025-12-12 Fri: 3m raw, 15m rounded
+  alpha: 3m raw, 15m rounded
+        3m  a1a1a1a1  (untitled)
+
+2025-12-16 Tue: 3m raw, 15m rounded
+  /w/gamma: 3m raw, 15m rounded
+        3m  d3d3d3d3  (untitled)
+
+2025-12-18 Thu: 33m raw, 45m rounded
+  alpha: 33m raw, 45m rounded
+       33m  a1a1a1a1  (untitled)
+
+2025-12-23 Tue: 3m raw, 15m rounded
+  beta: 3m raw, 15m rounded
+        3m  b2b2b2b2  (untitled)
+
+2025-12-27 Sat: 3m raw, 15m rounded
+  alpha: 3m raw, 15m rounded
+        3m  c1c1c1c1  (untitled)
+
+2025-12-31 Wed: 6m raw, 15m rounded
+  alpha: 6m raw, 15m rounded
+        6m  a1a1a1a1  (untitled)
+
+CATEGORY  RAW    ROUNDED  DAYS
+/w/gamma  6m     30m      2
+alpha     57m    2h15m    7
+beta      29m    1h00m    3
+total     1h32m  3h45m    12

@@ -1,0 +1,140 @@
+{
+  "since": "2025-12-15T03:00:00.000Z",
+  "until": "2025-12-22T03:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "max_gap_seconds": 1200,
+  "min_credit_seconds": 180,
+  "grid_seconds": 900,
+  "rounding": "up",
+  "rounding_scope": "category",
+  "holiday_region": "Baden-Württemberg",
+  "days": [
+    {
+      "day": "2025-12-15",
+      "weekday": "Mon",
+      "weekend": false,
+      "holiday": null,
+      "raw_seconds": 0,
+      "rounded_seconds": 0,
+      "categories": []
+    },
+    {
+      "day": "2025-12-16",
+      "weekday": "Tue",
+      "weekend": false,
+      "holiday": null,
+      "raw_seconds": 180,
+      "rounded_seconds": 900,
+      "categories": [
+        {
+          "category": "sonstiges",
+          "raw_seconds": 180,
+          "rounded_seconds": 900,
+          "projects": [
+            {
+              "project": "/w/gamma",
+              "key": "/w/gamma",
+              "remote": null,
+              "raw_seconds": 180,
+              "rounded_seconds": 900
+            }
+          ],
+          "sessions": [
+            {
+              "id": "claude:d3d3d3d3-0002-4000-8000-000000000002",
+              "title": null,
+              "raw_seconds": 180
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "day": "2025-12-17",
+      "weekday": "Wed",
+      "weekend": false,
+      "holiday": null,
+      "raw_seconds": 0,
+      "rounded_seconds": 0,
+      "categories": []
+    },
+    {
+      "day": "2025-12-18",
+      "weekday": "Thu",
+      "weekend": false,
+      "holiday": null,
+      "raw_seconds": 1980,
+      "rounded_seconds": 2700,
+      "categories": [
+        {
+          "category": "example",
+          "raw_seconds": 1980,
+          "rounded_seconds": 2700,
+          "projects": [
+            {
+              "project": "alpha",
+              "key": "/w/alpha",
+              "remote": "https://example.test/o/alpha",
+              "raw_seconds": 1980,
+              "rounded_seconds": 2700
+            }
+          ],
+          "sessions": [
+            {
+              "id": "claude:a1a1a1a1-0004-4000-8000-000000000004",
+              "title": null,
+              "raw_seconds": 1980
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "day": "2025-12-19",
+      "weekday": "Fri",
+      "weekend": false,
+      "holiday": null,
+      "raw_seconds": 0,
+      "rounded_seconds": 0,
+      "categories": []
+    },
+    {
+      "day": "2025-12-20",
+      "weekday": "Sat",
+      "weekend": true,
+      "holiday": null,
+      "raw_seconds": 0,
+      "rounded_seconds": 0,
+      "categories": []
+    },
+    {
+      "day": "2025-12-21",
+      "weekday": "Sun",
+      "weekend": true,
+      "holiday": null,
+      "raw_seconds": 0,
+      "rounded_seconds": 0,
+      "categories": []
+    }
+  ],
+  "categories": [
+    {
+      "category": "example",
+      "raw_seconds": 1980,
+      "rounded_seconds": 2700,
+      "days": 1
+    },
+    {
+      "category": "sonstiges",
+      "raw_seconds": 180,
+      "rounded_seconds": 900,
+      "days": 1
+    }
+  ],
+  "total": {
+    "raw_seconds": 2160,
+    "rounded_seconds": 3600,
+    "days": 2
+  }
+}

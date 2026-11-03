@@ -1,0 +1,21 @@
+2026-10-26 04:00 – 2026-10-31 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+DATE        DAY  CATEGORY     RAW    ROUNDED  HOLIDAY
+2026-10-26  Mon  fahrtenbuch  45m    45m      -
+2026-10-26  Mon  kompass      2h32m  2h45m    -
+2026-10-26  Mon  wetterwarte  26m    30m      -
+2026-10-27  Tue  fahrtenbuch  55m    1h00m    -
+2026-10-27  Tue  kompass      3h13m  3h15m    -
+2026-10-28  Wed  kompass      2h52m  3h00m    -
+2026-10-28  Wed  wetterwarte  53m    1h00m    -
+2026-10-29  Thu  -            -      -        -
+2026-10-30  Fri  fahrtenbuch  1h25m  1h30m    -
+2026-10-30  Fri  kompass      2h50m  3h00m    -
+
+CATEGORY     RAW     ROUNDED  DAYS
+fahrtenbuch  3h05m   3h15m    3
+kompass      11h29m  12h00m   4
+wetterwarte  1h19m   1h30m    2
+total        15h53m  16h45m   4

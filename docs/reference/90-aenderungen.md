@@ -6,6 +6,17 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v0.3.0 (unveröffentlicht)
+
+### Neu in der CLI
+
+- [`stats --worktime`](10-befehle.md#stats-worktime): die aktive Arbeitszeit je Tag und Kategorie, geschätzt aus den Lücken zwischen den eigenen Nachrichten über alle Sessions (bis 20 min voll, längere 3 min), je Kategorie und Tag auf 15 min aufgerundet; Zeitraum wie `--workday`, `--sessions` listet je Zelle die Sessions mit Titel als Vorlage für Buchungstexte, JSON mit Projekten und Sessions. Ersatz für das Skript über `sql`, das bisher den Stundenzettel gefüllt hat. Meetings und Arbeit ohne Agent sind nicht erfasst: die Werte sind eine Untergrenze. Rezept: [Stundenzettel füllen](../how-to/45-stundenzettel.md).
+
+### Konfiguration
+
+- Neu: [`[worktime]`](20-konfiguration.md#worktime) mit `max_gap`, `min_credit`, `grid`, `rounding` (`up`, `down`, `nearest`), `scope` (`category`, `project`) und den Regeln `[[worktime.category]]`, die Projekte per Glob auf Name, Git-Root oder Remote-URL Kategorien zuordnen. Wie `[work]` wird der Abschnitt erst beim Gebrauch geprüft; `config show` und `doctor` melden Fehler, Hooks laufen weiter.
+- Der [Skill](../how-to/50-agenten-anbinden.md) beschreibt `stats --worktime` und seine JSON-Felder.
+
 ## v0.2.0
 
 Die Terminal-Oberfläche aus dem [Spike](../explanation/spike-tui.md) ist übernommen, dazu Arbeitszeit und Feiertage in CLI und TUI, Zeitreihen in `stats`, ein fester Ausgabevertrag der lesenden Befehle für Skripte und Agenten, Zeitfenster in `show` und drei neue Config-Abschnitte. Die Datenbank bleibt bei Schema v3; ein Update braucht keine Migration.

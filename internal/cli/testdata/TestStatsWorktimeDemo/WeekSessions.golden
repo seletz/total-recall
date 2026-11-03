@@ -1,0 +1,30 @@
+2026-10-26 04:00 – 2026-10-28 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+2026-10-26 Mon: 3h43m raw, 4h00m rounded
+  fahrtenbuch: 45m raw, 45m rounded
+       45m  7d1e02c0  Fahrten zusammenfassen
+  kompass: 2h32m raw, 2h45m rounded
+       45m  7d1e02bb  GPX-Export
+        9m  7d1e02bc  Tiles-Cache nach Neustart leer
+       44m  7d1e02bd  Wegpunkte stabil sortieren
+       53m  7d1e02bf  Umlaute in Ortsnamen
+  wetterwarte: 26m raw, 30m rounded
+       26m  7d1e02be  Frostwarnung
+
+2026-10-27 Tue: 4h08m raw, 4h15m rounded
+  fahrtenbuch: 55m raw, 1h00m rounded
+       55m  7d1e02c3  Adressen vervollständigen
+  kompass: 3h13m raw, 3h15m rounded
+       46m  7d1e02c1  Benchmarks für den Routing-Kern
+     1h00m  7d1e02c2  Doku der Befehle
+       26m  7d1e02c4  Neue Lint-Regeln
+       22m  7d1e02c5  Kartenkacheln offline
+       38m  7d1e02c6  Rennrad-Profil
+
+CATEGORY     RAW    ROUNDED  DAYS
+fahrtenbuch  1h40m  1h45m    2
+kompass      5h46m  6h00m    2
+wetterwarte  26m    30m      1
+total        7h52m  8h15m    2

@@ -118,10 +118,18 @@ func jsonTags(typ reflect.Type) []string {
 	return out
 }
 
-// walk resolves a JSON path such as "", "[]", "events[]" or "total" against
-// a decoded value and returns the objects it selects.
+// walk resolves a JSON path such as "", "[]", "events[]", "total" or
+// "days[].categories[]" against a decoded value and returns the objects
+// it selects.
 func walk(t *testing.T, v any, path string) []map[string]any {
 	t.Helper()
+	if head, rest, ok := strings.Cut(path, "."); ok {
+		var out []map[string]any
+		for _, obj := range walk(t, v, head) {
+			out = append(out, walk(t, obj, rest)...)
+		}
+		return out
+	}
 	if path == "" {
 		m, ok := v.(map[string]any)
 		if !ok {
@@ -226,6 +234,7 @@ func TestSkillJSONFields(t *testing.T) {
 	sections := skillSections(t)
 	show := []string{"show", skillSession3, "--json", "--all"}
 	workday := []string{"stats", "--json", "--workday", "--since", "2026-10-05", "--until", "2026-10-07"}
+	worktime := []string{"stats", "--json", "--worktime", "--since", "2026-10-05", "--until", "2026-10-07"}
 	tests := []struct {
 		key  string
 		args []string
@@ -242,6 +251,13 @@ func TestSkillJSONFields(t *testing.T) {
 		{"stats --json --workday", workday, "", reflect.TypeOf(WorkdayJSON{})},
 		{"stats --json --workday days[]", workday, "days[]", reflect.TypeOf(WorkdayDayJSON{})},
 		{"stats --json --workday total", workday, "total", reflect.TypeOf(WorkdayTotalJSON{})},
+		{"stats --json --worktime", worktime, "", reflect.TypeOf(WorktimeJSON{})},
+		{"stats --json --worktime days[]", worktime, "days[]", reflect.TypeOf(WorktimeDayJSON{})},
+		{"stats --json --worktime days[].categories[]", worktime, "days[].categories[]", reflect.TypeOf(WorktimeCellJSON{})},
+		{"stats --json --worktime days[].categories[].projects[]", worktime, "days[].categories[].projects[]", reflect.TypeOf(WorktimeProjectJSON{})},
+		{"stats --json --worktime days[].categories[].sessions[]", worktime, "days[].categories[].sessions[]", reflect.TypeOf(WorktimeSessionJSON{})},
+		{"stats --json --worktime categories[]", worktime, "categories[]", reflect.TypeOf(WorktimeCategoryTotalJSON{})},
+		{"stats --json --worktime total", worktime, "total", reflect.TypeOf(WorktimeTotalJSON{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {

@@ -4,7 +4,7 @@ icon: lucide/timer
 ---
 # Arbeitszeit nachvollziehen
 
-Wann hast du an einem Tag angefangen und aufgehört? `total-recall` beantwortet das aus deinen eigenen Nachrichten: die erste und letzte Aktivität je Tag, die Spanne dazwischen und die Differenz zum Tagessoll. Ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde; keine Zeiterfassung.
+Wann hast du an einem Tag angefangen und aufgehört? `total-recall` beantwortet das aus deinen eigenen Nachrichten: die erste und letzte Aktivität je Tag, die Spanne dazwischen und die Differenz zum Tagessoll. Ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde; keine Zeiterfassung. Welche Projekte die Zeit bekommen haben, schätzt [Stundenzettel füllen](45-stundenzettel.md).
 
 ## Soll und Kernzeit einstellen
 
