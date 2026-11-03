@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.0.0 (unveröffentlicht)
+
+### Release
+
+- Jedes Release trägt je Plattform eine SBOM im Format CycloneDX 1.6 als Asset neben dem Archiv (`total-recall-<tag>-<os>-<arch>.cdx.json`): alle in das Binary gelinkten Go-Module mit Version und Hash wie in `go.sum`, die Go-Toolchain und die Build-Einstellungen. Die SBOMs stehen in `checksums-<tag>.txt`; die CI prüft sie bei jedem Pull Request, der Release-Lauf vor dem Upload. Aufbau und Prüfung: [Release-Assets](50-release.md) ([#106](https://github.com/seletz/total-recall/issues/106)).
+
 ## v0.3.2 (unveröffentlicht)
 
 ### Dokumentation

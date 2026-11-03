@@ -38,6 +38,19 @@ run = ["go vet ./...", "golangci-lint run"]
 description = "Create a new release (interactive semver bump, pushes the tag)"
 run = "scripts/release.sh"
 
+[tasks."release:snapshot"]
+description = "Build a snapshot release into dist/ with goreleaser: archives, SBOMs and checksums as the release workflow would, nothing published"
+# The SBOM generator is pinned here, not under [tools]: only the release
+# needs it. The release workflow and the CI snapshot install the same
+# version; keep the three in step.
+tools = { "github:CycloneDX/cyclonedx-gomod" = "1.12.0" }
+run = "goreleaser release --snapshot --clean"
+
+[tasks."sbom:check"]
+description = "Build a snapshot release and check its SBOMs: one per archive, listed in the checksums, modules and hashes as in go.sum (CI runs this)"
+depends = ["release:snapshot"]
+run = "go run ./tools/sbom check dist"
+
 [tasks."uv:sync"]
 description = "Install the docs toolchain (Zensical) into .venv"
 run = "uv sync --locked"
