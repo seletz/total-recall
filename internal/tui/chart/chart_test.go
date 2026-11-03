@@ -289,7 +289,7 @@ func TestColorsAssign(t *testing.T) {
 // dayLabels returns 28 day labels starting 2026-10-05.
 func daySpec() Spec {
 	start := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
-	keys := []string{"/w/dipa", "/w/dg-k8s", "/w/sichtung", store.OtherKey}
+	keys := []string{"/w/iris", "/w/webapp", "/w/notizbox", store.OtherKey}
 	rows := make([][]store.Activity, 28)
 	for d := range rows {
 		rows[d] = []store.Activity{
@@ -299,7 +299,7 @@ func daySpec() Spec {
 			act(1, 1, 20),
 		}
 	}
-	names := map[string]string{"/w/dipa": "dipa", "/w/dg-k8s": "dg-k8s", "/w/sichtung": "sichtung"}
+	names := map[string]string{"/w/iris": "iris", "/w/webapp": "webapp", "/w/notizbox": "notizbox"}
 	return FromSeries(series(store.PeriodDay, keys, start, rows...), store.PeriodDay, MetricEvents, names)
 }
 

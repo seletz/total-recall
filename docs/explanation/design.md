@@ -23,8 +23,8 @@ icon: lucide/drafting-compass
 
 - Go, statisch gebaut (`CGO_ENABLED=0`). SQLite über `modernc.org/sqlite` (pure Go, FTS5 enthalten).
 - CLI mit `github.com/spf13/cobra`. Jeder lesende Befehl hat `--json`.
-- Releases über goreleaser, Homebrew-Cask im Tap `seletz/homebrew-tap` (Vorbild: `~/develop/odoo-work-cli/.goreleaser.yml`). Die Release Notes je Version stehen in `docs/reference/90-aenderungen.md`; der Release-Workflow stellt den Abschnitt des Tags (`scripts/release-notes.sh`, `--release-header`) vor den generierten Commit-Changelog. `scripts/release.sh` taggt nur, wenn der Abschnitt existiert.
-- Doku mit Zensical unter `docs/`, auf Deutsch (Vorbild für `zensical.toml`: `~/develop/digitalgedacht/dg-k8s/sichtung/zensical.toml`), veröffentlicht auf GitHub Pages bei jedem Push nach `develop` (`.github/workflows/docs.yml`).
+- Releases über goreleaser, Homebrew-Cask im Tap `seletz/homebrew-tap`. Die Release Notes je Version stehen in `docs/reference/90-aenderungen.md`; der Release-Workflow stellt den Abschnitt des Tags (`scripts/release-notes.sh`, `--release-header`) vor den generierten Commit-Changelog. `scripts/release.sh` taggt nur, wenn der Abschnitt existiert.
+- Doku mit Zensical unter `docs/`, auf Deutsch, veröffentlicht auf GitHub Pages bei jedem Push nach `develop` (`.github/workflows/docs.yml`).
 - Tasks über `mise` (`mise run build|test|lint|docs:serve|release`).
 - **Demo-Archiv.** `mise run demo:db` erzeugt mit `tools/demo` das synthetische Demo-Archiv `build/demo.db` (`internal/demo`): eine erfundene Entwicklerin, fünf erfundene Projekte und ein Worktree, Sessions mit Subagenten von Mai bis Oktober 2026 mit Kernzeit, Abenden, Nächten über Mitternacht, Wochenenden, Feiertagen in Baden-Württemberg (Fronleichnam gearbeitet) und einem Urlaub; die Woche ab 2026-06-01 ist für die Screenshots von Hand gelegt, die Sessions im Oktober zum Release von kompass ausformuliert. Die Erzeugung ist deterministisch (eigener Zufallsgenerator mit festem Seed, feste Uhr `demo.Now`). Das Archiv ist die gemeinsame große Fixture: `fixturedb.Demo` öffnet die mit `TOTAL_RECALL_DEMO_DB` benannte Datei (die mise-Tasks `test` und `test:race` sowie die CI setzen sie) und baut sonst eine eigene Kopie im Temp-Verzeichnis; kleine gezielte Fixtures (`testfixture.Small`, `testfixture.Activity`) bleiben.
 - **Screenshots.** `mise run docs:screenshots` erzeugt mit `tools/screenshots` die Bilder der TUI unter `docs/assets/screenshots/` aus dem Demo-Archiv (`internal/screenshot`): das Werkzeug steuert die TUI kopflos mit fester Größe und fester Uhr, zeichnet die Frames selbst als PNG (Zelle für Zelle, eingebettete Schrift Go Mono) und schreibt die Text-Frames als Goldens nach `internal/screenshot/testdata/frames/`. `TestFramesGolden` vergleicht die Frames mit den Goldens: **Wer die TUI ändert, führt `mise run docs:screenshots` aus und checkt Bilder und Goldens ein**, sonst schlägt der Test fehl. Die PNGs werden nicht pixelweise verglichen. `tools/anonymize` kopiert optional ein echtes Archiv ohne Namen und Inhalte, um die eigene Statistik anzusehen; die Doku nutzt es nicht.
@@ -170,7 +170,7 @@ Ist eine Datei kleiner als `offset` (ersetzt/gekürzt), wird ab 0 neu gelesen; E
 
 | Spalte | Typ | |
 |---|---|---|
-| `id` | TEXT PK | `<harness>:<native id>`, z.B. `claude:f2b299a1-…` |
+| `id` | TEXT PK | `<harness>:<native id>`, z.B. `claude:7d1e4c20-…` |
 | `harness` | TEXT | |
 | `harness_version` | TEXT | zuletzt gesehene Version |
 | `native_id` | TEXT | |

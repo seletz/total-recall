@@ -16,8 +16,8 @@ import (
 // Names maps every key of a series to a unique project name. A key is the
 // path of a git root or, for sessions outside a repository, of a working
 // directory; dirs lists the keys of the latter kind (store.ActivitySeries
-// reports them). Repository names that collide, like /w/dipa and
-// /w/dipa/dipa, grow by one parent directory at a time (dipa/dipa, w/dipa)
+// reports them). Repository names that collide, like /w/iris and
+// /w/iris/iris, grow by one parent directory at a time (iris/iris, w/iris)
 // until they are unique; a key that runs out of parents keeps its full
 // path. Directories in dirs are named by their path, abbreviated with
 // Tilde(path, home); they never collide with repository names because the

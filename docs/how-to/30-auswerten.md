@@ -98,7 +98,7 @@ Anfragen und Antworten einer Session:
 ```sql
 SELECT ts, request, response
 FROM exchanges
-WHERE session_id = 'claude:f2b299a1-b3c1-4cf8-b1d7-8c4840eab467'
+WHERE session_id = 'claude:7d1e4c20-0001-4000-8000-000000000001'
 ORDER BY ts;
 ```
 

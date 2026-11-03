@@ -105,7 +105,7 @@ LIMIT 50"
 - `--format table` (the default without `--json`) truncates cells only when stdout is a terminal; a truncated cell ends with `…` and stderr says how many were cut. `--no-truncate` forces full cells. `json`, `jsonl` and `csv` never truncate.
 - `--format jsonl` prints one compact object per line without buffering; use it for large reads. `status` and `stats` are then one line; `show --format jsonl` writes only the events, one per line (the session header comes from `sessions`).
 - Time stamps in JSON are UTC (`2026-10-05T21:30:00.000Z`). `--since`/`--until` take local time: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM` or RFC 3339; a date-only `--until` includes that whole day.
-- Session ids look like `claude:f2b299a1-b3c1-4cf8-b1d7-8c4840eab467` (`<harness>:<native id>`). `show` and `search --session` accept the full id, the native id or a unique prefix.
+- Session ids look like `claude:7d1e4c20-0001-4000-8000-000000000001` (`<harness>:<native id>`). `show` and `search --session` accept the full id, the native id or a unique prefix.
 
 ## Cost notes
 
