@@ -80,8 +80,8 @@ Hintergrund und Entscheidungen: die Spezifikation [Design](explanation/design.md
 
 ## Stand
 
-!!! note "Version 0.2"
-    Alle Befehle auf der Seite [Befehle](reference/10-befehle.md) sind umgesetzt, dazu die Terminal-Oberfläche [`total-recall tui`](reference/30-tui.md). Unterstützt wird bisher nur Claude Code. Was sich je Version geändert hat, steht unter [Änderungen](reference/90-aenderungen.md).
+!!! note "Version 1.0"
+    Alle Befehle auf der Seite [Befehle](reference/10-befehle.md) sind umgesetzt, dazu die Terminal-Oberfläche [`total-recall tui`](reference/30-tui.md). Unterstützt wird bisher nur Claude Code. Der Quellcode steht unter MIT-Lizenz auf [GitHub](https://github.com/seletz/total-recall); Installation über das Release-Archiv, Homebrew oder den Quellcode: [Installieren](how-to/10-installieren.md). Was sich je Version geändert hat, steht unter [Änderungen](reference/90-aenderungen.md).
 
 Die verbindliche Spezifikation steht in [Design (Spezifikation)](explanation/design.md).
 

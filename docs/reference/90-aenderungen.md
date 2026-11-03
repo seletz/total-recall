@@ -8,15 +8,21 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.0.0 (unveröffentlicht)
 
+Das erste öffentliche Release: das Repository ist ab dieser Version öffentlich, die Releases tragen eine SBOM je Plattform, die Installation geht über das Release-Archiv oder den Homebrew-Cask. Funktional ändert sich gegenüber v0.3.1 wenig; die Datenbank bleibt bei Schema v3, ein Update braucht keine Migration.
+
+### Neu in der CLI
+
+- `total-recall --version` (kurz `-v`) gibt die Version aus, gleich wie [`version`](10-befehle.md#version) ([#103](https://github.com/seletz/total-recall/issues/103)).
+
 ### Release
 
 - Jedes Release trägt je Plattform eine SBOM im Format CycloneDX 1.6 als Asset neben dem Archiv (`total-recall-<tag>-<os>-<arch>.cdx.json`): alle in das Binary gelinkten Go-Module mit Version und Hash wie in `go.sum`, die Go-Toolchain und die Build-Einstellungen. Die SBOMs stehen in `checksums-<tag>.txt`; die CI prüft sie bei jedem Pull Request, der Release-Lauf vor dem Upload. Aufbau und Prüfung: [Release-Assets](50-release.md) ([#106](https://github.com/seletz/total-recall/issues/106)).
-
-## v0.3.2 (unveröffentlicht)
+- Der Homebrew-Cask `seletz/tap/total-recall` wird ab dieser Version mit jedem Release aktualisiert; vorher konnte Homebrew die Archive des privaten Repositorys nicht laden.
 
 ### Dokumentation
 
 - Die [TUI-Referenz](30-tui.md) zeigt alle Ansichten als Screenshots aus dem Demo-Archiv statt als ASCII-Skizzen; neu dazu das Hilfe-Overlay und das kompakte Layout der Heatmap bei 80×24. Die Entwurfsskizzen im [Spike](../explanation/spike-tui.md#bildschirme) sind als solche markiert. `mise run docs:screenshots:check` prüft, ob die eingecheckten Screenshots und Goldens zur TUI passen; die CI ruft es auf ([#99](https://github.com/seletz/total-recall/issues/99)).
+- [Installieren](../how-to/10-installieren.md) beschreibt den Weg über das Release-Archiv mit Prüfsumme und SBOM; die README erklärt Zweck, Installation und Lizenz für Leser, die das Repository neu finden.
 
 ## v0.3.1
 

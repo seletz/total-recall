@@ -12,10 +12,10 @@ Alle Ausgaben auf dieser Seite sind erfundene Beispiele. Bei dir stehen deine Se
 
 ```sh
 brew install --cask seletz/tap/total-recall
-total-recall version
+total-recall --version
 ```
 
-Geht Homebrew nicht, etwa weil das Repository privat ist, baue aus dem Quellcode: `mise run build` erzeugt `./total-recall`. Beide Wege im Einzelnen: [Installieren](../how-to/10-installieren.md).
+Ohne Homebrew nimm das Archiv des [Releases](https://github.com/seletz/total-recall/releases) für deine Plattform oder baue aus dem Quellcode: `mise run build` erzeugt `./total-recall`. Alle Wege im Einzelnen: [Installieren](../how-to/10-installieren.md).
 
 ## 2. Hooks eintragen
 
