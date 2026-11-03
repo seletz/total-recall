@@ -4,39 +4,53 @@ icon: lucide/download
 ---
 # Installieren
 
+Unterstützt werden macOS und Linux auf amd64 und arm64. Das Binary ist statisch gebaut und braucht keine weiteren Bibliotheken. Drei Wege: das Release-Archiv von GitHub, Homebrew oder der Quellcode.
+
+## Release-Archiv
+
+Jedes [Release auf GitHub](https://github.com/seletz/total-recall/releases) trägt je Plattform ein Archiv `total-recall-<tag>-<os>-<arch>.tar.gz` mit dem Binary und den Shell-Vervollständigungen, dazu eine SBOM und die Datei `checksums-<tag>.txt` mit den SHA-256-Summen aller Dateien. Was die Dateien enthalten und wie man die SBOM prüft, steht unter [Release-Assets](../reference/50-release.md).
+
+Archiv und Checksummen laden, prüfen, entpacken und das Binary an einen Ort im `PATH` legen. Beispiel für macOS auf Apple Silicon (`darwin-arm64`; für Linux `linux-amd64` oder `linux-arm64`):
+
+```sh
+tag=v1.0.0
+curl -LO https://github.com/seletz/total-recall/releases/download/$tag/total-recall-$tag-darwin-arm64.tar.gz
+curl -LO https://github.com/seletz/total-recall/releases/download/$tag/checksums-$tag.txt
+shasum -a 256 --ignore-missing -c checksums-$tag.txt
+tar -xzf total-recall-$tag-darwin-arm64.tar.gz
+install -m 0755 total-recall ~/.local/bin/
+```
+
+Auf Linux heißt der Prüfbefehl `sha256sum --ignore-missing -c checksums-$tag.txt`. Prüfen:
+
+```sh
+total-recall --version
+```
+
+Das Binary ist nicht von Apple signiert. macOS blockiert den ersten Start einer aus dem Browser geladenen Datei; bei `curl` passiert das nicht. Falls doch: `xattr -d com.apple.quarantine ~/.local/bin/total-recall`.
+
+Die Vervollständigungen liegen im Archiv unter `completions/` (`total-recall.bash`, `_total-recall`, `total-recall.fish`); sie lassen sich auch jederzeit mit [`total-recall completion`](../reference/10-befehle.md#completion) erzeugen.
+
 ## Mit Homebrew
 
-`total-recall` kommt als Cask aus dem Tap `seletz/homebrew-tap`.
+Ab v1.0.0 kommt `total-recall` als Cask aus dem Tap `seletz/homebrew-tap`:
 
 ```sh
 brew install --cask seletz/tap/total-recall
 ```
 
-Prüfen:
-
-```sh
-total-recall version
-```
-
-Das Binary ist nicht von Apple signiert. Der Cask entfernt deshalb beim Installieren das Quarantäne-Attribut. Ohne das würde macOS beim ersten Start blockieren.
-
-Shell-Vervollständigung für bash, zsh und fish installiert der Cask mit.
-
-Aktualisieren:
+Der Cask entfernt beim Installieren das Quarantäne-Attribut, installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert:
 
 ```sh
 brew upgrade --cask total-recall
 ```
-
-!!! warning "Privates Repository"
-    Solange das Repository privat ist, kann Homebrew die Release-Archive nicht ohne Anmeldung laden. Dann bleibt nur die Installation aus dem Quellcode.
 
 ## Aus dem Quellcode
 
 Voraussetzungen: Go (Version laut `go.mod`) und [mise](https://mise.jdx.dev/).
 
 ```sh
-git clone git@github.com:seletz/total-recall.git
+git clone https://github.com/seletz/total-recall.git
 cd total-recall
 mise install
 mise run build

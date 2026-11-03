@@ -21,6 +21,7 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	tf "github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/tui"
+	"github.com/seletz/total-recall/internal/version"
 )
 
 // testEnv is an isolated installation: config, DB, log, backups and a
@@ -776,11 +777,34 @@ func TestLLMSkillAndVersion(t *testing.T) {
 	if r := e.run(t, "", "llm"); r.code == 0 {
 		t.Error("llm without --skill succeeded")
 	}
-	if out := e.mustRun(t, "version"); strings.TrimSpace(out) == "" {
-		t.Error("empty version")
-	}
 	if out := e.mustRun(t, "completion", "zsh"); !strings.Contains(out, "total-recall") {
 		t.Error("completion command missing")
+	}
+}
+
+// TestVersion: the subcommand and the flag print the build version, nothing
+// else, the same way.
+func TestVersion(t *testing.T) {
+	e := newTestEnv(t)
+	want := version.Version + "\n"
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"subcommand", []string{"version"}},
+		{"flag", []string{"--version"}},
+		{"short flag", []string{"-v"}},
+		{"flag after global flag", []string{"--config", e.configPath, "--version"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := e.run(t, "", tc.args...)
+			if r.code != 0 || r.stdout != want || r.stderr != "" {
+				t.Errorf("%v = %+v, want stdout %q", tc.args, r, want)
+			}
+		})
+	}
+	if r := e.run(t, "", "version", "extra"); r.code == 0 {
+		t.Error("version with an argument succeeded")
 	}
 }
 

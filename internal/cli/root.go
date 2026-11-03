@@ -116,7 +116,10 @@ func newRoot(app *App) (*cobra.Command, *env) {
 		Long:          "total-recall archives coding-agent sessions (Claude Code) into a local SQLite database and makes them searchable.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		// --version (and -v) prints the same line as the version subcommand.
+		Version: version.Version,
 	}
+	root.SetVersionTemplate("{{.Version}}\n")
 	root.SetIn(app.Stdin)
 	root.SetOut(app.Stdout)
 	root.SetErr(app.Stderr)
@@ -202,10 +205,12 @@ func (c exitCode) Error() string { return fmt.Sprintf("exit code %d", int(c)) }
 // errSilent signals a failure that has already been reported.
 var errSilent = errors.New("failed")
 
+// versionCmd is the version subcommand; `--version` on the root prints the
+// same line.
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the version",
+		Short: "Print the version (same as --version)",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), version.Version)
