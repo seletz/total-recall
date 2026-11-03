@@ -12,7 +12,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - Die [TUI-Referenz](30-tui.md) zeigt alle Ansichten als Screenshots aus dem Demo-Archiv statt als ASCII-Skizzen; neu dazu das Hilfe-Overlay und das kompakte Layout der Heatmap bei 80×24. Die Entwurfsskizzen im [Spike](../explanation/spike-tui.md#bildschirme) sind als solche markiert. `mise run docs:screenshots:check` prüft, ob die eingecheckten Screenshots und Goldens zur TUI passen; die CI ruft es auf ([#99](https://github.com/seletz/total-recall/issues/99)).
 
-## v0.3.1 (unveröffentlicht)
+## v0.3.1
 
 ### Behoben
 
