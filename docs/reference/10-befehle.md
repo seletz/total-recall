@@ -14,6 +14,7 @@ icon: lucide/terminal
 | `--db PFAD` | andere Datenbank (sonst `TOTAL_RECALL_DB` bzw. `db` aus der Config) |
 | `--tz ZONE` | Zeitzone für Anzeige und Tagesgrenzen, Default `Europe/Berlin` |
 | `--backup-dir PFAD` | anderer Backup-Ordner (sonst `TOTAL_RECALL_BACKUP_DIR` bzw. `backup.dir`) |
+| `--version`, `-v` | Version ausgeben und beenden, wie [`version`](#version) |
 
 ## Ausgabe der lesenden Befehle { #ausgabe }
 
@@ -636,11 +637,16 @@ log (effective)  /Users/me/Library/Application Support/total-recall/total-recall
 
 ## `version` { #version }
 
-Gibt die Version aus.
+Gibt die Version aus, eine Zeile, sonst nichts. `total-recall --version` (kurz `-v`) tut dasselbe.
 
 ```sh
-total-recall version
+$ total-recall version
+1.0.0
+$ total-recall --version
+1.0.0
 ```
+
+Ein Release-Build zeigt die Version ohne `v`. Ein Build aus dem Quellcode zeigt die Ausgabe von `git describe` (etwa `v1.0.0-3-gabc1234`) oder `dev`, wenn beim Bauen keine Version gesetzt wurde.
 
 ## `completion` { #completion }
 
