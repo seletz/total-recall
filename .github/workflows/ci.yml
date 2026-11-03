@@ -32,6 +32,14 @@ jobs:
         # populated archive read it through TOTAL_RECALL_DEMO_DB.
         run: go run ./tools/demo -out build/demo.db
 
+      - name: Check the TUI screenshots
+        # Same command as `mise run docs:screenshots:check`, restricted to the
+        # text frames: renders the screenshots into a temporary directory and
+        # fails when the committed goldens are stale. The images are not
+        # compared here because the font rasterizer rounds a few pixels
+        # differently on amd64 than on the arm64 Macs that render them.
+        run: scripts/screenshots-check.sh -db build/demo.db --goldens-only
+
       - name: go test
         # The race detector needs cgo on linux; the build stays static.
         env:

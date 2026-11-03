@@ -90,6 +90,10 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, ein Monat mit Monatsarbeitszeit"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
+	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},
+		Caption: "Hilfe-Overlay mit den Tasten der Statistik und den globalen Tasten"},
+	{Name: "heatmap-compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewStats, Now: statsNow, Keys: []string{"h"},
+		Caption: "Statistik mit Heatmap bei 80×24: kompaktes Layout, Tabelle ausgeblendet"},
 }
 
 // workHours mirrors the defaults of the [work] config table.
