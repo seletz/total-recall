@@ -28,6 +28,8 @@ mise run build        # Binary bauen
 mise run test         # go test ./...
 mise run lint         # go vet und golangci-lint
 mise run docs:serve   # Doku lokal mit Zensical
+mise run docs:screenshots        # Screenshots der TUI neu erzeugen (nach jeder TUI-Änderung)
+mise run docs:screenshots:check  # prüft, ob die eingecheckten Screenshots aktuell sind (läuft in der CI)
 ```
 
 ## Lizenz

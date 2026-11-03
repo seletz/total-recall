@@ -7,7 +7,7 @@ icon: lucide/keyboard
 `total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap und die erste und letzte Aktivität je Tag. Die Datenbank wird nur lesend geöffnet.
 
 !!! note "Herkunft"
-    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](../explanation/spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe. Die Textbeispiele auf dieser Seite sind erfunden, ebenso die Bilder: Sie zeigen das synthetische Demo-Archiv (`mise run demo:db`), eine erfundene Entwicklerin mit erfundenen Projekten und Sessions von Mai bis Oktober 2026. Erzeugt werden sie mit `mise run docs:screenshots`; wer die TUI ändert, erzeugt sie neu, siehe [Design](../explanation/design.md#technik).
+    Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](../explanation/spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe. Die Textbeispiele auf dieser Seite sind erfunden, ebenso die Bilder: Sie zeigen das synthetische Demo-Archiv (`mise run demo:db`), eine erfundene Entwicklerin mit erfundenen Projekten und Sessions von Mai bis Oktober 2026. Erzeugt werden sie mit `mise run docs:screenshots`; wer die TUI ändert, erzeugt sie neu, und `mise run docs:screenshots:check` prüft, ob sie noch stimmen, siehe [Design](../explanation/design.md#technik).
 
 ## Aufruf
 
@@ -30,7 +30,7 @@ Die [globalen Optionen](10-befehle.md#globale-optionen) `--db`, `--tz` und `--co
 
 Alle Tasten auf dieser Seite sind die Standardbelegung. Sie ist auf ein deutsches Mac-Layout ausgelegt und lässt sich über den Abschnitt `[keys]` der Konfiguration ändern, siehe [Tastenbelegung anpassen](#tastenbelegung-anpassen).
 
-Die Oberfläche braucht mindestens 80×24 Zeichen; die Beispiele hier sind 100 Zeichen breit. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap wechselt in ein kompaktes Layout und blendet sich darunter aus.
+Die Oberfläche braucht mindestens 80×24 Zeichen; die Bilder auf dieser Seite zeigen 120×36 Zeichen, die kompakten Layouts 80×24. Bei weniger Platz werden Fußzeile und Tabellen abgeschnitten (`…`), die Heatmap wechselt in ein kompaktes Layout und blendet sich darunter aus.
 
 ![Aktivität bei 80×24: Kopf- und Fußzeile werden gekürzt, die Zeitachse wird schmaler](../assets/screenshots/compact.png)
 
@@ -47,25 +47,9 @@ Alle Ansichten teilen denselben Rahmen:
 - **Farben:** alle Ansichten teilen ein Theme, siehe [Farben](#farben).
 - **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
 
-```text
- total-recall                                                        1 search  [2 stats]  3 activity
-────────────────────────────────────────────────────────────────────────────────────────────────────
+![Hilfe-Overlay in der Statistik: die Tasten der Ansicht, dann die globalen Tasten](../assets/screenshots/help.png)
 
-                ╭──────────────────────────────────────────────────────────────────╮
-                │ keys: stats                                                      │
-                │                                                                  │
-                │ d days      p by project     ← earlier    1 search    ?   help   │
-                │ w weeks     a by agent       → later      2 stats     esc back   │
-                │ m months    v by directory   - zoom out   3 activity  q   quit   │
-                │ e metric    h heatmap        + zoom in                           │
-                │                              g graphics                          │
-                │                                                                  │
-                │ esc or ? closes this help                                        │
-                ╰──────────────────────────────────────────────────────────────────╯
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
- esc back • q quit
-```
+*Hilfe-Overlay (`?`) in der Statistik: die Tasten der Ansicht, dann die globalen Tasten*
 
 ## Farben
 
@@ -106,29 +90,6 @@ Klicks anderswo (Vorschau, Statistik, Aktivität, Fußzeile, Hilfe) tun nichts. 
 ![Suche mit Vorschau: Trefferliste links, der Austausch um den markierten Treffer rechts](../assets/screenshots/search.png)
 
 *Suche mit Vorschau: Trefferliste links, der Austausch um den markierten Treffer rechts*
-
-```text
- total-recall                                                        [1 search]  2 stats  3 activity
-────────────────────────────────────────────────────────────────────────────────────────────────────
- > goreleaser cask                                                   actor: all  since: 90d  repo: *
-─────────────────────────────────────────────────┬──────────────────────────────────────────────────
-▸2026-10-31 22:14  Release v0.1.0           human│ Release v0.1.0
-  Please also upload the cask to the homebrew ta…│ claude:9a1b2c3d-0000-4000-8…  seletz/total-recall
- 2026-10-31 22:16  Release v0.1.0           agent│ 2026-10-31 22:10 – 23:02 (52m)  develop
-  goreleaser skips the cask upload when the tap …│──────────────────────────────────────────────────
- 2026-10-28 09:02  CI pipeline              human│── 22:14  human ◄
-  can we build the cask in goreleaser and push i…│Please also upload the cask to the homebrew tap
- 2026-10-28 09:05  CI pipeline              agent│with goreleaser, the token is in the repo secrets.
-  goreleaser needs HOMEBREW_TAP_GITHUB_TOKEN in …│
- 2026-10-12 15:40  Packaging                agent│── 22:16  agent
-  copied .goreleaser.yml from the notes project …│goreleaser skips the cask upload when the tap
-                                                 │token is missing. I added a check that fails the
-                                                 │release early instead.
-                                                 │
- 5 hits (12 ms)
-────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑↓ move • enter open • a actor • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stats…
-```
 
 - **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer werden geholt; die Statuszeile sagt `200 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
 - **Trefferliste** links, zwei Zeilen je Treffer: Zeit (gedämpft), Session-Name und Actor (in seiner Farbe, siehe [Farben](#farben)), darunter der Textausschnitt mit den Suchwörtern gelb, fett und unterstrichen. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist seine Kopfzeile zusätzlich hinterlegt.
@@ -171,30 +132,6 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 *Session-Detail mit Treffer, Tool-Aufrufe eingeblendet (`T`)*
 
-```text
- total-recall                                              [1 search] › session  2 stats  3 activity
-────────────────────────────────────────────────────────────────────────────────────────────────────
- Release v0.1.0                                         claude:9a1b2c3d-0000-4000-8000-000000000000
- seletz/total-recall  develop  2026-10-31 22:10 – 23:02 (52m)  3 human  14 agent
-── 3/17 events · hit 1/4 · tools ───────────────────────────────────────────────────────────────────
-── 2026-10-31 22:14:02  human ◄
-Please also upload the cask to the homebrew tap with goreleaser, the token is in the repo
-secrets.
-
-── 2026-10-31 22:14:30  tool_use Read
-.goreleaser.yml
-
-── 2026-10-31 22:16:11  agent
-goreleaser skips the cask upload when the tap token is missing. I added a check that fails the
-release early instead.
-
-── 2026-10-31 22:17:40  human
-Good. Tag v0.1.0 and run the release.
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • esc back • 1 search • …
-```
-
 - **Kopf:** Name (Akzentfarbe) und volle Session-ID (gedämpft), darunter Repo, Branch, Zeitraum mit Dauer, Anzahl menschlicher und Agenten-Events in den Farben der Actors, bei Subagent-Sessions die Eltern-ID. In schmalen Fenstern gewinnt der Name, die ID wird gekürzt.
 - **Trennlinie mit Status:** der oberste sichtbare Event (`3/17 events`), der gewählte Treffer (`hit 1/4`), die Position im Verlauf, wenn er länger als das Fenster ist (`top`, `42%`, `bot`), `tools`, wenn Tool-Events eingeblendet sind, und kurz `copied` nach dem Kopieren.
 - **Verlauf** wie `show`: eine Trennzeile je Event mit Zeit (gedämpft) und Actor in seiner Farbe, Tool-Aufrufe mit dem Werkzeugnamen in Türkis und gedämpftem Text, damit sie hinter dem Gespräch zurücktreten; Text am Wortende umbrochen. Die Suchwörter sind gelb, fett und unterstrichen, der gewählte Treffer ist invertiert, der markierte Event trägt `◄`. Beim Öffnen steht der Treffer-Event oben; ist er ein Tool-Event, werden Tools automatisch eingeblendet.
@@ -207,40 +144,11 @@ Good. Tag v0.1.0 and run the release.
 
 *Statistik: gestapeltes Chart je Tag und Projekt, Kacheln mit Kennzahlen, Tabelle*
 
-```text
- total-recall                                                        1 search  [2 stats]  3 activity
-────────────────────────────────────────────────────────────────────────────────────────────────────
- period: [day] week month  by: [project] agent directory                     2026-10-05 – 2026-11-01
- ▎66 913 events  ▎3 411 human  ▎63 502 agent  ▎116 sessions  ▎27/28 days active
- events
-  4000 ┤                                                    ··
-       │                                                 ·· ░░             ·· ··
-  3000 ┤                                              ·· ░░ ▒▒ ··          ░░ ░░ ··
-       │                            ·· ··             ░░ ▒▒ ▓▓ ░░       ·· ▒▒ ▒▒ ░░
-  2000 ┤                         ▓▓ ▓▓ ▓▓ ▓▓       ▓▓ ▒▒ ▓▓ ▓▓ ▒▒       ▓▓ ▓▓ ▓▓ ▒▒
-       │       ▓▓             ▓▓ ██ ▓▓ ▓▓ ██       ██ ▓▓ ▓▓ ██ ▓▓       ▓▓ ▓▓ ▓▓ ▓▓ ▓▓
-  1000 ┤    ▓▓ ██ ▓▓          ██ ██ ██ ██ ██       ██ ▓▓ ██ ██ ▓▓       ██ ██ ██ ▓▓ ██
-       │ ██ ██ ██ ██ ██       ██ ██ ██ ██ ██       ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██
-     0 ┼────────────────────────────────────────────────────────────────────────────────────
-        05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 01
- ██ webshop  ▓▓ infra  ▒▒ total-recall  ░░ notes  ·· other
-────────────────────────────────────────────────────────────────────────────────────────────────────
- project                                     sessions    session-days      human      agent    share
- webshop                                           31              56      1 204     21 870     37 %
- infra                                             34              56        980     18 310     31 %
- total-recall                                      12              21        310      6 120     10 %
- notes                                              9              14        402      5 990     10 %
- other                                             30              42        515      7 212     12 %
- text chart (kitty: not detected) · 28 days · 312 ms
-────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • p/a/v by • ←/→/-/+ range • 1 search • 2 stats • 3 activity • ? help • q quit
-```
-
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](20-konfiguration.md#tui).
 - **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
-- **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Im Terminal unterscheiden Farben die Segmente, oben sind sie als Schraffur gezeigt. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](20-konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
+- **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Farben unterscheiden die Segmente. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](20-konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
 - **Tabelle** (Spaltenköpfe in der Akzentfarbe): dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
 
@@ -260,32 +168,11 @@ Die Dimensionen:
 
 *Heatmap Wochentag × Stunde unter dem Chart*
 
-```text
- events by weekday × hour · max 412
- Mon│                        ░░░▒▒▒▓▓▓███▓▓▓▒▒▒▓▓▓▓▓▓▒▒▒░░░         ░░░
- Tue│                     ░░░▒▒▒▓▓▓▓▓▓▒▒▒   ▓▓▓███▓▓▓▒▒▒░░░
- Wed│                           ▒▒▒▓▓▓▓▓▓   ▒▒▒▒▒▒▓▓▓▒▒▒         ░░░▒▒▒░░░
- Thu│                        ░░░▒▒▒▒▒▒▓▓▓      ▓▓▓███▓▓▓▒▒▒░░░
- Fri│                           ░░░▒▒▒▒▒▒░░░   ▒▒▒▒▒▒░░░
- Sat│                              ░░░░░░         ░░░▒▒▒░░░
- Sun│                                                ░░░░░░      ▒▒▒░░░
-    ┼────────────────────────────────────────────────────────────────────────
-     00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-```
-
 Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mindesthöhe von acht Zeilen, wechselt sie in ein **kompaktes Layout** mit neun Zeilen: die Stundenbeschriftung rückt in die Achsenzeile, die Legende der Schattierungen von leer bis Maximum (`░▒▓█`) steht im Titel. Bei 80×24 passen so Chart und Heatmap untereinander; die Tabelle bleibt dafür ausgeblendet. In beiden Layouts werden die Zellen schmaler, bis jede Stunde eine Spalte hat, dann steht nur noch jede zweite Stunde dran.
 
-```text
- events by weekday × hour · ░▒▓█ · max 412
- Mon│                        ░░░▒▒▒▓▓▓███▓▓▓▒▒▒▓▓▓▓▓▓▒▒▒░░░         ░░░
- Tue│                     ░░░▒▒▒▓▓▓▓▓▓▒▒▒   ▓▓▓███▓▓▓▒▒▒░░░
- Wed│                           ▒▒▒▓▓▓▓▓▓   ▒▒▒▒▒▒▓▓▓▒▒▒         ░░░▒▒▒░░░
- Thu│                        ░░░▒▒▒▒▒▒▓▓▓      ▓▓▓███▓▓▓▒▒▒░░░
- Fri│                           ░░░▒▒▒▒▒▒░░░   ▒▒▒▒▒▒░░░
- Sat│                              ░░░░░░         ░░░▒▒▒░░░
- Sun│                                                ░░░░░░      ▒▒▒░░░
-    ╵00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-```
+![Statistik mit Heatmap bei 80×24: kompaktes Layout, Stunden in der Achsenzeile, Legende im Titel, Tabelle ausgeblendet](../assets/screenshots/heatmap-compact.png)
+
+*Statistik mit Heatmap bei 80×24: kompaktes Layout, Stunden in der Achsenzeile, Legende im Titel, Tabelle ausgeblendet*
 
 Reichen auch neun Zeilen nicht (Terminal unter 24 Zeilen), bleibt die Heatmap ausgeblendet und die Statuszeile sagt `heatmap needs more rows`.
 
@@ -300,27 +187,6 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 ![Ein Monat (`m`): Monatsarbeitszeit gegen das Soll der Arbeitstage, Feiertag ohne Soll](../assets/screenshots/activity-month.png)
 
 *Ein Monat (`m`): Monatsarbeitszeit gegen das Soll der Arbeitstage, Feiertag ohne Soll*
-
-```text
- total-recall                                                        1 search  2 stats  [3 activity]
-────────────────────────────────────────────────────────────────────────────────────────────────────
- period: day [week] month  count: all [human]        this week · 2026-W44 · 2026-10-26 – 2026-11-01
- week: 41h40m in 5 days · target 40h00m (5 workdays × 8h00m) · balance +1h40m · Sun 01 Allerheiligen
- day             first  last          span     diff  04     08      12      16     20      00
- Mon 2026-10-26  08:12  18:40       10h28m   +2h28m  ········▓▓███████████████▓▓▓▓·················
- Tue 2026-10-27  09:03  01:30 (+1)  16h27m   +8h27m  ·········████████████████▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒····
- Wed 2026-10-28  -      -                -        -  ·········│──────────────│·····················
- Thu 2026-10-29  07:55  17:10        9h15m   +1h15m  ·······▓▓▓███████████████▓····················
- Fri 2026-10-30  10:20  15:45        5h25m   -2h35m  ·········│──███████████─│·····················
- Sat 2026-10-31  -      -                -        -  ··············································
- Sun 2026-11-01  21:00  21:05           5m   +0h05m  ·Allerheiligen··························█·············
-
-────────────────────────────────────────────────────────────────────────────────────────────────────
- first  median 09:03  mean 11:18  min 07:55  max 21:00
- last   median 18:40  mean 19:38  min 15:45  max 01:30 (+1)
- span   median 9h15m  mean 8h20m  min 5m     max 16h27m
- 7 days · 4 ms · human only · 1 holiday
-```
 
 - **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`human`, der Standard: nur eigene Nachrichten, denn Agent-Events laufen nachts weiter und dehnen die Spanne; `h` schaltet auf `all`, eigene Nachrichten und Agent-Events wie in der Statistik; den Standard setzt `count` in [`[work]`](20-konfiguration.md#work)). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag; ein Feiertag steht bei einem einzelnen Tag mit Namen dahinter.
 - **Kopfzeile** bei Woche und Monat: die Arbeitszeit der Periode (Summe der Spannen, fett und gefärbt: türkis unter, grün im Rahmen, orange über dem Wochenrahmen `weekly_low`–`weekly_high`, bei einer Woche mit fünf Arbeitstagen 32–48 h, sonst anteilig), die Tage mit Aktivität, das Soll (Tagessoll × Arbeitstage der Periode) mit dem Saldo dagegen und die Feiertage der Periode mit Namen. Arbeitstage sind Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute: in der laufenden Woche oder dem laufenden Monat zählen künftige Tage noch nicht. Ein vergessener Tag oder Urlaub drückt den Saldo also, ein Feiertag nicht.

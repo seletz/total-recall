@@ -90,3 +90,49 @@ func TestImageWideFrame(t *testing.T) {
 		t.Errorf("png width = %d, want %d", cfg.Width, Width*cellW+2*padX)
 	}
 }
+
+// TestImageHalfLines: the half-length box-drawing glyphs of the compact
+// heatmap axis and the rounded corners of the help overlay are drawn as
+// shapes, not as glyphs of the font. A half line covers the centre and
+// its own half of the cell and leaves the other half empty; a rounded
+// corner meets the neighbouring cells at their midpoints and leaves the
+// far corner empty.
+func TestImageHalfLines(t *testing.T) {
+	cases := []struct {
+		ch         rune
+		drawn      [][2]int // points in the cell, in eighths of its size (x, y)
+		empty      [][2]int
+		descriptor string
+	}{
+		{'╵', [][2]int{{4, 1}, {4, 4}}, [][2]int{{4, 7}, {1, 4}}, "up"},
+		{'╷', [][2]int{{4, 7}, {4, 4}}, [][2]int{{4, 1}, {1, 4}}, "down"},
+		{'╴', [][2]int{{1, 4}, {4, 4}}, [][2]int{{7, 4}, {4, 1}}, "left"},
+		{'╶', [][2]int{{7, 4}, {4, 4}}, [][2]int{{1, 4}, {4, 1}}, "right"},
+		{'╭', [][2]int{{7, 4}, {4, 7}}, [][2]int{{1, 1}, {4, 4}, {1, 4}, {4, 1}}, "rounded top-left"},
+		{'╮', [][2]int{{1, 4}, {4, 7}}, [][2]int{{7, 1}, {4, 4}, {7, 4}, {4, 1}}, "rounded top-right"},
+		{'╰', [][2]int{{7, 4}, {4, 1}}, [][2]int{{1, 7}, {4, 4}, {1, 4}, {4, 7}}, "rounded bottom-left"},
+		{'╯', [][2]int{{1, 4}, {4, 1}}, [][2]int{{7, 7}, {4, 4}, {7, 4}, {4, 7}}, "rounded bottom-right"},
+	}
+	for _, c := range cases {
+		t.Run(c.descriptor, func(t *testing.T) {
+			f := Frame{Shot: Shot{Width: 1, Height: 1}, Content: string(c.ch)}
+			img, err := Image(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := func(p [2]int) color.RGBA {
+				return img.RGBAAt(padX+p[0]*cellW/8, titleBar+p[1]*cellH/8)
+			}
+			for _, p := range c.drawn {
+				if got := at(p); !near(got, foreground) {
+					t.Errorf("%q at %v = %v, want the foreground", c.ch, p, got)
+				}
+			}
+			for _, p := range c.empty {
+				if got := at(p); !near(got, background) {
+					t.Errorf("%q at %v = %v, want the background", c.ch, p, got)
+				}
+			}
+		})
+	}
+}

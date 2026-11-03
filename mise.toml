@@ -52,6 +52,11 @@ description = "Render the TUI screenshots for the docs from the demo archive and
 depends = ["demo:db"]
 run = "go run ./tools/screenshots -db build/demo.db -out docs/assets/screenshots -golden internal/screenshot/testdata/frames"
 
+[tasks."docs:screenshots:check"]
+description = "Check that the committed TUI screenshots and goldens match a fresh render; fails with a hint otherwise (CI runs this)"
+depends = ["demo:db"]
+run = "scripts/screenshots-check.sh -db build/demo.db"
+
 [tasks."docs:build"]
 description = "Build documentation site (strict)"
 depends = ["uv:sync"]
