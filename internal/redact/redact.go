@@ -10,10 +10,12 @@
 //   - basic-auth passwords in URLs (scheme://user:pass@host; the user is kept),
 //   - assignments to secret-looking keys (password, passwort, kennwort, pwd,
 //     secret, token, api_key, access_key, private_key, auth_key, credential)
-//     in key=value, key: value, key := value, key => value and JSON form,
+//     in key=value, key: value, key := value, key => value and JSON form
+//     (JSON keys also: authorization),
 //   - prose like "the password is X" / "das Passwort lautet X" when X
 //     contains a digit or symbol,
-//   - high-entropy values ≥ 32 characters assigned to any key.
+//   - high-entropy values ≥ 32 characters assigned to any key; the value is
+//     one bare token (no whitespace), never a whole sentence or command.
 //
 // Not masked on purpose: op:// references, $VAR/${VAR} and template
 // references, git SHAs and other hex digests, UUIDs, paths, code
@@ -53,10 +55,55 @@ type Redactor struct {
 
 // rule finds secrets. span returns the byte range to mask for one match
 // (indices as returned by FindAllStringSubmatchIndex) or ok=false to skip.
+// need lists literals of which at least one must occur in the input (in
+// its lowercased form when fold is set), needRun demands a run of at least
+// 32 token characters: cheap prechecks that spare the regexp on the bulk
+// of ordinary text.
 type rule struct {
-	kind string
-	re   *regexp.Regexp
-	span func(s string, m []int) (start, end int, ok bool)
+	kind    string
+	re      *regexp.Regexp
+	span    func(s string, m []int) (start, end int, ok bool)
+	need    []string
+	fold    bool
+	needRun bool
+}
+
+// applies reports whether the prechecks of ru hold for s; lower returns
+// the lowercased s on demand.
+func (ru rule) applies(s string, lower func() string) bool {
+	if ru.needRun && !hasTokenRun(s, 32) {
+		return false
+	}
+	if len(ru.need) == 0 {
+		return true
+	}
+	h := s
+	if ru.fold {
+		h = lower()
+	}
+	for _, n := range ru.need {
+		if strings.Contains(h, n) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasTokenRun reports whether s contains n consecutive token characters
+// ([A-Za-z0-9+/=_.-]), the shape of a value the high_entropy rule can mask.
+func hasTokenRun(s string, n int) bool {
+	run := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '+' || c == '/' || c == '=' || c == '_' || c == '.' || c == '-' {
+			if run++; run >= n {
+				return true
+			}
+		} else {
+			run = 0
+		}
+	}
+	return false
 }
 
 // Marker returns the replacement text for kind.
@@ -98,7 +145,14 @@ var (
 		"name", "ref", "url", "uri", "expir", "ttl", "policy", "prompt", "hint", "field", "env",
 		"required", "reset", "changed", "manager", "store", "rotation", "header", "label", "kind", "type"}
 	keyAllow = []string{"password", "passwort", "passwd", "kennwort", "passphrase", "secret", "token",
-		"apikey", "accesskey", "privatekey", "authkey", "credential"}
+		"apikey", "accesskey", "privatekey", "authkey", "credential", "authorization"}
+	// identifierKey marks keys whose values are identifiers, signatures or
+	// locations (tool_use_id, signature, displayPath): a single random-looking
+	// token there is not a secret, the whole-value high_entropy rule skips it.
+	identifierKey = []string{"signature", "path", "file", "name", "url", "uri", "hash", "digest"}
+	// reToken matches a value that is one bare token, the only shape the
+	// high_entropy rule masks as a whole (same character class as in Text).
+	reToken = regexp.MustCompile(`^[A-Za-z0-9+/=_.-]{32,}$`)
 )
 
 // sensitiveKey reports whether a key name likely holds a secret.
@@ -115,6 +169,20 @@ func sensitiveKey(k string) bool {
 	}
 	for _, a := range keyAllow {
 		if strings.Contains(n, a) {
+			return true
+		}
+	}
+	return false
+}
+
+// identifierValue reports whether key names an identifier-like field.
+func identifierValue(key string) bool {
+	n := strings.ToLower(key)
+	if strings.HasSuffix(n, "id") {
+		return true
+	}
+	for _, d := range identifierKey {
+		if strings.Contains(n, d) {
 			return true
 		}
 	}
@@ -227,25 +295,30 @@ func entropySpan(s string, m []int) (int, int, bool) {
 }
 
 func builtinRules() []rule {
-	mk := func(kind, re string, span func(string, []int) (int, int, bool)) rule {
-		return rule{kind: kind, re: regexp.MustCompile(re), span: span}
+	mk := func(kind, re string, span func(string, []int) (int, int, bool), need ...string) rule {
+		return rule{kind: kind, re: regexp.MustCompile(re), span: span, need: need}
 	}
+	fold := func(r rule) rule { r.fold = true; return r }
+	secretWords := []string{"pass", "pwd", "pw", "kennwort", "secret", "token", "api", "access", "private", "auth", "credential"}
+	proseWords := []string{"password", "passwort", "kennwort", "passphrase", "token", "secret", "pin"}
+	entropy := mk("high_entropy", `(^|[^A-Za-z0-9_.-])([A-Za-z_][A-Za-z0-9_.-]*)["']?[ \t]*(?::=|=|:)[ \t]*["']?([A-Za-z0-9+/=_.-]{32,})`, entropySpan)
+	entropy.needRun = true
 	return []rule{
-		mk("private_key", `-----BEGIN[A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----(?s:.*?)(?:-----END[A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|\z)`, group(0)),
-		mk("github_token", `\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})\b`, group(0)),
-		mk("aws_access_key", `\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`, group(0)),
-		mk("slack_webhook", `https://hooks\.slack\.com/(?:services|workflows)/[A-Za-z0-9/_-]+`, group(0)),
-		mk("slack_token", `\bxox[abposr]-[A-Za-z0-9-]{10,}`, group(0)),
-		mk("anthropic_key", `\bsk-ant-[A-Za-z0-9_-]{20,}`, group(0)),
-		mk("openai_key", `\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}`, groupWithDigit(0)),
-		mk("stripe_key", `\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}`, group(0)),
-		mk("google_api_key", `\bAIza[0-9A-Za-z_-]{35}\b`, group(0)),
-		mk("jwt", `\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{10,}`, group(0)),
-		mk("basic_auth", `\b[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:([^/\s@]+)@`, group(1)),
-		mk("bearer", `(?i)\bbearer[ \t]+([A-Za-z0-9._~+/=-]{16,})`, groupWithDigit(1)),
-		mk("secret", `(?i)(^|[^A-Za-z0-9_.-])([A-Za-z0-9_.-]*(?:pass(?:word|wort|wd|phrase)?|pwd|pw|kennwort|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth[_-]?key|credentials?)[A-Za-z0-9_.-]*)["']?[ \t]*(?::=|=>|=|:)[ \t]*`+assignValue, assignSpan),
-		mk("secret", `(?i)\b(password|passwort|kennwort|passphrase|token|secret|pin)\s+(?:is|ist|lautet|was|war)\s*:?\s+["']?(\S+)`, proseSpan),
-		mk("high_entropy", `(^|[^A-Za-z0-9_.-])([A-Za-z_][A-Za-z0-9_.-]*)["']?[ \t]*(?::=|=|:)[ \t]*["']?([A-Za-z0-9+/=_.-]{32,})`, entropySpan),
+		mk("private_key", `-----BEGIN[A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----(?s:.*?)(?:-----END[A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|\z)`, group(0), "PRIVATE KEY"),
+		mk("github_token", `\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})\b`, group(0), "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"),
+		mk("aws_access_key", `\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`, group(0), "AKIA", "ASIA"),
+		mk("slack_webhook", `https://hooks\.slack\.com/(?:services|workflows)/[A-Za-z0-9/_-]+`, group(0), "hooks.slack.com"),
+		mk("slack_token", `\bxox[abposr]-[A-Za-z0-9-]{10,}`, group(0), "xox"),
+		mk("anthropic_key", `\bsk-ant-[A-Za-z0-9_-]{20,}`, group(0), "sk-ant-"),
+		mk("openai_key", `\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}`, groupWithDigit(0), "sk-"),
+		mk("stripe_key", `\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}`, group(0), "k_live_", "k_test_"),
+		mk("google_api_key", `\bAIza[0-9A-Za-z_-]{35}\b`, group(0), "AIza"),
+		mk("jwt", `\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{10,}`, group(0), "eyJ"),
+		mk("basic_auth", `\b[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:([^/\s@]+)@`, group(1), "://"),
+		fold(mk("bearer", `(?i)\bbearer[ \t]+([A-Za-z0-9._~+/=-]{16,})`, groupWithDigit(1), "bearer")),
+		fold(mk("secret", `(?i)(^|[^A-Za-z0-9_.-])([A-Za-z0-9_.-]*(?:pass(?:word|wort|wd|phrase)?|pwd|pw|kennwort|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth[_-]?key|credentials?)[A-Za-z0-9_.-]*)["']?[ \t]*(?::=|=>|=|:)[ \t]*`+assignValue, assignSpan, secretWords...)),
+		fold(mk("secret", `(?i)\b(password|passwort|kennwort|passphrase|token|secret|pin)\s+(?:is|ist|lautet|was|war)\s*:?\s+["']?(\S+)`, proseSpan, proseWords...)),
+		entropy,
 	}
 }
 
@@ -284,8 +357,20 @@ func (r *Redactor) allowed(secret string) bool {
 
 // Text masks secrets in s.
 func (r *Redactor) Text(s string) string {
+	lower, lowered := "", false
+	lf := func() string {
+		if !lowered {
+			lower, lowered = strings.ToLower(s), true
+		}
+		return lower
+	}
 	for _, ru := range r.rules {
-		s = r.applyRule(ru, s)
+		if !ru.applies(s, lf) {
+			continue
+		}
+		if t := r.applyRule(ru, s); t != s {
+			s, lowered = t, false
+		}
 	}
 	return s
 }
@@ -316,8 +401,10 @@ func (r *Redactor) applyRule(ru rule, s string) string {
 // JSON masks secrets in one raw JSON document (e.g. a transcript line) and
 // keeps it valid JSON. Only string literals are rewritten; everything else
 // (key order, whitespace, numbers) is preserved byte for byte. A string value
-// whose key looks secret is masked entirely, every other string is masked
-// with Text. If line is not valid JSON, Text(line) is returned with an error.
+// whose key looks secret is masked entirely, so is a value that is one bare
+// high-entropy token; every other string (prose, commands, tool output) is
+// masked with Text, token by token, and otherwise kept (#130). If line is
+// not valid JSON, Text(line) is returned with an error.
 func (r *Redactor) JSON(line string) (string, error) {
 	if !json.Valid([]byte(line)) {
 		return r.Text(line), fmt.Errorf("redact: invalid JSON")
@@ -375,16 +462,24 @@ func (r *Redactor) JSON(line string) (string, error) {
 	return b.String(), nil
 }
 
+// jsonValue masks one string value stored under key ("" for array
+// elements). Order as in Text: the specific rules first (sensitive key,
+// known token formats, assignments inside the value), the generic
+// high-entropy rule last and only for a value that is one bare token.
 func (r *Redactor) jsonValue(key, v string) string {
-	if key != "" && !r.allowed(v) {
-		if sensitiveKey(key) && plausibleSecret(v, true) {
-			return Marker("secret")
-		}
-		if highEntropy(v) {
-			return Marker("high_entropy")
-		}
+	if key == "" || r.allowed(v) {
+		return r.Text(v)
 	}
-	return r.Text(v)
+	if sensitiveKey(key) && plausibleSecret(v, true) {
+		return Marker("secret")
+	}
+	if t := r.Text(v); t != v {
+		return t
+	}
+	if !identifierValue(key) && reToken.MatchString(v) && highEntropy(v) {
+		return Marker("high_entropy")
+	}
+	return v
 }
 
 // isKey reports whether the string literal ending before pos is an object key.

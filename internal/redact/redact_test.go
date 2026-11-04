@@ -246,3 +246,117 @@ func TestHighEntropyRandom(t *testing.T) {
 		t.Errorf("highEntropy missed %d/1000 random strings", missed)
 	}
 }
+
+// TestJSONKeepsValues: ordinary string values (prose, shell commands,
+// diffs, JSON output, paths) survive JSON byte for byte (#130).
+func TestJSONKeepsValues(t *testing.T) {
+	r := mustNew(t, Options{})
+	tests := []struct{ name, in string }{
+		{"prose", `{"type":"text","text":"Die Migration auf Schema v4 ist durch, jetzt noch die Tests für ingest --reread (PR #128), dann gegen develop."}`},
+		{"shell command", `{"name":"Bash","input":{"command":"go test ./... && go vet ./... && golangci-lint run 2>&1 | tail -n 20"}}`},
+		{"shell command with paths", `{"input":{"command":"grep -rn 'ON CONFLICT' internal/store/write.go | head -n 5 > /tmp/Out1.txt"}}`},
+		{"diff", `{"stdout":"--- a/internal/store/write.go\n+++ b/internal/store/write.go\n@@ -170,7 +170,7 @@\n-\tON CONFLICT(id) DO NOTHING\n+\tON CONFLICT(id) DO UPDATE SET raw = excluded.raw"}`},
+		{"json output", `{"content":"{\"scanned\":291,\"changed\":4,\"sessions\":[\"7d1e4c20-0001-4000-8000-000000000001\"],\"Duration\":\"55ms\"}"}`},
+		{"path", `{"file_path":"/Users/bob/develop/total-recall/internal/redact/redact.go"}`},
+		{"long identifier", `{"name":"TestWriteBatchIdempotencyWithDuplicateEvents"}`},
+		{"tool ids", `{"id":"toolu_01Ab2Cd3Ef4Gh5Jk6Lm7Np8Qr","message_id":"msg_01Xy9Zw8Vu7Ts6Rq5Po4Nm3Lk"}`},
+		{"long tool id", `{"tool_use_id":"toolu_vrtx_01Ab2Cd3Ef4Gh5Jk6Lm7Np8Qr9St0UvWx"}`},
+		{"signature and path", `{"signature":"` + entropic + `","displayPath":"` + entropic + `"}`},
+		{"git sha in command", `{"command":"git show 3f9a1c0e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a3f --stat"}`},
+		{"base64 image", `{"source":{"type":"base64","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"}}`},
+		{"sensitive key with placeholder", `{"token":"${GITHUB_TOKEN}","password":"<your-password>","secret":"op://vault/item/field"}`},
+		{"token counts", `{"usage":{"input_tokens":1234,"output_tokens":99,"cache_read_input_tokens":0}}`},
+		{"array of strings", `{"args":["--format","json","--since","2026-10-01T14:30:00Z"]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := r.JSON(tt.in)
+			if err != nil {
+				t.Fatalf("JSON: %v", err)
+			}
+			if got != tt.in {
+				t.Errorf("unexpected change:\n in: %s\nout: %s", tt.in, got)
+			}
+		})
+	}
+}
+
+// TestJSONMasksSecrets: secrets inside ordinary values are masked token by
+// token, values under sensitive keys as a whole, and the rest of the value
+// stays readable.
+func TestJSONMasksSecrets(t *testing.T) {
+	r := mustNew(t, Options{})
+	tests := []struct {
+		name   string
+		in     string
+		secret string
+		kind   string
+		keep   string
+	}{
+		{"github token in command", `{"input":{"command":"curl -H 'Authorization: token ` + ghp + `' https://api.github.com/user"}}`, ghp, "github_token", "https://api.github.com/user"},
+		{"bearer header in stdout", `{"stdout":"GET /v1/me\nAuthorization: Bearer abcDEF123456ghiJKL789\nAccept: */*"}`, "abcDEF123456ghiJKL789", "bearer", "Accept: */*"},
+		{"aws key in prose", `{"text":"the key ` + awsKey + ` was leaked in the log"}`, awsKey, "aws_access_key", "was leaked in the log"},
+		{"slack token in content", `{"content":"SLACK_TOKEN=` + slackTok + `"}`, slackTok, "slack_token", "SLACK_TOKEN="},
+		{"jwt in output", `{"stdout":"set-cookie: session=` + jwt + `; Path=/"}`, jwt, "jwt", "Path=/"},
+		{"password export in command", `{"command":"export DB_PASSWORD='correct horse battery' && ./run --port 8080"}`, "correct horse battery", "secret", "./run --port 8080"},
+		{"basic auth in command", `{"command":"git clone https://bob:pa55w0rd@example.com/r.git"}`, "pa55w0rd", "basic_auth", "https://bob:"},
+		{"private key in content", `{"content":"` + strings.ReplaceAll(rsaKey, "\n", `\n`) + `"}`, "MIIEpAIBAAKCAQEA1234", "private_key", ""},
+		{"high entropy assignment in text", `{"text":"use SOME_VALUE=` + entropic + ` for the run"}`, entropic, "high_entropy", "for the run"},
+		{"high entropy whole value", `{"value":"` + entropic + `"}`, entropic, "high_entropy", `"value":`},
+		{"token key", `{"token":"q9w8e7r6t5"}`, "q9w8e7r6t5", "secret", `"token":`},
+		{"api_key key", `{"api_key":"q9w8e7r6t5"}`, "q9w8e7r6t5", "secret", `"api_key":`},
+		{"authorization key", `{"headers":{"Authorization":"Bearer abcDEF123456ghiJKL789"}}`, "abcDEF123456ghiJKL789", "secret", `"Authorization":`},
+		{"password key with prose value", `{"password":"correct horse battery staple"}`, "correct horse battery staple", "secret", `"password":`},
+		{"nested secret key", `{"env":{"CLIENT_SECRET":"Zz9_yy8-xx7","PORT":"8080"}}`, "Zz9_yy8-xx7", "secret", `"PORT":"8080"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := r.JSON(tt.in)
+			if err != nil {
+				t.Fatalf("JSON: %v", err)
+			}
+			if !json.Valid([]byte(got)) {
+				t.Fatalf("invalid JSON: %s", got)
+			}
+			if strings.Contains(got, tt.secret) {
+				t.Errorf("secret not masked:\n in: %s\nout: %s", tt.in, got)
+			}
+			if !strings.Contains(got, "«redacted:"+tt.kind+"»") {
+				t.Errorf("missing marker %q in %s", tt.kind, got)
+			}
+			if tt.keep != "" && !strings.Contains(got, tt.keep) {
+				t.Errorf("lost context %q in %s", tt.keep, got)
+			}
+			if again, _ := r.JSON(got); again != got {
+				t.Errorf("not idempotent: %s -> %s", got, again)
+			}
+		})
+	}
+}
+
+// TestJSONTranscriptLineRegression reproduces #130: a transcript line whose
+// command, content, stdout and text values are long and varied must keep
+// them; only the secret inside is masked.
+func TestJSONTranscriptLineRegression(t *testing.T) {
+	r := mustNew(t, Options{})
+	command := "grep -rn 'ON CONFLICT' internal/store/write.go | head -n 5 > /tmp/Out1.txt && cat /tmp/Out1.txt"
+	stdout := "internal/store/write.go:175:\t\t\tON CONFLICT(id) DO NOTHING\ninternal/store/write.go:208:\t\t\tON CONFLICT(path) DO UPDATE SET harness = excluded.harness, size = excluded.size,"
+	text := "Zwei Treffer in write.go (Zeilen 175 und 208). Der Upsert für Events steht in WriteBatchN; ich ändere nur die Konfliktklausel."
+	content := "Token: " + ghp + " ist nur für Tests gedacht."
+	line := `{"type":"assistant","uuid":"7d1e4c20-0001-4000-8000-000000000002","message":{"id":"msg_01Xy9Zw8Vu7Ts6Rq5Po4Nm3Lk","content":[{"type":"text","text":` + encodeString(text) + `},{"type":"tool_use","id":"toolu_01Ab2Cd3Ef4Gh5Jk6Lm7Np8Qr","name":"Bash","input":{"command":` + encodeString(command) + `}}],"usage":{"input_tokens":1234,"output_tokens":56}},"toolUseResult":{"stdout":` + encodeString(stdout) + `,"content":` + encodeString(content) + `}}`
+	got, err := r.JSON(line)
+	if err != nil {
+		t.Fatalf("JSON: %v", err)
+	}
+	for _, keep := range []string{encodeString(command), encodeString(stdout), encodeString(text), "ist nur für Tests gedacht."} {
+		if !strings.Contains(got, keep) {
+			t.Errorf("lost %s in\n%s", keep, got)
+		}
+	}
+	if strings.Contains(got, ghp) || !strings.Contains(got, Marker("github_token")) {
+		t.Errorf("token not masked: %s", got)
+	}
+	if strings.Contains(got, Marker("high_entropy")) {
+		t.Errorf("whole value masked as high_entropy: %s", got)
+	}
+}
