@@ -184,6 +184,7 @@ Die Identität bindet die Signatur an den Release-Workflow von goreleaser für g
 ```
 Checksum verified for goreleaser_Linux_x86_64.tar.gz
 Verifying checksums.txt signature with cosign (identity: https://github.com/goreleaser/goreleaser/.github/workflows/release.yml@refs/tags/v2.19.0)
+Verified OK
 cosign signature verified
 ```
 
