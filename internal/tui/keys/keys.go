@@ -155,8 +155,8 @@ var Actions = []Action{
 	{ActivityLast, Activity, []string{"l"}, "last day/week/month"},
 	{ActivityHuman, Activity, []string{"h"}, "human/all events"},
 	{ActivityFigures, Activity, []string{"s"}, "summary figures"},
-	{ActivityUp, Activity, []string{"up", "k"}, "scroll up"},
-	{ActivityDown, Activity, []string{"down", "j"}, "scroll down"},
+	{ActivityUp, Activity, []string{"up", "k"}, "day back (scroll)"},
+	{ActivityDown, Activity, []string{"down", "j"}, "day forward (scroll)"},
 }
 
 // ForceQuit is the fixed binding that quits in every state, even while a

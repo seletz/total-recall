@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.1.0 (unveröffentlicht)
 
+### TUI
+
+- In der Ansicht **Aktivität** blättern ++up++/++down++ (`k`/`j`) und das Mausrad durch die Zeit: Passen nicht alle Tage auf den Bildschirm, scrollen sie wie bisher die Zeilen, am Rand rückt das Fenster um einen Tag zurück bzw. vor statt stehenzubleiben. Woche und Monat werden so zu einem gleitenden Fenster gleicher Länge; Kopfzeile, Soll, Saldo und Kennzahlen gelten für die sichtbaren Tage, Kalenderwoche oder Monat stehen nur bei einem ganzen. `c`, `l`, `d`, `w`, `m` richten wieder am Kalender aus. ++left++/++right++ springen weiter um eine ganze Periode, aber nicht mehr über die laufende hinaus; auch ++down++ endet dort. Die Hilfe nennt die Tasten `day back (scroll)` und `day forward (scroll)`: [TUI](30-tui.md#aktivitat) ([#125](https://github.com/seletz/total-recall/issues/125)).
+
 ### Release
 
 - Der Release-Lauf prüft den Download von goreleaser jetzt kryptografisch: Vor jedem goreleaser-Schritt in `ci.yml`, `release.yml` und `signed-snapshot.yml` installiert `sigstore/cosign-installer` (v4.1.2) cosign, womit `goreleaser-action` die Sigstore-Signatur der Checksummen-Datei des goreleaser-Releases prüft statt nur die Prüfsumme; eine fehlgeschlagene Prüfung bricht den Lauf ab. goreleaser ist in allen Workflows auf v2.19.0 gepinnt, die Version steht in `mise.toml`, und `mise run tools:check` (auch in der CI) findet Abweichungen in den Workflows: [Release-Assets](50-release.md#werkzeuge-des-release-laufs) ([#121](https://github.com/seletz/total-recall/issues/121)).
