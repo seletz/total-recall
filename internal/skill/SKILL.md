@@ -256,7 +256,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory] [--top N]` | time series per period, optionally per key |
 | `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
-| `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell (`--sessions` adds them to the text output). Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
+| `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell, the issue/PR references of their titles and the user's messages (`refs`) and a booking text (`text`); `--sessions` and `--summary` add them to the text output. Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
 | `total-recall llm --skill` | prints this document |
 
@@ -438,6 +438,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `grid_seconds` | rounding grid, 0 = no rounding |
 | `rounding` | `up`, `down` or `nearest` |
 | `rounding_scope` | `category` (the sum per category and day is rounded once) or `project` (every project is rounded, the category is the sum) |
+| `summary_max_chars` | length the booking `text` of a cell is cut to, 0 = no limit |
 | `holiday_region` | region of the public holidays |
 | `days` | all days of the range, see below |
 | `categories` | per category over the range, see below |
@@ -464,6 +465,8 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `rounded_seconds` | time to book |
 | `projects` | projects of the category with time on the day, sorted by name |
 | `sessions` | sessions of the category on the day, in order of their first message; titles are the template for booking texts |
+| `refs` | issue and pull-request references of all sessions of the cell, from the session titles and the user's own messages only (never agent or tool output): `#31`, `PR #32`, `owner/repo#123`, `PR owner/repo#124`; deduplicated, sorted by repository and number; `[]` without any |
+| `text` | booking text proposal: `<project>: <title> (<refs>), <title>; <project>: …` with the sessions per project in order of their first message (an untitled session shows its refs, else the start of its first message), cut to `summary_max_chars` and then ending in `…` |
 
 #### `stats --json --worktime` days[].categories[].projects[]
 
@@ -474,6 +477,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `remote` | remote URL, `null` without a repository |
 | `raw_seconds` | |
 | `rounded_seconds` | the project rounded alone; with `rounding_scope` `category` the projects can sum to more than the category |
+| `refs` | references of the project's sessions, as in the cell |
 
 #### `stats --json --worktime` days[].categories[].sessions[]
 
@@ -482,6 +486,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `id` | session id, for `show` |
 | `title` | display name, `null` without |
 | `raw_seconds` | |
+| `refs` | references of the session's title and own messages of the day, sorted; `[]` without any |
 
 #### `stats --json --worktime` categories[]
 

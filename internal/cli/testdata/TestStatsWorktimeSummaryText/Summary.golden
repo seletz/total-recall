@@ -1,0 +1,16 @@
+2026-11-03 04:00 – 2026-11-04 03:59 (Europe/Berlin, day starts 04:00, human events only)
+gaps up to 20m count in full, longer ones 3m · rounded up to 15m per category and day · holidays Baden-Württemberg
+a lower bound: meetings and work without an agent leave no messages
+
+2026-11-03 Tue: 43m raw, 1h00m rounded
+  kompass: 33m raw, 45m rounded
+    refs: kompass #19, #21, #26, #31, PR #32, mara/kompass#27
+    text: kompass: SBOM (#31/PR #32), Konfig (#21), #19/#26/mara/kompass#27
+  wetterwarte: 10m raw, 15m rounded
+    refs: -
+    text: wetterwarte: Frostwarnung bauen:
+
+CATEGORY     RAW  ROUNDED  DAYS
+kompass      33m  45m      1
+wetterwarte  10m  15m      1
+total        43m  1h00m    1

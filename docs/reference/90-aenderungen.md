@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.1.0 (unveröffentlicht)
+
+### Neu in der CLI
+
+- `stats --worktime --summary` liefert je Tag und Kategorie die Issue- und PR-Referenzen aus den Session-Titeln und deinen eigenen Nachrichten (`#31`, `PR #32`, `owner/repo#123`, auch aus Issue- und Pull-URLs; nie aus Antworten des Agenten oder Werkzeugausgaben), je Projekt gruppiert und dedupliziert, sowie einen Vorschlag für den Buchungstext `<projekt>: <titel> (<refs>), …`, gekürzt auf `summary_max_chars` in `[worktime]` (Default 200). Kombinierbar mit `--sessions`; `--json` enthält `refs` und `text` immer, auch je Projekt und Session. Rezept: [Stundenzettel füllen](../how-to/45-stundenzettel.md#referenzen-und-ein-vorschlag-fur-den-text) ([#108](https://github.com/seletz/total-recall/issues/108)).
+
 ## v1.0.2
 
 Die macOS-Binaries sind ab dieser Version signiert und notarisiert. Sonst ändert sich nichts; die Datenbank bleibt bei Schema v3.

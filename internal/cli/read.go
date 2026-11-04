@@ -640,7 +640,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary bool
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -675,7 +675,10 @@ per category and day is rounded to the grid (default up to 15m). Projects
 are mapped to categories by the [worktime] rules; a project without a rule
 is its own category. Ranges as with --workday. --sessions lists the sessions
 and projects of every cell with their titles as a template for booking
-texts (JSON always has them). Meetings and work without an agent leave no
+texts; --summary adds the issue and pull-request references (#31, PR #32,
+owner/repo#123) from the titles and your own messages, per project, and a
+booking text "<project>: <title> (<refs>), …" cut to summary_max_chars
+(JSON always has all of it). Meetings and work without an agent leave no
 messages: the values are a lower bound.`,
 		Args: usageArgs(cobra.NoArgs),
 	}
@@ -686,11 +689,11 @@ messages: the values are a lower bound.`,
 		}
 		loc := cfg.Location()
 		series := period != "" || by != "" || cmd.Flags().Changed("top")
-		if err := checkWorkdayFlags(workday, worktime, sessions, series, rng, humanOnly || allEvents, period, by); err != nil {
+		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
 		}
 		if worktime {
-			return e.runWorktime(cmd, cfg, o, rng, month, sinceArg, untilArg, sessions)
+			return e.runWorktime(cmd, cfg, o, rng, month, sinceArg, untilArg, sessions, summary)
 		}
 		if workday {
 			if cmd.Flags().Changed("human-only") {
@@ -772,6 +775,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
+	c.Flags().BoolVar(&summary, "summary", false, "with --worktime: issue/PR references and a booking text per day and category (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
@@ -782,9 +786,9 @@ messages: the values are a lower bound.`,
 
 // checkWorkdayFlags rejects flag combinations across the four modes of
 // stats: --range belongs to --workday and --worktime, the counting flags to
-// --workday and --sessions to --worktime; both exclude the series flags and
-// each other.
-func checkWorkdayFlags(workday, worktime, sessions, series bool, rng string, humanOnly bool, period, by string) error {
+// --workday and --sessions/--summary (details) to --worktime; both exclude
+// the series flags and each other.
+func checkWorkdayFlags(workday, worktime, details, series bool, rng string, humanOnly bool, period, by string) error {
 	mode := "--workday"
 	if worktime {
 		mode = "--worktime"
@@ -796,8 +800,8 @@ func checkWorkdayFlags(workday, worktime, sessions, series bool, rng string, hum
 		return usagef("--range requires --workday or --worktime")
 	case !workday && humanOnly:
 		return usagef("--all-events requires --workday")
-	case !worktime && sessions:
-		return usagef("--sessions requires --worktime")
+	case !worktime && details:
+		return usagef("--sessions and --summary require --worktime")
 	case (workday || worktime) && period != "":
 		return usagef("%s cannot be combined with --period", mode)
 	case (workday || worktime) && by != "":

@@ -95,6 +95,8 @@ match = ["~/dotfiles", "~/notizen"]
 	}{
 		{"Week", []string{"--since", "2026-10-26", "--until", "2026-10-30"}},
 		{"WeekSessions", []string{"--since", "2026-10-26", "--until", "2026-10-27", "--sessions"}},
+		{"WeekSummary", []string{"--since", "2026-10-26", "--until", "2026-10-27", "--summary"}},
+		{"WeekSessionsSummary", []string{"--since", "2026-10-26", "--until", "2026-10-26", "--sessions", "--summary"}},
 		{"WeekJSON", []string{"--since", "2026-10-26", "--until", "2026-10-26", "--json"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -302,6 +304,8 @@ func TestStatsWorktimeErrors(t *testing.T) {
 	}{
 		{"bad range", []string{"--worktime", "--range", "yesterday"}, "--range"},
 		{"sessions without worktime", []string{"--sessions"}, "--worktime"},
+		{"summary without worktime", []string{"--summary"}, "--worktime"},
+		{"summary with workday", []string{"--workday", "--summary"}, "--worktime"},
 		{"worktime and workday", []string{"--worktime", "--workday"}, "--workday"},
 		{"worktime and period", []string{"--worktime", "--period", "week"}, "--period"},
 		{"worktime and by", []string{"--worktime", "--by", "project"}, "--by"},
