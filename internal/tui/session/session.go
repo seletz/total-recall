@@ -68,13 +68,24 @@ type Model struct {
 	session store.SessionInfo
 	events  []model.Event
 
-	// keep is the event to return to after a reload (tools toggle): its ID,
-	// its time for the fallback when it is no longer listed, and whether it
-	// was the marked event.
+	// keep is the event to return to after a load with the tools toggled:
+	// its ID, its time for the fallback when it is no longer listed, and
+	// whether it was the marked event.
 	keep struct {
 		id     string
 		ts     time.Time
 		marked bool
+	}
+	// refresh is the position to restore after a reload of the same
+	// session (Reload): the marked event, the event at the top with the
+	// offset of the first visible line within it, or the bottom.
+	refresh struct {
+		on       bool
+		marked   string
+		top      string
+		topTS    time.Time
+		line     int
+		atBottom bool
 	}
 
 	lines   []string // transcript, wrapped to the width, plain text
@@ -134,6 +145,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Open:
 		m.open = msg
 		m.keep.id, m.keep.marked = "", false
+		m.refresh.on = false
 		return m.load()
 	case loadedMsg:
 		return m.loadedResult(msg)
@@ -160,6 +172,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.SetClipboard(m.session.ID)
 	case key.Matches(msg, m.keys.Tools):
 		m.all = !m.all
+		m.refresh.on = false // a reload in flight is superseded
 		if m.current >= 0 {
 			m.keep.id, m.keep.ts, m.keep.marked = m.events[m.current].ID, m.events[m.current].TS, true
 		} else if top := m.eventOf(m.vp.YOffset()); top >= 0 {
@@ -178,6 +191,28 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.vp, _ = m.vp.Update(msg)
 	}
 	return m, nil
+}
+
+// Reload reads the shown session again with the same tools setting and
+// puts the view back where it was: the marked event stays marked, the
+// transcript stays at the same line (new events append below), and a view
+// at the bottom follows the end like a pager in follow mode. Before a
+// session is loaded or while one is loading there is nothing to reload.
+func (m Model) Reload() (tea.Model, tea.Cmd) {
+	if !m.loaded || m.loading || m.st == nil {
+		return m, nil
+	}
+	m.refresh.on = true
+	m.refresh.marked, m.refresh.top, m.refresh.line = "", "", 0
+	m.refresh.atBottom = m.vp.AtBottom()
+	if m.current >= 0 && m.current < len(m.events) {
+		m.refresh.marked = m.events[m.current].ID
+	}
+	if top := m.eventOf(m.vp.YOffset()); top >= 0 {
+		m.refresh.top, m.refresh.topTS = m.events[top].ID, m.events[top].TS
+		m.refresh.line = m.vp.YOffset() - m.eventAt[top]
+	}
+	return m.load()
 }
 
 // load starts reading the session of m.open with the current tools setting.
@@ -227,6 +262,11 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 	m.err = msg.err
 	m.loaded = msg.err == nil
 	m.session, m.events, m.all = msg.session, msg.events, msg.all
+	refresh := m.refresh.on
+	m.refresh.on = false
+	if refresh && m.loaded {
+		return m.refreshed()
+	}
 	m.current, m.hit = -1, -1
 	m.vp.SetHeight(max(m.height-m.chrome(), 0))
 	m.layout()
@@ -266,6 +306,42 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 		m.showHit()
 	} else {
 		m.vp.GotoTop()
+	}
+	m.render()
+	return m, nil
+}
+
+// refreshed applies a reload of the same session (see Reload): the mark
+// and the selected hit are kept where the events still exist, the
+// viewport stays on the same line of the same event, or at the bottom
+// when it was there.
+func (m Model) refreshed() (tea.Model, tea.Cmd) {
+	r := m.refresh
+	hitLine := -1
+	if m.hit >= 0 && m.hit < len(m.matches) {
+		hitLine = m.matches[m.hit].Line
+	}
+	m.vp.SetHeight(max(m.height-m.chrome(), 0))
+	m.layout()
+	m.current = -1
+	if r.marked != "" {
+		m.current = m.indexOf(r.marked)
+	}
+	m.hit = -1
+	if hitLine >= 0 {
+		m.hit = m.hitFrom(hitLine)
+	}
+	switch {
+	case r.atBottom:
+		m.vp.GotoBottom()
+	case r.top != "":
+		top := m.indexOf(r.top)
+		if top < 0 {
+			top = m.before(r.topTS)
+		}
+		if top >= 0 {
+			m.vp.SetYOffset(m.eventAt[top] + r.line)
+		}
 	}
 	m.render()
 	return m, nil

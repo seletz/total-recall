@@ -1,6 +1,7 @@
 // Package tui is the interactive terminal UI of total-recall: an app
 // shell that hosts the search, stats and activity views, switches between
-// them and shows a help overlay built from their key maps.
+// them, shows a help overlay built from their key maps and keeps the views
+// current while the hooks write to the archive.
 //
 // Views live in their own packages (search, stats, …) and implement [View]
 // without importing this package. The app forwards key presses to the active
@@ -12,6 +13,14 @@
 // session detail is a layer above the views:
 // opened by the search view's OpenSession, closed by its Back, it replaces
 // the body while the search view keeps its state underneath.
+//
+// Reloading: every Options.Reload the app asks the store whether anything
+// changed (store.Poll, one PRAGMA, no queries otherwise). When it did, the
+// view on screen reloads in place (View.Reload keeps mark, scroll, focus
+// and input) and the others are marked stale, so they reload when they
+// are shown next. A swapped file (maintenance) is reopened first. The
+// header shows when the data was last loaded; the reload key does it on
+// demand.
 package tui
 
 import (
@@ -107,6 +116,12 @@ type Options struct {
 	ActivityWindow string
 	// Keys are the effective key bindings; nil means the defaults.
 	Keys keys.Map
+	// Reload is how often the archive is checked for changes; 0 never
+	// checks (the reload key still works).
+	Reload time.Duration
+	// Tick schedules the next check after d; nil means tea.Tick. Tests
+	// pass one that fires on demand.
+	Tick func(d time.Duration, fn func(time.Time) tea.Msg) tea.Cmd
 }
 
 func (o *Options) defaults() {
@@ -131,6 +146,9 @@ func (o *Options) defaults() {
 	if o.ActivityWindow == "" {
 		o.ActivityWindow = "week"
 	}
+	if o.Tick == nil {
+		o.Tick = tea.Tick
+	}
 }
 
 // View is one screen of the app. Its View is rendered into the body between
@@ -140,6 +158,10 @@ type View interface {
 	help.KeyMap
 	// Title names the view in the header, e.g. "search".
 	Title() string
+	// Reload loads the view's data again in place: the same query, window
+	// or session, keeping mark, scroll position, focus and input. Views
+	// without a database do nothing.
+	Reload() (tea.Model, tea.Cmd)
 }
 
 // Focused is implemented by views that take text input. While it reports
@@ -171,7 +193,14 @@ func New(opts Options) (App, error) {
 		return App{}, fmt.Errorf("unknown view %q (use %s)", opts.Start, strings.Join(ViewNames, ", "))
 	}
 	detail := session.New(opts.Store, opts.Location, opts.Keys)
-	return App{opts: opts, views: views, active: active, detail: detail, keys: newKeyMap(opts.Keys), th: theme.New(true)}, nil
+	a := App{opts: opts, views: views, active: active, detail: detail, keys: newKeyMap(opts.Keys), th: theme.New(true),
+		stale: make([]bool, len(views)+1), updated: opts.Now()}
+	if opts.Store != nil {
+		// The baseline of the change check is taken before the views load
+		// for the first time, so nothing written in between is missed.
+		_, _ = opts.Store.Poll(context.Background())
+	}
+	return a, nil
 }
 
 // Run starts the app on in/out and blocks until it quits.

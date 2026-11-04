@@ -52,6 +52,7 @@ const (
 	GlobalHelp     = "global_help"
 	GlobalBack     = "global_back"
 	GlobalQuit     = "global_quit"
+	GlobalReload   = "global_reload"
 
 	SearchFocus = "search_focus"
 	SearchOpen  = "search_open"
@@ -110,6 +111,7 @@ var Actions = []Action{
 	{GlobalHelp, Global, []string{"?"}, "help"},
 	{GlobalBack, Global, []string{"esc"}, "back"},
 	{GlobalQuit, Global, []string{"q"}, "quit"},
+	{GlobalReload, Global, []string{"R"}, "reload"},
 
 	{SearchFocus, Search, []string{"tab", "shift+tab"}, "input ↔ list"},
 	{SearchOpen, Search, []string{"enter"}, "open"},

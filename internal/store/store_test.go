@@ -46,7 +46,7 @@ func ev(id, sess, at string, actor model.Actor, kind model.Kind, role, text stri
 func countRows(t *testing.T, s *Store, q string) int {
 	t.Helper()
 	var n int
-	if err := s.db.QueryRowContext(ctx, q).Scan(&n); err != nil {
+	if err := s.db().QueryRowContext(ctx, q).Scan(&n); err != nil {
 		t.Fatalf("%s: %v", q, err)
 	}
 	return n
@@ -64,7 +64,7 @@ func TestOpenPragmasAndSchema(t *testing.T) {
 	}
 	for _, c := range checks {
 		var got string
-		if err := s.db.QueryRowContext(ctx, "PRAGMA "+c.pragma).Scan(&got); err != nil {
+		if err := s.db().QueryRowContext(ctx, "PRAGMA "+c.pragma).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
 		if got != c.want {
@@ -90,7 +90,7 @@ func TestOpenPragmasAndSchema(t *testing.T) {
 
 func TestOpenNewerSchemaFails(t *testing.T) {
 	s, p := openTestStore(t)
-	if _, err := s.db.ExecContext(ctx, "UPDATE schema_version SET version = 999"); err != nil {
+	if _, err := s.db().ExecContext(ctx, "UPDATE schema_version SET version = 999"); err != nil {
 		t.Fatal(err)
 	}
 	_ = s.Close()
@@ -466,7 +466,7 @@ func TestRestore(t *testing.T) {
 	}
 	// A legacy uncompressed copy restores too.
 	legacy := filepath.Join(dir, "archive-2026-10-01.db")
-	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", legacy); err != nil {
+	if _, err := s.db().ExecContext(ctx, "VACUUM INTO ?", legacy); err != nil {
 		t.Fatal(err)
 	}
 	notDB := filepath.Join(dir, "garbage.db.gz")
@@ -609,7 +609,7 @@ func TestDisplayNameAndAITitle(t *testing.T) {
 				}
 			}
 			var got sql.NullString
-			if err := s.db.QueryRowContext(ctx, "SELECT display_name FROM sessions WHERE id = 'claude:x'").Scan(&got); err != nil {
+			if err := s.db().QueryRowContext(ctx, "SELECT display_name FROM sessions WHERE id = 'claude:x'").Scan(&got); err != nil {
 				t.Fatal(err)
 			}
 			if got.String != tt.want {

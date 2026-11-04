@@ -568,8 +568,9 @@ total-recall tui stats --graphics text        # Chart als Text, keine Terminal-A
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort |
 | `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty, kitty und herdr, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `tui.graphics` aus der Config, sonst `auto` |
 | `--no-mouse` | Maus dem Terminal überlassen (Textauswahl durch Ziehen). Default `tui.mouse` aus der Config; `--no-mouse=false` schaltet die Maus für einen Aufruf ein |
+| `--reload DAUER` | Intervall, in dem die TUI das Archiv auf Änderungen prüft und die sichtbare Ansicht neu lädt; `0` schaltet ab, mindestens `1s`. Default `tui.reload` aus der Config, sonst `5s`; siehe [Neuladen](30-tui.md#neuladen) |
 
-Die Defaults der Ansicht, des Grafikmodus, der Maus und des Startzustands von Statistik und Aktivität stehen im Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration, die Tastenbelegung in [`[keys]`](20-konfiguration.md#keys); Flags und Argument gehen vor. Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`. Entwurf, Messwerte und Entscheidung zur Übernahme: [Spike: TUI](../explanation/spike-tui.md).
+Die Defaults der Ansicht, des Grafikmodus, der Maus, des Neuladens und des Startzustands von Statistik und Aktivität stehen im Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration, die Tastenbelegung in [`[keys]`](20-konfiguration.md#keys); Flags und Argument gehen vor. Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`. Entwurf, Messwerte und Entscheidung zur Übernahme: [Spike: TUI](../explanation/spike-tui.md).
 
 ## `sql` { #sql }
 
@@ -670,7 +671,7 @@ Ablauf, jeder Schritt bricht bei einem Fehler ab und lässt das Archiv unveränd
 1. Prüfen, ob neben der Datenbank etwa die doppelte Dateigröße frei ist (Backup-Kopie und neue Kopie) und im Backup-Ordner die halbe; sonst Abbruch mit den Zahlen.
 2. Backup wie [`backup`](#backup) (gleicher Ordner, gleiche Aufbewahrung). Wie `backup` migriert der Befehl ein älteres Schema vorher.
 3. Exklusives Lock gegen Hooks (`locks/maintenance.lock` neben der Datenbank). Hält ein `ingest` oder `backup` das Archiv noch offen, wartet der Befehl bis `--wait` und bricht dann mit `writers active` ab; schon beim Warten kündigt er sich an (`locks/maintenance.pending`), damit kein neuer Schreiber mehr startet. Hooks, die währenddessen starten, überspringen ihren Lauf (eine `INFO`-Zeile im Log, kein Fehler) und lesen beim nächsten Hook derselben Session oder beim nächsten `SessionStart` ab dem gespeicherten Offset weiter; es geht nichts verloren.
-4. WAL-Checkpoint. Hält ein lesender Prozess (TUI, `sql`, `status`) die Datei offen, bricht der Befehl mit `readers active` ab: den Prozess schließen und noch einmal starten.
+4. WAL-Checkpoint. Hält ein lesender Prozess gerade eine Lesetransaktion offen (eine laufende Abfrage von `sql`, `status` oder der TUI), bricht der Befehl mit `readers active` ab: den Prozess schließen oder kurz warten und noch einmal starten. Eine TUI im Leerlauf hält keine offen; sie bemerkt die ausgetauschte Datei bei der nächsten Prüfung und öffnet sie neu, siehe [Neuladen](30-tui.md#neuladen).
 5. `PRAGMA page_size` und `VACUUM INTO` in eine Temporärdatei `archive.db.maint-*` neben der Datenbank.
 6. `PRAGMA integrity_check` auf der Kopie und Vergleich der Zeilenzahlen von `sessions`, `events`, `sources` mit dem Original.
 7. Austausch: `-wal`/`-shm` des Originals entfernen, Kopie per `rename` an die Stelle der Datenbank. Danach öffnet der Befehl die neue Datei einmal (WAL-Modus wieder an) und zeigt die Werte nachher.

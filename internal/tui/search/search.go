@@ -81,13 +81,15 @@ type OpenSession struct {
 type debounceMsg struct{ seq uint64 }
 
 // resultMsg is the answer of one search; it is applied only when seq is
-// still the current input sequence.
+// still the current input sequence. A quiet result comes from a reload:
+// the mark stays on the hit it was on.
 type resultMsg struct {
 	seq   uint64
 	query string
 	hits  []store.SearchHit
 	took  time.Duration
 	err   error
+	quiet bool
 }
 
 type focus int
@@ -201,15 +203,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.seq != m.seq || m.opts.Searcher == nil || m.input.Value() == "" {
 			return m, nil
 		}
-		return m.search()
+		return m.search(false)
 	case resultMsg:
 		if msg.seq != m.seq {
 			return m, nil
 		}
-		m.searching = false
-		m.query, m.hits, m.took, m.err = msg.query, msg.hits, msg.took, msg.err
-		m.cursor, m.offset = 0, 0
-		return m, m.follow()
+		return m.result(msg)
 	case previewTickMsg:
 		if msg.seq != m.preview.seq {
 			return m, nil
@@ -385,7 +384,7 @@ func (m Model) refilter() (tea.Model, tea.Cmd) {
 	if m.opts.Searcher == nil || m.input.Value() == "" {
 		return m, nil
 	}
-	return m.search()
+	return m.search(false)
 }
 
 // changed registers new input: it invalidates running and pending work and
@@ -402,6 +401,46 @@ func (m Model) changed(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, tea.Tick(m.opts.Debounce, func(time.Time) tea.Msg { return debounceMsg{seq: seq} }))
 }
 
+// result applies the answer of a search. A fresh search marks the first
+// hit; a reload keeps the mark on the same hit (by event ID, else by
+// position), keeps the scroll offset and refreshes the preview in place.
+func (m Model) result(msg resultMsg) (tea.Model, tea.Cmd) {
+	m.searching = false
+	var marked string
+	if h := m.marked(); h != nil {
+		marked = h.Event.ID
+	}
+	m.query, m.hits, m.took, m.err = msg.query, msg.hits, msg.took, msg.err
+	if !msg.quiet {
+		m.cursor, m.offset = 0, 0
+		return m, m.follow()
+	}
+	m.cursor = min(m.cursor, max(len(m.hits)-1, 0))
+	for i, h := range m.hits {
+		if h.Event.ID == marked {
+			m.cursor = i
+			break
+		}
+	}
+	m.clampOffset()
+	if h := m.marked(); h != nil && h.Event.ID == marked {
+		return m, m.refreshPreview()
+	}
+	return m, m.follow()
+}
+
+// Reload runs the current query again without debounce and without the
+// spinner, keeping input, focus, mark and scroll position; the preview
+// follows. Without a database or without a query there is nothing to do.
+func (m Model) Reload() (tea.Model, tea.Cmd) {
+	if m.opts.Searcher == nil || m.input.Value() == "" {
+		return m, nil
+	}
+	m.seq++
+	m.stop()
+	return m.search(true)
+}
+
 // stop cancels the running search, if any.
 func (m *Model) stop() {
 	if m.cancel != nil {
@@ -413,25 +452,41 @@ func (m *Model) stop() {
 
 // search starts the query for the current input and filters, and the
 // spinner. The query comes first in the batch: run synchronously (tests),
-// its result stops the spinner before the spinner's first tick arrives.
-func (m Model) search() (tea.Model, tea.Cmd) {
+// its result stops the spinner before the spinner's first tick arrives. A
+// quiet search (reload) shows neither the spinner nor "searching…": the
+// hits stay until the answer replaces them.
+func (m Model) search(quiet bool) (tea.Model, tea.Cmd) {
 	m.stop()
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	m.searching = true
-	m.query = m.input.Value()
-	seq, query, now, s := m.seq, m.query, m.opts.Now, m.opts.Searcher
-	f := store.SearchFilter{
-		SessionFilter:  store.SessionFilter{Limit: Limit},
-		HighlightStart: hlStart,
-		HighlightEnd:   hlEnd,
+	seq, now, s := m.seq, m.opts.Now, m.opts.Searcher
+	query := m.input.Value()
+	f := m.filter(now())
+	if quiet {
+		return m, func() tea.Msg {
+			start := now()
+			hits, err := s.Search(ctx, query, f)
+			return resultMsg{seq: seq, query: query, hits: hits, took: now().Sub(start), err: err, quiet: true}
+		}
 	}
-	m.filters.apply(&f, now())
+	m.searching = true
+	m.query = query
 	return m, tea.Batch(func() tea.Msg {
 		start := now()
 		hits, err := s.Search(ctx, query, f)
 		return resultMsg{seq: seq, query: query, hits: hits, took: now().Sub(start), err: err}
 	}, m.spin.Tick)
+}
+
+// filter is the store filter of the current filter settings at now.
+func (m Model) filter(now time.Time) store.SearchFilter {
+	f := store.SearchFilter{
+		SessionFilter:  store.SessionFilter{Limit: Limit},
+		HighlightStart: hlStart,
+		HighlightEnd:   hlEnd,
+	}
+	m.filters.apply(&f, now)
+	return f
 }
 
 // open emits OpenSession for the marked hit.

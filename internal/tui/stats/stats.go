@@ -350,7 +350,38 @@ func (m Model) load() (Model, tea.Cmd) {
 		m.series, m.loaded, m.took = s, true, 0
 		return m, m.rebuild()
 	}
-	m.loaded, m.loading = false, true
+	m.loaded = false
+	return m.fetch(f, false)
+}
+
+// Reload drops the caches and loads the current filter (and the heatmap,
+// when it is on) again, keeping the series on screen until the answer
+// arrives: no "Loading…" in between. Without a database there is nothing
+// to do.
+func (m Model) Reload() (tea.Model, tea.Cmd) {
+	if m.opts.Loader == nil {
+		return m, nil
+	}
+	m.cache = map[filter]store.ActivitySeries{}
+	m.heat.cache = map[heatFilter]store.Stats{}
+	m.seq++
+	m.stop()
+	m.err = nil
+	m, cmd := m.fetch(m.filter(), true)
+	var heatCmd tea.Cmd
+	if m.heat.on {
+		m.heat.seq++
+		m.stopHeat()
+		m.heat.err = nil
+		m, heatCmd = m.fetchHeat(m.heatFilter(), true)
+	}
+	return m, tea.Batch(cmd, heatCmd)
+}
+
+// fetch starts the query for f with the current sequence number. A quiet
+// fetch (reload) does not announce itself in the status line.
+func (m Model) fetch(f filter, quiet bool) (Model, tea.Cmd) {
+	m.loading = !quiet
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	seq, now, l := m.seq, m.opts.Now, m.opts.Loader
@@ -393,7 +424,14 @@ func (m Model) loadHeat() (Model, tea.Cmd) {
 		m.heat.stats, m.heat.loaded = s, true
 		return m, nil
 	}
-	m.heat.loaded, m.heat.loading = false, true
+	m.heat.loaded = false
+	return m.fetchHeat(f, false)
+}
+
+// fetchHeat starts the heatmap query for f with the current heatmap
+// sequence number; quiet as in fetch.
+func (m Model) fetchHeat(f heatFilter, quiet bool) (Model, tea.Cmd) {
+	m.heat.loading = !quiet
 	ctx, cancel := context.WithCancel(context.Background())
 	m.heat.cancel = cancel
 	seq, l := m.heat.seq, m.opts.Loader

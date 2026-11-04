@@ -25,6 +25,7 @@ total-recall tui stats --graphics text    # Chart als Text, kein Bild
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort beim Start |
 | `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `graphics` aus `[tui]`, sonst `auto`; siehe [Grafikmodi](#grafikmodi) |
 | `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus). Default `mouse` aus `[tui]`; `--no-mouse=false` schaltet die Maus für einen Aufruf wieder ein |
+| `--reload DAUER` | Intervall, in dem die TUI das Archiv auf Änderungen prüft und die sichtbare Ansicht neu lädt, etwa `--reload 2s`; `--reload 0` schaltet das Neuladen ab, mindestens `1s`. Default `reload` aus `[tui]`, sonst `5s`; siehe [Neuladen](#neuladen) |
 
 Die [globalen Optionen](10-befehle.md#globale-optionen) `--db`, `--tz` und `--config` gelten wie überall; `--tz` bzw. `timezone` aus der Config bestimmt Tages-, Wochen- und Monatsgrenzen, `day_start` die Tagesgrenze der Aktivitätsansicht. Der Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration setzt die Defaults von Ansicht, Grafikmodus und Maus sowie Periode und Dimension der Statistik und das Fenster der Aktivität; Flags und Argument gehen vor. Beenden mit `q` oder ++ctrl+c++ (++ctrl+c++ immer, `q` nur, solange kein Eingabefeld den Fokus hat).
 
@@ -41,7 +42,7 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Bilder auf dieser Seite z
 
 Alle Ansichten teilen denselben Rahmen:
 
-- **Kopfzeile:** links der Programmname in einem Farbverlauf, rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`.
+- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs.
 - **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt, in einem abgerundeten Rahmen in der Akzentfarbe. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
 - **Farben:** alle Ansichten teilen ein Theme, siehe [Farben](#farben).
@@ -50,6 +51,19 @@ Alle Ansichten teilen denselben Rahmen:
 ![Hilfe-Overlay in der Statistik: die Tasten der Ansicht, dann die globalen Tasten](../assets/screenshots/help.png)
 
 *Hilfe-Overlay (`?`) in der Statistik: die Tasten der Ansicht, dann die globalen Tasten*
+
+## Neuladen { #neuladen }
+
+Die Hooks schreiben weiter ins Archiv, während die TUI offen ist. Damit neue Sessions und Events ohne Neustart erscheinen, prüft die TUI alle fünf Sekunden (`reload` in [`[tui]`](20-konfiguration.md#tui), `--reload`), ob sich die Datenbank geändert hat, und lädt dann die sichtbare Ansicht neu:
+
+- **Nur bei Änderung.** Die Prüfung ist eine einzige Abfrage (`PRAGMA data_version` auf einer eigenen Verbindung, dazu ein `stat` der Datei); solange niemand schreibt, löst sie keine weitere Abfrage aus. Ein offenes Archiv im Leerlauf erzeugt also keine Last.
+- **Nur die sichtbare Ansicht.** Die Suche läuft mit der aktuellen Abfrage und den aktuellen Filtern erneut, die Statistik und die Aktivität laden ihr Fenster neu (die Caches der anderen Fenster werden verworfen), eine offene Session liest ihre Events nach. Die anderen Ansichten merken sich die Änderung und laden, sobald sie wieder sichtbar werden.
+- **Zustand bleibt.** Markierung, Scrollposition, Fokus und Eingabe bleiben erhalten; in der Suche bleibt die Markierung auf demselben Treffer, auch wenn neue Treffer davor einsortiert werden. In der Session kommen neue Events unten hinzu, ohne dass die Ansicht springt; steht sie am Ende, läuft sie mit wie `tail -f`.
+- **Stand in der Kopfzeile.** `updated 14:03:12` ist die Uhrzeit, zu der die Daten zuletzt geladen wurden (Zeitzone `timezone`). Schlägt eine Prüfung fehl, steht dort stattdessen der Fehler in Rot bis zur nächsten erfolgreichen Prüfung.
+- **`R` lädt sofort** (`global_reload`), auch mit `reload = "0"`; solange ein Eingabefeld den Fokus hat, ist `R` Text wie jede andere Taste.
+- **Wartung.** Tauscht [`maintenance`](10-befehle.md#maintenance) die Datei aus, bemerkt die nächste Prüfung die neue Datei, öffnet sie und lädt alles neu. Zwischen zwei Prüfungen hält die TUI keine Lesetransaktion offen, deshalb blockiert ein offenes Archiv den WAL-Checkpoint der Wartung nicht.
+
+Mit `--reload 0` bzw. `reload = "0"` lädt die TUI nur beim Start, beim Wechsel von Ansicht oder Fenster und mit `R`.
 
 ## Farben
 
@@ -231,6 +245,7 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 | `?` | `global_help` | Hilfe ein/aus |
 | ++esc++ | `global_back` | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
 | `q` | `global_quit` | beenden (nicht, solange Eingabe oder Repo-Filter den Fokus haben; eine Belegung mit ++ctrl++ beendet auch dort) |
+| `R` | `global_reload` | die sichtbare Ansicht sofort neu laden, siehe [Neuladen](#neuladen) |
 | ++ctrl+c++ | – | beenden, immer; nicht umbelegbar |
 | Maus | – | Rad blättert, Klick auf einen Tab wechselt die Ansicht, Klick auf einen Tastenhinweis in der Fußzeile drückt die Taste; siehe [Maus](#maus) |
 
@@ -382,4 +397,5 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
 - **Maus** nur für Rad, Tabs und Treffer: kein Klick in Vorschau, Statistik und Aktivität, kein Ziehen in Listen. Textauswahl nur mit Zusatztaste des Terminals oder mit `--no-mouse`.
 - **Zwischenablage** über OSC 52; das Terminal muss es erlauben (in tmux `set -g set-clipboard on`).
+- **Neuladen** lädt die Daten, nicht die Uhr: Das Fenster der Statistik und der Aktivität bleibt an dem Tag hängen, an dem die TUI gestartet wurde; nach Mitternacht hilft `c` bzw. ein Neustart.
 - **Große Sessions:** Vorschau und Detail laden den Verlauf vollständig; bei Sessions mit mehreren zehntausend Events dauert das Einblenden der Tools einen Moment (gemessen unter 0,1 s).

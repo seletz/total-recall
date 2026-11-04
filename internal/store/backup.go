@@ -57,7 +57,7 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
 	defer func() { _ = os.Remove(tmpDB) }()
-	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", tmpDB); err != nil {
+	if _, err := s.db().ExecContext(ctx, "VACUUM INTO ?", tmpDB); err != nil {
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
 	tmp := fmt.Sprintf("%s.%d.tmp", dst, os.Getpid())
@@ -194,7 +194,7 @@ func checkDatabase(ctx context.Context, path string) error {
 		return fmt.Errorf("not a total-recall database (no schema version)")
 	}
 	var res string
-	if err := st.db.QueryRowContext(ctx, "PRAGMA quick_check").Scan(&res); err != nil {
+	if err := st.db().QueryRowContext(ctx, "PRAGMA quick_check").Scan(&res); err != nil {
 		return fmt.Errorf("integrity check: %w", err)
 	}
 	if res != "ok" {

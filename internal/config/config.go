@@ -209,6 +209,28 @@ type TUI struct {
 	// ActivityWindow is the window the activity view starts with: day,
 	// week or month.
 	ActivityWindow string `toml:"activity_window"`
+	// Reload is how often the TUI checks the archive for changes and
+	// reloads the visible view when there are any (--reload); 0 switches
+	// the reload off, anything else is at least MinReload.
+	Reload Duration `toml:"reload"`
+}
+
+// Reload defaults and bounds of [tui] reload.
+const (
+	DefaultReload = 5 * time.Second
+	MinReload     = time.Second
+)
+
+// ValidReload checks a reload interval of the TUI: 0 (off) or at least
+// MinReload. The CLI applies it to --reload as well.
+func ValidReload(d time.Duration) error {
+	if d < 0 {
+		return fmt.Errorf("reload %s: must not be negative", d)
+	}
+	if d != 0 && d < MinReload {
+		return fmt.Errorf("reload %s: use 0 to switch the reload off or at least %s", d, MinReload)
+	}
+	return nil
 }
 
 // Allowed values of the [tui] table.
@@ -387,6 +409,7 @@ var fields = []struct {
 	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
+	{"tui.reload", func(c *Config) string { return c.TUI.Reload.String() }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
 }
 
@@ -457,7 +480,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		MaxGap: Duration{DefaultWorktimeMaxGap}, MinCredit: Duration{DefaultWorktimeMinCredit}, Grid: Duration{DefaultWorktimeGrid},
 		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
-	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}
+	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: Duration{DefaultReload}}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
 	return c
@@ -725,6 +748,9 @@ func (c *Config) ValidateTUI() error {
 		if !slices.Contains(v.allowed, v.value) {
 			return fmt.Errorf("config: %s %q: use %s", v.key, v.value, orList(v.allowed))
 		}
+	}
+	if err := ValidReload(c.TUI.Reload.Duration); err != nil {
+		return fmt.Errorf("config: tui.%w", err)
 	}
 	return nil
 }

@@ -175,7 +175,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		add(model.Session{ID: e.SessionID, Harness: h, NativeID: n, StartedAt: e.TS, EndedAt: e.TS})
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.db().BeginTx(ctx, nil)
 	if err != nil {
 		return res, fmt.Errorf("store: begin: %w", err)
 	}
@@ -325,7 +325,7 @@ func putSession(ctx context.Context, tx *sql.Tx, m model.Session) error {
 func (s *Store) Source(ctx context.Context, path string) (SourceState, bool, error) {
 	st := SourceState{Path: path}
 	var mtime, at sql.NullString
-	err := s.db.QueryRowContext(ctx, `SELECT harness, size, mtime, "offset", ingested_at FROM sources WHERE path = ?`, path).
+	err := s.db().QueryRowContext(ctx, `SELECT harness, size, mtime, "offset", ingested_at FROM sources WHERE path = ?`, path).
 		Scan(&st.Harness, &st.Size, &mtime, &st.Offset, &at)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SourceState{}, false, nil
@@ -341,7 +341,7 @@ func (s *Store) Source(ctx context.Context, path string) (SourceState, bool, err
 func (s *Store) Dir(ctx context.Context, cwd string) (DirInfo, bool, error) {
 	d := DirInfo{Cwd: cwd}
 	var root, url, at sql.NullString
-	err := s.db.QueryRowContext(ctx, `SELECT git_root, git_remote_url, resolved_at FROM dirs WHERE cwd = ?`, cwd).Scan(&root, &url, &at)
+	err := s.db().QueryRowContext(ctx, `SELECT git_root, git_remote_url, resolved_at FROM dirs WHERE cwd = ?`, cwd).Scan(&root, &url, &at)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DirInfo{}, false, nil
 	}
@@ -361,7 +361,7 @@ func (s *Store) PutDir(ctx context.Context, d DirInfo) error {
 	if at.IsZero() {
 		at = s.now()
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO dirs (cwd, git_root, git_remote_url, resolved_at) VALUES (?, ?, ?, ?)
+	_, err := s.db().ExecContext(ctx, `INSERT INTO dirs (cwd, git_root, git_remote_url, resolved_at) VALUES (?, ?, ?, ?)
 		ON CONFLICT(cwd) DO UPDATE SET git_root = excluded.git_root, git_remote_url = excluded.git_remote_url,
 			resolved_at = excluded.resolved_at`,
 		d.Cwd, nullStr(d.GitRoot), nullStr(d.GitRemoteURL), formatTime(at))
@@ -374,7 +374,7 @@ func (s *Store) PutDir(ctx context.Context, d DirInfo) error {
 // SessionCwds returns the distinct non-empty working directories of all
 // sessions, sorted.
 func (s *Store) SessionCwds(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT cwd FROM sessions WHERE cwd IS NOT NULL AND cwd <> '' ORDER BY cwd")
+	rows, err := s.db().QueryContext(ctx, "SELECT DISTINCT cwd FROM sessions WHERE cwd IS NOT NULL AND cwd <> '' ORDER BY cwd")
 	if err != nil {
 		return nil, fmt.Errorf("store: session cwds: %w", err)
 	}
@@ -397,7 +397,7 @@ func (s *Store) SetSessionGit(ctx context.Context, cwd, root, remoteURL string) 
 	if s.readOnly {
 		return 0, fmt.Errorf("store: read-only")
 	}
-	res, err := s.db.ExecContext(ctx, `UPDATE sessions SET git_root = ?, git_remote_url = ?
+	res, err := s.db().ExecContext(ctx, `UPDATE sessions SET git_root = ?, git_remote_url = ?
 		WHERE cwd = ? AND (git_root IS NOT ? OR git_remote_url IS NOT ?)`,
 		nullStr(root), nullStr(remoteURL), cwd, nullStr(root), nullStr(remoteURL))
 	if err != nil {

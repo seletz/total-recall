@@ -1,4 +1,4 @@
- total-recall                                           [1 search] › session  2 stats   3 activity
+ total-recall             updated 13:00:00              [1 search] › session  2 stats   3 activity
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -12,7 +12,7 @@
            │ ↑/k          up             n   next hit           1 search      ?   help │
            │ ↓/j          down           N   previous hit       2 stats       esc back │
            │ b/pgup       page up        T   tools on/off       3 activity    q   quit │
-           │ f/pgdn/space page down      y   copy session id                  ^c  quit │
+           │ f/pgdn/space page down      y   copy session id    R reload      ^c  quit │
            │ u/^u         ½ page up      esc back                                      │
            │ d/^d         ½ page down                                                  │
            │ g/home       top                                                          │

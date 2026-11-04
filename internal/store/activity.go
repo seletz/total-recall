@@ -256,7 +256,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id,
+	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id,
 			s.harness, COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''),
 			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(s.account_id, ''), COALESCE(p.account_id, '')
 		FROM events e

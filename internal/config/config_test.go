@@ -569,7 +569,7 @@ func TestTUISection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}); d.TUI != want {
+	if want := (TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: Duration{5 * time.Second}}); d.TUI != want {
 		t.Errorf("default TUI = %+v, want %+v", d.TUI, want)
 	}
 	p := writeFile(t, t.TempDir(), "c.toml", `
@@ -580,12 +580,13 @@ mouse = false
 stats_period = "week"
 stats_dimension = "agent"
 activity_window = "month"
+reload = "10s"
 `)
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month"}); c.TUI != want {
+	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", Reload: Duration{10 * time.Second}}); c.TUI != want {
 		t.Errorf("TUI = %+v, want %+v", c.TUI, want)
 	}
 	entries := map[string]Entry{}
@@ -593,7 +594,7 @@ activity_window = "month"
 		entries[e.Key] = e
 	}
 	for k, want := range map[string]string{"tui.view": "stats", "tui.graphics": "text", "tui.mouse": "false",
-		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month"} {
+		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month", "tui.reload": "10s"} {
 		if e := entries[k]; e.Value != want || e.Origin != OriginFile {
 			t.Errorf("%s = %+v, want %q from file", k, e, want)
 		}
@@ -619,6 +620,8 @@ func TestTUIErrors(t *testing.T) {
 		{"dimension", "[tui]\nstats_dimension = \"repo\"\n", `tui.stats_dimension "repo": use project, agent or directory`},
 		{"window", "[tui]\nactivity_window = \"days\"\n", `tui.activity_window "days": use day, week or month`},
 		{"case", "[tui]\nview = \"Stats\"\n", `tui.view "Stats"`},
+		{"reload too short", "[tui]\nreload = \"500ms\"\n", `tui.reload 500ms: use 0 to switch the reload off or at least 1s`},
+		{"reload negative", "[tui]\nreload = \"-5s\"\n", `tui.reload -5s`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
