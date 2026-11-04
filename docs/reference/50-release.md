@@ -8,7 +8,7 @@ Was ein [Release auf GitHub](https://github.com/seletz/total-recall/releases) al
 
 | Datei | Inhalt |
 |---|---|
-| `total-recall-<tag>-<os>-<arch>.tar.gz` | Das statische Binary `total-recall` und die Shell-Vervollständigungen für bash, zsh und fish. Das darwin-Binary ist ab v1.1.0 [signiert und notarisiert](#signatur-der-macos-binaries). |
+| `total-recall-<tag>-<os>-<arch>.tar.gz` | Das statische Binary `total-recall` und die Shell-Vervollständigungen für bash, zsh und fish. Das darwin-Binary ist ab v1.0.2 [signiert und notarisiert](#signatur-der-macos-binaries). |
 | `total-recall-<tag>-<os>-<arch>.cdx.json` | Die [SBOM](#sbom) des Binarys aus demselben Archiv. |
 | `checksums-<tag>.txt` | SHA-256 aller Archive und SBOMs im Format von `sha256sum`. |
 
@@ -66,7 +66,7 @@ Ein ganzes `dist/`-Verzeichnis aus `mise run release:snapshot` prüft `go run ./
 
 ## Signatur der macOS-Binaries
 
-Die darwin-Binaries (amd64 und arm64) sind ab v1.1.0 mit einem Developer-ID-Application-Zertifikat signiert, mit Hardened Runtime und Apple-Zeitstempel, und von Apples Notary Service notarisiert. macOS startet sie deshalb ohne Gatekeeper-Dialog, auch aus einem Archiv, das der Browser mit Quarantäne-Attribut abgelegt hat. Die Linux-Binaries sind unverändert unsigniert.
+Die darwin-Binaries (amd64 und arm64) sind ab v1.0.2 mit einem Developer-ID-Application-Zertifikat signiert, mit Hardened Runtime und Apple-Zeitstempel, und von Apples Notary Service notarisiert. macOS startet sie deshalb ohne Gatekeeper-Dialog, auch aus einem Archiv, das der Browser mit Quarantäne-Attribut abgelegt hat. Die Linux-Binaries sind unverändert unsigniert.
 
 Signiert wird im Release-Lauf auf dem Linux-Runner mit [quill](https://github.com/anchore/quill) über den Block `notarize.macos` in `.goreleaser.yml`. Der Schritt gehört zur Build-Phase von goreleaser: Er schreibt die Signatur in die Binaries in `dist/`, bevor Archive, SBOMs und Prüfsummen entstehen. Archiv, SBOM (`cdx:gomod:binary:hash:…`) und `checksums-<tag>.txt` beschreiben also das signierte Binary, das auch ausgeliefert wird. Der Lauf wartet auf Apples Antwort (höchstens 20 Minuten); eine abgelehnte Einreichung bricht das Release ab, bevor etwas hochgeladen wird.
 

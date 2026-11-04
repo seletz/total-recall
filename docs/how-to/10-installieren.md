@@ -27,7 +27,7 @@ Auf Linux heißt der Prüfbefehl `sha256sum --ignore-missing -c checksums-$tag.t
 total-recall --version
 ```
 
-Das macOS-Binary ist ab v1.1.0 mit einer Developer-ID signiert und von Apple notarisiert; Gatekeeper lässt es auch dann ohne Nachfrage starten, wenn das Archiv aus dem Browser kam und die Quarantäne gesetzt ist. Beim ersten Start holt macOS das Notarisierungs-Ticket bei Apple, dafür braucht es kurz Netz. Prüfen lässt sich die Signatur mit `codesign` und `spctl`, siehe [Release-Assets](../reference/50-release.md#signatur-der-macos-binaries). Ältere Releases sind nicht signiert; dort blockiert macOS den ersten Start einer aus dem Browser geladenen Datei (bei `curl` nicht). Abhilfe: `xattr -d com.apple.quarantine ~/.local/bin/total-recall`.
+Das macOS-Binary ist ab v1.0.2 mit einer Developer-ID signiert und von Apple notarisiert; Gatekeeper lässt es auch dann ohne Nachfrage starten, wenn das Archiv aus dem Browser kam und die Quarantäne gesetzt ist. Beim ersten Start holt macOS das Notarisierungs-Ticket bei Apple, dafür braucht es kurz Netz. Prüfen lässt sich die Signatur mit `codesign` und `spctl`, siehe [Release-Assets](../reference/50-release.md#signatur-der-macos-binaries). Ältere Releases sind nicht signiert; dort blockiert macOS den ersten Start einer aus dem Browser geladenen Datei (bei `curl` nicht). Abhilfe: `xattr -d com.apple.quarantine ~/.local/bin/total-recall`.
 
 Die Vervollständigungen liegen im Archiv unter `completions/` (`total-recall.bash`, `_total-recall`, `total-recall.fish`); sie lassen sich auch jederzeit mit [`total-recall completion`](../reference/10-befehle.md#completion) erzeugen.
 
@@ -39,7 +39,7 @@ Ab v1.0.0 kommt `total-recall` als Cask aus dem Tap `seletz/homebrew-tap`:
 brew install --cask seletz/tap/total-recall
 ```
 
-Der Cask installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert. Er entfernt beim Installieren zusätzlich das Quarantäne-Attribut; für die signierten Binaries ab v1.1.0 ist das nicht mehr nötig und bleibt vorerst als Absicherung drin.
+Der Cask installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert. Er entfernt beim Installieren zusätzlich das Quarantäne-Attribut; für die signierten Binaries ab v1.0.2 ist das nicht mehr nötig und bleibt vorerst als Absicherung drin.
 
 ```sh
 brew upgrade --cask total-recall
