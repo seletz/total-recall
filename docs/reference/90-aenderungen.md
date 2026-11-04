@@ -8,7 +8,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.1.0 (unveröffentlicht)
 
-Die Datenbank bekommt Schema v4: Fortsetzung und Account je Session. Ein schreibender Befehl (`ingest`, `backup`) migriert beim ersten Lauf und legt vorher `archive.db.pre-v3.bak` an. **Altbestand:** Sessions, die vor dem Update eingelesen wurden, bekommen die neuen Felder erst durch ein einmaliges `total-recall ingest --all --reread`; das liest alle Transkripte noch einmal, ohne Events zu verdoppeln.
+Dieses Release behebt einen **Datenverlust** in der Rohzeile `raw` (siehe [Behoben](#behoben)) und hebt die Datenbank auf Schema v4: Fortsetzung und Account je Session. Ein schreibender Befehl (`ingest`, `backup`, `maintenance`) migriert beim ersten Lauf und legt vorher `archive.db.pre-v3.bak` an.
+
+**Nach dem Update einmal, in dieser Reihenfolge:**
+
+1. `total-recall backup`: Sicherung vor allem anderen.
+2. `total-recall ingest --all --reread --rewrite-raw`: migriert auf Schema v4, liest alle noch vorhandenen Transkripte neu, füllt Fortsetzung und Account der bestehenden Sessions und schreibt die beschädigten Rohzeilen neu. Events werden dabei nicht verdoppelt; `raw` wird etwa doppelt so groß.
+3. Optional, wer mit koordinierenden Agenten arbeitet: `peer_prefixes` bzw. `peer_paste_headers` in der [Konfiguration](20-konfiguration.md) setzen, dann `total-recall reindex --actors`, damit eingespeiste Aufträge nicht mehr als eigene Arbeitszeit zählen.
+4. Optional: `total-recall maintenance` baut die Datei mit 16-KiB-Seiten neu und spart rund 14 %.
 
 ### Behoben
 
