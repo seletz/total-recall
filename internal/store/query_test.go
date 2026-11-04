@@ -2,6 +2,11 @@ package store
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -513,6 +518,29 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 		if strings.TrimSpace(c) == "raw" {
 			t.Fatalf("eventCols contains raw: %q", eventCols)
 		}
+	}
+	// Every SQL string of the package: only the writer and the one reader
+	// that needs it (UserMessages) may name the column.
+	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true}
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	word := regexp.MustCompile(`\braw\b`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") || allowed[f] {
+			continue
+		}
+		src, err := parser.ParseFile(token.NewFileSet(), f, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(src, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
+				t.Errorf("%s: a query names raw: %s", f, lit.Value)
+			}
+			return true
+		})
 	}
 	s, _ := openTestStore(t)
 	sess, evs := sampleBatch()
