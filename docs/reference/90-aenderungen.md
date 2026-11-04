@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.0.0 (unveröffentlicht)
+## v1.0.0
 
 Das erste öffentliche Release: das Repository ist ab dieser Version öffentlich, die Releases tragen eine SBOM je Plattform, die Installation geht über das Release-Archiv oder den Homebrew-Cask. Funktional ändert sich gegenüber v0.3.1 wenig; die Datenbank bleibt bei Schema v3, ein Update braucht keine Migration.
 
