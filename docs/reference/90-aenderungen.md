@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.1.0 (unveröffentlicht)
+## v1.1.0
 
 Dieses Release behebt einen **Datenverlust** in der Rohzeile `raw` (siehe [Behoben](#behoben)) und hebt die Datenbank auf Schema v4: Fortsetzung und Account je Session. Ein schreibender Befehl (`ingest`, `backup`, `maintenance`) migriert beim ersten Lauf und legt vorher `archive.db.pre-v3.bak` an.
 
