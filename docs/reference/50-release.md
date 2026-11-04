@@ -85,10 +85,10 @@ Erwartet sind in der Ausgabe eine Zeile `Authority=Developer ID Application: …
 Die Gatekeeper-Bewertung samt Notarisierung:
 
 ```sh
-spctl -a -vv -t exec ./total-recall
+spctl -a -vv -t install ./total-recall
 ```
 
-Erwartet: `./total-recall: accepted` mit `source=Notarized Developer ID`. Nur `source=Developer ID` heißt signiert, aber nicht notarisiert (oder das Ticket war offline nicht erreichbar); `rejected` heißt, dass die Datei so nicht startet. Wer den Quarantäne-Fall nachstellen will, lädt das Archiv über den Browser statt mit `curl`, entpackt es und ruft `./total-recall --version` auf; mit einem notarisierten Binary erscheint kein Dialog.
+Erwartet: `./total-recall: accepted` mit `source=Notarized Developer ID`. `-t install` ist die passende Bewertung für ein einzelnes Kommandozeilen-Binary; `-t exec` bewertet App-Bundles und meldet hier auch bei korrekt notarisiertem Binary `rejected (the code is valid but does not seem to be an app)`. Nur `source=Developer ID` heißt signiert, aber nicht notarisiert (oder das Ticket war offline nicht erreichbar); `rejected` heißt, dass die Datei so nicht startet. Wer den Quarantäne-Fall nachstellen will, lädt das Archiv über den Browser statt mit `curl`, entpackt es und ruft `./total-recall --version` auf; mit einem notarisierten Binary erscheint kein Dialog.
 
 ### Signatur ohne Release testen
 
@@ -110,7 +110,7 @@ gh run download --name signed-snapshot-darwin --dir snapshot
 cd snapshot
 tar -xzf total-recall-*-darwin-arm64.tar.gz
 codesign -dv --verbose=2 ./total-recall
-spctl -a -vv -t exec ./total-recall
+spctl -a -vv -t install ./total-recall
 ./total-recall --version
 ```
 
