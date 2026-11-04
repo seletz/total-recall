@@ -494,20 +494,45 @@ type HitJSON struct {
 	Rank        float64    `json:"rank"`
 }
 
+// SessionHitsJSON is one session of search --by-session in JSON output.
+// Every key is always present; a NullString without a value is null.
+type SessionHitsJSON struct {
+	SessionID   string     `json:"session_id"`
+	DisplayName NullString `json:"display_name"`
+	Repo        NullString `json:"repo"`
+	FirstHit    string     `json:"first_hit"`
+	LastHit     string     `json:"last_hit"`
+	Hits        int        `json:"hits"`
+	Snippet     NullString `json:"snippet"`
+}
+
 func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
 	var of outputFlags
-	var raw bool
-	var actor, session string
+	var raw, bySession bool
+	var actor, session, order string
 	c := &cobra.Command{
 		Use:   "search QUERY",
 		Short: "Full-text search over event text (FTS5) with snippets",
 		Long: `Full-text search over event text. By default every word must occur
 (words are quoted, so special characters are safe). With --raw the query is
-passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
+passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.
+
+With --by-session the hits are grouped: one row per session (subagents
+included) with the first and last hit, the hit count and the snippet of the
+first hit, oldest session first (--order hits for most hits first).`,
 		Args: usageArgs(cobra.MinimumNArgs(1)),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
+		if order != "" && !bySession {
+			return usage(errors.New("--order needs --by-session"))
+		}
+		searchOrder := store.SearchOrder(order)
+		switch searchOrder {
+		case "", store.OrderFirstHit, store.OrderHits:
+		default:
+			return usage(fmt.Errorf("--order must be first_hit or hits, not %q", order))
+		}
 		cfg, err := e.loadConfig()
 		if err != nil {
 			return err
@@ -529,7 +554,17 @@ passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
 			}
 			sessionID = s.ID
 		}
-		hits, err := st.Search(cmd.Context(), strings.Join(args, " "), store.SearchFilter{SessionFilter: sf, SessionID: sessionID, Actor: actor, Raw: raw})
+		query := strings.Join(args, " ")
+		sfilter := store.SearchFilter{SessionFilter: sf, SessionID: sessionID, Actor: actor, Raw: raw}
+		loc := cfg.Location()
+		if bySession {
+			rows, err := st.SearchBySession(cmd.Context(), query, sfilter, searchOrder)
+			if err != nil {
+				return errKind(ErrKindSQL, err)
+			}
+			return e.writeSessionHits(o, rows, loc)
+		}
+		hits, err := st.Search(cmd.Context(), query, sfilter)
 		if err != nil {
 			return errKind(ErrKindSQL, err)
 		}
@@ -543,7 +578,6 @@ passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
 			return writeList(o, out)
 		}
 		w := o.w
-		loc := cfg.Location()
 		for _, h := range hits {
 			// The snippet line is indented by four spaces.
 			_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  [%s]\n    %s\n", localTime(h.Event.TS, loc), o.cell(h.SessionName, 40),
@@ -559,7 +593,32 @@ passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.`,
 	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*)")
 	c.Flags().StringVar(&actor, "actor", "", "only events of this actor: human, agent, peer, automation, tool")
 	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix)")
+	c.Flags().BoolVar(&bySession, "by-session", false, "one row per session: first and last hit, hit count, snippet of the first hit")
+	c.Flags().StringVar(&order, "order", "", "sort order with --by-session: first_hit (default, oldest first) or hits (most first)")
 	return c
+}
+
+// writeSessionHits writes the rows of search --by-session: JSON with UTC
+// times, or a table with local times and the snippet as the last column.
+func (e *env) writeSessionHits(o *output, rows []store.SessionHits, loc *time.Location) error {
+	if o.format.IsJSON() {
+		out := make([]SessionHitsJSON, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, SessionHitsJSON{SessionID: r.SessionID, DisplayName: NullString(r.SessionName), Repo: NullString(r.Repo),
+				FirstHit: isoTime(r.FirstHit), LastHit: isoTime(r.LastHit), Hits: r.Hits, Snippet: NullString(r.Snippet)})
+		}
+		return writeList(o, out)
+	}
+	if len(rows) == 0 {
+		_, _ = fmt.Fprintln(e.app.Stderr, "no matches")
+		return nil
+	}
+	cells := make([][]string, 0, len(rows))
+	for _, r := range rows {
+		cells = append(cells, []string{localTime(r.FirstHit, loc), localTime(r.LastHit, loc), strconv.Itoa(r.Hits),
+			r.SessionID, r.SessionName, shortRepo(r.Repo), r.Snippet})
+	}
+	return o.table([]string{"FIRST", "LAST", "HITS", "ID", "NAME", "REPO", "SNIPPET"}, cells)
 }
 
 // ---- stats ----
@@ -640,7 +699,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary bool
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -675,7 +734,10 @@ per category and day is rounded to the grid (default up to 15m). Projects
 are mapped to categories by the [worktime] rules; a project without a rule
 is its own category. Ranges as with --workday. --sessions lists the sessions
 and projects of every cell with their titles as a template for booking
-texts (JSON always has them). Meetings and work without an agent leave no
+texts; --summary adds the issue and pull-request references (#31, PR #32,
+owner/repo#123) from the titles and your own messages, per project, and a
+booking text "<project>: <title> (<refs>), …" cut to summary_max_chars
+(JSON always has all of it). Meetings and work without an agent leave no
 messages: the values are a lower bound.`,
 		Args: usageArgs(cobra.NoArgs),
 	}
@@ -686,11 +748,11 @@ messages: the values are a lower bound.`,
 		}
 		loc := cfg.Location()
 		series := period != "" || by != "" || cmd.Flags().Changed("top")
-		if err := checkWorkdayFlags(workday, worktime, sessions, series, rng, humanOnly || allEvents, period, by); err != nil {
+		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
 		}
 		if worktime {
-			return e.runWorktime(cmd, cfg, o, rng, month, sinceArg, untilArg, sessions)
+			return e.runWorktime(cmd, cfg, o, rng, month, sinceArg, untilArg, sessions, summary)
 		}
 		if workday {
 			if cmd.Flags().Changed("human-only") {
@@ -772,6 +834,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
+	c.Flags().BoolVar(&summary, "summary", false, "with --worktime: issue/PR references and a booking text per day and category (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
@@ -782,9 +845,9 @@ messages: the values are a lower bound.`,
 
 // checkWorkdayFlags rejects flag combinations across the four modes of
 // stats: --range belongs to --workday and --worktime, the counting flags to
-// --workday and --sessions to --worktime; both exclude the series flags and
-// each other.
-func checkWorkdayFlags(workday, worktime, sessions, series bool, rng string, humanOnly bool, period, by string) error {
+// --workday and --sessions/--summary (details) to --worktime; both exclude
+// the series flags and each other.
+func checkWorkdayFlags(workday, worktime, details, series bool, rng string, humanOnly bool, period, by string) error {
 	mode := "--workday"
 	if worktime {
 		mode = "--worktime"
@@ -796,8 +859,8 @@ func checkWorkdayFlags(workday, worktime, sessions, series bool, rng string, hum
 		return usagef("--range requires --workday or --worktime")
 	case !workday && humanOnly:
 		return usagef("--all-events requires --workday")
-	case !worktime && sessions:
-		return usagef("--sessions requires --worktime")
+	case !worktime && details:
+		return usagef("--sessions and --summary require --worktime")
 	case (workday || worktime) && period != "":
 		return usagef("%s cannot be combined with --period", mode)
 	case (workday || worktime) && by != "":

@@ -71,6 +71,8 @@ Alle Tasten, Farben und Kennzahlen: [Aktivität](../reference/30-tui.md#aktivita
 
 Standard sind nur deine eigenen Nachrichten (`count = "human"`): Agent-Events laufen nachts weiter und würden die Spanne dehnen. `--all-events`, die Taste `h` oder `count = "all"` in `[work]` zählen alles.
 
+Aufträge, die ein koordinierender Agent in eine Session tippt oder einfügt, sehen aus wie eigene Nachrichten und würden die Spanne ebenfalls dehnen. Mit `peer_prefixes` und `peer_paste_headers` in der Konfiguration gelten sie als `peer` und zählen nicht; für bereits eingelesene Tage hilft `reindex --actors`. Wie das eingerichtet wird: [Stundenzettel füllen](45-stundenzettel.md#mehrere-agenten).
+
 Ein Tag beginnt um `day_start` aus der Konfiguration, Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte.
 
 Feiertage gibt es nur für Deutschland, je Bundesland. Urlaub und Krankheit kennt die Auswertung nicht; solche Tage zählen als Arbeitstage ohne Aktivität.
