@@ -207,6 +207,12 @@ var scrubSQL = []string{
 	`CREATE TEMP TABLE branchmap AS
 	 SELECT git_branch, row_number() OVER (ORDER BY count(*) DESC, git_branch) AS rank
 	 FROM sessions WHERE git_branch IS NOT NULL AND git_branch <> '' GROUP BY git_branch`,
+	`CREATE TEMP TABLE accountmap AS
+	 SELECT account_id, row_number() OVER (ORDER BY count(*) DESC, account_id) AS rank
+	 FROM sessions WHERE account_id IS NOT NULL AND account_id <> '' GROUP BY account_id`,
+	`CREATE TEMP TABLE orgmap AS
+	 SELECT organization_id, row_number() OVER (ORDER BY count(*) DESC, organization_id) AS rank
+	 FROM sessions WHERE organization_id IS NOT NULL AND organization_id <> '' GROUP BY organization_id`,
 	`UPDATE sessions SET
 	   git_remote_url = CASE WHEN git_remote_url IS NULL OR git_remote_url = '' THEN git_remote_url
 	                    ELSE 'https://git.invalid/demo/' || (SELECT name FROM projname WHERE projname.key = ` + key + `) END,
@@ -219,7 +225,9 @@ var scrubSQL = []string{
 	                 FROM branchmap b WHERE b.git_branch = sessions.git_branch),
 	   name = NULL,
 	   ai_title = NULL,
-	   agent_name = CASE WHEN agent_name IS NULL OR agent_name = '' THEN agent_name ELSE 'subagent' END`,
+	   agent_name = CASE WHEN agent_name IS NULL OR agent_name = '' THEN agent_name ELSE 'subagent' END,
+	   account_id = (SELECT 'account-' || a.rank FROM accountmap a WHERE a.account_id = sessions.account_id),
+	   organization_id = (SELECT 'org-' || o.rank FROM orgmap o WHERE o.organization_id = sessions.organization_id)`,
 	`UPDATE events SET text = NULL, raw = NULL, raw_truncated = 0, tool_name = NULL, source_path = NULL`,
 	`INSERT INTO events_fts(events_fts) VALUES ('rebuild')`,
 	`DELETE FROM sources`,

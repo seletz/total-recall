@@ -41,7 +41,9 @@ type loadedMsg struct {
 	err     error
 }
 
-// Chrome rows inside the body: two header lines and the status rule.
+// chromeHeight is the number of chrome rows inside the body: two header
+// lines and the status rule; a session with a continuation link has a
+// third header line (see Model.chrome).
 const chromeHeight = 3
 
 // Model is the session view.
@@ -122,7 +124,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.vp.SetWidth(m.width)
-		m.vp.SetHeight(max(m.height-chromeHeight, 0))
+		m.vp.SetHeight(max(m.height-m.chrome(), 0))
 		top := m.eventOf(m.vp.YOffset())
 		m.layout()
 		if top >= 0 {
@@ -226,6 +228,7 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 	m.loaded = msg.err == nil
 	m.session, m.events, m.all = msg.session, msg.events, msg.all
 	m.current, m.hit = -1, -1
+	m.vp.SetHeight(max(m.height-m.chrome(), 0))
 	m.layout()
 	if !m.loaded {
 		return m, nil
@@ -266,6 +269,16 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.render()
 	return m, nil
+}
+
+// chrome returns the number of rows the header and the rule take: a
+// loaded session with a continuation link in either direction has a third
+// header line.
+func (m Model) chrome() int {
+	if m.loaded && (m.session.ContinuedIn != "" || m.session.ContinuedFrom != "") {
+		return chromeHeight + 1
+	}
+	return chromeHeight
 }
 
 // indexOf returns the index of the event with id, -1 if it is not listed.

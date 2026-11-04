@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -101,6 +102,11 @@ type Config struct {
 	// Keys overrides key bindings of the TUI: action name → keys; see
 	// package keys for the names. Only listed actions change.
 	Keys map[string]KeyList `toml:"keys"`
+	// Accounts names the account and organization IDs the sessions carry
+	// (sessions.account_id, sessions.organization_id): ID → name. Display
+	// code shows the name where it has one; `sessions --account` and
+	// `stats --by account` accept the names.
+	Accounts map[string]string `toml:"accounts"`
 
 	// Path is the config file that was considered (it may not exist).
 	Path string `toml:"-"`
@@ -381,6 +387,21 @@ var fields = []struct {
 	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
+	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
+}
+
+// formatAccounts formats the account names as `["id" = "name", …]`, by ID.
+func formatAccounts(m map[string]string) string {
+	ids := make([]string, 0, len(m))
+	for id := range m {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Quote(id) + " = " + strconv.Quote(m[id])
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 // formatCategories formats the category rules as `[name = ["glob", …], …]`.
@@ -438,7 +459,28 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	}
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}
 	c.Keys = map[string]KeyList{}
+	c.Accounts = map[string]string{}
 	return c
+}
+
+// AccountName returns the configured name of an account or organization
+// ID, or "" if none is configured.
+func (c *Config) AccountName(id string) string { return c.Accounts[id] }
+
+// ResolveAccount returns the ID a configured account name stands for; any
+// other reference (an ID or a prefix of one) is returned unchanged.
+func (c *Config) ResolveAccount(ref string) string {
+	ids := make([]string, 0, len(c.Accounts))
+	for id, name := range c.Accounts {
+		if name == ref {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return ref
+	}
+	sort.Strings(ids)
+	return ids[0]
 }
 
 // DefaultPath returns the default config file location.

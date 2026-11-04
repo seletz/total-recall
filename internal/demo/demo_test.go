@@ -297,6 +297,48 @@ func TestProjectsAndAgents(t *testing.T) {
 	}
 }
 
+// TestAccountsAndContinuations: sessions from September on carry one of
+// the two accounts, earlier ones none, and continuation chains exist,
+// among them the one into the session of the screenshot.
+func TestAccountsAndContinuations(t *testing.T) {
+	st, path := fixturedb.Demo(t)
+	db := rawDB(t, path)
+	since := demo.OwnerSince.UTC().Format(time.RFC3339)
+	for _, acc := range []string{demo.AccountTeam, demo.AccountPersonal} {
+		if n := count(t, db, "SELECT count(*) FROM sessions WHERE account_id = ? AND parent_id IS NULL", acc); n < 5 {
+			t.Errorf("%d sessions on account %s, want at least 5", n, acc)
+		}
+	}
+	if n := count(t, db, "SELECT count(*) FROM sessions WHERE account_id IS NOT NULL AND started_at < ?", since); n != 0 {
+		t.Errorf("%d sessions with an account before %s", n, since)
+	}
+	if n := count(t, db, "SELECT count(*) FROM sessions WHERE account_id IS NULL AND parent_id IS NULL AND started_at >= ?", since); n != 0 {
+		t.Errorf("%d main sessions without an account since %s", n, since)
+	}
+	if n := count(t, db, "SELECT count(*) FROM sessions WHERE continued_in IS NOT NULL"); n < 5 {
+		t.Errorf("%d continued sessions, want at least 5", n)
+	}
+	// Every link points at an archived session that started later.
+	if n := count(t, db, `SELECT count(*) FROM sessions s LEFT JOIN sessions n ON n.id = s.continued_in
+		WHERE s.continued_in IS NOT NULL AND (n.id IS NULL OR n.started_at <= s.ended_at)`); n != 0 {
+		t.Errorf("%d continuation links into the past or into missing sessions", n)
+	}
+	shot, err := st.Session(ctx, "claude:7d1e4c20-0001-4000-8000-000000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shot.ContinuedFrom != "claude:7d1e4c20-0006-4000-8000-000000000006" || shot.ContinuedIn != "" || shot.AccountID != demo.AccountTeam {
+		t.Errorf("screenshot session = %+v", shot)
+	}
+	series, err := st.ActivitySeries(ctx, store.ActivityFilter{Location: demo.Location, Period: store.PeriodMonth, Dimension: store.DimAccount})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(series.Keys, " "); !strings.Contains(got, demo.AccountTeam) || !strings.Contains(got, demo.AccountPersonal) || !strings.Contains(got, store.UnknownAccountKey) {
+		t.Errorf("account keys = %v", series.Keys)
+	}
+}
+
 // TestWrite: the transcripts form a Claude Code projects tree with
 // subagents below their parent session.
 func TestWrite(t *testing.T) {

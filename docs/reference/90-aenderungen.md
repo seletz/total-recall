@@ -8,8 +8,13 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.1.0 (unveröffentlicht)
 
+Die Datenbank bekommt Schema v4: Fortsetzung und Account je Session. Ein schreibender Befehl (`ingest`, `backup`) migriert beim ersten Lauf und legt vorher `archive.db.pre-v3.bak` an. **Altbestand:** Sessions, die vor dem Update eingelesen wurden, bekommen die neuen Felder erst durch ein einmaliges `total-recall ingest --all --reread`; das liest alle Transkripte noch einmal, ohne Events zu verdoppeln.
+
 ### Neu in der CLI
 
+- Fortgesetzte Sessions sind verkettet: Claude Code schreibt seit 2.1.318 am Ende eines Transkripts, in welcher Session es weiterging (`continued-in`). Das Archiv speichert die Verkettung in `sessions.continued_in`; `sessions --json` und `show --json` haben `continued_in` und `continued_from`, der Kopf von `show` und der Session-Ansicht der [TUI](30-tui.md#session) nennt beide Richtungen. Die Zielsession darf später oder nie eingelesen werden, der Ingest scheitert daran nicht ([#113](https://github.com/seletz/total-recall/issues/113), Schritt 2).
+- Account und Organisation je Session (Claude Code seit 2.1.317, Record `session-owner`) stehen in `sessions.account_id` und `organization_id`. `sessions --account` und `search --account` filtern danach (Name, ID oder ID-Präfix), [`stats --by account`](10-befehle.md#stats-period) zählt je Account (`unknown` für Sessions ohne), `show` zeigt beide im Kopf, JSON hat `account_id`, `organization_id` und `account` ([#97](https://github.com/seletz/total-recall/issues/97), Schritt 2).
+- [`ingest --reread`](10-befehle.md#ingest) liest die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an; Events bleiben eindeutig, Sessions bekommen die Felder, die ältere Versionen nicht gespeichert haben.
 - `stats --worktime --summary` liefert je Tag und Kategorie die Issue- und PR-Referenzen aus den Session-Titeln und deinen eigenen Nachrichten (`#31`, `PR #32`, `owner/repo#123`, auch aus Issue- und Pull-URLs; nie aus Antworten des Agenten oder Werkzeugausgaben), je Projekt gruppiert und dedupliziert, sowie einen Vorschlag für den Buchungstext `<projekt>: <titel> (<refs>), …`, gekürzt auf `summary_max_chars` in `[worktime]` (Default 200). Kombinierbar mit `--sessions`; `--json` enthält `refs` und `text` immer, auch je Projekt und Session. Rezept: [Stundenzettel füllen](../how-to/45-stundenzettel.md#referenzen-und-ein-vorschlag-fur-den-text) ([#108](https://github.com/seletz/total-recall/issues/108)).
 - `search WORDS --by-session` fasst die Treffer je Session zusammen, Subagenten-Sessions eingeschlossen: eine Zeile mit `session_id`, `display_name`, `repo`, `first_hit`, `last_hit` (in JSON UTC, in der Tabelle lokale Zeit), `hits` und dem `snippet` des ersten Treffers, sortiert nach dem ersten Treffer als Zeitleiste oder mit `--order hits` nach Trefferzahl. Die Filter `--since`, `--until`, `--repo`, `--actor`, `--session`, `--raw` und die Ausgabeformate gelten wie bisher, `--limit` behält die Sessions mit den jüngsten Treffern. Die Kernabfrage 1 des Skills verweist jetzt auf diesen Befehl statt auf eine SQL-Abfrage: [`search`](10-befehle.md#search) ([#109](https://github.com/seletz/total-recall/issues/109)).
 - Aufträge, die ein koordinierender Agent in eine Session tippt oder als Block einfügt, zählen nicht mehr als eigene Nachrichten. Neben `peer_prefixes` gibt es in `[harness.claude.actors]` die Liste `peer_paste_headers`: Eine Nachricht, die nur aus einem eingefügten Block besteht und deren erste Zeile mit einem der Einträge beginnt (etwa `# Task:` oder `Auftrag:`), bekommt `actor = 'peer'`. `stats --workday` und `stats --worktime` zählen weiterhin nur `human`, die Arbeitszeit endet damit wieder mit der eigenen letzten Nachricht ([#111](https://github.com/seletz/total-recall/issues/111)). Beispielkonfiguration: [Stundenzettel füllen](../how-to/45-stundenzettel.md#mehrere-agenten), Regeln: [`[harness.claude.actors]`](20-konfiguration.md#harnessclaudeactors).
@@ -19,9 +24,17 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - In der Ansicht **Aktivität** blättern ++up++/++down++ (`k`/`j`) und das Mausrad durch die Zeit: Passen nicht alle Tage auf den Bildschirm, scrollen sie wie bisher die Zeilen, am Rand rückt das Fenster um einen Tag zurück bzw. vor statt stehenzubleiben. Woche und Monat werden so zu einem gleitenden Fenster gleicher Länge; Kopfzeile, Soll, Saldo und Kennzahlen gelten für die sichtbaren Tage, Kalenderwoche oder Monat stehen nur bei einem ganzen. `c`, `l`, `d`, `w`, `m` richten wieder am Kalender aus. ++left++/++right++ springen weiter um eine ganze Periode, aber nicht mehr über die laufende hinaus; auch ++down++ endet dort. Die Hilfe nennt die Tasten `day back (scroll)` und `day forward (scroll)`: [TUI](30-tui.md#aktivitat) ([#125](https://github.com/seletz/total-recall/issues/125)).
 
+### Konfiguration
+
+- Neu: [`[accounts]`](20-konfiguration.md#accounts) ordnet Account- und Organisations-IDs Namen zu, die `sessions`, `show` und `stats --by account` anzeigen und als Filter annehmen.
+
 ### Release
 
 - Der Release-Lauf prüft den Download von goreleaser jetzt kryptografisch: Vor jedem goreleaser-Schritt in `ci.yml`, `release.yml` und `signed-snapshot.yml` installiert `sigstore/cosign-installer` (v4.1.2) cosign, womit `goreleaser-action` die Sigstore-Signatur der Checksummen-Datei des goreleaser-Releases prüft statt nur die Prüfsumme; eine fehlgeschlagene Prüfung bricht den Lauf ab. goreleaser ist in allen Workflows auf v2.19.0 gepinnt, die Version steht in `mise.toml`, und `mise run tools:check` (auch in der CI) findet Abweichungen in den Workflows: [Release-Assets](50-release.md#werkzeuge-des-release-laufs) ([#121](https://github.com/seletz/total-recall/issues/121)).
+
+### Dokumentation
+
+- [Schema](40-schema.md) und [Design](../explanation/design.md#sessions) beschreiben die drei neuen Spalten, der [Skill](../how-to/50-agenten-anbinden.md) Fortsetzungsketten und Accounts.
 
 ## v1.0.2
 

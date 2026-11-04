@@ -132,7 +132,7 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 *Session-Detail mit Treffer, Tool-Aufrufe eingeblendet (`T`)*
 
-- **Kopf:** Name (Akzentfarbe) und volle Session-ID (gedämpft), darunter Repo, Branch, Zeitraum mit Dauer, Anzahl menschlicher und Agenten-Events in den Farben der Actors, bei Subagent-Sessions die Eltern-ID. In schmalen Fenstern gewinnt der Name, die ID wird gekürzt.
+- **Kopf:** Name (Akzentfarbe) und volle Session-ID (gedämpft), darunter Repo, Branch, Zeitraum mit Dauer, Anzahl menschlicher und Agenten-Events in den Farben der Actors, bei Subagent-Sessions die Eltern-ID. Wurde die Session fortgesetzt oder setzt sie eine andere fort, folgt eine dritte Zeile mit `continued from` bzw. `continued in` und der jeweiligen Session-ID (im Screenshot: die Release-Session setzt „Signierte Releases“ fort). In schmalen Fenstern gewinnt der Name, die ID wird gekürzt.
 - **Trennlinie mit Status:** der oberste sichtbare Event (`3/17 events`), der gewählte Treffer (`hit 1/4`), die Position im Verlauf, wenn er länger als das Fenster ist (`top`, `42%`, `bot`), `tools`, wenn Tool-Events eingeblendet sind, und kurz `copied` nach dem Kopieren.
 - **Verlauf** wie `show`: eine Trennzeile je Event mit Zeit (gedämpft) und Actor in seiner Farbe, Tool-Aufrufe mit dem Werkzeugnamen in Türkis und gedämpftem Text, damit sie hinter dem Gespräch zurücktreten; Text am Wortende umbrochen. Die Suchwörter sind gelb, fett und unterstrichen, der gewählte Treffer ist invertiert, der markierte Event trägt `◄`. Beim Öffnen steht der Treffer-Event oben; ist er ein Tool-Event, werden Tools automatisch eingeblendet.
 - **Blättern** mit ++up++/++down++, ++pgup++/++pgdn++ oder dem Mausrad (drei Zeilen je Schritt).

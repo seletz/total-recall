@@ -10,7 +10,7 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 
 | Tabelle / View | Inhalt |
 |---|---|
-| `sessions` | eine Zeile je Session: Name, Repo, Branch, Start, Ende. `display_name` ist der beste Titel: eigener Titel (`name`), sonst KI-Titel (`ai_title`), sonst `agent_name` |
+| `sessions` | eine Zeile je Session: Name, Repo, Branch, Start, Ende. `display_name` ist der beste Titel: eigener Titel (`name`), sonst KI-Titel (`ai_title`), sonst `agent_name`. `parent_id` zeigt bei Subagenten auf die Eltern-Session, `continued_in` auf die Session, in der diese fortgesetzt wurde (volle ID, Ziel muss nicht archiviert sein), `account_id` und `organization_id` nennen den Account, auf dem sie lief (seit Schema v4) |
 | `events` | eine Zeile je Nachricht, Tool-Aufruf oder Tool-Ergebnis |
 | `events_fts` | Volltextindex über `events.text` |
 | `exchanges` | je menschlicher Nachricht: die Anfrage und die letzte Antwort des Agenten |
@@ -19,6 +19,8 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `dirs` | Cache: Verzeichnis → Git-Root und Remote |
 
 Wichtige Spalten in `events`: `session_id`, `ts`, `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`.
+
+Eine Fortsetzungskette liest sich über `continued_in`; die Gegenrichtung ist eine Abfrage: `SELECT id FROM sessions WHERE continued_in = 'claude:…'`. Sessions aus der Zeit vor Schema v4 haben die drei neuen Spalten erst nach [`ingest --all --reread`](10-befehle.md#ingest).
 
 ## Actor
 

@@ -22,13 +22,15 @@ const truncMark = " …[truncated]"
 // (CheckFormat, `total-recall doctor`) share these lists; when Claude Code
 // adds a type, add it here (and handle it in the parser if it carries data).
 var (
-	ingestedTypes = []string{"user", "assistant", "system", "custom-title", "ai-title", "agent-name", "summary"}
-	skippedTypes  = []string{
+	ingestedTypes = []string{
+		"user", "assistant", "system", "custom-title", "ai-title", "agent-name", "summary",
+		"session-owner", // account and organization of the session (2.1.317+), no timestamp
+		"continued-in",  // session this one was continued in (2.1.318+), once at the end
+	}
+	skippedTypes = []string{
 		"attachment", "api-request", "api-request-blob", "api-request-shape", "last-prompt", "mode",
 		"permission-mode", "atis-latch", "pr-link", "queue-operation", "bridge-session",
 		"file-history-snapshot", "file-history-delta", "cost-state", "tools-used",
-		"session-owner",     // account and organization of the session (2.1.317+), no timestamp
-		"continued-in",      // session this one was continued in (2.1.318+), once at the end
 		"started", "result", // workflow journal.jsonl
 	}
 	handledUserBlocks      = []string{"text", "tool_result"}
@@ -111,6 +113,9 @@ type rawRecord struct {
 	AgentName        string          `json:"agentName"`
 	AITitle          string          `json:"aiTitle"`
 	Summary          string          `json:"summary"`
+	AccountUUID      string          `json:"accountUuid"`          // session-owner
+	OrganizationUUID string          `json:"organizationUuid"`     // session-owner
+	ContinuedIn      string          `json:"continuedInSessionId"` // continued-in
 }
 
 type rawMessage struct {
@@ -179,6 +184,11 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 		return nil, r.Type, true
 	}
 	ts := parseTime(r.Timestamp)
+	if r.Type == "continued-in" {
+		// Written when the session is resumed, possibly days later: it must
+		// not stretch the session's end.
+		ts = time.Time{}
+	}
 	sess := p.session(&r, ts)
 	rec := &model.Record{Session: sess}
 	raw := string(line)
@@ -199,6 +209,12 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 	case "summary":
 		// Legacy auto-generated title: same rank as ai-title, never overrides custom-title.
 		rec.Session.AITitle = r.Summary
+	case "session-owner":
+		rec.Session.AccountID, rec.Session.OrganizationID = r.AccountUUID, r.OrganizationUUID
+	case "continued-in":
+		if r.ContinuedIn != "" {
+			rec.Session.ContinuedIn = HarnessName + ":" + r.ContinuedIn
+		}
 	case "system":
 		e := base
 		e.ID, e.Kind, e.Role, e.Actor = evID, model.KindSystem, "system", model.ActorAutomation

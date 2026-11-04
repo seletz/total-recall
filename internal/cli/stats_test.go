@@ -33,6 +33,8 @@ func TestStatsSeries(t *testing.T) {
 		{"WeekByProjectHome", []string{"--period", "week", "--by", "project"}, "/w"},
 		{"WeekByProjectHomeJSON", []string{"--period", "week", "--by", "project", "--json"}, "/w"},
 		{"MonthByAgent", []string{"--period", "month", "--by", "agent"}, ""},
+		{"MonthByAccount", []string{"--period", "month", "--by", "account"}, ""},
+		{"MonthByAccountJSON", []string{"--period", "month", "--by", "account", "--json"}, ""},
 		{"DayByDirectoryTop", []string{"--period", "day", "--by", "directory", "--top", "1", "--until", "2025-12-07"}, ""},
 		{"ByDefaultsToDay", []string{"--by", "project", "--until", "2025-12-04"}, ""},
 		{"EmptyRange", []string{"--period", "week", "--by", "project", "--since", "2026-03-02", "--until", "2026-03-08"}, ""},

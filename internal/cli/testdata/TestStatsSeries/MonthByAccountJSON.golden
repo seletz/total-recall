@@ -1,0 +1,81 @@
+{
+  "since": "2025-11-30T23:00:00.000Z",
+  "until": "2026-01-11T23:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "period": "month",
+  "by": "account",
+  "keys": [
+    "unknown",
+    "acc00000-0000-4000-8000-000000000001",
+    "acc00000-0000-4000-8000-000000000002"
+  ],
+  "total": {
+    "sessions": 17,
+    "human": 22,
+    "agent": 37
+  },
+  "by_key": [
+    {
+      "key": "unknown",
+      "sessions": 13,
+      "human": 18,
+      "agent": 28
+    },
+    {
+      "key": "acc00000-0000-4000-8000-000000000001",
+      "sessions": 3,
+      "human": 3,
+      "agent": 7
+    },
+    {
+      "key": "acc00000-0000-4000-8000-000000000002",
+      "sessions": 1,
+      "human": 1,
+      "agent": 2
+    }
+  ],
+  "buckets": [
+    {
+      "start": "2025-11-30T23:00:00.000Z",
+      "label": "2025-12",
+      "sessions": 13,
+      "human": 16,
+      "agent": 28,
+      "cells": [
+        {
+          "key": "unknown",
+          "sessions": 9,
+          "human": 12,
+          "agent": 19
+        },
+        {
+          "key": "acc00000-0000-4000-8000-000000000001",
+          "sessions": 3,
+          "human": 3,
+          "agent": 7
+        },
+        {
+          "key": "acc00000-0000-4000-8000-000000000002",
+          "sessions": 1,
+          "human": 1,
+          "agent": 2
+        }
+      ]
+    },
+    {
+      "start": "2025-12-31T23:00:00.000Z",
+      "label": "2026-01",
+      "sessions": 5,
+      "human": 6,
+      "agent": 9,
+      "cells": [
+        {
+          "key": "unknown",
+          "sessions": 5,
+          "human": 6,
+          "agent": 9
+        }
+      ]
+    }
+  ]
+}

@@ -165,18 +165,19 @@ func Activity(t testing.TB, dir string) string {
 	w := activityWriter{t: t, projects: projects}
 
 	// 2025-W49
-	w.session(ActivityAlpha, ActivitySessionAlpha1, nil,
+	w.session(ActivityAlpha, ActivitySessionAlpha1, []Line{SessionOwner(ActivitySessionAlpha1)},
 		turn{at(2025, 12, 1, 9, 15), true, "list the open issues", "gh issue list", "3 open issues", "Three issues are open."},
 		turn{at(2025, 12, 1, 9, 40), false, "summarise the oldest one", "", "", "The oldest asks for log rotation."},
 	)
 	w.subagent(ActivityAlpha, ActivitySessionAlpha1, "a01", at(2025, 12, 1, 9, 16),
 		"Research task: count the test files.", "find . -name '*_test.go' | wc -l", "12", "There are twelve test files.")
-	w.session(ActivityAlpha, ActivitySessionAlpha2, nil,
+	w.session(ActivityAlpha, ActivitySessionAlpha2, []Line{SessionOwner(ActivitySessionAlpha2)},
 		turn{at(2025, 12, 3, 14, 5), true, "run the tests", "go test ./...", "ok", "All tests pass."})
-	w.session(ActivityBeta, ActivitySessionBeta1, []Line{CustomTitle(ActivitySessionBeta1, "Beta release")},
+	w.session(ActivityBeta, ActivitySessionBeta1, []Line{CustomTitle(ActivitySessionBeta1, "Beta release"), SessionOwnerOf(ActivitySessionBeta1, Account2, Organization1)},
 		turn{at(2025, 12, 4, 20, 30), true, "tag the release", "git tag v0.2.0", "", "Tagged v0.2.0."})
 	w.session(ActivityGamma, ActivitySessionGamma1, nil,
 		turn{at(2025, 12, 6, 11, 0), false, "what is in this folder?", "", "", "Notes and a few drafts."})
+	w.continued(ActivityGamma, ActivitySessionGamma1, ActivitySessionGamma2, at(2025, 12, 16, 7, 59))
 
 	// 2025-W50
 	w.session(ActivityAlphaWorktree, ActivitySessionWorktree1, nil,
@@ -274,6 +275,13 @@ func (w *activityWriter) lines(session, cwd string, turns []turn) []Line {
 		out = append(out, Assistant(session, w.next(), stamp(tr.ts.Add(5*time.Second)), cwd, tr.reply))
 	}
 	return out
+}
+
+// continued appends a continued-in record to the transcript of session:
+// it was continued in next at ts (Gamma1 → Gamma2 in the fixture).
+func (w *activityWriter) continued(cwd, session, next string, ts time.Time) {
+	w.t.Helper()
+	AppendFile(w.t, filepath.Join(w.projects, projectDir(cwd), session+".jsonl"), ContinuedIn(session, stamp(ts), next).JSON())
 }
 
 func (w *activityWriter) session(cwd, session string, head []Line, turns ...turn) {
