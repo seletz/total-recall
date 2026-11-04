@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -99,7 +98,7 @@ func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error)
 		StoreRaw:    cfg.Ingest.StoreRaw,
 		RawMaxBytes: cfg.Ingest.RawMaxBytes,
 		ResolveGit:  cfg.Git.Resolve,
-		LockDir:     filepath.Join(filepath.Dir(cfg.DB), "locks"),
+		LockDir:     lockDir(cfg),
 		Logf:        func(f string, a ...any) { log.Infof(f, a...) },
 	}
 	if cfg.Redact.Enabled {
@@ -128,9 +127,12 @@ func adapters(cfg *config.Config) []harness.Adapter {
 	return out
 }
 
-// openWrite opens the archive read-write (migrating it if needed).
+// openWrite opens the archive read-write (migrating it if needed) and holds
+// the shared maintenance lock until Close: while `maintenance` rebuilds the
+// archive, it fails with store.ErrMaintenance.
 func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
 	return store.Open(cfg.DB, store.WithLocation(cfg.Location()),
+		store.WithLockDir(lockDir(cfg)),
 		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
 }
 
@@ -282,6 +284,12 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 	}
 
 	st, err := openWrite(cfg, log)
+	if errors.Is(err, store.ErrMaintenance) {
+		// Nothing is lost: the next hook of the session (or SessionStart
+		// with --all) reads on from the stored offset.
+		log.Infof("hook %s: maintenance in progress, skipped; the next hook catches up", p.HookEventName)
+		return nil
+	}
 	if err != nil {
 		log.Errorf("hook %s: %v", p.HookEventName, err)
 		return nil

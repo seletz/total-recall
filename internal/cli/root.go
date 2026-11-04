@@ -144,6 +144,7 @@ func newRoot(app *App) (*cobra.Command, *env) {
 		e.sqlCmd(),
 		e.backupCmd(),
 		e.restoreCmd(),
+		e.maintenanceCmd(),
 		e.hooksCmd(),
 		e.doctorCmd(),
 		e.configCmd(),

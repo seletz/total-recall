@@ -32,6 +32,7 @@ import (
 type StatusJSON struct {
 	DB                  string            `json:"db"`
 	DBSizeBytes         int64             `json:"db_size_bytes"`
+	PageSize            int               `json:"page_size"`
 	SchemaVersion       int               `json:"schema_version"`
 	BinarySchemaVersion int               `json:"binary_schema_version"`
 	Sessions            int               `json:"sessions"`
@@ -47,6 +48,15 @@ type StatusJSON struct {
 	RecentErrors        []StatusError     `json:"recent_errors"`
 	RecentErrorsTotal   int               `json:"recent_errors_total"`
 	OlderErrors         int               `json:"older_errors"`
+}
+
+// pageSizeCell renders the page size with a hint when a rebuild with the
+// recommended size would make the archive smaller.
+func pageSizeCell(n int) string {
+	if n >= RecommendedPageSize {
+		return strconv.Itoa(n)
+	}
+	return fmt.Sprintf("%d  (total-recall maintenance rebuilds with %d and saves space)", n, RecommendedPageSize)
 }
 
 // StatusError is one error line in StatusJSON.RecentErrors. At is null
@@ -97,8 +107,12 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		if err != nil {
 			return err
 		}
+		ps, err := st.PageStats(ctx)
+		if err != nil {
+			return err
+		}
 		now, loc := e.app.Now(), cfg.Location()
-		out := StatusJSON{DB: cfg.DB, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(),
+		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
@@ -145,6 +159,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		rows := [][]string{
 			{"database", cfg.DB},
 			{"size", fmt.Sprintf("%.1f MiB", float64(out.DBSizeBytes)/(1<<20))},
+			{"page size", pageSizeCell(ps.PageSize)},
 			{"schema", fmt.Sprintf("v%d (binary supports v%d)", v, out.BinarySchemaVersion)},
 			{"sessions", strconv.Itoa(s.Sessions)},
 			{"events", strconv.Itoa(s.Events)},

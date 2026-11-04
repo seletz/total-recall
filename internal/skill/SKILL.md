@@ -245,7 +245,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 
 | Command | Use it for |
 |---|---|
-| `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
+| `total-recall status --json` | DB path, size, page size, schema version, counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit |
@@ -353,6 +353,7 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 |---|---|
 | `db` | path |
 | `db_size_bytes` | |
+| `page_size` | page size of the database file in bytes; `total-recall maintenance` rebuilds it with 16384 |
 | `schema_version` | version of the database |
 | `binary_schema_version` | version the binary supports |
 | `sessions` | count |
