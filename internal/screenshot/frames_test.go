@@ -45,6 +45,7 @@ func TestRenderAll(t *testing.T) {
 		"heatmap":         {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
 		"activity-week":   {"[3 activity]", "period: day [week] month", "week:", "Thu 2026-06-04", "Fronleichnam", "00:45 (+1)", "count: all [human]"},
 		"activity-month":  {"[3 activity]", "period: day week [month]", "month:", "2026-06", "Fronleichnam"},
+		"activity-days":   {"[3 activity]", "period: day [week] month", "week:", "2026-05-29 – 2026-06-04", "Fri 2026-05-29", "Thu 2026-06-04", "7 days"},
 		"compact":         {"[3 activity]", "week:"},
 		"help":            {"[2 stats]", "keys: stats", "closes this help", "esc back"},
 		"heatmap-compact": {"[2 stats]", "░▒▓█", "heatmap"},

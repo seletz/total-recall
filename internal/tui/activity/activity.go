@@ -18,6 +18,13 @@
 // for it; the answer arrives as tea.BackgroundColorMsg); every coloured
 // element also differs in glyph, so NO_COLOR stays legible.
 //
+// The window is a span: one period moved by a number of days. ↑/↓ scroll
+// the rows while not all of them fit and otherwise move the window by a
+// day, so the view scrolls through time without a gap; ←/→ jump by a
+// whole period. The window never ends after the current period, so the
+// view does not run into the future beyond what the current week or month
+// shows anyway.
+//
 // Every change of window or counting mode loads a store.Workday as a
 // command; results carry the sequence number of the change they belong
 // to, so a slow answer to an older change is dropped. Loaded days are
@@ -39,7 +46,6 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
-	"github.com/seletz/total-recall/internal/tui/window"
 )
 
 // MinBarWidth is the narrowest time axis drawn; below it the rows show the
@@ -107,7 +113,7 @@ type resultMsg struct {
 type Model struct {
 	opts      Options
 	keys      KeyMap
-	window    window.Window // always a single period
+	span      span // the days shown
 	humanOnly bool
 	figures   bool // the summary figures are shown (week and month)
 
@@ -137,7 +143,7 @@ func New(opts Options) Model {
 	m := Model{
 		opts:      opts,
 		keys:      newKeyMap(opts.Keys),
-		window:    window.Single(initialPeriod(opts.Window), opts.Now(), opts.Location),
+		span:      single(initialPeriod(opts.Window), opts.Now(), opts.Location),
 		humanOnly: opts.HumanOnly,
 		cache:     map[filter][]store.Workday{},
 		figures:   true,
@@ -172,13 +178,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case tea.MouseWheelMsg:
+		if m.opts.Loader == nil {
+			return m, nil
+		}
 		switch msg.Button {
 		case tea.MouseWheelUp:
-			m.offset--
+			return m.up()
 		case tea.MouseWheelDown:
-			m.offset++
+			return m.down()
 		}
-		m.clampOffset()
 		return m, nil
 	case resultMsg:
 		return m.result(msg), nil
@@ -197,19 +205,19 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := m.keys
 	switch {
 	case key.Matches(msg, k.Day):
-		return m.setWindow(m.window.WithSinglePeriod(store.PeriodDay))
+		return m.setSpan(m.span.withPeriod(store.PeriodDay))
 	case key.Matches(msg, k.Week):
-		return m.setWindow(m.window.WithSinglePeriod(store.PeriodWeek))
+		return m.setSpan(m.span.withPeriod(store.PeriodWeek))
 	case key.Matches(msg, k.Month):
-		return m.setWindow(m.window.WithSinglePeriod(store.PeriodMonth))
+		return m.setSpan(m.span.withPeriod(store.PeriodMonth))
 	case key.Matches(msg, k.Earlier):
-		return m.setWindow(m.window.Shift(-1))
+		return m.setSpan(m.span.periods(-1))
 	case key.Matches(msg, k.Later):
-		return m.setWindow(m.window.Shift(1))
+		return m.setSpan(m.span.periods(1).clampUntil(m.limit()))
 	case key.Matches(msg, k.Current):
-		return m.setWindow(m.current())
+		return m.setSpan(m.current())
 	case key.Matches(msg, k.Last):
-		return m.setWindow(m.current().Shift(-1))
+		return m.setSpan(m.current().periods(-1))
 	case key.Matches(msg, k.Human):
 		m.humanOnly = !m.humanOnly
 		return m.load()
@@ -217,32 +225,63 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.figures = !m.figures
 		m.clampOffset()
 	case key.Matches(msg, k.Up):
-		m.offset--
-		m.clampOffset()
+		return m.up()
 	case key.Matches(msg, k.Down):
-		m.offset++
-		m.clampOffset()
+		return m.down()
 	}
 	return m, nil
 }
 
-// current is the window of the current period containing now.
-func (m Model) current() window.Window {
-	return window.Single(m.window.Period, m.opts.Now(), m.opts.Location)
-}
-
-func (m Model) setWindow(w window.Window) (tea.Model, tea.Cmd) {
-	if w.Equal(m.window) {
+// up scrolls the rows up by one while the first is hidden; otherwise it
+// moves the window a day back, so the day before the first row appears.
+func (m Model) up() (tea.Model, tea.Cmd) {
+	if m.offset > 0 {
+		m.offset--
 		return m, nil
 	}
-	m.window, m.offset = w, 0
+	m.span = m.span.days(-1)
+	return m.load()
+}
+
+// down scrolls the rows down by one while the last is hidden; otherwise
+// it moves the window a day on, keeping the scroll position so the new
+// last day appears at the bottom. It stops where the window would end
+// after the current period.
+func (m Model) down() (tea.Model, tea.Cmd) {
+	if m.offset < m.maxOffset() {
+		m.offset++
+		return m, nil
+	}
+	if !m.span.until().Before(m.limit()) {
+		return m, nil
+	}
+	m.span = m.span.days(1)
+	return m.load()
+}
+
+// current is the whole current period containing now.
+func (m Model) current() span {
+	return single(m.span.period(), m.opts.Now(), m.opts.Location)
+}
+
+// limit is the latest end of the window: the end of the current period.
+// The current week or month shows its future days anyway, and a day step
+// may not run past them.
+func (m Model) limit() time.Time { return m.current().until() }
+
+// setSpan shows s from its first row; the same days again are a no-op.
+func (m Model) setSpan(s span) (tea.Model, tea.Cmd) {
+	if s.equal(m.span) {
+		return m, nil
+	}
+	m.span, m.offset = s, 0
 	return m.load()
 }
 
 // since and until are the bounds of the window under the day rule: the
 // day boundary of its first day and of the day after its last.
-func (m Model) since() time.Time { return store.DayBoundary(m.window.Since(), m.opts.DayStart) }
-func (m Model) until() time.Time { return store.DayBoundary(m.window.Until(), m.opts.DayStart) }
+func (m Model) since() time.Time { return store.DayBoundary(m.span.since(), m.opts.DayStart) }
+func (m Model) until() time.Time { return store.DayBoundary(m.span.until(), m.opts.DayStart) }
 
 // filter is the cache key of the current state.
 func (m Model) filter() filter {
@@ -319,7 +358,7 @@ const minDayRows = 3
 
 // showHeadline reports whether the headline with the working time of the
 // period is shown: for a week or a month, not for a single day.
-func (m Model) showHeadline() bool { return m.window.Period != store.PeriodDay }
+func (m Model) showHeadline() bool { return m.span.period() != store.PeriodDay }
 
 // showFigures reports whether the summary figures are shown: when they
 // are on, for a loaded week or month, and when minDayRows day rows stay.
@@ -339,9 +378,12 @@ func (m Model) rowsAvail() int {
 	return max(n, 0)
 }
 
+// maxOffset is the largest scroll offset: the rows that do not fit.
+func (m Model) maxOffset() int { return max(0, len(m.days)-m.rowsAvail()) }
+
 // clampOffset keeps the scroll offset within the rows.
 func (m *Model) clampOffset() {
-	m.offset = max(0, min(m.offset, len(m.days)-m.rowsAvail()))
+	m.offset = max(0, min(m.offset, m.maxOffset()))
 }
 
 // ShortHelp implements help.KeyMap.
@@ -398,7 +440,7 @@ func (m Model) switches() string {
 	if m.humanOnly {
 		active = 1
 	}
-	left := " period: " + m.toggles(periods, int(m.window.Period)) + "  count: " + m.toggles(counts, active)
+	left := " period: " + m.toggles(periods, int(m.span.period())) + "  count: " + m.toggles(counts, active)
 	right := m.windowLabel()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	return left + strings.Repeat(" ", gap) + right
@@ -418,29 +460,37 @@ func (m Model) toggles(names []string, active int) string {
 }
 
 // windowLabel names the window: its relation to now when it is the
-// current or the previous period, the ISO week or the month, and the
-// first and last day, e.g. "this week · 2026-W02 · 2026-01-05 – 2026-01-11 ".
+// current or the previous period, the ISO week or the month when the
+// window is a whole one, and the first and last day, e.g. "this week ·
+// 2026-W02 · 2026-01-05 – 2026-01-11 ". A window moved by days shows the
+// days only.
 func (m Model) windowLabel() string {
 	var parts []string
-	cur := m.current()
+	cur, p := m.current(), m.span.period()
 	switch {
-	case m.window.Equal(cur):
-		parts = append(parts, [...]string{"today", "this week", "this month"}[m.window.Period])
-	case m.window.Equal(cur.Shift(-1)):
-		parts = append(parts, [...]string{"yesterday", "last week", "last month"}[m.window.Period])
+	case m.span.equal(cur):
+		parts = append(parts, [...]string{"today", "this week", "this month"}[p])
+	case m.span.equal(cur.periods(-1)):
+		parts = append(parts, [...]string{"yesterday", "last week", "last month"}[p])
 	}
-	first, last := m.window.Since(), m.window.Until().AddDate(0, 0, -1)
-	switch m.window.Period {
+	first, last := m.span.since(), m.span.until().AddDate(0, 0, -1)
+	switch p {
 	case store.PeriodDay:
 		parts = append(parts, first.Format("Mon 2006-01-02"))
 		if m.loaded && len(m.days) == 1 && m.days[0].IsHoliday() {
 			parts = append(parts, m.styles.holidayText.Render(m.days[0].Holiday))
 		}
 	case store.PeriodWeek:
-		y, w := first.ISOWeek()
-		parts = append(parts, fmt.Sprintf("%04d-W%02d", y, w), first.Format("2006-01-02")+" – "+last.Format("2006-01-02"))
+		if m.span.aligned() {
+			y, w := first.ISOWeek()
+			parts = append(parts, fmt.Sprintf("%04d-W%02d", y, w))
+		}
+		parts = append(parts, first.Format("2006-01-02")+" – "+last.Format("2006-01-02"))
 	default:
-		parts = append(parts, first.Format("2006-01"), first.Format("2006-01-02")+" – "+last.Format("2006-01-02"))
+		if m.span.aligned() {
+			parts = append(parts, first.Format("2006-01"))
+		}
+		parts = append(parts, first.Format("2006-01-02")+" – "+last.Format("2006-01-02"))
 	}
 	return strings.Join(parts, " · ") + " "
 }
@@ -474,7 +524,7 @@ func (m Model) headline() string {
 	}
 	st, w := m.styles, m.opts.Work
 	b := w.Balance(m.days, m.asOf())
-	label := st.label.Render([...]string{"day:", "week:", "month:"}[m.window.Period])
+	label := st.label.Render([...]string{"day:", "week:", "month:"}[m.span.period()])
 	parts := []string{st.rating(w.RateBalance(b)).Bold(true).Render(store.FormatSpan(b.Span)) + st.faint.Render(" in "+plural(b.Active, "day"))}
 	if !w.IsZero() {
 		target := fmt.Sprintf("target %s (%s × %s)", store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(w.Target))
