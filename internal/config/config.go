@@ -297,6 +297,7 @@ type Claude struct {
 // Actors holds extra prefixes for actor classification.
 type Actors struct {
 	PeerPrefixes       []string `toml:"peer_prefixes"`
+	PeerPasteHeaders   []string `toml:"peer_paste_headers"`
 	AutomationPrefixes []string `toml:"automation_prefixes"`
 }
 
@@ -356,6 +357,7 @@ var fields = []struct {
 	{"harness.claude.projects_dir", func(c *Config) string { return c.Harness.Claude.ProjectsDir }},
 	{"harness.claude.skip_record_types", func(c *Config) string { return formatList(c.Harness.Claude.SkipRecordTypes) }},
 	{"harness.claude.actors.peer_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PeerPrefixes) }},
+	{"harness.claude.actors.peer_paste_headers", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PeerPasteHeaders) }},
 	{"harness.claude.actors.automation_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.AutomationPrefixes) }},
 	{"git.resolve", func(c *Config) string { return strconv.FormatBool(c.Git.Resolve) }},
 	{"work.hours", func(c *Config) string { return c.Work.Hours }},
@@ -421,7 +423,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Enabled:         true,
 		ProjectsDir:     filepath.Join(claudeDir, "projects"),
 		SkipRecordTypes: []string{},
-		Actors:          Actors{PeerPrefixes: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"}},
+		Actors:          Actors{PeerPrefixes: []string{}, PeerPasteHeaders: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"}},
 	}
 	c.Git.Resolve = true
 	c.Work = Work{

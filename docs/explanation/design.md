@@ -98,6 +98,7 @@ skip_record_types = []                # zusätzlich zu den Standard-Ausschlüsse
 [harness.claude.actors]
 # zusätzliche Präfixe für die Actor-Klassifikation
 peer_prefixes = []
+peer_paste_headers = []          # erste Zeile eines allein eingefügten Blocks, z. B. ["# Task:", "Auftrag:"]
 automation_prefixes = ["Hourly ", "Weekend watch"]
 
 [git]
@@ -220,14 +221,17 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 | Fall | actor |
 |---|---|
 | `type=user`, Text vom Menschen getippt | `human` |
-| Text beginnt mit „Another Claude session“, `<agent-message`, `[Cross-session`, Subagent-Hand-back | `peer` |
+| Text beginnt mit „Another Claude session“, `<agent-message`, `[Cross-session` oder einem Präfix aus `peer_prefixes`; `origin.kind = "peer"` (Nachrichten anderer Sessions über den Socket, `<cross-session-message …>`); Subagent-Hand-back | `peer` |
+| Nachricht besteht nur aus einem `<pasted_content …>`-Block, dessen erste nicht leere Zeile mit einem Eintrag aus `peer_paste_headers` beginnt (ein in das Terminal eingefügter Auftrag eines Koordinators) | `peer` |
 | `<task-notification>`, geplante Prompts („Hourly …“, Scheduled), `isMeta`, `<command-…>`/`<local-command-…>`, `This session is being continued`, `Base directory for this skill`, `<system-reminder>` | `automation` |
 | `<bash-input>` | `human` (Stefan hat `!cmd` getippt) |
-| `<pasted_content …>` | `human` |
+| `<pasted_content …>` sonst | `human` |
 | `type=user` mit `tool_result`-Blöcken | `tool` (kind `tool_result`) |
 | `type=assistant` | `agent` (Text → kind `message`, `tool_use`-Block → kind `tool_use`) |
 
 Ein Assistant-Eintrag mit mehreren Content-Blöcken ergibt mehrere Events (`<uuid>#<block index>`).
+
+Reihenfolge: zuerst die Textregeln (Peer-Präfixe, Peer-Paste-Kopfzeilen, Human-Präfixe, Automation-Präfixe), dann `origin.kind`, dann `isMeta`/`isCompactSummary`/`scheduledTaskId`, dann Subagent-Transkript, sonst `human`. Eine Nachricht, die ein Koordinator per Terminal-Multiplexer in die Session tippt oder einfügt, hat keine harness-seitige Markierung (`origin.kind = "human"`, `promptSource = "typed"`); nur die konfigurierten Präfixe und Kopfzeilen unterscheiden sie von eigener Eingabe. `reindex --actors` wendet die aktuellen Regeln auf gespeicherte User-Nachrichten an: Textregeln auf `text`, die Flags aus `raw`; ohne `raw` (nicht gespeichert oder wegen der Größe weggelassen) entscheiden nur die Textregeln, sonst bleibt der Actor stehen.
 
 ### Welche Claude-Records
 
@@ -304,6 +308,7 @@ Hooks für Claude Code (`total-recall hooks print --harness claude` gibt diesen 
 | Befehl | Zweck |
 |---|---|
 | `ingest` | siehe oben |
+| `reindex --actors` | Actor jeder gespeicherten User-Nachricht mit den aktuellen Regeln neu bestimmen (`harness.Reclassifier`, `ingest.Reclassify`), ohne die Transkripte zu lesen; idempotent, `--dry-run` zählt nur |
 | `status` | DB-Pfad, Größe, Anzahl Sessions/Events, letzter Ingest je Harness, Fehler aus dem Log der letzten 24 h (ältere nur als Anzahl, `--all-errors`; fehlende Transkripte zählen nie), letztes Backup |
 | `sessions` | Liste; Filter `--since`, `--until`, `--repo`, `--harness`, `--name`, `--limit`, `--subagents` (sonst nur Haupt-Sessions), `--all-sessions` (sonst ohne Sessions ohne Events und Startzeit); Spalten Start, Dauer, ID-Präfix, Name, Repo, Branch, #human, #agent |
 | `show SESSION` | Verlauf einer Session (Anfragen/Antworten, `--all` inkl. Tools); Fenster über `--since`/`--until` (Semantik und Zeitformate wie `search`, lokale Zeit), `--limit`/`--offset` zum Blättern, `--from-event ID` ab einem Event (z. B. Treffer aus `search`); ohne Grenzen vollständig, ab 2000 Events mit Hinweis auf stderr |

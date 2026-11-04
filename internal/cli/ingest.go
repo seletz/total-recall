@@ -104,6 +104,7 @@ func adapters(cfg *config.Config) []harness.Adapter {
 		out = append(out, claude.New(c.ProjectsDir,
 			claude.WithToolResultMaxBytes(cfg.Ingest.ToolResultMaxBytes),
 			claude.WithPeerPrefixes(c.Actors.PeerPrefixes...),
+			claude.WithPeerPasteHeaders(c.Actors.PeerPasteHeaders...),
 			claude.WithAutomationPrefixes(c.Actors.AutomationPrefixes...),
 			claude.WithSkipRecordTypes(c.SkipRecordTypes...),
 		))

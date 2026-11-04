@@ -94,6 +94,7 @@ skip_record_types = []                # zusätzlich zu den Standard-Ausschlüsse
 [harness.claude.actors]
 # zusätzliche Präfixe für die Actor-Klassifikation
 peer_prefixes = []
+peer_paste_headers = []          # erste Zeile eines allein eingefügten Blocks, z. B. ["# Task:", "Auftrag:"]
 automation_prefixes = ["Hourly ", "Weekend watch"]
 
 [git]
@@ -181,10 +182,23 @@ activity_window = "week"         # Aktivität beim Start: day, week, month
 Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein anderer Agent oder eine Automatik. Die Regeln stehen im [Design](../explanation/design.md#actor-klassifikation-claude-code). Hier ergänzt du eigene Präfixe.
 
 `peer_prefixes`
-:   Nachrichten, die mit einem dieser Texte beginnen, gelten als `peer` (ein anderer Agent).
+:   Nachrichten, die mit einem dieser Texte beginnen, gelten als `peer` (ein anderer Agent). Beispiel: `["From coordinator:", "Vom Koordinator:"]`.
+
+`peer_paste_headers`
+:   Eine Nachricht, die nur aus einem eingefügten Block (`<pasted_content …>`) besteht und deren erste nicht leere Zeile mit einem dieser Texte beginnt, gilt als `peer`. So fallen Aufträge auf, die ein Koordinator als Block in das Terminal einfügt. Ein Block mit anderer erster Zeile, ein Block mit eigenem Text davor oder danach und mehrere Blöcke bleiben `human`. Beispiel: `["# Task:", "Auftrag:"]`.
 
 `automation_prefixes`
 :   Nachrichten, die mit einem dieser Texte beginnen, gelten als `automation`. Beispiel: geplante Prompts wie „Hourly …“.
+
+Nachrichten, die eine andere Session über den Socket schickt (`<cross-session-message …>`), erkennt der Adapter ohne Konfiguration als `peer`. Was ein Koordinator dagegen in das Terminal tippt oder einfügt, sieht im Transkript aus wie eigene Eingabe; dafür sind die beiden Listen da. Ein Setup mit mehreren Agenten, in dem ein Koordinator Aufträge mit einem festen Präfix oder als Block mit Kopfzeile verteilt:
+
+```toml
+[harness.claude.actors]
+peer_prefixes = ["From coordinator:", "Vom Koordinator:"]
+peer_paste_headers = ["# Task:", "Auftrag:"]
+```
+
+Geänderte Regeln gelten für alles, was danach eingelesen wird; [`reindex --actors`](10-befehle.md#reindex) wendet sie auf den Bestand an. Die Arbeitszeit ([`stats --workday`](10-befehle.md#stats-workday), [`stats --worktime`](10-befehle.md#stats-worktime)) zählt nur `human`, Aufträge eines Koordinators dehnen sie damit nicht mehr; siehe [Stundenzettel füllen](../how-to/45-stundenzettel.md#mehrere-agenten).
 
 ### `[work]` { #work }
 
