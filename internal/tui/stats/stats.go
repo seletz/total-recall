@@ -18,6 +18,7 @@ package stats
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/window"
+	"github.com/seletz/total-recall/internal/tui/zone"
 )
 
 // TopN is how many dimension values the chart stacks; the rest is "other".
@@ -212,6 +214,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.chart.SetSize(m.chartSize())
 	case tea.KeyPressMsg:
 		return m.key(msg)
+	case tea.MouseClickMsg:
+		return m.click(msg)
 	case resultMsg:
 		return m.result(msg)
 	case heatResultMsg:
@@ -264,6 +268,23 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.rebuild()
 	case key.Matches(msg, k.Heatmap):
 		return m.toggleHeatmap()
+	}
+	return m, nil
+}
+
+// click handles a left click on the switches line: a period name sets the
+// period, a dimension name the dimension, exactly like their keys. Clicks
+// elsewhere do nothing, so do clicks without a database.
+func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+	if msg.Button != tea.MouseLeft || msg.Y != 0 || m.opts.Loader == nil {
+		return m, nil
+	}
+	_, periods, dims := m.switches()
+	if i := zone.At(periods, msg.X); i >= 0 {
+		return m.setPeriod(periodValues[i])
+	}
+	if i := zone.At(dims, msg.X); i >= 0 {
+		return m.setDimension(dimensionValues[i])
 	}
 	return m, nil
 }
@@ -532,7 +553,8 @@ func (m Model) View() tea.View {
 	block := func(s string, h int) string {
 		return lipgloss.NewStyle().Width(m.width).Height(h).MaxWidth(m.width).MaxHeight(h).Render(s)
 	}
-	parts := []string{m.switches()}
+	switches, _, _ := m.switches()
+	parts := []string{switches}
 	if l.tiles > 0 {
 		parts = append(parts, block(m.tiles(), l.tiles))
 	}
@@ -550,28 +572,32 @@ func (m Model) View() tea.View {
 	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
+// Names and values of the switches, in the order shown.
+var (
+	periodNames     = []string{"day", "week", "month"}
+	periodValues    = []store.Period{store.PeriodDay, store.PeriodWeek, store.PeriodMonth}
+	dimensionNames  = []string{"project", "agent", "directory"}
+	dimensionValues = []store.Dimension{store.DimProject, store.DimAgent, store.DimDirectory}
+)
+
 // switches is the top line: period and dimension with the active value in
-// brackets on the accent background, and the window on the right.
-func (m Model) switches() string {
-	periods := []string{"day", "week", "month"}
-	dims := []string{"project", "agent", "directory"}
-	left := " period: " + toggles(m.th, periods, int(m.window.Period)) + "  by: " + toggles(m.th, dims, int(m.dim))
+// brackets on the accent background, and the window on the right. It
+// returns the columns of every period and dimension name, clipped like the
+// line, so a click lands on what is shown.
+func (m Model) switches() (string, []zone.Span, []zone.Span) {
+	left := " period: "
+	periods, pSpans := zone.Toggles(m.th.Active, periodNames, slices.Index(periodValues, m.window.Period), lipgloss.Width(left))
+	left += periods + "  by: "
+	dims, dSpans := zone.Toggles(m.th.Active, dimensionNames, slices.Index(dimensionValues, m.dim), lipgloss.Width(left))
+	left += dims
 	right := m.window.String()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	return ansi.Truncate(left+strings.Repeat(" ", gap)+right, m.width, "…")
-}
-
-// toggles joins the names, the active one in brackets and the active
-// style of the theme.
-func toggles(th theme.Theme, names []string, active int) string {
-	out := make([]string, len(names))
-	for i, n := range names {
-		if i == active {
-			n = th.Active.Render("[" + n + "]")
-		}
-		out[i] = n
+	line := left + strings.Repeat(" ", gap) + right
+	if lipgloss.Width(line) > m.width {
+		line = ansi.Truncate(line, m.width, "…")
+		pSpans, dSpans = zone.Clip(pSpans, max(m.width-1, 0)), zone.Clip(dSpans, max(m.width-1, 0))
 	}
-	return strings.Join(out, " ")
+	return line, pSpans, dSpans
 }
 
 // tiles is the row of key figures of the window above the chart: the

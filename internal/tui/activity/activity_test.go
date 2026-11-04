@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/holiday"
@@ -450,4 +451,82 @@ func TestConfiguredKeys(t *testing.T) {
 	if h := m.keys.Up.Help(); h.Key != "u" {
 		t.Errorf("up help = %q", h.Key)
 	}
+}
+
+// switchX returns the column of label on the switches line.
+func switchX(t *testing.T, m Model, label string) int {
+	t.Helper()
+	line, _, _ := m.switches()
+	f := ansi.Strip(line)
+	x := strings.Index(f, label)
+	if x < 0 {
+		t.Fatalf("switches %q lacks %q", f, label)
+	}
+	return ansi.StringWidth(f[:x])
+}
+
+// TestClick checks that a click on a period or counting mode of the
+// switches line does what its key does, that a click on the summary
+// figures hides them like s, and that clicks elsewhere do nothing.
+func TestClick(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	click := func(x, y int) tea.MouseClickMsg { return tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft} }
+	// The figures take the three rows above the status line.
+	figureY := bodySize.Height - 1 - figureRows
+	tests := []struct {
+		name    string
+		keys    []string
+		label   string // clicked on the switches line
+		x, y    int    // clicked instead when label is empty
+		period  store.Period
+		human   bool
+		figures bool
+	}{
+		{"day", nil, "day", 0, 0, store.PeriodDay, true, true},
+		{"month", nil, "month", 0, 0, store.PeriodMonth, true, true},
+		{"week from month", []string{"m"}, "week", 0, 0, store.PeriodWeek, true, true},
+		{"all events", nil, "all", 0, 0, store.PeriodWeek, false, true},
+		{"human from all", []string{"h"}, "human", 0, 0, store.PeriodWeek, true, true},
+		{"active count is a no-op", nil, "human", 0, 0, store.PeriodWeek, true, true},
+		{"active period is a no-op", nil, "week", 0, 0, store.PeriodWeek, true, true},
+		{"label is inert", nil, "count:", 0, 0, store.PeriodWeek, true, true},
+		{"figures hide", nil, "", 5, figureY, store.PeriodWeek, true, false},
+		{"last figure row hides", nil, "", 5, figureY + figureRows - 1, store.PeriodWeek, true, false},
+		{"rule above the figures is inert", nil, "", 5, figureY - 1, store.PeriodWeek, true, true},
+		{"status line is inert", nil, "", 5, bodySize.Height - 1, store.PeriodWeek, true, true},
+		{"day row is inert", nil, "", 5, 4, store.PeriodWeek, true, true},
+		{"hidden figures stay hidden", []string{"s"}, "", 5, figureY, store.PeriodWeek, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := drive(t, newModel(t, st), tt.keys...)
+			x, y := tt.x, tt.y
+			if tt.label != "" {
+				x = switchX(t, m, tt.label)
+			}
+			m = tuitest.Send(t, m, click(x, y)).(Model)
+			if m.span.period() != tt.period || m.humanOnly != tt.human || m.figures != tt.figures {
+				t.Errorf("period = %v, humanOnly = %v, figures = %v; want %v, %v, %v", m.span.period(), m.humanOnly, m.figures, tt.period, tt.human, tt.figures)
+			}
+			if !m.loaded {
+				t.Error("not loaded after the click")
+			}
+		})
+	}
+	t.Run("figures of a day are no target", func(t *testing.T) {
+		// A single day shows no figures; the rows above the status line
+		// are day rows and padding.
+		m := drive(t, newModel(t, st), "d")
+		m = tuitest.Send(t, m, click(5, figureY)).(Model)
+		if !m.figures {
+			t.Error("figures switched off by a click on padding")
+		}
+	})
+	t.Run("no database", func(t *testing.T) {
+		m := drive(t, newModel(t, nil))
+		m = tuitest.Send(t, m, click(switchX(t, m, "month"), 0)).(Model)
+		if m.span.period() != store.PeriodWeek {
+			t.Errorf("period = %v without a database", m.span.period())
+		}
+	})
 }

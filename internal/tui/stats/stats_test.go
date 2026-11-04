@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/holiday"
@@ -446,4 +447,89 @@ func TestHolidayMarks(t *testing.T) {
 	if m.spec.Marks != nil {
 		t.Errorf("week window has marks: %v", m.spec.Marks)
 	}
+}
+
+// switchX returns the column of label on the switches line.
+func switchX(t *testing.T, m Model, label string) int {
+	t.Helper()
+	line, _, _ := m.switches()
+	f := ansi.Strip(line)
+	x := strings.Index(f, label)
+	if x < 0 {
+		t.Fatalf("switches %q lacks %q", f, label)
+	}
+	return ansi.StringWidth(f[:x])
+}
+
+// TestClick checks that a click on a period or dimension name of the
+// switches line does what its key does, that clicks elsewhere and clicks
+// without a database do nothing, and that a name cut off by a narrow
+// terminal is not clickable.
+func TestClick(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	click := func(x, y int) tea.MouseClickMsg { return tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft} }
+	tests := []struct {
+		name   string
+		keys   []string
+		label  string // clicked on the switches line
+		x, y   int    // clicked instead when label is empty
+		period store.Period
+		dim    store.Dimension
+	}{
+		{"week", nil, "week", 0, 0, store.PeriodWeek, store.DimProject},
+		{"month", nil, "month", 0, 0, store.PeriodMonth, store.DimProject},
+		{"day from weeks", []string{"w"}, "day", 0, 0, store.PeriodDay, store.DimProject},
+		{"agent", nil, "agent", 0, 0, store.PeriodDay, store.DimAgent},
+		{"directory", nil, "directory", 0, 0, store.PeriodDay, store.DimDirectory},
+		{"project from agent", []string{"a"}, "project", 0, 0, store.PeriodDay, store.DimProject},
+		{"active name is a no-op", nil, "day", 0, 0, store.PeriodDay, store.DimProject},
+		{"label is inert", nil, "period:", 0, 0, store.PeriodDay, store.DimProject},
+		{"gap is inert", nil, "", 60, 0, store.PeriodDay, store.DimProject},
+		{"chart is inert", nil, "", 20, 5, store.PeriodDay, store.DimProject},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := drive(t, newModel(t, st), tt.keys...)
+			x, y := tt.x, tt.y
+			if tt.label != "" {
+				x = switchX(t, m, tt.label)
+			}
+			m = tuitest.Send(t, m, click(x, y)).(Model)
+			if m.window.Period != tt.period || m.dim != tt.dim {
+				t.Errorf("period = %v, dim = %v; want %v, %v", m.window.Period, m.dim, tt.period, tt.dim)
+			}
+			if !m.loaded {
+				t.Error("not loaded after the click")
+			}
+		})
+	}
+	t.Run("right button is ignored", func(t *testing.T) {
+		m := drive(t, newModel(t, st))
+		m = tuitest.Send(t, m, tea.MouseClickMsg{X: switchX(t, m, "week"), Y: 0, Button: tea.MouseRight}).(Model)
+		if m.window.Period != store.PeriodDay {
+			t.Errorf("period = %v after a right click", m.window.Period)
+		}
+	})
+	t.Run("no database", func(t *testing.T) {
+		m := drive(t, newModel(t, nil))
+		m = tuitest.Send(t, m, click(switchX(t, m, "week"), 0)).(Model)
+		if m.window.Period != store.PeriodDay {
+			t.Errorf("period = %v without a database", m.window.Period)
+		}
+	})
+	t.Run("cut-off name is inert", func(t *testing.T) {
+		// At 40 columns the window label cuts the dimension names.
+		m := tuitest.Drive(t, newModel(t, st), tea.WindowSizeMsg{Width: 40, Height: bodySize.Height}).(Model)
+		line, _, dims := m.switches()
+		if f := ansi.Strip(line); strings.Contains(f, "directory") || !strings.HasSuffix(f, "…") {
+			t.Fatalf("switches should be cut: %q", f)
+		}
+		if dims[2].End > 39 || dims[2].End-dims[2].Start > 0 {
+			t.Errorf("directory span = %v, want empty before the ellipsis", dims[2])
+		}
+		m = tuitest.Send(t, m, click(39, 0)).(Model)
+		if m.dim != store.DimProject {
+			t.Errorf("dim = %v after a click on the ellipsis", m.dim)
+		}
+	})
 }
