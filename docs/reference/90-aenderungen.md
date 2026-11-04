@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.1.0 (unveröffentlicht)
+
+### Release
+
+- Der Release-Lauf prüft den Download von goreleaser jetzt kryptografisch: Vor jedem goreleaser-Schritt in `ci.yml`, `release.yml` und `signed-snapshot.yml` installiert `sigstore/cosign-installer` (v4.1.2) cosign, womit `goreleaser-action` die Sigstore-Signatur der Checksummen-Datei des goreleaser-Releases prüft statt nur die Prüfsumme; eine fehlgeschlagene Prüfung bricht den Lauf ab. goreleaser ist in allen Workflows auf v2.19.0 gepinnt, die Version steht in `mise.toml`, und `mise run tools:check` (auch in der CI) findet Abweichungen in den Workflows: [Release-Assets](50-release.md#werkzeuge-des-release-laufs) ([#121](https://github.com/seletz/total-recall/issues/121)).
+
 ## v1.0.2
 
 Die macOS-Binaries sind ab dieser Version signiert und notarisiert. Sonst ändert sich nichts; die Datenbank bleibt bei Schema v3.

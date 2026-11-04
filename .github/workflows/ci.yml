@@ -55,11 +55,27 @@ jobs:
           # never older than the one go.mod targets.
           install-mode: goinstall
 
+      - name: Check the tool versions
+        # Same command as `mise run tools:check`: the workflows pin the
+        # goreleaser and cyclonedx-gomod versions of mise.toml and install
+        # cosign before goreleaser-action.
+        run: scripts/tool-versions-check.sh
+
+      - name: Install cosign
+        # Lets goreleaser-action verify the sigstore signature of the
+        # goreleaser download (cosign verify-blob on checksums.txt); without
+        # cosign in PATH the action only checks the checksum and logs
+        # "cosign not found in PATH, skipping signature verification". A
+        # failed verification fails the step and with it the run.
+        uses: sigstore/cosign-installer@v4.1.2
+
       - name: goreleaser check
         uses: goreleaser/goreleaser-action@v7.3.0
         with:
           distribution: goreleaser
-          version: "~> v2"
+          # Pinned to the version in mise.toml; scripts/tool-versions-check.sh
+          # (CI step "Check the tool versions") fails when the two drift.
+          version: v2.19.0
           args: check
 
   # Same commands as `mise run sbom:check`: a snapshot release into dist/
@@ -81,14 +97,25 @@ jobs:
           go-version-file: go.mod
 
       - name: Install cyclonedx-gomod
-        # Same version as the pin in mise.toml (task release:snapshot) and in release.yml.
+        # Same version as the pin in mise.toml (task release:snapshot);
+        # scripts/tool-versions-check.sh finds drift.
         run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Install cosign
+        # Lets goreleaser-action verify the sigstore signature of the
+        # goreleaser download (cosign verify-blob on checksums.txt); without
+        # cosign in PATH the action only checks the checksum and logs
+        # "cosign not found in PATH, skipping signature verification". A
+        # failed verification fails the step and with it the run.
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: goreleaser snapshot
         uses: goreleaser/goreleaser-action@v7.3.0
         with:
           distribution: goreleaser
-          version: "~> v2"
+          # Pinned to the version in mise.toml; scripts/tool-versions-check.sh
+          # (CI step "Check the tool versions") fails when the two drift.
+          version: v2.19.0
           args: release --snapshot --clean
 
       - name: Check the SBOMs
