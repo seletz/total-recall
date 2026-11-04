@@ -721,18 +721,13 @@ func TestWriteBatchRewriteRaw(t *testing.T) {
 		if e.Text != evs[i].Text || e.Actor != evs[i].Actor {
 			t.Errorf("event %s: text/actor changed: %q %q", e.ID, e.Text, e.Actor)
 		}
-		if i == 1 {
-			if e.Raw != "" {
-				t.Errorf("event %s: raw = %q, want dropped", e.ID, e.Raw)
-			}
-			continue
-		}
-		if e.Raw != `{"x":2,"text":"readable again"}` {
-			t.Errorf("event %s: raw = %q", e.ID, e.Raw)
-		}
 	}
-	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw_truncated = 1 AND raw IS NULL"); n != 1 {
-		t.Errorf("raw_truncated rows = %d, want 1", n)
+	// Events does not load raw (#131): check the columns directly.
+	if n := countRows(t, s, `SELECT count(*) FROM events WHERE raw = '{"x":2,"text":"readable again"}' AND raw_truncated = 0`); n != len(evs)-1 {
+		t.Errorf("rewritten raw rows = %d, want %d", n, len(evs)-1)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE id = 'claude:e2' AND raw_truncated = 1 AND raw IS NULL"); n != 1 {
+		t.Errorf("raw_truncated rows for e2 = %d, want 1", n)
 	}
 	if n := countRows(t, s, "SELECT count(*) FROM events_fts WHERE text MATCH 'changed'"); n != 0 {
 		t.Errorf("full-text index picked up the unwanted text: %d rows", n)
