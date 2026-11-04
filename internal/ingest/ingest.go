@@ -48,6 +48,10 @@ type Deps struct {
 	LockDir string
 	// BatchSize is the number of events per transaction; default DefaultBatchSize.
 	BatchSize int
+	// Reread reads every source from the beginning instead of from its
+	// stored offset. Events are idempotent, sessions merge: a reread adds
+	// what earlier versions did not store (ingest --reread).
+	Reread bool
 	// Logf receives diagnostics; default discard.
 	Logf func(format string, args ...any)
 }
@@ -205,6 +209,9 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	offset := prev.Offset
 	if fi.Size() < offset {
 		r.deps.Logf("ingest %s: size %d < offset %d, re-reading from 0", path, fi.Size(), offset)
+		offset = 0
+	}
+	if r.deps.Reread {
 		offset = 0
 	}
 	if known && fi.Size() == offset && offset == prev.Offset {

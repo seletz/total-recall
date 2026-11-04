@@ -135,6 +135,13 @@ summary_max_chars = 200
 # Resolve git root, remote URL and branch for session working directories.
 resolve = true
 
+# Names for the account and organization IDs of the sessions (Claude Code
+# writes them since 2.1.317). `sessions --account NAME`, `stats --by account`
+# and `show` use the names; IDs without a name are shown as they are.
+# [accounts]
+# "aaaaaaaa-0000-4000-8000-000000000001" = "work"
+# "bbbbbbbb-0000-4000-8000-000000000002" = "private"
+
 [tui]
 # Start-up defaults of `total-recall tui`; flags and the view argument
 # override them.

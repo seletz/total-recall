@@ -124,6 +124,11 @@ func TestFrames(t *testing.T) {
 		}, []string{"resize:24:14"}},
 		{"Tiny", func(*store.Store) Open { return Open{SessionID: alpha4} }, []string{"resize:30:3"}},
 		{"BeforeOpen", nil, nil},
+		// Gamma1 was continued in Gamma2: both show the link on a third
+		// header line, which shrinks the viewport.
+		{"ContinuedIn", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionGamma1)} }, nil},
+		{"ContinuedFrom", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionGamma2)} }, []string{"resize:100:9"}},
+		{"ContinuedNarrow", func(*store.Store) Open { return Open{SessionID: sessionID(testfixture.ActivitySessionGamma2)} }, []string{"resize:40:12"}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {

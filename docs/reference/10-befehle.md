@@ -62,6 +62,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 | `--all` | alle Quellen aller aktiven Harnesses |
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
 | `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
+| `--reread` | die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an lesen statt ab dem gespeicherten Lesestand. Events sind idempotent (nichts wird doppelt), Sessions werden zusammengeführt; so bekommen Sessions nachträglich, was ältere Versionen noch nicht gespeichert haben, etwa Fortsetzung und Account (Schema v4). Nur mit `PATH…` oder `--all` |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -73,6 +74,9 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 - `changed`: Dateien mit neuen Zeilen. `unchanged`: nichts Neues. `locked`: gerade von einem anderen Lauf gelesen, übersprungen.
 - Fehler je Datei stehen auf stderr; die übrigen Dateien werden trotzdem gelesen. Gab es Fehler, ist der Exit-Code 1.
 - Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
+- Mit `--reread` zählen alle gelesenen Dateien als `changed`, obwohl `new events` 0 bleibt.
+
+**Altbestand nach einem Schema-Update.** Neue Session-Felder (seit Schema v4: `continued_in`, `account_id`, `organization_id`) stammen aus Records, die beim ersten Einlesen übersprungen wurden. Bereits gelesene Transkripte liefern sie erst nach einem einmaligen `total-recall ingest --all --reread`; das dauert so lange wie das erste Einlesen und ändert an den Events nichts.
 
 Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
@@ -139,6 +143,7 @@ Listet Sessions, neueste zuerst. Subagent-Sessions sind ausgeblendet, außer mit
 total-recall sessions --since 2026-10-01 --until 2026-10-31
 total-recall sessions --repo seletz/total-recall
 total-recall sessions --name release --json
+total-recall sessions --account work                  # Name aus [accounts], ID oder ID-Präfix
 total-recall sessions --limit 10
 ```
 
@@ -154,11 +159,14 @@ START             DUR    ID        NAME                        REPO             
 | `--repo TEXT` | Teilstring von Remote-URL, Git-Root oder Arbeitsverzeichnis |
 | `--harness NAME` | z.B. `claude` |
 | `--name TEXT` | Teilstring des Namens (eigener Titel, KI-Titel oder Agent-Name) |
+| `--account A` | Sessions dieses Accounts: ein Name aus [`[accounts]`](20-konfiguration.md#accounts), die Account-ID oder ein Präfix davon |
 | `--limit N` | höchstens N Zeilen (0 = alle, Default) |
 | `--subagents` | Subagent-Sessions mit anzeigen |
 | `--all-sessions` | auch leere Sessions (keine Events, keine Startzeit) anzeigen |
 
 Spalten: `ID` ist ein Präfix der nativen Session-ID, das `show` versteht. `NAME` ist der eigene Titel (`/rename`), sonst der von Claude Code erzeugte Titel, sonst der Agent-Name. `REPO` ist `owner/repo` der Remote-URL, sonst der Ordnername. `HUMAN`/`AGENT` zählen Events nach Actor. `DUR` ist Ende minus Start, inklusive Pausen.
+
+Die JSON-Ausgabe hat zusätzlich je Session `continued_in` (die Session, in der diese fortgesetzt wurde, volle ID; sie muss nicht archiviert sein), `continued_from` (die Session, die in dieser fortgesetzt wurde), `account_id` und `organization_id` (Account und Organisation, auf denen die Session lief; Claude Code schreibt sie seit 2.1.317) sowie `account` (der Name aus `[accounts]`). Alle fünf sind `null`, wenn nichts bekannt ist. Eine fortgesetzte Session ist eine neue Session mit eigener ID; der Verlauf einer Arbeit über mehrere Sessions folgt der Kette `continued_in`.
 
 ## `show` { #show }
 
@@ -177,10 +185,13 @@ total-recall show 9a1b2c3d --from-event claude:7c0d…#0 --limit 20             
 ```text
 Release-Pipeline aufsetzen
 claude:9a1b2c3d-0000-4000-8000-000000000000
-time    2026-10-31 19:38 – 2026-10-31 22:37  (2h59m)
-repo    https://github.com/seletz/total-recall
-branch  develop
-cwd     /Users/me/develop/total-recall
+time            2026-10-31 19:38 – 2026-10-31 22:37  (2h59m)
+repo            https://github.com/seletz/total-recall
+branch          develop
+cwd             /Users/me/develop/total-recall
+continued from  claude:4e5f6a7b-0000-4000-8000-000000000000
+account         work (aaaaaaaa-0000-4000-8000-000000000001)
+organization    cccccccc-0000-4000-8000-00000000000c
 
 ── 2026-10-31 19:38:02  human
 Bitte richte goreleaser mit einem Homebrew-Cask ein.
@@ -198,6 +209,8 @@ Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
 | `--from-event ID` | ab diesem Event (einschließlich), z. B. `event_id` eines Treffers aus `search` |
 
 Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein eindeutiges Präfix davon angegeben werden. Ohne `--all` zeigt `show` nur Nachrichten von Mensch, Agent und anderen Agenten (`peer`).
+
+Der Kopf nennt, was bekannt ist: bei Subagent-Sessions `parent`, bei Fortsetzungen `continued from` (die Session, die hier fortgesetzt wurde) und `continued in` (die Session, in der es weiterging), dazu `account` und `organization` mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sofern einer konfiguriert ist. Die JSON-Ausgabe hat dieselben Felder wie `sessions --json`.
 
 Die Filter wirken in dieser Reihenfolge: erst `--all`, dann das Zeitfenster und `--from-event`, dann `--offset` und `--limit`. Ohne Grenzen bleibt die Ausgabe vollständig; bei mehr als 2000 Events steht ein Hinweis auf stderr, wie sich die Ausgabe begrenzen lässt. Mit `--from-event` und einem Event, das ohne `--all` nicht sichtbar ist (etwa ein Tool-Ergebnis), beginnt die Ausgabe bei der nächsten Nachricht. Ein leeres Fenster liefert mit `--json` eine leere Liste `"events": []`.
 
@@ -284,19 +297,20 @@ Die JSON-Ausgabe ist die Grundlage für `monthly_stats.py` im Vault:
 
 ### Zeitreihe: `--period`, `--by`, `--top` { #stats-period }
 
-Mit `--period` oder `--by` liefert `stats` statt der drei Tabellen eine Zeitreihe: eine Zeile je Periode und, mit `--by`, je Projekt, Agent-Typ oder Arbeitsverzeichnis. Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`; Periodengrenzen liegen in lokaler Zeit, Wochen sind ISO-Wochen ab Montag. Das ersetzt `monthly_stats.py` im Vault.
+Mit `--period` oder `--by` liefert `stats` statt der drei Tabellen eine Zeitreihe: eine Zeile je Periode und, mit `--by`, je Projekt, Agent-Typ, Arbeitsverzeichnis oder Account. Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`; Periodengrenzen liegen in lokaler Zeit, Wochen sind ISO-Wochen ab Montag. Das ersetzt `monthly_stats.py` im Vault.
 
 ```sh
 total-recall stats --period week --by project --since 2026-08-01 --until 2026-10-31
 total-recall stats --period month --by agent --top 6 --json
 total-recall stats --month 2026-10 --period day --by directory
+total-recall stats --period month --by account --since 2026-09-01
 total-recall stats --period month --since 2026-01-01          # nur je Monat, ohne Aufschlüsselung
 ```
 
 | Option | Bedeutung |
 |---|---|
 | `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0, zuletzt eine Zeile `total` für den ganzen Zeitraum |
-| `--by project\|agent\|directory` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. Subagent-Sessions zählen bei `project` und `directory` zu ihrer Eltern-Session |
+| `--by project\|agent\|directory\|account` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. `account`: der Account, auf dem die Session lief, mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sonst die ID; Sessions ohne Account (vor Claude Code 2.1.317 bzw. vor einem `ingest --reread`) stehen unter `unknown`. Subagent-Sessions zählen bei `project`, `directory` und `account` zu ihrer Eltern-Session |
 | `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
 
 Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt. Den Schluss bilden Zeilen mit der Periode `total`: ohne `--by` eine für den Zeitraum, mit `--by` eine je Schlüssel und eine über alle Schlüssel (KEY `*`).

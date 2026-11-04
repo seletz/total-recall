@@ -94,6 +94,10 @@ extra_patterns = ["foo[0-9]+"]
 [harness.claude.actors]
 peer_prefixes = ["Peer:"]
 peer_paste_headers = ["# Task:", "Auftrag:"]
+[accounts]
+"acc-2" = "private"
+"acc-1" = "work"
+"org-1" = "work"
 `)
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(map[string]string{"PROJ": "p1", "BK": "/b"}), ConfigFile: p})
 	if err != nil {
@@ -114,6 +118,7 @@ peer_paste_headers = ["# Task:", "Auftrag:"]
 		{"redact.enabled", c.Redact.Enabled, true, OriginDefault},
 		{"harness.claude.actors.peer_prefixes", strings.Join(c.Harness.Claude.Actors.PeerPrefixes, ","), "Peer:", OriginFile},
 		{"harness.claude.actors.peer_paste_headers", strings.Join(c.Harness.Claude.Actors.PeerPasteHeaders, ","), "# Task:,Auftrag:", OriginFile},
+		{"accounts", formatAccounts(c.Accounts), `["acc-1" = "work", "acc-2" = "private", "org-1" = "work"]`, OriginFile},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
@@ -125,6 +130,17 @@ peer_paste_headers = ["# Task:", "Auftrag:"]
 	}
 	if c.PathOrigin != OriginFlag {
 		t.Errorf("PathOrigin = %v", c.PathOrigin)
+	}
+	for ref, want := range map[string]string{"work": "acc-1", "private": "acc-2", "acc-1": "acc-1", "acc": "acc", "nope": "nope"} {
+		if got := c.ResolveAccount(ref); got != want {
+			t.Errorf("ResolveAccount(%q) = %q, want %q", ref, got, want)
+		}
+	}
+	if got := c.AccountName("acc-2"); got != "private" {
+		t.Errorf("AccountName(acc-2) = %q", got)
+	}
+	if got := c.AccountName("other"); got != "" {
+		t.Errorf("AccountName(other) = %q", got)
 	}
 }
 
@@ -391,7 +407,7 @@ func TestEntries(t *testing.T) {
 		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.raw_max_bytes", "ingest.store_raw",
 		"harness.claude.enabled", "harness.claude.projects_dir", "harness.claude.skip_record_types",
 		"harness.claude.actors.peer_prefixes", "harness.claude.actors.peer_paste_headers", "harness.claude.actors.automation_prefixes", "git.resolve",
-		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland", "work.count"} {
+		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland", "work.count", "accounts"} {
 		if _, ok := got[k]; !ok {
 			t.Errorf("missing entry %q", k)
 		}

@@ -109,8 +109,10 @@ func (m Model) View() tea.View {
 }
 
 // header is the name (title style) with the ID (muted) on the right, then
-// repo, branch, time span and the counts in the actors' colours. In a
-// narrow window the name wins: the ID is shortened or dropped.
+// repo, branch, time span and the counts in the actors' colours, and, for
+// a session that continues another one or was continued, a third line
+// with those session IDs. In a narrow window the name wins: the ID is
+// shortened or dropped.
 func (m Model) header() string {
 	s := m.session
 	name := s.DisplayName()
@@ -135,7 +137,18 @@ func (m Model) header() string {
 		parts = append(parts, "parent "+s.ParentID)
 	}
 	second := ansi.Truncate(" "+strings.Join(parts, "  "), m.width, "…")
-	return first + "\n" + second
+	var links []string
+	if s.ContinuedFrom != "" {
+		links = append(links, "continued from "+s.ContinuedFrom)
+	}
+	if s.ContinuedIn != "" {
+		links = append(links, "continued in "+s.ContinuedIn)
+	}
+	if len(links) == 0 {
+		return first + "\n" + second
+	}
+	third := ansi.Truncate(" "+strings.Join(links, "  "), m.width, "…")
+	return first + "\n" + second + "\n" + third
 }
 
 // rule is the line between header and transcript; it carries the status:

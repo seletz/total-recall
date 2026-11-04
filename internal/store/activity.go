@@ -56,9 +56,14 @@ const (
 	// DimDirectory groups by cwd. Subagent sessions take the cwd of their
 	// parent session.
 	DimDirectory
+	// DimAccount groups by the account ID of the session (sessions.account_id).
+	// Subagent sessions without an account take their parent's; sessions
+	// without any account fall under UnknownAccountKey. The mapping to a
+	// name is left to the caller.
+	DimAccount
 )
 
-// String returns project, agent or directory.
+// String returns project, agent, directory or account.
 func (d Dimension) String() string {
 	switch d {
 	case DimProject:
@@ -67,24 +72,31 @@ func (d Dimension) String() string {
 		return "agent"
 	case DimDirectory:
 		return "directory"
+	case DimAccount:
+		return "account"
 	}
 	return fmt.Sprintf("Dimension(%d)", int(d))
 }
 
-// ParseDimension returns the Dimension named by s: project, agent or
-// directory.
+// ParseDimension returns the Dimension named by s: project, agent,
+// directory or account.
 func ParseDimension(s string) (Dimension, error) {
-	for _, d := range []Dimension{DimProject, DimAgent, DimDirectory} {
+	for _, d := range []Dimension{DimProject, DimAgent, DimDirectory, DimAccount} {
 		if d.String() == s {
 			return d, nil
 		}
 	}
-	return 0, fmt.Errorf("invalid dimension %q (project, agent, directory)", s)
+	return 0, fmt.Errorf("invalid dimension %q (project, agent, directory, account)", s)
 }
 
 // OtherKey is the key under which ActivitySeries folds the dimension values
 // beyond TopN.
 const OtherKey = "other"
+
+// UnknownAccountKey is the key of DimAccount for sessions without an
+// account (transcripts older than the session-owner record, other
+// harnesses).
+const UnknownAccountKey = "unknown"
 
 // ActivityFilter selects the range, resolution and grouping of ActivitySeries.
 type ActivityFilter struct {
@@ -174,13 +186,21 @@ func periodLabel(start time.Time, p Period) string {
 // activityKey derives the dimension value of a session. Parent columns are
 // empty when the session has no parent or the parent is unknown. dir is
 // true when the key of DimProject is a working directory, not a git root.
-func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parentGitRoot string) (key string, dir bool) {
+func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parentGitRoot, account, parentAccount string) (key string, dir bool) {
 	switch d {
 	case DimAgent:
 		if parentID != "" {
 			return harness + " subagent", false
 		}
 		return harness + " main", false
+	case DimAccount:
+		switch {
+		case account != "":
+			return account, false
+		case parentAccount != "":
+			return parentAccount, false
+		}
+		return UnknownAccountKey, false
 	case DimDirectory:
 		if parentCwd != "" {
 			return parentCwd, false
@@ -218,7 +238,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		return ActivitySeries{}, fmt.Errorf("store: activity: invalid period %s", f.Period)
 	}
 	switch f.Dimension {
-	case DimProject, DimAgent, DimDirectory:
+	case DimProject, DimAgent, DimDirectory, DimAccount:
 	default:
 		return ActivitySeries{}, fmt.Errorf("store: activity: invalid dimension %s", f.Dimension)
 	}
@@ -238,7 +258,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id,
 			s.harness, COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''),
-			COALESCE(p.cwd, ''), COALESCE(p.git_root, '')
+			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(s.account_id, ''), COALESCE(p.account_id, '')
 		FROM events e
 		JOIN sessions s ON s.id = e.session_id
 		LEFT JOIN sessions p ON p.id = s.parent_id
@@ -254,8 +274,8 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	var first, last time.Time
 	for rows.Next() {
 		var tsv sql.NullString
-		var actor, session, harness, parentID, cwd, gitRoot, pcwd, pgitRoot string
-		if err := rows.Scan(&tsv, &actor, &session, &harness, &parentID, &cwd, &gitRoot, &pcwd, &pgitRoot); err != nil {
+		var actor, session, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount string
+		if err := rows.Scan(&tsv, &actor, &session, &harness, &parentID, &cwd, &gitRoot, &pcwd, &pgitRoot, &account, &paccount); err != nil {
 			return ActivitySeries{}, fmt.Errorf("store: activity: %w", err)
 		}
 		t := parseTime(tsv)
@@ -263,7 +283,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 			continue
 		}
 		start := periodStart(t.In(loc), f.Period)
-		key, dir := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot)
+		key, dir := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount)
 		if seen, ok := isDir[key]; !ok || seen {
 			isDir[key] = dir
 		}

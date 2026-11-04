@@ -130,6 +130,10 @@ The `'utc'` modifier interprets the literal in the machine's time zone. Date-onl
 
 Subagents are separate sessions with `parent_id` set and a native id like `agent-a01`. `sessions` hides them unless `--subagents`. Exclude them with `parent_id IS NULL` when counting sessions, but keep them when searching: their events carry the subagent's session id, not the parent's, and the decisive conversation may be there.
 
+### Continuations and accounts
+
+A resumed session is a new session: `continued_in` of the old one holds the full id of the new one (the new one may not be archived yet), and `sessions --json` derives `continued_from` the other way round. Follow the chain with `show` to read a piece of work that spans several sessions. `account_id` and `organization_id` say which harness account the session ran on; `sessions --account NAME|ID` filters by it and `stats --by account` groups by it (names come from the `[accounts]` config, `unknown` is a session without one, i.e. archived before the harness wrote the record). Archives written before schema v4 get both after `total-recall ingest --all --reread`.
+
 ### Computed fields of `sessions --json`
 
 `repo`, `duration_seconds`, `human_events`, `agent_events` and `events` are computed by the command. They are **not** columns of the `sessions` table; `SELECT s.events FROM sessions s` fails with `no such column`. In SQL use `coalesce(git_remote_url, git_root, cwd)`, `julianday(ended_at) - julianday(started_at)` and counts over `events`. `display_name` is a generated column and works in SQL.
@@ -162,6 +166,9 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `model` | last seen model |
 | `started_at` | first event time (UTC) |
 | `ended_at` | last event time (UTC) |
+| `continued_in` | full id of the session this one was continued in, else NULL (the target may be missing) |
+| `account_id` | account the session ran on (Claude: `accountUuid`), else NULL |
+| `organization_id` | organization of that account, else NULL |
 
 #### `events`
 
@@ -240,12 +247,12 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 |---|---|
 | `total-recall status --json` | DB path, size, schema version, counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
-| `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--all-sessions` includes sessions without events |
+| `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
-| `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory] [--top N]` | time series per period, optionally per key |
+| `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory\|account] [--top N]` | time series per period, optionally per key (`account`: configured names, else ids, `unknown` without one) |
 | `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
 | `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell, the issue/PR references of their titles and the user's messages (`refs`) and a booking text (`text`); `--sessions` and `--summary` add them to the text output. Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
@@ -282,6 +289,11 @@ One object per session.
 | `human_events` | computed: count of `actor = 'human'` |
 | `agent_events` | computed: count of `actor = 'agent'` |
 | `events` | computed: count of all events |
+| `continued_in` | column; `null` without a continuation |
+| `continued_from` | computed: the session whose `continued_in` is this one (the latest started, if several); `null` without |
+| `account_id` | column; `null` if unknown |
+| `organization_id` | column; `null` if unknown |
+| `account` | computed: the name `[accounts]` gives `account_id`; `null` without one |
 
 #### `show --json`
 

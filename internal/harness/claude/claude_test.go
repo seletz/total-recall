@@ -168,24 +168,66 @@ func TestParseFixture(t *testing.T) {
 		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
 	}
 
-	// 7 ingested records (permission-mode, session-owner, attachment and continued-in skipped).
-	if len(recs) != 7 {
-		t.Fatalf("records = %d, want 7", len(recs))
+	// 9 ingested records (permission-mode and attachment skipped).
+	if len(recs) != 9 {
+		t.Fatalf("records = %d, want 9", len(recs))
 	}
-	first := sess[0]
+	if owner := sess[0]; owner.ID != "claude:"+sid || owner.AccountID != "acc00000-0000-4000-8000-000000000001" ||
+		owner.OrganizationID != "org00000-0000-4000-8000-000000000001" || !owner.StartedAt.IsZero() || len(recs[0].Events) != 0 {
+		t.Errorf("session-owner record = %+v", recs[0])
+	}
+	first := sess[1]
 	if first.ID != "claude:"+sid || first.Harness != "claude" || first.NativeID != sid ||
 		first.HarnessVersion != "2.1.300" || first.Cwd != "/tmp/demo" || first.GitBranch != "main" ||
 		!first.StartedAt.Equal(time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)) || !first.EndedAt.Equal(first.StartedAt) {
 		t.Errorf("first session = %+v", first)
 	}
-	if sess[1].Model != "test-model-1" {
-		t.Errorf("assistant session model = %q", sess[1].Model)
+	if sess[2].Model != "test-model-1" {
+		t.Errorf("assistant session model = %q", sess[2].Model)
 	}
-	if sess[5].Name != "demo session" || sess[5].ID != "claude:"+sid || len(recs[5].Events) != 0 {
-		t.Errorf("custom-title record = %+v", recs[5])
+	if sess[6].Name != "demo session" || sess[6].ID != "claude:"+sid || len(recs[6].Events) != 0 {
+		t.Errorf("custom-title record = %+v", recs[6])
 	}
-	if sess[6].AgentName != "demo-agent" || sess[6].Name != "" || len(recs[6].Events) != 0 {
-		t.Errorf("agent-name record = %+v", recs[6])
+	if sess[7].AgentName != "demo-agent" || sess[7].Name != "" || len(recs[7].Events) != 0 {
+		t.Errorf("agent-name record = %+v", recs[7])
+	}
+	// continued-in links the session, without events and without touching
+	// its times (the record is written when the session is resumed).
+	if cont := sess[8]; cont.ID != "claude:"+sid || cont.ContinuedIn != "claude:33333333-3333-4333-8333-333333333333" ||
+		!cont.StartedAt.IsZero() || !cont.EndedAt.IsZero() || len(recs[8].Events) != 0 {
+		t.Errorf("continued-in record = %+v", recs[8])
+	}
+}
+
+// TestSessionOwnerAndContinuedIn: the meta records of Claude Code 2.1.317+
+// set session fields and never produce events; incomplete ones set nothing.
+func TestSessionOwnerAndContinuedIn(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want model.Session
+	}{
+		{"owner", `{"type":"session-owner","accountUuid":"acc-1","organizationUuid":"org-1","sessionId":"` + sid + `"}`,
+			model.Session{AccountID: "acc-1", OrganizationID: "org-1"}},
+		{"owner without org", `{"type":"session-owner","accountUuid":"acc-1","sessionId":"` + sid + `"}`,
+			model.Session{AccountID: "acc-1"}},
+		{"continued", `{"type":"continued-in","timestamp":"2026-11-04T07:00:00.000Z","sessionId":"` + sid + `","continuedInSessionId":"bbbbbbbb-0000-4000-8000-000000000002"}`,
+			model.Session{ContinuedIn: "claude:bbbbbbbb-0000-4000-8000-000000000002"}},
+		{"continued without target", `{"type":"continued-in","timestamp":"2026-11-04T07:00:00.000Z","sessionId":"` + sid + `"}`,
+			model.Session{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, "p/"+sid+".jsonl", tt.line+"\n")
+			recs, _ := parseFile(t, New(""), p, 0)
+			if len(recs) != 1 || len(recs[0].Events) != 0 {
+				t.Fatalf("records = %+v", recs)
+			}
+			tt.want.ID, tt.want.Harness, tt.want.NativeID = "claude:"+sid, "claude", sid
+			if got := recs[0].Session; got != tt.want {
+				t.Errorf("session =\n%+v\nwant\n%+v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -450,7 +492,7 @@ func TestParseAITitle(t *testing.T) {
 func TestSkippedRecordTypes(t *testing.T) {
 	types := []string{"attachment", "api-request", "api-request-blob", "api-request-shape", "bridge-session", "last-prompt",
 		"mode", "atis-latch", "permission-mode", "pr-link", "queue-operation", "file-history-snapshot", "file-history-delta",
-		"cost-state", "tools-used", "started", "result", "session-owner", "continued-in", "something-new"}
+		"cost-state", "tools-used", "started", "result", "something-new"}
 	for _, typ := range types {
 		t.Run(typ, func(t *testing.T) {
 			p := writeFile(t, "p/"+sid+".jsonl", `{"type":"`+typ+`","uuid":"z","sessionId":"`+sid+`","message":{"role":"user","content":"x"}}`+"\n")

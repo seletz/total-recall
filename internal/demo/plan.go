@@ -12,12 +12,50 @@ import (
 // session, a subagent.
 type session struct {
 	id        string
+	num       int // running number of a generated session, 0 for a featured one
 	cwd       string
 	title     string // custom title; empty means an AI title
 	ai        string
 	turns     []turn
 	subagents []subagent
+	// account and organization are the IDs of the session-owner record;
+	// empty for sessions before OwnerSince.
+	account, organization string
+	// continuedIn is the session this one was continued in, if any.
+	continuedIn string
 }
+
+// The accounts of the fictional developer: the team account of the
+// organization her projects belong to, and a personal one for the rest.
+// Claude Code writes the session-owner record since 2.1.317, so sessions
+// before OwnerSince carry no account.
+const (
+	AccountTeam          = "aaaaaaaa-0000-4000-8000-00000000000a"
+	AccountPersonal      = "bbbbbbbb-0000-4000-8000-00000000000b"
+	OrganizationTeam     = "cccccccc-0000-4000-8000-00000000000c"
+	OrganizationPersonal = "dddddddd-0000-4000-8000-00000000000d"
+)
+
+// OwnerSince is the first day whose sessions carry an account.
+var OwnerSince = time.Date(2026, 9, 1, 0, 0, 0, 0, Location)
+
+// owner returns the account and organization a session of pr started at
+// t carries: none before OwnerSince, the team account for the projects of
+// the organization, the personal account for the rest.
+func owner(pr *project, t time.Time) (account, organization string) {
+	if t.Before(OwnerSince) {
+		return "", ""
+	}
+	switch pr {
+	case kompass, kompassWorktree, wetterwarte:
+		return AccountTeam, OrganizationTeam
+	}
+	return AccountPersonal, OrganizationPersonal
+}
+
+// continuedEvery is the stride of generated sessions that are continued
+// in the next session of their block: every ninth one.
+const continuedEvery = 9
 
 // subagent is a session spawned by a main session, with its agent name.
 type subagent struct {
@@ -121,6 +159,7 @@ func plan() []session {
 		for i := range s.turns {
 			s.turns[i].ids = p.turnIDs(len(s.turns[i].tools))
 		}
+		s.account, s.organization = owner(kompass, s.turns[0].at)
 		out = append(out, s)
 	}
 	return out
@@ -223,11 +262,22 @@ func (p *planner) sessions(b block) []session {
 		dur := time.Duration(p.r.between(25, 110)) * time.Minute
 		gap := time.Duration(p.r.between(5, 40)) * time.Minute
 		if cur.Add(dur + gap + 20*time.Minute).After(b.end) {
-			return append(out, p.session(cur, b.end.Sub(cur)))
+			out = append(out, p.session(cur, b.end.Sub(cur)))
+			break
 		}
 		out = append(out, p.session(cur, dur))
 		cur = cur.Add(dur + gap)
 	}
+	// Every continuedEvery-th session is resumed as the next session of
+	// the block, so the archive has continuation chains; a continuation
+	// starts after the session it continues has ended.
+	for i := range len(out) - 1 {
+		last := out[i].turns[len(out[i].turns)-1]
+		if out[i].num%continuedEvery == 0 && out[i+1].turns[0].at.After(last.at.Add(last.replyAt)) {
+			out[i].continuedIn = out[i+1].id
+		}
+	}
+	return out
 }
 
 // session invents one conversation from start lasting dur: the turns are
@@ -239,7 +289,8 @@ func (p *planner) session(start time.Time, dur time.Duration) session {
 		pr = weighted(r, projects)
 	}
 	p.ids++
-	s := session{id: fmt.Sprintf("%08x-%04x-4000-8000-%012x", 0x7d1e0000+p.ids, p.ids, p.ids), cwd: pr.cwd}
+	s := session{id: fmt.Sprintf("%08x-%04x-4000-8000-%012x", 0x7d1e0000+p.ids, p.ids, p.ids), num: p.ids, cwd: pr.cwd}
+	s.account, s.organization = owner(pr, start)
 	n := p.titles[pr.key]
 	p.titles[pr.key] = n + 1
 	if n%6 == 5 {

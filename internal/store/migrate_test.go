@@ -34,6 +34,10 @@ var sampleRows = []string{
 	`INSERT INTO sessions (id, harness, native_id, name, agent_name, cwd, git_remote_url, started_at, ended_at)
 		VALUES ('claude:s1', 'claude', 's1', 'Title', 'agent', '/w', 'https://github.com/o/r',
 			'2026-10-01T10:00:00.000Z', '2026-10-01T11:00:00.000Z')`,
+	// s0 is the session s1 continues (migration 4 adds the link columns;
+	// the test sets them after migrating).
+	`INSERT INTO sessions (id, harness, native_id, name, cwd, started_at, ended_at)
+		VALUES ('claude:s0', 'claude', 's0', 'Earlier', '/w', '2026-09-30T10:00:00.000Z', '2026-09-30T11:00:00.000Z')`,
 	`INSERT INTO events (id, session_id, ts, kind, role, actor, text, source_path, source_offset, raw)
 		VALUES ('claude:e1', 'claude:s1', '2026-10-01T10:00:00.000Z', 'message', 'user', 'human',
 			'hello migration world', '/p/a.jsonl', 0, '{}')`,
@@ -87,6 +91,30 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			}
 			if _, err := s.Session(ctx, "claude:s1"); err != nil {
 				t.Errorf("Session after migration: %v", err)
+			}
+			// Migration 4: the link and account columns are usable and indexed,
+			// and the reverse link is derived from them.
+			if _, err := s.db.ExecContext(ctx, `UPDATE sessions SET continued_in = 'claude:s1', account_id = 'acc-1',
+				organization_id = 'org-1' WHERE id = 'claude:s0'`); err != nil {
+				t.Fatalf("set v4 columns: %v", err)
+			}
+			v4 := map[string]int{
+				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name IN ('sessions_continued_in', 'sessions_account_id')": 2,
+				"SELECT count(*) FROM sessions WHERE continued_in IS NULL AND account_id IS NULL AND organization_id IS NULL":          1,
+			}
+			for q, want := range v4 {
+				if got := countRows(t, s, q); got != want {
+					t.Errorf("%s = %d, want %d", q, got, want)
+				}
+			}
+			if si, err := s.Session(ctx, "claude:s1"); err != nil || si.ContinuedFrom != "claude:s0" {
+				t.Errorf("s1 after migration: continued_from %q (%v), want claude:s0", si.ContinuedFrom, err)
+			}
+			if si, err := s.Session(ctx, "claude:s0"); err != nil || si.ContinuedIn != "claude:s1" || si.AccountID != "acc-1" || si.OrganizationID != "org-1" {
+				t.Errorf("s0 after migration: %+v (%v)", si.Session, err)
+			}
+			if list, err := s.Sessions(ctx, SessionFilter{Account: "acc"}); err != nil || ids(list) != "claude:s0" {
+				t.Errorf("Sessions by account after migration = %q (%v)", ids(list), err)
 			}
 
 			bak := fmt.Sprintf("%s.pre-v%d.bak", p, k)

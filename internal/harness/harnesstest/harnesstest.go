@@ -170,6 +170,9 @@ func checkEventFields(t testing.TB, f Factory, dir string) {
 			if r.Session.ParentID != "" && !strings.HasPrefix(r.Session.ParentID, prefix) {
 				t.Errorf("%s: parent ID %q lacks prefix %q", p, r.Session.ParentID, prefix)
 			}
+			if r.Session.ContinuedIn != "" && !strings.HasPrefix(r.Session.ContinuedIn, prefix) {
+				t.Errorf("%s: continued-in ID %q lacks prefix %q", p, r.Session.ContinuedIn, prefix)
+			}
 			if r.Session.ID != "" && r.Session.Harness != "" && r.Session.Harness != a.Name() {
 				t.Errorf("%s: session harness %q, want %q", p, r.Session.Harness, a.Name())
 			}

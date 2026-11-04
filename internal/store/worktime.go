@@ -70,7 +70,7 @@ func (s *Store) HumanEvents(ctx context.Context, f HumanEventsFilter) ([]HumanEv
 		if pgitRoot != "" || pcwd != "" {
 			remote = premote
 		}
-		key, dir := activityKey(DimProject, "", parentID, cwd, gitRoot, pcwd, pgitRoot)
+		key, dir := activityKey(DimProject, "", parentID, cwd, gitRoot, pcwd, pgitRoot, "", "")
 		if dir {
 			remote = ""
 		}

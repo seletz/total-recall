@@ -76,6 +76,14 @@ type Session struct {
 	GitRemoteURL   string
 	GitBranch      string
 	Model          string
+	// ContinuedIn is the session this one was continued in (Claude:
+	// continued-in record), as a full session ID; empty if none is known.
+	// The target session may be ingested later or never.
+	ContinuedIn string
+	// AccountID and OrganizationID identify the account the session ran on
+	// (Claude: session-owner record); empty if unknown.
+	AccountID      string
+	OrganizationID string
 	StartedAt      time.Time
 	EndedAt        time.Time
 }

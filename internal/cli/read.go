@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -201,8 +202,8 @@ Lines about transcripts that did not exist yet never count as errors.`,
 
 // filterFlags are the session filters shared by sessions and search.
 type filterFlags struct {
-	since, until, repo, harness, name string
-	limit                             int
+	since, until, repo, harness, name, account string
+	limit                                      int
 }
 
 func (f *filterFlags) register(c *cobra.Command, defaultLimit int) {
@@ -212,10 +213,13 @@ func (f *filterFlags) register(c *cobra.Command, defaultLimit int) {
 	fl.StringVar(&f.repo, "repo", "", "repo substring (remote URL, git root or cwd)")
 	fl.StringVar(&f.harness, "harness", "", "harness name, e.g. claude")
 	fl.StringVar(&f.name, "name", "", "session name substring")
+	fl.StringVar(&f.account, "account", "", "account: a name from [accounts], an account ID or a prefix of it")
 	fl.IntVar(&f.limit, "limit", defaultLimit, "maximum number of results (0 = no limit)")
 }
 
-func (f *filterFlags) filter(loc *time.Location) (store.SessionFilter, error) {
+// filter builds the store filter; cfg resolves an account name.
+func (f *filterFlags) filter(cfg *config.Config) (store.SessionFilter, error) {
+	loc := cfg.Location()
 	since, err := parseTimeArg(f.since, loc, false)
 	if err != nil {
 		return store.SessionFilter{}, err
@@ -224,7 +228,8 @@ func (f *filterFlags) filter(loc *time.Location) (store.SessionFilter, error) {
 	if err != nil {
 		return store.SessionFilter{}, err
 	}
-	return store.SessionFilter{Since: since, Until: until, Repo: f.repo, Harness: f.harness, Name: f.name, Limit: f.limit}, nil
+	return store.SessionFilter{Since: since, Until: until, Repo: f.repo, Harness: f.harness, Name: f.name,
+		Account: cfg.ResolveAccount(f.account), Limit: f.limit}, nil
 }
 
 // SessionJSON is a session in JSON output. Every key is always present;
@@ -251,16 +256,39 @@ type SessionJSON struct {
 	HumanEvents     int        `json:"human_events"`
 	AgentEvents     int        `json:"agent_events"`
 	Events          int        `json:"events"`
+	// ContinuedIn is the session this one was continued in, ContinuedFrom
+	// the session that was continued in this one (both full IDs; the
+	// target of ContinuedIn may not be archived).
+	ContinuedIn   NullString `json:"continued_in"`
+	ContinuedFrom NullString `json:"continued_from"`
+	// AccountID and OrganizationID are the IDs the harness reported;
+	// Account is the name [accounts] gives the account ID, null without one.
+	AccountID      NullString `json:"account_id"`
+	OrganizationID NullString `json:"organization_id"`
+	Account        NullString `json:"account"`
 }
 
-func sessionJSON(s store.SessionInfo) SessionJSON {
+// sessionJSON converts a session; accountName maps an account ID to its
+// configured name ("" without one).
+func sessionJSON(s store.SessionInfo, accountName func(string) string) SessionJSON {
 	return SessionJSON{ID: s.ID, Harness: s.Harness, NativeID: s.NativeID, ParentID: NullString(s.ParentID),
 		DisplayName: NullString(s.DisplayName()), Name: NullString(s.Name), AITitle: NullString(s.AITitle), AgentName: NullString(s.AgentName),
 		Cwd: NullString(s.Cwd), GitRoot: NullString(s.GitRoot), GitRemoteURL: NullString(s.GitRemoteURL), Repo: NullString(s.Repo()),
 		GitBranch: NullString(s.GitBranch), Model: NullString(s.Model), HarnessVersion: NullString(s.HarnessVersion),
 		StartedAt: NullString(isoTime(s.StartedAt)), EndedAt: NullString(isoTime(s.EndedAt)),
 		DurationSeconds: int64(s.EndedAt.Sub(s.StartedAt).Seconds()),
-		HumanEvents:     s.HumanEvents, AgentEvents: s.AgentEvents, Events: s.Events}
+		HumanEvents:     s.HumanEvents, AgentEvents: s.AgentEvents, Events: s.Events,
+		ContinuedIn: NullString(s.ContinuedIn), ContinuedFrom: NullString(s.ContinuedFrom),
+		AccountID: NullString(s.AccountID), OrganizationID: NullString(s.OrganizationID), Account: NullString(accountName(s.AccountID))}
+}
+
+// accountLabel formats an account or organization ID for text output: the
+// configured name with the ID in parentheses, else the ID.
+func accountLabel(id string, accountName func(string) string) string {
+	if n := accountName(id); n != "" {
+		return n + " (" + id + ")"
+	}
+	return id
 }
 
 // shortID is a reference accepted by show (unique prefix of the native ID).
@@ -289,7 +317,7 @@ func (e *env) sessionsCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		sf, err := f.filter(cfg.Location())
+		sf, err := f.filter(cfg)
 		if err != nil {
 			return err
 		}
@@ -307,7 +335,7 @@ func (e *env) sessionsCmd() *cobra.Command {
 		if o.format.IsJSON() {
 			out := make([]SessionJSON, 0, len(list))
 			for _, s := range list {
-				out = append(out, sessionJSON(s))
+				out = append(out, sessionJSON(s, cfg.AccountName))
 			}
 			return writeList(o, out)
 		}
@@ -430,7 +458,7 @@ window.`,
 			_, _ = fmt.Fprintf(e.app.Stderr, "show: %d events; bound the output with --since/--until, --limit (and --offset) or --from-event EVENT_ID\n", len(evs))
 		}
 		if o.format.IsJSON() {
-			out := ShowJSON{Session: sessionJSON(s), Events: make([]EventJSON, 0, len(evs))}
+			out := ShowJSON{Session: sessionJSON(s, cfg.AccountName), Events: make([]EventJSON, 0, len(evs))}
 			for _, ev := range evs {
 				out.Events = append(out.Events, eventJSON(ev))
 			}
@@ -453,6 +481,18 @@ window.`,
 		}
 		if s.ParentID != "" {
 			hdr = append(hdr, []string{"parent", s.ParentID})
+		}
+		if s.ContinuedFrom != "" {
+			hdr = append(hdr, []string{"continued from", s.ContinuedFrom})
+		}
+		if s.ContinuedIn != "" {
+			hdr = append(hdr, []string{"continued in", s.ContinuedIn})
+		}
+		if s.AccountID != "" {
+			hdr = append(hdr, []string{"account", accountLabel(s.AccountID, cfg.AccountName)})
+		}
+		if s.OrganizationID != "" {
+			hdr = append(hdr, []string{"organization", accountLabel(s.OrganizationID, cfg.AccountName)})
 		}
 		if err := table(w, nil, hdr); err != nil {
 			return err
@@ -537,7 +577,7 @@ first hit, oldest session first (--order hits for most hits first).`,
 		if err != nil {
 			return err
 		}
-		sf, err := f.filter(cfg.Location())
+		sf, err := f.filter(cfg)
 		if err != nil {
 			return err
 		}
@@ -708,8 +748,9 @@ repository and per weekday × hour. Default range: the current month.
 
 With --period or --by the output is a time series instead: one row per
 period (day, week or month, local time) and, with --by, per project, agent
-type (main or subagent) or working directory. --top N keeps the N largest
-keys over the whole range and folds the rest into "other".
+type (main or subagent), working directory or account (named by [accounts]).
+--top N keeps the N largest keys over the whole range and folds the rest
+into "other".
 
 With --workday the output is the first and the last activity per day (for
 filling in forgotten clock-ins): one row per day with the local clock times
@@ -812,9 +853,9 @@ messages: the values are a lower bound.`,
 				return err
 			}
 			if o.format.IsJSON() {
-				return o.object(seriesJSON(as, opts, keyNames(as, opts, ""), since, until, cfg.Timezone))
+				return o.object(seriesJSON(as, opts, keyNames(as, opts, "", cfg.Accounts), since, until, cfg.Timezone))
 			}
-			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home), since, until, cfg.Timezone))
+			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home, cfg.Accounts), since, until, cfg.Timezone))
 		}
 		s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
 		if err != nil {
