@@ -9,9 +9,11 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/theme"
+	"github.com/seletz/total-recall/internal/tui/zone"
 )
 
 // Chrome rows: header line and rule above the body, rule and footer below.
@@ -117,16 +119,29 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return a.forward(msg)
 }
 
-// mouse routes a click or wheel turn: the help overlay swallows it, a click
-// on a tab switches the view (and closes the detail), anything in the body
-// goes to the current view with the header rows subtracted (shift builds
-// the message with the new row), the rest of the chrome drops it.
+// mouse routes a click or wheel turn. A left click on a key hint in the
+// footer presses that key, so it does exactly what the key does, in every
+// state. While the help is open, a click outside its panel closes it and
+// everything else is swallowed. A click on a tab switches the view (and
+// closes the detail). Anything in the body goes to the current view with
+// the header rows subtracted (shift builds the message with the new row);
+// the rest of the chrome drops it.
 func (a App) mouse(msg tea.MouseMsg, shift func(y int) tea.Msg) (tea.Model, tea.Cmd) {
-	if a.help {
-		return a, nil
-	}
 	m := msg.Mouse()
-	if _, click := msg.(tea.MouseClickMsg); click && m.Y == 0 && m.Button == tea.MouseLeft {
+	_, click := msg.(tea.MouseClickMsg)
+	left := click && m.Button == tea.MouseLeft
+	switch {
+	case left && m.Y == a.height-1:
+		if k, ok := a.hintAt(m.X); ok {
+			return a.key(keys.Press(k))
+		}
+		return a, nil
+	case a.help:
+		if _, r := a.helpPanel(); left && !r.Contains(m.X, m.Y-headerRows) {
+			a.help = false
+		}
+		return a, nil
+	case left && m.Y == 0:
 		if i := a.tabAt(m.X); i >= 0 {
 			a.active, a.showDetail = i, false
 		}
@@ -205,7 +220,7 @@ func (a App) View() tea.View {
 	bv := a.current().View()
 	content := bv.Content
 	if a.help {
-		content = a.helpView()
+		content, _ = a.helpPanel()
 	} else if bv.Cursor != nil {
 		// The view positions its cursor within the body; shift it below
 		// the header and the rule.
@@ -215,8 +230,9 @@ func (a App) View() tea.View {
 	}
 	bodyStyle := lipgloss.NewStyle().Width(body.Width).Height(body.Height).MaxWidth(body.Width).MaxHeight(body.Height)
 	rule := a.th.Rule.Render(strings.Repeat("─", a.width))
+	footer, _ := a.footer()
 	v.Content = lipgloss.JoinVertical(lipgloss.Left,
-		a.header(), rule, bodyStyle.Render(content), rule, a.footer())
+		a.header(), rule, bodyStyle.Render(content), rule, footer)
 	return v
 }
 
@@ -265,14 +281,26 @@ func (a App) tabAt(x int) int {
 	return -1
 }
 
-// footer shows the short help of the current view followed by the global
-// keys. The help widget drops items that do not fit, but keeps adding them
-// once there is no room for its ellipsis either, so the line is cut here
-// as well.
-func (a App) footer() string {
-	h := help.New()
-	h.Styles = a.th.Help()
-	h.SetWidth(a.width - 1)
+// hint is one clickable part of a key hint in the footer: the key it
+// presses and the columns it takes.
+type hint struct {
+	key  string
+	span zone.Span
+}
+
+// footerSeparator stands between the key hints of the footer.
+const footerSeparator = " • "
+
+// footer renders the short help of the current view followed by the global
+// keys as one line, and returns the hints with their columns, so a click
+// lands on what is shown. The layout is that of the help widget's short
+// help: key, space, description, the hints separated by footerSeparator;
+// a hint that does not fit is replaced by an ellipsis unless not even the
+// ellipsis fits, and the line is cut to the width in any case. Every key
+// of a hint with several keys ("d/w/m period") is a part of its own and
+// the description inert; a hint with one key is clickable as a whole.
+func (a App) footer() (string, []hint) {
+	st := a.th.Help()
 	bindings := a.keys.ShortHelp()
 	switch f, ok := a.current().(Focused); {
 	case a.help:
@@ -283,12 +311,76 @@ func (a App) footer() string {
 	default:
 		bindings = append(a.current().ShortHelp(), bindings...)
 	}
-	return ansi.Truncate(" "+h.ShortHelpView(bindings), a.width, "…")
+	limit := a.width - 1
+	sep := st.ShortSeparator.Inline(true).Render(footerSeparator)
+	var b strings.Builder
+	var hints []hint
+	total := 0 // columns after the leading space
+	for _, kb := range bindings {
+		if !kb.Enabled() {
+			continue
+		}
+		item := st.ShortKey.Inline(true).Render(kb.Help().Key) + " " + st.ShortDesc.Inline(true).Render(kb.Help().Desc)
+		sepW := 0
+		if total > 0 {
+			item, sepW = sep+item, lipgloss.Width(sep)
+		}
+		w := lipgloss.Width(item)
+		if limit > 0 && total+w > limit && total+2 < limit {
+			b.WriteString(" " + st.Ellipsis.Inline(true).Render("…"))
+			break
+		}
+		hints = append(hints, hintsOf(kb, 1+total+sepW, 1+total+w)...)
+		total += w
+		b.WriteString(item)
+	}
+	line := " " + b.String()
+	if lipgloss.Width(line) > a.width {
+		// The ellipsis takes the last column.
+		line = ansi.Truncate(line, a.width, "…")
+		for i := range hints {
+			hints[i].span = hints[i].span.Clip(max(a.width-1, 0))
+		}
+	}
+	return line, hints
 }
 
-// helpView renders every binding of the current view and the app as a
-// centred panel with a rounded border in the accent colour.
-func (a App) helpView() string {
+// hintsOf splits one key hint into its clickable parts between the
+// columns start and end: the keys it names, one after the other, and the
+// description (which presses the key when there is only one).
+func hintsOf(kb key.Binding, start, end int) []hint {
+	shown := keys.Shown(kb)
+	if len(shown) == 0 {
+		return nil
+	}
+	if len(shown) == 1 {
+		return []hint{{key: shown[0], span: zone.Span{Start: start, End: end}}}
+	}
+	out := make([]hint, len(shown))
+	x := start
+	for i, k := range shown {
+		w := lipgloss.Width(keys.Display(k))
+		out[i] = hint{key: k, span: zone.Span{Start: x, End: x + w}}
+		x += w + 1 // the slash
+	}
+	return out
+}
+
+// hintAt returns the key of the hint at column x of the footer.
+func (a App) hintAt(x int) (string, bool) {
+	_, hints := a.footer()
+	for _, h := range hints {
+		if h.span.Contains(x) {
+			return h.key, true
+		}
+	}
+	return "", false
+}
+
+// helpPanel renders every binding of the current view and the app as a
+// centred panel with a rounded border in the accent colour, and returns
+// the body content and the rectangle the panel takes in it.
+func (a App) helpPanel() (string, zone.Rect) {
 	h := help.New()
 	h.Styles = a.th.Help()
 	h.ShowAll = true
@@ -298,7 +390,10 @@ func (a App) helpView() string {
 		a.th.Muted.Render(a.keys.Back.Help().Key+" or "+a.keys.Help.Help().Key+" closes this help"))
 	box := a.th.Border.Border(lipgloss.RoundedBorder()).Padding(0, 1).Render(panel)
 	body := a.bodySize()
-	return lipgloss.Place(body.Width, body.Height, lipgloss.Center, lipgloss.Center, box)
+	// lipgloss.Place centres with the smaller half of the gap in front.
+	r := zone.Rect{W: lipgloss.Width(box), H: lipgloss.Height(box)}
+	r.X, r.Y = max(body.Width-r.W, 0)/2, max(body.Height-r.H, 0)/2
+	return lipgloss.Place(body.Width, body.Height, lipgloss.Center, lipgloss.Center, box), r
 }
 
 func itoa(i int) string { return string(rune('0' + i)) }

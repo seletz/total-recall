@@ -35,6 +35,7 @@ package activity
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
+	"github.com/seletz/total-recall/internal/tui/zone"
 )
 
 // MinBarWidth is the narrowest time axis drawn; below it the rows show the
@@ -177,6 +179,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.key(msg)
+	case tea.MouseClickMsg:
+		return m.click(msg)
 	case tea.MouseWheelMsg:
 		if m.opts.Loader == nil {
 			return m, nil
@@ -228,6 +232,32 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.up()
 	case key.Matches(msg, k.Down):
 		return m.down()
+	}
+	return m, nil
+}
+
+// click handles a left click: on the switches line a period name sets the
+// window like its key and a counting mode switches to it (like h, when it
+// is not the active one); on the summary figures it hides them like s.
+// Clicks elsewhere do nothing, so do clicks without a database.
+func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+	if msg.Button != tea.MouseLeft || m.opts.Loader == nil {
+		return m, nil
+	}
+	if msg.Y == 0 {
+		_, periods, counts := m.switches()
+		if i := zone.At(periods, msg.X); i >= 0 {
+			return m.setSpan(m.span.withPeriod(periodValues[i]))
+		}
+		if i := zone.At(counts, msg.X); i >= 0 && (i == 1) != m.humanOnly {
+			m.humanOnly = !m.humanOnly
+			return m.load()
+		}
+		return m, nil
+	}
+	if first := m.height - 1 - figureRows; m.showFigures() && msg.Y >= first && msg.Y < first+figureRows {
+		m.figures = false
+		m.clampOffset()
 	}
 	return m, nil
 }
@@ -400,7 +430,8 @@ func (m Model) View() tea.View {
 		return tea.NewView("")
 	}
 	line := func(s string) string { return ansi.Truncate(s, m.width, "…") }
-	parts := []string{line(m.switches())}
+	switches, _, _ := m.switches()
+	parts := []string{switches}
 	if m.showHeadline() {
 		parts = append(parts, line(" "+m.headline()))
 	}
@@ -431,32 +462,36 @@ func (m Model) View() tea.View {
 	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
+// Names and values of the switches, in the order shown; the counting
+// modes are all events (index 0) and own messages only (index 1).
+var (
+	periodNames  = []string{"day", "week", "month"}
+	periodValues = []store.Period{store.PeriodDay, store.PeriodWeek, store.PeriodMonth}
+	countNames   = []string{"all", "human"}
+)
+
 // switches is the top line: the period and the counting mode with the
-// active value in brackets, and the window on the right.
-func (m Model) switches() string {
-	periods := []string{"day", "week", "month"}
-	counts := []string{"all", "human"}
+// active value in brackets, and the window on the right. It returns the
+// columns of every period and counting mode name, clipped like the line,
+// so a click lands on what is shown.
+func (m Model) switches() (string, []zone.Span, []zone.Span) {
 	active := 0
 	if m.humanOnly {
 		active = 1
 	}
-	left := " period: " + m.toggles(periods, int(m.span.period())) + "  count: " + m.toggles(counts, active)
+	left := " period: "
+	periods, pSpans := zone.Toggles(m.styles.active, periodNames, slices.Index(periodValues, m.span.period()), lipgloss.Width(left))
+	left += periods + "  count: "
+	counts, cSpans := zone.Toggles(m.styles.active, countNames, active, lipgloss.Width(left))
+	left += counts
 	right := m.windowLabel()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	return left + strings.Repeat(" ", gap) + right
-}
-
-// toggles joins the names, the active one in brackets and the active
-// style of the theme.
-func (m Model) toggles(names []string, active int) string {
-	out := make([]string, len(names))
-	for i, n := range names {
-		if i == active {
-			n = m.styles.active.Render("[" + n + "]")
-		}
-		out[i] = n
+	line := left + strings.Repeat(" ", gap) + right
+	if lipgloss.Width(line) > m.width {
+		line = ansi.Truncate(line, m.width, "…")
+		pSpans, cSpans = zone.Clip(pSpans, max(m.width-1, 0)), zone.Clip(cSpans, max(m.width-1, 0))
 	}
-	return strings.Join(out, " ")
+	return line, pSpans, cSpans
 }
 
 // windowLabel names the window: its relation to now when it is the

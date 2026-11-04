@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"charm.land/bubbles/v2/key"
 )
 
 // optionKeys need ⌥ on a German Mac keyboard; no action may depend on one.
@@ -245,4 +247,53 @@ func recoverPanic(f func()) (v any, ok bool) {
 	}()
 	f()
 	return nil, false
+}
+
+// TestPress checks that a synthesised key press matches its binding: the
+// name Bubble Tea prints for it is the key name again, for every default
+// key of the catalogue and the modifiers of the configuration.
+func TestPress(t *testing.T) {
+	names := []string{"ctrl+r", "alt+x", "shift+tab", "ctrl+shift+up", "ctrl+c", "space", "pgdown", "f5", "G", "ü"}
+	for _, a := range Actions {
+		names = append(names, a.Keys...)
+	}
+	for _, name := range names {
+		if got := Press(name).String(); got != name {
+			t.Errorf("Press(%q).String() = %q", name, got)
+		}
+	}
+	if k := Press("a"); k.Text != "a" {
+		t.Errorf("Press(a).Text = %q, want the character, so a text input inserts it", k.Text)
+	}
+	if k := Press("ctrl+a"); k.Text != "" {
+		t.Errorf("Press(ctrl+a).Text = %q, want empty", k.Text)
+	}
+}
+
+// TestShown checks that the keys a binding names in its help text are
+// found again: every key of a single action, the first key of every action
+// of a group.
+func TestShown(t *testing.T) {
+	m := Defaults()
+	tests := []struct {
+		name string
+		b    key.Binding
+		want []string
+	}{
+		{"one key", m.Binding(GlobalBack), []string{"esc"}},
+		{"several keys", m.Binding(SessionUp), []string{"up", "k"}},
+		{"ctrl", m.Binding(SearchRaw), []string{"ctrl+r"}},
+		{"group", m.Group("period", StatsDays, StatsWeeks, StatsMonths), []string{"d", "w", "m"}},
+		{"group of multi-key actions", m.Group("scroll", SessionUp, SessionDown), []string{"up", "down"}},
+		{"group with range", m.Group("range", StatsEarlier, StatsLater, StatsZoomOut, StatsZoomIn), []string{"left", "right", "-", "+"}},
+		{"force quit", ForceQuit, []string{"ctrl+c"}},
+		{"slash key", key.NewBinding(key.WithKeys("/", "x"), key.WithHelp("//x", "find")), []string{"/", "x"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Shown(tt.b); !slices.Equal(got, tt.want) {
+				t.Errorf("Shown = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
