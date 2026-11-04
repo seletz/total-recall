@@ -28,7 +28,7 @@ Auf macOS ohne coreutils: `shasum -a 256 --ignore-missing -c checksums-v1.0.0.tx
 
 Jedes Archiv hat eine Software Bill of Materials im Format [CycloneDX](https://cyclonedx.org/) 1.6 als JSON: die Liste aller Go-Module, die in genau dieses Binary gelinkt sind, mit Version und Hash, dazu die Go-Toolchain und die Build-Einstellungen. Die Module unterscheiden sich je Plattform (Linux und macOS linken verschiedene Systemschichten), deshalb gibt es eine SBOM je Archiv.
 
-Erzeugt wird sie mit [cyclonedx-gomod](https://github.com/CycloneDX/cyclonedx-gomod) im Modus `bin` aus dem fertigen Binary, nicht aus dem Quellcode: Die Modulliste ist die, die der Go-Linker in das Binary geschrieben hat. Die Version des Werkzeugs ist in `mise.toml` festgelegt und in der CI dieselbe.
+Erzeugt wird sie mit [cyclonedx-gomod](https://github.com/CycloneDX/cyclonedx-gomod) im Modus `bin` aus dem fertigen Binary, nicht aus dem Quellcode: Die Modulliste ist die, die der Go-Linker in das Binary geschrieben hat. Die Version des Werkzeugs ist in `mise.toml` festgelegt und in der CI dieselbe, siehe [Werkzeuge des Release-Laufs](#werkzeuge-des-release-laufs).
 
 Aufbau der Datei:
 
@@ -153,9 +153,45 @@ Das `-i` von `base64` ist die macOS-Schreibweise; auf Linux `base64 -w0 datei`. 
 
 Das Developer-ID-Zertifikat gilt fünf Jahre, der Zeitstempel hält bestehende Signaturen darüber hinaus gültig. Ein neues Zertifikat heißt nur `MACOS_SIGN_P12` und `MACOS_SIGN_PASSWORD` neu setzen; die API-Keys verfallen nicht, lassen sich aber in App Store Connect widerrufen.
 
+## Werkzeuge des Release-Laufs
+
+Die Werkzeuge, die ein Release bauen, sind auf feste Versionen gepinnt, damit Release, signierter Snapshot und CI reproduzierbar dasselbe tun, und ihr Download wird geprüft.
+
+| Werkzeug | Version | Festgelegt in | Prüfung des Downloads |
+|---|---|---|---|
+| goreleaser | 2.19.0 | `mise.toml` (`[tools]`), in den Workflows `version: v2.19.0` | Prüfsumme und Sigstore-Signatur mit cosign |
+| cosign | Standard von `sigstore/cosign-installer@v4.1.2` (3.0.6) | Workflows | SHA-256 aus der Action selbst |
+| cyclonedx-gomod | 1.12.0 | `mise.toml` (Task `release:snapshot`), in den Workflows `go install …@v1.12.0` | Go-Checksummendatenbank (`go install`) |
+| quill | 0.7.1 | `signed-snapshot.yml` (`go install …@v0.7.1`); goreleaser signiert mit quill als eingebauter Bibliothek | Go-Checksummendatenbank (`go install`) |
+
+Maßgeblich ist `mise.toml`: `goreleaser = "2.19.0"` unter `[tools]` und der cyclonedx-gomod-Pin am Task `release:snapshot`. `mise run tools:check` (Skript `scripts/tool-versions-check.sh`) prüft, dass jeder `goreleaser-action`-Schritt in `.github/workflows/` dieselbe Version pinnt, jedes `go install` von cyclonedx-gomod denselben Tag nennt und jeder Workflow mit goreleaser cosign zuvor installiert; die CI führt den Check bei jedem Pull Request aus. Eine neue goreleaser-Version heißt also: `mise.toml` und die vier `version:`-Zeilen ändern, sonst schlägt der Check fehl. Vorher lokal `goreleaser check` mit der neuen Version laufen lassen und bei Änderungen am Signieren einen [signierten Snapshot](#signatur-ohne-release-testen) bauen.
+
+### Signatur des goreleaser-Downloads
+
+`goreleaser/goreleaser-action` lädt das goreleaser-Archiv von GitHub und vergleicht es mit `checksums.txt` desselben Releases. Diese Checksummen-Datei ist von goreleasers Release-Workflow mit Sigstore signiert (`checksums.txt.sigstore.json`), die Action prüft die Signatur aber nur, wenn `cosign` im `PATH` liegt; sonst steht im Log `cosign not found in PATH, skipping signature verification`, und das Werkzeug, das unsere Binaries baut, signiert und notarisiert, wäre selbst nicht kryptografisch verifiziert. Deshalb läuft vor jedem goreleaser-Schritt `sigstore/cosign-installer`, gepinnt auf v4.1.2; die Action installiert die in ihr hinterlegte cosign-Version und prüft deren SHA-256 gegen eine Liste in der Action selbst.
+
+Mit cosign ruft die Action (Quelltext `src/goreleaser.ts`, `verifyCosignSignature`) auf:
+
+```sh
+cosign verify-blob \
+  --certificate-identity https://github.com/goreleaser/goreleaser/.github/workflows/release.yml@refs/tags/v2.19.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --bundle checksums.txt.sigstore.json checksums.txt
+```
+
+Die Identität bindet die Signatur an den Release-Workflow von goreleaser für genau den gepinnten Tag. Schlägt die Prüfung fehl, endet `cosign` mit Exit-Code ungleich null, und die Action bricht ab, weil sie das Kommando über `exec.exec` aus dem GitHub-Actions-Toolkit ohne `ignoreReturnCode` aufruft; der Lauf bleibt also ohne goreleaser stehen. Nur ein fehlender Download des Bundles wird als Warnung durchgereicht und fällt auf die reine Prüfsummenprüfung zurück. Im Log eines erfolgreichen Laufs stehen nacheinander:
+
+```
+Checksum verified for goreleaser_Linux_x86_64.tar.gz
+Verifying checksums.txt signature with cosign (identity: https://github.com/goreleaser/goreleaser/.github/workflows/release.yml@refs/tags/v2.19.0)
+cosign signature verified
+```
+
+Lokal installiert mise goreleaser über seine aqua-Registry in derselben Version 2.19.0, sodass `mise run release:snapshot` und `goreleaser check` dasselbe Werkzeug nutzen wie der Release-Lauf.
+
 ## Release durchführen
 
 1. Abschnitt `## <tag>` in [Änderungen](90-aenderungen.md) anlegen oder den Zusatz „(unveröffentlicht)“ entfernen; `scripts/release.sh` taggt sonst nicht, und der Workflow bricht ohne Abschnitt ab.
-2. `mise run sbom:check` lokal: baut den Snapshot und prüft die SBOMs so, wie es die CI tut.
+2. `mise run sbom:check` lokal: baut den Snapshot und prüft die SBOMs so, wie es die CI tut; `mise run tools:check` prüft die [Werkzeug-Pins](#werkzeuge-des-release-laufs).
 3. `mise run release`: wählt die Versionsnummer, taggt und pusht den Tag; der Workflow baut, signiert, notarisiert, erzeugt SBOMs und Prüfsummen, legt das GitHub-Release an und aktualisiert den Cask.
 4. Nach dem Lauf: das darwin-Archiv laden und die [Signatur prüfen](#signatur-prufen); `brew upgrade --cask total-recall` auf einem Mac und `total-recall --version`.
