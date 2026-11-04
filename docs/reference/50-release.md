@@ -12,7 +12,7 @@ Was ein [Release auf GitHub](https://github.com/seletz/total-recall/releases) al
 | `total-recall-<tag>-<os>-<arch>.cdx.json` | Die [SBOM](#sbom) des Binarys aus demselben Archiv. |
 | `checksums-<tag>.txt` | SHA-256 aller Archive und SBOMs im Format von `sha256sum`. |
 
-Alle Dateien eines Releases entstehen in einem Lauf von goreleaser aus dem getaggten Commit (`.goreleaser.yml`, Workflow `release.yml`). `mise run release:snapshot` baut dieselben Dateien lokal nach `dist/`, ohne etwas zu veröffentlichen; die Version heißt dann `<letzter Tag>-SNAPSHOT-<commit>`. Der Snapshot signiert nicht, weil die [Secrets](#secrets-des-release-laufs) lokal fehlen.
+Alle Dateien eines Releases entstehen in einem Lauf von goreleaser aus dem getaggten Commit (`.goreleaser.yml`, Workflow `release.yml`). `mise run release:snapshot` baut dieselben Dateien lokal nach `dist/`, ohne etwas zu veröffentlichen; die Version heißt dann `<letzter Tag>-SNAPSHOT-<commit>`. Der Snapshot signiert nicht, weil die [Secrets](#secrets-des-release-laufs) lokal fehlen; einen signierten Snapshot baut der Workflow [`signed-snapshot.yml`](#signatur-ohne-release-testen).
 
 ## Checksummen prüfen
 
@@ -90,6 +90,34 @@ spctl -a -vv -t exec ./total-recall
 
 Erwartet: `./total-recall: accepted` mit `source=Notarized Developer ID`. Nur `source=Developer ID` heißt signiert, aber nicht notarisiert (oder das Ticket war offline nicht erreichbar); `rejected` heißt, dass die Datei so nicht startet. Wer den Quarantäne-Fall nachstellen will, lädt das Archiv über den Browser statt mit `curl`, entpackt es und ruft `./total-recall --version` auf; mit einem notarisierten Binary erscheint kein Dialog.
 
+### Signatur ohne Release testen
+
+Der Workflow `signed-snapshot.yml` prüft Signatur und Notarisierung, ohne ein Release zu veröffentlichen: etwa nach dem Einrichten oder Erneuern der [Secrets](#secrets-des-release-laufs) oder nach einer Änderung an `notarize.macos`. Er läuft nur auf Anstoß (`workflow_dispatch`), mit demselben Setup und derselben goreleaser-Version wie `release.yml`, und ruft `goreleaser release --snapshot --clean` mit den fünf Secrets auf. goreleaser signiert und notarisiert dabei wie im Release-Lauf, denn der Notarisierungs-Schritt gehört zur Build-Phase und wird im Snapshot-Modus nicht übersprungen; `--snapshot` lässt nur Veröffentlichung und Validierung aus. Der Lauf legt keinen Tag an, erzeugt kein GitHub-Release, hat nur Leserechte auf das Repository und bekommt den Token für den Homebrew-Tap nicht.
+
+Der Lauf bricht ab, wenn eines der fünf Secrets fehlt, statt unsigniert zu bauen. Nach dem Bau liest er die Signatur jedes darwin-Binarys mit `quill describe` zurück und schlägt fehl, wenn ein Binary unsigniert oder nur ad hoc signiert ist, kein Team-ID trägt oder die Hardened Runtime fehlt; die Antwort von Apple hat goreleaser zuvor abgewartet (`wait: true`), eine Ablehnung bricht den Lauf schon dort ab. Die darwin-Archive, ihre SBOMs und die Checksummen-Datei hängen sieben Tage als Workflow-Artefakt `signed-snapshot-darwin` am Lauf. Die Archive heißen wie im Release nach dem letzten Tag (`total-recall-<tag>-darwin-<arch>.tar.gz`), das Binary meldet aber `<letzter Tag>-SNAPSHOT-<commit>`.
+
+Starten, auf dem Default-Branch oder einem anderen Branch (`--ref`), und auf das Ende warten:
+
+```sh
+gh workflow run signed-snapshot.yml --ref develop
+gh run watch "$(gh run list --workflow signed-snapshot.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+```
+
+Das Artefakt holen und auf dem Mac prüfen:
+
+```sh
+gh run download --name signed-snapshot-darwin --dir snapshot
+cd snapshot
+tar -xzf total-recall-*-darwin-arm64.tar.gz
+codesign -dv --verbose=2 ./total-recall
+spctl -a -vv -t exec ./total-recall
+./total-recall --version
+```
+
+Erwartet ist dieselbe Ausgabe wie bei einem Release, siehe [Signatur prüfen](#signatur-prufen): die Developer-ID in den `Authority`-Zeilen, `flags=0x10000(runtime)`, ein `Timestamp` und `accepted` mit `source=Notarized Developer ID`. Für amd64 entsprechend das zweite Archiv. `gh run download` ohne `--name` lädt die Artefakte des zuletzt gewählten Laufs; mit `gh run download <run-id>` einen bestimmten.
+
+Ein `workflow_dispatch`-Workflow lässt sich erst starten, wenn er im Default-Branch liegt; `--ref` auf einen anderen Branch geht danach.
+
 ### Secrets des Release-Laufs
 
 Der Workflow `release.yml` reicht fünf Repository-Secrets als Umgebungsvariablen an goreleaser durch. Fehlt `MACOS_SIGN_P12` oder ist es leer, überspringt goreleaser den Schritt und die darwin-Binaries bleiben unsigniert; alles andere am Release läuft wie bisher. Snapshot-Builds, die CI und Forks ohne Secrets sind davon nicht betroffen.
@@ -119,7 +147,7 @@ Einrichten, einmalig durch den Maintainer:
     gh secret set MACOS_NOTARY_ISSUER_ID
     ```
 
-3. **Prüfen.** `gh secret list` zeigt die fünf Namen. Das nächste Release signiert; die Schritte `signing` und `notarizing` erscheinen im Log des Workflows, und die [Prüfung](#signatur-prufen) am heruntergeladenen Archiv muss die Developer-ID zeigen.
+3. **Prüfen.** `gh secret list` zeigt die fünf Namen. Ein Lauf von [`signed-snapshot.yml`](#signatur-ohne-release-testen) zeigt, ob die Secrets stimmen, ohne ein Release zu machen. Das nächste Release signiert; die Schritte `signing` und `notarizing` erscheinen im Log des Workflows, und die [Prüfung](#signatur-prufen) am heruntergeladenen Archiv muss die Developer-ID zeigen.
 
 Das `-i` von `base64` ist die macOS-Schreibweise; auf Linux `base64 -w0 datei`. Die kodierten Dateien nie ins Repository legen; `gh secret set` liest den Wert von der Standardeingabe, sodass er nicht in der Shell-History landet.
 

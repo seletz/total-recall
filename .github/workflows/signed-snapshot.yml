@@ -1,0 +1,125 @@
+name: Signed snapshot
+
+# Manual test of the macOS signing and notarization (notarize.macos in
+# .goreleaser.yml) without a release. Builds a goreleaser snapshot with the
+# signing secrets, so the darwin binaries are signed with the Developer ID and
+# notarized by Apple exactly as in release.yml, then uploads the darwin
+# archives as a short-lived workflow artifact. Nothing is published: --snapshot
+# implies --skip=publish, no tag is created and the run gets neither a GitHub
+# token with write access nor the Homebrew tap token. The notarize pipe runs in
+# snapshot mode; it is only skipped by --skip=notarize or an empty config
+# (goreleaser internal/pipe/notary/macos.go, Skip). How to start the run and
+# check the result on a Mac: docs/reference/50-release.md.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install cyclonedx-gomod
+        # Same version as the pin in mise.toml (task release:snapshot), in
+        # ci.yml and in release.yml.
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Check that the signing secrets are set
+        # Without MACOS_SIGN_P12 goreleaser would silently build unsigned
+        # binaries, which is exactly what this workflow exists to rule out.
+        # Only the presence of the secrets is checked; their values are never
+        # printed.
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          missing=0
+          for name in MACOS_SIGN_P12 MACOS_SIGN_PASSWORD MACOS_NOTARY_KEY MACOS_NOTARY_KEY_ID MACOS_NOTARY_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::secret ${name} is not set; see docs/reference/50-release.md"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+      - name: Run GoReleaser (snapshot, signed)
+        # Same goreleaser version and config as release.yml. --snapshot skips
+        # publishing and validation, the notarize pipe still runs.
+        uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+
+      - name: Install quill
+        # The tool goreleaser signs with, used here to read the signature back
+        # on the Linux runner.
+        run: go install github.com/anchore/quill/cmd/quill@v0.7.1
+
+      - name: Check the signatures
+        # Reads every darwin binary from goreleaser's artifact list and fails
+        # when one is unsigned, only ad-hoc signed or lacks the hardened
+        # runtime flag. Only flags, team ID and the CMS verdict are printed,
+        # not the certificate subjects. Whether Apple accepted the
+        # notarization is decided by goreleaser itself (notarize.wait: true);
+        # the Gatekeeper check needs a Mac, see docs/reference/50-release.md.
+        run: |
+          status=0
+          for bin in $(jq -r '.[] | select(.type == "Binary" and .goos == "darwin") | .path' dist/artifacts.json); do
+            quill describe -o json "${bin}" > describe.json
+            flags=$(jq -r '.[0].superBlob.codeDirectories[0].flags.description' describe.json)
+            team=$(jq -r '.[0].superBlob.codeDirectories[0].teamID' describe.json)
+            certs=$(jq -r '[.[0].superBlob.signatures[0].certificates[]?] | length' describe.json)
+            valid=$(jq -r '.[0].superBlob.signatures[0].cmsValidation.isValid' describe.json)
+            echo "${bin}: flags=${flags} teamID=${team} certificates=${certs} cmsValid=${valid}"
+            case "${flags}" in
+              *adhoc*) echo "::error::${bin} is only ad-hoc signed"; status=1 ;;
+              *runtime*) ;;
+              *) echo "::error::${bin} has no hardened runtime flag"; status=1 ;;
+            esac
+            if [ -z "${team}" ] || [ "${team}" = "null" ]; then
+              echo "::error::${bin} has no team ID"; status=1
+            fi
+            if [ "${certs}" = "0" ]; then
+              echo "::error::${bin} carries no certificate chain"; status=1
+            fi
+            if [ "${valid}" != "true" ]; then
+              echo "::warning::${bin}: quill could not validate the CMS signature"
+            fi
+          done
+          rm -f describe.json
+          exit "${status}"
+
+      - name: Upload the darwin archives
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: signed-snapshot-darwin
+          path: |
+            dist/*-darwin-*.tar.gz
+            dist/*-darwin-*.cdx.json
+            dist/checksums-*.txt
+          if-no-files-found: error
+          retention-days: 7
