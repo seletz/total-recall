@@ -185,20 +185,25 @@ func (s *Store) FindSession(ctx context.Context, ref string) (SessionInfo, error
 	return SessionInfo{}, ErrAmbiguous
 }
 
-const eventCols = `id, session_id, ts, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset, raw`
+// eventCols are the columns the read paths (Events, EventWindow, Search)
+// load. raw is deliberately absent: no read command outputs it and it is by
+// far the largest column, so loading it made show of a large session ten
+// times slower (#131). Paths that need raw query it themselves
+// (UserMessages for reindex --actors; backup copies the file).
+const eventCols = `id, session_id, ts, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset`
 
 func scanEvent(sc scanner, extra ...any) (model.Event, error) {
 	var e model.Event
-	var ts, kind, role, actor, text, tool, mdl, sp, raw sql.NullString
+	var ts, kind, role, actor, text, tool, mdl, sp sql.NullString
 	var tin, tout, so sql.NullInt64
-	dest := append([]any{&e.ID, &e.SessionID, &ts, &kind, &role, &actor, &text, &tool, &mdl, &tin, &tout, &sp, &so, &raw}, extra...)
+	dest := append([]any{&e.ID, &e.SessionID, &ts, &kind, &role, &actor, &text, &tool, &mdl, &tin, &tout, &sp, &so}, extra...)
 	if err := sc.Scan(dest...); err != nil {
 		return e, err
 	}
 	e.TS = parseTime(ts)
 	e.Kind, e.Role, e.Actor, e.Text = model.Kind(kind.String), role.String, model.Actor(actor.String), text.String
 	e.ToolName, e.Model, e.TokensIn, e.TokensOut = tool.String, mdl.String, tin.Int64, tout.Int64
-	e.SourcePath, e.SourceOffset, e.Raw = sp.String, so.Int64, raw.String
+	e.SourcePath, e.SourceOffset = sp.String, so.Int64
 	return e, nil
 }
 

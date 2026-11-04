@@ -211,6 +211,8 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 
 `events_fts`: FTS5 über `text` (external content auf `events`, Trigger für insert).
 
+Die Lesepfade (`store.Events`, `EventWindow`, `Search`, also `show`, `search`, `sessions`, `stats` und die TUI) laden `raw` nicht: kein Lesebefehl gibt die Spalte aus, und sie ist mit Abstand die größte. `model.Event.Raw` ist aus dem Store deshalb immer leer. Nur `store.UserMessages` (`reindex --actors`) liest `raw`; `backup` kopiert die Datei.
+
 ### Views
 
 - `exchanges`: je menschlicher Nachricht (`actor='human'`) die Anfrage plus die letzte Agenten-Antwort (`role='assistant'`, `kind='message'`) vor der nächsten menschlichen Nachricht derselben Session.

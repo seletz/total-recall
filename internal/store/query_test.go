@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -500,5 +501,87 @@ func TestSearchBySession(t *testing.T) {
 	}
 	if _, err := s.SearchBySession(ctx, "login", SearchFilter{}, SearchOrder("rank")); err == nil {
 		t.Error("unknown order: no error")
+	}
+}
+
+// TestReadPathsDoNotLoadRaw: the read queries behind show, search, sessions,
+// stats and the TUI never load events.raw; no read command outputs it and it
+// is the largest column by far (#131). The column stays stored for the
+// paths that need it (UserMessages, backup).
+func TestReadPathsDoNotLoadRaw(t *testing.T) {
+	for _, c := range strings.Split(eventCols, ",") {
+		if strings.TrimSpace(c) == "raw" {
+			t.Fatalf("eventCols contains raw: %q", eventCols)
+		}
+	}
+	s, _ := openTestStore(t)
+	sess, evs := sampleBatch()
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw IS NOT NULL AND raw <> ''"); n != len(evs) {
+		t.Fatalf("stored raw rows = %d, want %d", n, len(evs))
+	}
+	got, err := s.Events(ctx, "claude:s1", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range got {
+		if e.Raw != "" {
+			t.Errorf("Events: %s has raw loaded", e.ID)
+		}
+	}
+	hits, err := s.Search(ctx, "login", SearchFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 {
+		t.Fatal("Search: no hits")
+	}
+	for _, h := range hits {
+		if h.Event.Raw != "" {
+			t.Errorf("Search: %s has raw loaded", h.Event.ID)
+		}
+	}
+	var seen int
+	err = s.UserMessages(ctx, "claude", func(m UserMessage) error {
+		if m.Raw != "" {
+			seen++
+		}
+		return nil
+	})
+	if err != nil || seen == 0 {
+		t.Errorf("UserMessages: raw rows = %d, err = %v; reindex --actors still needs raw", seen, err)
+	}
+}
+
+// BenchmarkEventsLargeRaw reads a session whose events carry a raw line of
+// a few KiB each, the shape of tool calls in a real archive: the cost show
+// pays when the read path loads raw (#131).
+func BenchmarkEventsLargeRaw(b *testing.B) {
+	dir := b.TempDir()
+	s, err := Open(dir + "/bench.db")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	raw := `{"filler":"` + strings.Repeat("x", 4<<10) + `"}`
+	sess := []model.Session{{ID: "claude:s1", Harness: "claude", NativeID: "s1", Cwd: "/w/app"}}
+	var evs []model.Event
+	for i := 0; i < 2000; i++ {
+		t := time.Date(2026, 10, 31, 22, 0, i, 0, time.UTC).Format(time.RFC3339)
+		e := ev(fmt.Sprintf("claude:e%04d", i), "claude:s1", t, model.ActorAgent, model.KindToolResult, "tool", "login.go:12")
+		e.Raw = raw
+		evs = append(evs, e)
+	}
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		got, err := s.Events(ctx, "claude:s1", true)
+		if err != nil || len(got) != len(evs) {
+			b.Fatalf("Events = %d %v", len(got), err)
+		}
 	}
 }

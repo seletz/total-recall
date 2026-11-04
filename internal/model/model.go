@@ -107,7 +107,9 @@ type Event struct {
 	TokensOut    int64
 	SourcePath   string
 	SourceOffset int64
-	Raw          string // original JSON line (redacted before storing)
+	// Raw is the original JSON line (redacted before storing). It is set
+	// by the adapters on ingest; the store's read queries leave it empty.
+	Raw string
 	// RawTruncated is set when Raw was dropped because the line exceeded the
 	// configured size cap (ingest.raw_max_bytes).
 	RawTruncated bool
