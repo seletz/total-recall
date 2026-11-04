@@ -12,6 +12,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - `search WORDS --by-session` fasst die Treffer je Session zusammen, Subagenten-Sessions eingeschlossen: eine Zeile mit `session_id`, `display_name`, `repo`, `first_hit`, `last_hit` (in JSON UTC, in der Tabelle lokale Zeit), `hits` und dem `snippet` des ersten Treffers, sortiert nach dem ersten Treffer als Zeitleiste oder mit `--order hits` nach Trefferzahl. Die Filter `--since`, `--until`, `--repo`, `--actor`, `--session`, `--raw` und die Ausgabeformate gelten wie bisher, `--limit` behält die Sessions mit den jüngsten Treffern. Die Kernabfrage 1 des Skills verweist jetzt auf diesen Befehl statt auf eine SQL-Abfrage: [`search`](10-befehle.md#search) ([#109](https://github.com/seletz/total-recall/issues/109)).
 
+### Release
+
+- Der Release-Lauf prüft den Download von goreleaser jetzt kryptografisch: Vor jedem goreleaser-Schritt in `ci.yml`, `release.yml` und `signed-snapshot.yml` installiert `sigstore/cosign-installer` (v4.1.2) cosign, womit `goreleaser-action` die Sigstore-Signatur der Checksummen-Datei des goreleaser-Releases prüft statt nur die Prüfsumme; eine fehlgeschlagene Prüfung bricht den Lauf ab. goreleaser ist in allen Workflows auf v2.19.0 gepinnt, die Version steht in `mise.toml`, und `mise run tools:check` (auch in der CI) findet Abweichungen in den Workflows: [Release-Assets](50-release.md#werkzeuge-des-release-laufs) ([#121](https://github.com/seletz/total-recall/issues/121)).
+
 ## v1.0.2
 
 Die macOS-Binaries sind ab dieser Version signiert und notarisiert. Sonst ändert sich nichts; die Datenbank bleibt bei Schema v3.
