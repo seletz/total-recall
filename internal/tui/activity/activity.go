@@ -302,7 +302,28 @@ func (m Model) load() (Model, tea.Cmd) {
 		m.days, m.loaded, m.took = d, true, 0
 		return m, nil
 	}
-	m.loaded, m.loading = false, true
+	m.loaded = false
+	return m.fetch(f, false)
+}
+
+// Reload drops the cache and loads the current window again, keeping the
+// rows and the scroll position on screen until the answer arrives.
+// Without a database there is nothing to do.
+func (m Model) Reload() (tea.Model, tea.Cmd) {
+	if m.opts.Loader == nil {
+		return m, nil
+	}
+	m.cache = map[filter][]store.Workday{}
+	m.seq++
+	m.stop()
+	m.err = nil
+	return m.fetch(m.filter(), true)
+}
+
+// fetch starts the query for f with the current sequence number. A quiet
+// fetch (reload) does not announce itself in the status line.
+func (m Model) fetch(f filter, quiet bool) (Model, tea.Cmd) {
+	m.loading = !quiet
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	seq, now, l := m.seq, m.opts.Now, m.opts.Loader

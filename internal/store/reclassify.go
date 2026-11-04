@@ -20,7 +20,7 @@ type UserMessage struct {
 // UserMessages calls fn for every user message (role user, kind message)
 // of the harness in insertion order. It stops at the first error fn returns.
 func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMessage) error) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), e.text, COALESCE(e.raw, ''),
+	rows, err := s.db().QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), e.text, COALESCE(e.raw, ''),
 			COALESCE(s.parent_id, '') <> ''
 		FROM events e JOIN sessions s ON s.id = e.session_id
 		WHERE s.harness = ? AND e.role = 'user' AND e.kind = 'message'
@@ -67,7 +67,7 @@ func (s *Store) SetEventActors(ctx context.Context, changes []ActorChange) (int6
 	if len(changes) == 0 {
 		return 0, nil
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.db().BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("store: begin: %w", err)
 	}

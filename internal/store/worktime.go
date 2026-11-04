@@ -44,7 +44,7 @@ func (s *Store) HumanEvents(ctx context.Context, f HumanEventsFilter) ([]HumanEv
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT e.ts, e.session_id, COALESCE(e.text, ''), COALESCE(s.display_name, ''),
+	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.session_id, COALESCE(e.text, ''), COALESCE(s.display_name, ''),
 			COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''), COALESCE(s.git_remote_url, ''),
 			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(p.git_remote_url, '')
 		FROM events e

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -21,6 +22,8 @@ type tuiFlags struct {
 	NoMouse     bool
 	NoMouseSet  bool
 	GraphicsSet bool
+	Reload      time.Duration
+	ReloadSet   bool
 }
 
 func (e *env) tuiCmd() *cobra.Command {
@@ -33,15 +36,21 @@ search view, an activity statistics view and a view of the first and the
 last activity per day (see stats --workday). The optional argument selects
 the view shown first.
 
-Defaults for the view, the chart mode, the mouse and the start-up state of
-the stats and activity views come from the [tui] table of the config;
-flags and the argument override them. Key bindings come from [keys].`,
+Defaults for the view, the chart mode, the mouse, the reload interval and
+the start-up state of the stats and activity views come from the [tui]
+table of the config; flags and the argument override them. Key bindings
+come from [keys].
+
+The views reload by themselves while the hooks write to the archive: every
+--reload interval the TUI checks whether the archive changed and, only
+then, loads the view on screen again, keeping mark, scroll position and
+input. --reload 0 switches that off; R reloads on demand either way.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				f.View = args[0]
 			}
-			f.GraphicsSet, f.NoMouseSet = cmd.Flags().Changed("graphics"), cmd.Flags().Changed("no-mouse")
+			f.GraphicsSet, f.NoMouseSet, f.ReloadSet = cmd.Flags().Changed("graphics"), cmd.Flags().Changed("no-mouse"), cmd.Flags().Changed("reload")
 			cfg, err := e.loadConfig()
 			if err != nil {
 				return err
@@ -62,6 +71,7 @@ flags and the argument override them. Key bindings come from [keys].`,
 	c.Flags().StringVar(&f.Query, "query", "", "initial search text")
 	c.Flags().StringVar(&f.Graphics, "graphics", "", "chart rendering: auto, text or kitty (default from config: auto)")
 	c.Flags().BoolVar(&f.NoMouse, "no-mouse", false, "leave the mouse to the terminal (plain drag selects text; default from config)")
+	c.Flags().DurationVar(&f.Reload, "reload", config.DefaultReload, "check the archive for changes at this interval and reload the view on screen when there are any; 0 switches it off, at least 1s (default from config: 5s)")
 	return c
 }
 
@@ -99,8 +109,15 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	if f.NoMouseSet {
 		noMouse = f.NoMouse
 	}
+	reload := cfg.TUI.Reload.Duration
+	if f.ReloadSet {
+		reload = f.Reload
+		if err := config.ValidReload(reload); err != nil {
+			return tui.Options{}, fmt.Errorf("--%w", err)
+		}
+	}
 	return tui.Options{
-		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse,
+		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse, Reload: reload,
 		DayStart: cfg.DayStartOffset(), Work: work, Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow,
 		Keys: km,

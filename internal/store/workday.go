@@ -151,7 +151,7 @@ func (s *Store) Workday(ctx context.Context, f WorkdayFilter) ([]Workday, error)
 		cond = append(cond, "ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT ts, actor, session_id FROM events WHERE `+strings.Join(cond, " AND "), args...)
+	rows, err := s.db().QueryContext(ctx, `SELECT ts, actor, session_id FROM events WHERE `+strings.Join(cond, " AND "), args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: workday: %w", err)
 	}

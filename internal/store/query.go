@@ -135,7 +135,7 @@ func (s *Store) querySessions(ctx context.Context, cond []string, args []any, li
 	if limit > 0 {
 		q += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: sessions: %w", err)
 	}
@@ -265,7 +265,7 @@ func (s *Store) EventWindow(ctx context.Context, sessionID string, f EventFilter
 	}
 	if f.FromEvent != "" {
 		var n int
-		if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM events WHERE id = ? AND session_id = ?", f.FromEvent, sessionID).Scan(&n); err != nil {
+		if err := s.db().QueryRowContext(ctx, "SELECT count(*) FROM events WHERE id = ? AND session_id = ?", f.FromEvent, sessionID).Scan(&n); err != nil {
 			return nil, fmt.Errorf("store: events: %w", err)
 		}
 		if n == 0 {
@@ -282,7 +282,7 @@ func (s *Store) EventWindow(ctx context.Context, sessionID string, f EventFilter
 		}
 		q += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, max(f.Offset, 0))
 	}
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: events: %w", err)
 	}
@@ -350,7 +350,7 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 	if f.Limit > 0 {
 		q += fmt.Sprintf(" LIMIT %d", f.Limit)
 	}
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: search: %w", err)
 	}
@@ -458,7 +458,7 @@ func (s *Store) SearchBySession(ctx context.Context, query string, f SearchFilte
 	default:
 		q += "r ORDER BY first_hit, session_id"
 	}
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: search: %w", err)
 	}
@@ -553,7 +553,7 @@ func (s *Store) Stats(ctx context.Context, f StatsFilter) (Stats, error) {
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id, `+repoExpr+`
+	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id, `+repoExpr+`
 		FROM events e JOIN sessions s ON s.id = e.session_id
 		WHERE `+strings.Join(cond, " AND "), args...)
 	if err != nil {
@@ -625,11 +625,11 @@ type Status struct {
 // Status returns row counts and the last ingest time per harness.
 func (s *Store) Status(ctx context.Context) (Status, error) {
 	st := Status{LastIngest: map[string]time.Time{}}
-	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM events), (SELECT count(*) FROM sources)`).
+	if err := s.db().QueryRowContext(ctx, `SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM events), (SELECT count(*) FROM sources)`).
 		Scan(&st.Sessions, &st.Events, &st.Sources); err != nil {
 		return st, fmt.Errorf("store: status: %w", err)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT harness, MAX(ingested_at) FROM sources GROUP BY harness`)
+	rows, err := s.db().QueryContext(ctx, `SELECT harness, MAX(ingested_at) FROM sources GROUP BY harness`)
 	if err != nil {
 		return st, fmt.Errorf("store: status: %w", err)
 	}

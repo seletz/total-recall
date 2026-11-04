@@ -193,7 +193,7 @@ func (s *Store) PageStats(ctx context.Context) (PageStats, error) {
 		{"SELECT count(*) FROM events", &ps.Events},
 		{"SELECT count(*) FROM sources", &ps.Sources},
 	} {
-		if err := s.db.QueryRowContext(ctx, q.sql).Scan(q.dst); err != nil {
+		if err := s.db().QueryRowContext(ctx, q.sql).Scan(q.dst); err != nil {
 			return ps, fmt.Errorf("store: page stats: %s: %w", q.sql, err)
 		}
 	}
@@ -254,7 +254,7 @@ var checkCopy = func(ctx context.Context, path string, want PageStats) (PageStat
 		return PageStats{}, err
 	}
 	defer func() { _ = st.Close() }()
-	rows, err := st.db.QueryContext(ctx, "PRAGMA integrity_check")
+	rows, err := st.db().QueryContext(ctx, "PRAGMA integrity_check")
 	if err != nil {
 		return PageStats{}, fmt.Errorf("integrity check: %w", err)
 	}
@@ -502,7 +502,7 @@ func mib(n int64) string { return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20)) }
 // with ErrReadersActive.
 func (s *Store) checkpointTruncate(ctx context.Context) error {
 	var busy, logFrames, done int
-	if err := s.db.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logFrames, &done); err != nil {
+	if err := s.db().QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logFrames, &done); err != nil {
 		return fmt.Errorf("store: maintenance: checkpoint: %w", err)
 	}
 	if busy != 0 {
@@ -517,7 +517,7 @@ func (s *Store) checkpointTruncate(ctx context.Context) error {
 // compactInto writes a copy of the archive with pageSize to dst (which must
 // not exist) with PRAGMA page_size and VACUUM INTO on one connection.
 func (s *Store) compactInto(ctx context.Context, pageSize int, dst string) error {
-	conn, err := s.db.Conn(ctx)
+	conn, err := s.db().Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: maintenance: %w", err)
 	}

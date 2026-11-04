@@ -19,7 +19,7 @@ func openAtVersion(t *testing.T, path string, k int) {
 	}
 	defer func() { _ = db.Close() }()
 	s := newStore(nil)
-	s.db = db
+	s.dbp.Store(db)
 	s.path = path
 	if err := s.migrateTo(ctx, k); err != nil {
 		t.Fatalf("migrate to %d: %v", k, err)
@@ -94,7 +94,7 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			}
 			// Migration 4: the link and account columns are usable and indexed,
 			// and the reverse link is derived from them.
-			if _, err := s.db.ExecContext(ctx, `UPDATE sessions SET continued_in = 'claude:s1', account_id = 'acc-1',
+			if _, err := s.db().ExecContext(ctx, `UPDATE sessions SET continued_in = 'claude:s1', account_id = 'acc-1',
 				organization_id = 'org-1' WHERE id = 'claude:s0'`); err != nil {
 				t.Fatalf("set v4 columns: %v", err)
 			}
@@ -144,7 +144,7 @@ func TestNoBackupForFreshDB(t *testing.T) {
 func TestOpenReadOnlySchemaVersion(t *testing.T) {
 	t.Run("newer is an error", func(t *testing.T) {
 		s, p := openTestStore(t)
-		if _, err := s.db.ExecContext(ctx, "UPDATE schema_version SET version = 999"); err != nil {
+		if _, err := s.db().ExecContext(ctx, "UPDATE schema_version SET version = 999"); err != nil {
 			t.Fatal(err)
 		}
 		_ = s.Close()

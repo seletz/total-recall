@@ -98,6 +98,20 @@ func (m *Model) follow() tea.Cmd {
 	return tea.Tick(PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
 }
 
+// refreshPreview loads the marked hit again without moving the exchange:
+// after a reload the hit is the same, but its session may have grown. The
+// scroll position set with the wheel stays.
+func (m *Model) refreshPreview() tea.Cmd {
+	p := &m.preview
+	p.seq++
+	p.stop()
+	if m.marked() == nil || m.opts.Loader == nil {
+		return nil
+	}
+	seq := p.seq
+	return tea.Tick(PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
+}
+
 // loadPreview starts reading the session of the marked hit.
 func (m Model) loadPreview() (tea.Model, tea.Cmd) {
 	h := m.marked()
@@ -149,8 +163,12 @@ func (m Model) previewResult(msg previewMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	p.loading, p.cancel = false, nil
+	if msg.eventID != p.eventID {
+		// A new hit starts at the automatic position; the same hit loaded
+		// again (reload) keeps the position set with the wheel.
+		p.scrolled, p.scroll = false, 0
+	}
 	p.eventID, p.session, p.events, p.hit, p.err = msg.eventID, msg.session, msg.events, msg.hit, msg.err
-	p.scrolled, p.scroll = false, 0
 	return m, nil
 }
 

@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -9,9 +11,22 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/theme"
+)
+
+// Messages of the reload cycle: tickMsg says the interval is over,
+// pollMsg carries what the store found, reopenMsg the outcome of opening
+// a swapped file again.
+type (
+	tickMsg struct{}
+	pollMsg struct {
+		change store.Change
+		err    error
+	}
+	reopenMsg struct{ err error }
 )
 
 // Chrome rows: header line and rule above the body, rule and footer below.
@@ -37,16 +52,121 @@ type App struct {
 	// th is the theme of the chrome; dark until the terminal answers the
 	// background colour query of Init.
 	th theme.Theme
+	// stale marks the views (and, last, the detail) whose data is older
+	// than the archive: they reload when they are shown next. updated is
+	// when the data on screen was last loaded, shown in the header;
+	// reloadErr is the error of the last check or reload, if any.
+	stale     []bool
+	updated   time.Time
+	reloadErr error
 }
 
-// Init starts every view and asks the terminal for its background colour;
-// the answer reaches every view through Update.
+// Init starts every view, asks the terminal for its background colour (the
+// answer reaches every view through Update) and starts the reload cycle.
 func (a App) Init() tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(a.views)+2)
+	cmds := make([]tea.Cmd, 0, len(a.views)+3)
 	for _, v := range a.views {
 		cmds = append(cmds, v.Init())
 	}
-	return tea.Batch(append(cmds, a.detail.Init(), tea.RequestBackgroundColor)...)
+	return tea.Batch(append(cmds, a.detail.Init(), tea.RequestBackgroundColor, a.tick())...)
+}
+
+// tick schedules the next change check, or nothing when the reload is off
+// or there is no store.
+func (a App) tick() tea.Cmd {
+	if a.opts.Reload <= 0 || a.opts.Store == nil {
+		return nil
+	}
+	return a.opts.Tick(a.opts.Reload, func(time.Time) tea.Msg { return tickMsg{} })
+}
+
+// poll asks the store whether the archive changed.
+func (a App) poll() tea.Cmd {
+	st := a.opts.Store
+	return func() tea.Msg {
+		c, err := st.Poll(context.Background())
+		return pollMsg{change: c, err: err}
+	}
+}
+
+// reopen opens the swapped archive file again.
+func (a App) reopen() tea.Cmd {
+	st := a.opts.Store
+	return func() tea.Msg { return reopenMsg{err: st.Reopen()} }
+}
+
+// polled acts on the outcome of a check: a modified archive reloads the
+// view on screen and marks the others stale, a replaced file is reopened
+// first (its result reloads), an error is shown in the header. The next
+// check is scheduled in every case except while a reopen is pending.
+func (a App) polled(msg pollMsg) (tea.Model, tea.Cmd) {
+	a.reloadErr = msg.err
+	switch {
+	case msg.err != nil:
+		return a, a.tick()
+	case msg.change == store.Replaced:
+		return a, a.reopen()
+	case msg.change == store.Modified:
+		cmd := a.reload()
+		return a, tea.Batch(cmd, a.tick())
+	}
+	return a, a.tick()
+}
+
+// reopened reloads everything after the file was opened again; on an
+// error the old data stays and the header says so.
+func (a App) reopened(msg reopenMsg) (tea.Model, tea.Cmd) {
+	a.reloadErr = msg.err
+	if msg.err != nil {
+		return a, a.tick()
+	}
+	cmd := a.reload()
+	return a, tea.Batch(cmd, a.tick())
+}
+
+// reload loads the view on screen again and marks every other one stale;
+// the header shows the time.
+func (a *App) reload() tea.Cmd {
+	a.stale = make([]bool, len(a.views)+1)
+	for i := range a.stale {
+		a.stale[i] = true
+	}
+	a.updated = a.opts.Now()
+	return a.reloadCurrent()
+}
+
+// reloadCurrent reloads the view on screen (the detail while it is shown)
+// and clears its stale mark.
+func (a *App) reloadCurrent() tea.Cmd {
+	if a.showDetail {
+		a.setStale(len(a.views), false)
+		m, cmd := a.detail.Reload()
+		a.detail = m.(session.Model)
+		return cmd
+	}
+	a.setStale(a.active, false)
+	m, cmd := a.views[a.active].Reload()
+	a.views = a.replace(a.active, m)
+	return cmd
+}
+
+// setStale sets the stale mark of view i on a copy of the slice, so the
+// value-receiver model never mutates a slice shared with an older copy.
+func (a *App) setStale(i int, v bool) {
+	stale := make([]bool, len(a.stale))
+	copy(stale, a.stale)
+	stale[i] = v
+	a.stale = stale
+}
+
+// show switches to view i, closing the detail, and reloads the view when
+// its data went stale while it was hidden.
+func (a *App) show(i int) tea.Cmd {
+	a.active, a.showDetail = i, false
+	if !a.stale[i] {
+		return nil
+	}
+	return a.reloadCurrent()
 }
 
 // Update handles global keys and forwards the rest: key presses to the active
@@ -68,10 +188,19 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case search.OpenSession:
 		a.showDetail = true
+		a.setStale(len(a.views), false) // Open loads afresh
 		return a.updateDetail(session.Open{SessionID: msg.SessionID, EventID: msg.EventID, Terms: msg.Terms})
 	case session.Back:
-		a.showDetail = false
-		return a, nil
+		return a, a.show(a.active)
+	case tickMsg:
+		if a.opts.Store == nil {
+			return a, nil
+		}
+		return a, a.poll()
+	case pollMsg:
+		return a.polled(msg)
+	case reopenMsg:
+		return a.reopened(msg)
 	case tea.BackgroundColorMsg:
 		a.th = theme.New(msg.IsDark())
 		return a, a.broadcast(msg)
@@ -105,14 +234,17 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.help = true
 		return a, nil
 	case key.Matches(msg, a.keys.Search):
-		a.active, a.showDetail = 0, false
-		return a, nil
+		return a, a.show(0)
 	case key.Matches(msg, a.keys.Stats):
-		a.active, a.showDetail = 1, false
-		return a, nil
+		return a, a.show(1)
 	case key.Matches(msg, a.keys.Activity):
-		a.active, a.showDetail = 2, false
-		return a, nil
+		return a, a.show(2)
+	case key.Matches(msg, a.keys.Reload):
+		if a.opts.Store == nil {
+			return a, nil
+		}
+		a.reloadErr = nil
+		return a, a.reload()
 	}
 	return a.forward(msg)
 }
@@ -128,7 +260,7 @@ func (a App) mouse(msg tea.MouseMsg, shift func(y int) tea.Msg) (tea.Model, tea.
 	m := msg.Mouse()
 	if _, click := msg.(tea.MouseClickMsg); click && m.Y == 0 && m.Button == tea.MouseLeft {
 		if i := a.tabAt(m.X); i >= 0 {
-			a.active, a.showDetail = i, false
+			return a, a.show(i)
 		}
 		return a, nil
 	}
@@ -221,14 +353,33 @@ func (a App) View() tea.View {
 }
 
 // header is the program name on the left, in the gradient of the theme,
+// the time of the last load (muted; or the reload error) in the middle
 // and the view tabs on the right; the active tab is marked with brackets
 // on the accent background, so it reads without colour too. While the
-// detail is shown its title follows the active tab.
+// detail is shown its title follows the active tab. The time gives way to
+// the tabs in a narrow window.
 func (a App) header() string {
 	left := " " + a.th.Gradient("total-recall")
 	right := strings.Join(a.tabs(), " ") + " "
 	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
+	if status := a.reloadStatus(); status != "" && lipgloss.Width(status)+4 <= gap {
+		pad := (gap - lipgloss.Width(status)) / 2
+		return left + strings.Repeat(" ", pad) + status + strings.Repeat(" ", gap-pad-lipgloss.Width(status)) + right
+	}
 	return left + strings.Repeat(" ", gap) + right
+}
+
+// reloadStatus is the middle of the header: "updated 14:03:12" in the
+// time zone of the views, or the last reload error; empty without a
+// store.
+func (a App) reloadStatus() string {
+	switch {
+	case a.opts.Store == nil:
+		return ""
+	case a.reloadErr != nil:
+		return a.th.Error.Render(ansi.Truncate("reload: "+a.reloadErr.Error(), max(a.width/2, 1), "…"))
+	}
+	return a.th.Muted.Render("updated " + a.updated.In(a.opts.Location).Format("15:04:05"))
 }
 
 // tabs renders the view tabs of the header: the number of an inactive tab

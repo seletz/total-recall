@@ -1,4 +1,4 @@
- total-recall                                                                          1 search   2 stats  [3 activity]
+ total-recall                            updated 12:00:00                              1 search   2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  period: day week [month]  count: all [human]                            this month · 2026-06 · 2026-06-01 – 2026-06-30
  month: 220h38m in 23 days · target 168h00m (21 workdays × 8h00m) · balance +52h38m · Thu 04 Fronleichnam

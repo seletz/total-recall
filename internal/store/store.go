@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 	_ "time/tzdata" // static builds must not depend on the system zoneinfo
 
@@ -39,7 +41,9 @@ func LatestSchemaVersion() int { return len(migrations) }
 
 // Store is an open archive database.
 type Store struct {
-	db       *sql.DB
+	// dbp is the open database. Read-only stores swap it in Reopen while
+	// queries may be running, hence the atomic pointer; db() reads it.
+	dbp      atomic.Pointer[sql.DB]
 	path     string
 	loc      *time.Location
 	now      func() time.Time
@@ -48,6 +52,14 @@ type Store struct {
 	version  int    // schema version found at open (read-only stores)
 	lockDir  string // WithLockDir: shared maintenance lock held until Close
 	unlock   func()
+	// Poll state (read-only stores): the file identity at open, the pinned
+	// connection with the data_version it last saw. watchMu also orders
+	// Reopen against Poll.
+	watchMu      sync.Mutex
+	file         os.FileInfo
+	watch        *sql.Conn
+	watched      bool
+	watchVersion int64
 }
 
 // Option configures Open.
@@ -110,7 +122,7 @@ func Open(path string, opts ...Option) (*Store, error) {
 		s.release()
 		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
-	s.db = db
+	s.dbp.Store(db)
 	s.path = path
 	if err := s.migrateTo(context.Background(), len(migrations)); err != nil {
 		_ = db.Close()
@@ -123,35 +135,16 @@ func Open(path string, opts ...Option) (*Store, error) {
 // OpenReadOnly opens an existing database with mode=ro and PRAGMA query_only,
 // so neither the API nor Query can modify it. No migrations are applied.
 func OpenReadOnly(path string, opts ...Option) (*Store, error) {
-	if _, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("store: %w", err)
-	}
-	db, err := sql.Open("sqlite", dsn(path,
-		"mode=ro",
-		"_pragma=busy_timeout(10000)",
-		"_pragma=query_only(1)",
-	))
+	db, v, fi, err := openReadOnly(path)
 	if err != nil {
-		return nil, fmt.Errorf("store: open %s: %w", path, err)
-	}
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("store: open %s: %w", path, err)
+		return nil, err
 	}
 	s := newStore(opts)
-	s.db = db
+	s.dbp.Store(db)
 	s.path = path
 	s.readOnly = true
-	v, err := s.SchemaVersion(context.Background())
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("store: open %s: schema version: %w", path, err)
-	}
-	if v > len(migrations) {
-		_ = db.Close()
-		return nil, fmt.Errorf("%w (database v%d, binary v%d)", ErrSchemaTooNew, v, len(migrations))
-	}
 	s.version = v
+	s.file = fi
 	return s, nil
 }
 
@@ -167,7 +160,13 @@ func (s *Store) SchemaWarning() string {
 
 // Close closes the database and releases the maintenance lock, if any.
 func (s *Store) Close() error {
-	err := s.db.Close()
+	s.watchMu.Lock()
+	if s.watch != nil {
+		_ = s.watch.Close()
+		s.watch = nil
+	}
+	s.watchMu.Unlock()
+	err := s.db().Close()
 	s.release()
 	return err
 }
@@ -183,15 +182,20 @@ func (s *Store) release() {
 // SchemaVersion returns the applied schema version.
 // A database without a schema_version table has version 0.
 func (s *Store) SchemaVersion(ctx context.Context) (int, error) {
+	return schemaVersion(ctx, s.db())
+}
+
+// schemaVersion is SchemaVersion on a bare database.
+func schemaVersion(ctx context.Context, db *sql.DB) (int, error) {
 	var n int
-	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").Scan(&n); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").Scan(&n); err != nil {
 		return 0, err
 	}
 	if n == 0 {
 		return 0, nil
 	}
 	var v int
-	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&v)
+	err := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&v)
 	return v, err
 }
 
@@ -205,7 +209,7 @@ func (s *Store) preMigrationBackup(ctx context.Context, v int) error {
 	if err := os.Remove(dst); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("store: pre-migration backup: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", dst); err != nil {
+	if _, err := s.db().ExecContext(ctx, "VACUUM INTO ?", dst); err != nil {
 		return fmt.Errorf("store: pre-migration backup: %w", err)
 	}
 	s.logf("store: schema v%d -> v%d: backup written to %s", v, len(migrations), dst)
@@ -214,7 +218,7 @@ func (s *Store) preMigrationBackup(ctx context.Context, v int) error {
 
 // migrateTo applies migrations up to version target (forward-only).
 func (s *Store) migrateTo(ctx context.Context, target int) error {
-	if _, err := s.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"); err != nil {
+	if _, err := s.db().ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"); err != nil {
 		return fmt.Errorf("store: migrate: %w", err)
 	}
 	v, err := s.SchemaVersion(ctx)
@@ -230,7 +234,7 @@ func (s *Store) migrateTo(ctx context.Context, target int) error {
 		}
 	}
 	for i := v; i < target; i++ {
-		tx, err := s.db.BeginTx(ctx, nil)
+		tx, err := s.db().BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("store: migrate: %w", err)
 		}
@@ -293,7 +297,7 @@ func nullInt(n int64) any {
 // []byte values are returned as strings. Use it on a store opened with
 // OpenReadOnly for untrusted input: it does not restrict statements itself.
 func (s *Store) Query(ctx context.Context, q string) ([]string, [][]any, error) {
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := s.db().QueryContext(ctx, q)
 	if err != nil {
 		return nil, nil, err
 	}

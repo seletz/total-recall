@@ -46,11 +46,11 @@ func fingerprint(t *testing.T, path string) string {
 	defer func() { _ = s.Close() }()
 	var fp string
 	q := `SELECT count(*) || ':' || coalesce(sum(length(text)), 0) || ':' || coalesce(sum(length(raw)), 0) || ':' || coalesce(min(id), '') || ':' || coalesce(max(id), '') FROM events`
-	if err := s.db.QueryRowContext(ctx, q).Scan(&fp); err != nil {
+	if err := s.db().QueryRowContext(ctx, q).Scan(&fp); err != nil {
 		t.Fatal(err)
 	}
 	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM events_fts WHERE events_fts MATCH 'abcdefghij'`).Scan(&n); err != nil {
+	if err := s.db().QueryRowContext(ctx, `SELECT count(*) FROM events_fts WHERE events_fts MATCH 'abcdefghij'`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return fmt.Sprintf("%s fts=%d", fp, n)
@@ -124,7 +124,7 @@ func TestMaintainChangesPageSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	var jm string
-	if err := s2.db.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&jm); err != nil || jm != "wal" {
+	if err := s2.db().QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&jm); err != nil || jm != "wal" {
 		t.Errorf("journal_mode = %q, %v", jm, err)
 	}
 	fillStore(t, s2, "b", 5)
@@ -455,7 +455,7 @@ func TestMaintainLosesNoWrites(t *testing.T) {
 	}
 	for _, id := range written {
 		var n int
-		if err := r.db.QueryRowContext(ctx, "SELECT count(*) FROM events WHERE id = ?", id).Scan(&n); err != nil || n != 1 {
+		if err := r.db().QueryRowContext(ctx, "SELECT count(*) FROM events WHERE id = ?", id).Scan(&n); err != nil || n != 1 {
 			t.Errorf("acknowledged write %s missing after maintenance (%v)", id, err)
 		}
 	}
