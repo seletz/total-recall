@@ -19,7 +19,7 @@ a lower bound: meetings and work without an agent leave no messages
   kompass: 3h13m raw, 3h15m rounded
        46m  7d1e02c1  Benchmarks für den Routing-Kern
      1h00m  7d1e02c2  Doku der Befehle
-       26m  7d1e02c4  Neue Lint-Regeln
+       26m  7d1e02c4  Neue Lint-Regeln (#40)
        22m  7d1e02c5  Kartenkacheln offline
        38m  7d1e02c6  Rennrad-Profil
 

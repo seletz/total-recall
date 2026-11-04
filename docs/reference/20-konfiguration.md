@@ -242,6 +242,9 @@ Arbeitszeit je Projekt und Tag aus deinen eigenen Nachrichten ([`stats --worktim
 `scope`
 :   Was gerundet wird: `category` rundet die Summe einer Kategorie je Tag einmal; `project` rundet jedes Projekt je Tag, die Kategorie ist die Summe der gerundeten Projekte (rundet bei mehreren Projekten je Kategorie stärker auf). Default: `category`.
 
+`summary_max_chars`
+:   Länge des Buchungstexts je Kategorie und Tag, den [`stats --worktime --summary`](10-befehle.md#stats-worktime) aus den Session-Titeln und den Issue-/PR-Referenzen deiner Nachrichten baut, in Zeichen; ein längerer Text endet mit `…`. `0` schaltet die Grenze ab, negativ ist ein Fehler. Default: `200`.
+
 `[[worktime.category]]`
 :   Regeln, die Projekte Kategorien zuordnen, in der Reihenfolge der Datei; die erste passende gewinnt. Je Regel `name` (die Kategorie) und `match` (ein Muster oder eine Liste). Ein Muster wird als Ganzes gegen den Projektnamen (wie bei `stats --by project`), den Git-Root bzw. das Arbeitsverzeichnis (als Pfad und mit `~` für das Home-Verzeichnis) und die Remote-URL geprüft; `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Projekt ohne passende Regel ist seine eigene Kategorie und heißt wie das Projekt. Eine letzte Regel mit `match = "*"` sammelt den Rest. Gleiche Namen zweimal, eine Regel ohne Namen oder ohne Muster sind Fehler. Default: keine Regeln.
 

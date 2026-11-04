@@ -27,10 +27,11 @@ type HumanEvent struct {
 	Project   string
 	Dir       bool
 	RemoteURL string // normalized remote URL, "" without a repository
+	Text      string // the message, "" without text
 }
 
 // HumanEvents returns the human events of the range in time order with
-// their session title and project. Agent, peer, automation and tool
+// their text, session title and project. Agent, peer, automation and tool
 // events are left out.
 func (s *Store) HumanEvents(ctx context.Context, f HumanEventsFilter) ([]HumanEvent, error) {
 	cond := []string{"e.actor = 'human'"}
@@ -43,7 +44,7 @@ func (s *Store) HumanEvents(ctx context.Context, f HumanEventsFilter) ([]HumanEv
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT e.ts, e.session_id, COALESCE(s.display_name, ''),
+	rows, err := s.db.QueryContext(ctx, `SELECT e.ts, e.session_id, COALESCE(e.text, ''), COALESCE(s.display_name, ''),
 			COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''), COALESCE(s.git_remote_url, ''),
 			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(p.git_remote_url, '')
 		FROM events e
@@ -58,8 +59,8 @@ func (s *Store) HumanEvents(ctx context.Context, f HumanEventsFilter) ([]HumanEv
 	var out []HumanEvent
 	for rows.Next() {
 		var tsv sql.NullString
-		var session, title, parentID, cwd, gitRoot, remote, pcwd, pgitRoot, premote string
-		if err := rows.Scan(&tsv, &session, &title, &parentID, &cwd, &gitRoot, &remote, &pcwd, &pgitRoot, &premote); err != nil {
+		var session, text, title, parentID, cwd, gitRoot, remote, pcwd, pgitRoot, premote string
+		if err := rows.Scan(&tsv, &session, &text, &title, &parentID, &cwd, &gitRoot, &remote, &pcwd, &pgitRoot, &premote); err != nil {
 			return nil, fmt.Errorf("store: human events: %w", err)
 		}
 		t := parseTime(tsv)
@@ -73,7 +74,7 @@ func (s *Store) HumanEvents(ctx context.Context, f HumanEventsFilter) ([]HumanEv
 		if dir {
 			remote = ""
 		}
-		out = append(out, HumanEvent{Time: t, SessionID: session, Title: title, Project: key, Dir: dir, RemoteURL: remote})
+		out = append(out, HumanEvent{Time: t, SessionID: session, Title: title, Project: key, Dir: dir, RemoteURL: remote, Text: text})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: human events: %w", err)

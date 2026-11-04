@@ -200,11 +200,20 @@ total-recall search backup retention --since 2026-10-01      # beide Wörter mü
 total-recall search --raw 'cask AND (homebrew OR tap)'       # FTS5-Syntax
 total-recall search redaction --actor human --repo seletz/total-recall --json
 total-recall search backup --session 9a1b2c3d                # nur in dieser Session
+total-recall search goreleaser --by-session                  # eine Zeile je Session, Zeitleiste
 ```
 
 ```text
 2026-10-31 19:38  Release-Pipeline aufsetzen  seletz/total-recall  claude:9a1b2c3d-…  [human]
     Bitte richte [goreleaser] mit einem Homebrew-Cask ein.
+```
+
+Mit `--by-session` werden die Treffer je Session zusammengefasst, Subagenten-Sessions eingeschlossen: erster und letzter Treffer (lokale Zeit; in JSON UTC als `first_hit` und `last_hit`), Anzahl der Treffer, ID, Name, Repo und der Textausschnitt des ersten Treffers. Sortiert nach dem ersten Treffer, älteste Session zuerst, also als Zeitleiste; `--order hits` sortiert nach Trefferzahl, meiste zuerst. `--limit` zählt dann Sessions statt Treffer und behält in der Zeitleiste die Sessions mit den jüngsten Treffern (bei `--order hits` die mit den meisten), sodass eine Suche über das ganze Archiv die neuesten Sessions zeigt. Die Filter wirken wie bei der einfachen Suche, `--actor human` etwa liefert die Sessions, in denen du selbst das Thema angesprochen hast.
+
+```text
+FIRST             LAST              HITS  ID                  NAME                         REPO                 SNIPPET
+2026-10-31 19:38  2026-10-31 21:02  7     claude:9a1b2c3d-…   Release-Pipeline aufsetzen   seletz/total-recall  Bitte richte [goreleaser] mit einem Homebrew-Cask ein.
+2026-11-02 09:15  2026-11-02 09:16  2     claude:4f7a0b11-…   Release v0.3.0               seletz/total-recall  …der [goreleaser]-Lauf ist durch…
 ```
 
 | Option | Bedeutung |
@@ -213,7 +222,9 @@ total-recall search backup --session 9a1b2c3d                # nur in dieser Ses
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
 | `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
-| `--limit N` | höchstens N Treffer (Default 20, 0 = alle) |
+| `--limit N` | höchstens N Treffer (Default 20, 0 = alle); mit `--by-session` die N Sessions mit den jüngsten Treffern, bei `--order hits` die mit den meisten |
+| `--by-session` | eine Zeile je Session statt je Treffer: `first_hit`, `last_hit`, `hits`, `snippet` des ersten Treffers |
+| `--order first_hit\|hits` | Sortierung mit `--by-session`: nach erstem Treffer, älteste zuerst (Default), oder nach Trefferzahl, meiste zuerst |
 
 Ohne `--raw` wird jedes Wort in Anführungszeichen gesetzt. Dann müssen alle Wörter vorkommen, und Sonderzeichen sind harmlos.
 
@@ -399,6 +410,7 @@ Mit `--worktime` schätzt `stats` die **aktive Arbeitszeit je Tag und Kategorie*
 total-recall stats --worktime                         # diese Woche
 total-recall stats --worktime --range last-week
 total-recall stats --worktime --range last-month --sessions
+total-recall stats --worktime --range last-week --summary
 total-recall stats --worktime --since 2026-10-26 --until 2026-10-30 --json
 ```
 
@@ -436,6 +448,7 @@ total        15h53m  16h45m   4
 |---|---|
 | `--range`, `--since`, `--until`, `--month` | wie bei [`--workday`](#stats-workday): Tage ab der Tagesgrenze, `--until` einschließlich, ohne Zeitraum `this-week` |
 | `--sessions` | in der Textausgabe je Tag und Kategorie die Sessions mit Titel (Vorlage für Buchungstexte) und, bei mehr als einem Projekt je Kategorie, die Projekte; Tage ohne Aktivität entfallen dort. JSON enthält beides immer |
+| `--summary` | in der Textausgabe je Tag und Kategorie die Zeile `refs:` mit den Issue- und PR-Referenzen je Projekt und `text:` mit einem Vorschlag für den Buchungstext (siehe unten); kombinierbar mit `--sessions`, Tage ohne Aktivität entfallen. JSON enthält `refs` und `text` immer |
 
 ```text
 2026-10-26 Mon: 3h43m raw, 4h00m rounded
@@ -450,9 +463,24 @@ total        15h53m  16h45m   4
        26m  7d1e02be  Frostwarnung
 ```
 
+```text
+2026-10-26 Mon: 3h43m raw, 4h00m rounded
+  fahrtenbuch: 45m raw, 45m rounded
+    refs: -
+    text: fahrtenbuch: Fahrten zusammenfassen
+  kompass: 2h32m raw, 2h45m rounded
+    refs: kompass #31, #48, PR #52
+    text: kompass: GPX-Export (#31/PR #52), Tiles-Cache nach Neustart leer (#31), Wegpunkte stabil sortieren (#48), Umlaute in Ortsnamen (#48)
+  wetterwarte: 26m raw, 30m rounded
+    refs: wetterwarte mara/wetterwarte#238
+    text: wetterwarte: Frostwarnung (mara/wetterwarte#238)
+```
+
+**Referenzen und Buchungstext.** `--summary` liest die Issue- und PR-Referenzen aus den Session-Titeln und deinen eigenen Nachrichten (`actor = 'human'`), nie aus Antworten des Agenten oder Werkzeugausgaben. Formen: `#31`, `PR #32` (auch `pull request #32`, `MR #32`), `owner/repo#123`, `PR owner/repo#124` sowie Issue-, Pull- und Merge-Request-URLs (`https://…/owner/repo/issues/123`, `…/pull/124`, `…/-/merge_requests/8`), die zur Kurzform werden. Nicht gezählt: ein `#` hinter einem Buchstaben, einer Ziffer oder `&` (`C#1`, `&#39;`), eine Nummer mit Buchstaben dahinter (`#1a2b3c`), ein Repository hinter `/` oder `.` (ein Pfad). `refs` ist je Zelle, Projekt und Session dedupliziert (eine Nummer, die einmal als PR steht, ist ein PR) und nach Repository und Nummer sortiert, das eigene Repository zuerst. `text` ist `<projekt>: <session>, <session>; <projekt>: …`, Projekte nach Name, Sessions in Reihenfolge der ersten Nachricht: der Titel, dahinter in Klammern die Referenzen der Nachrichten, die der Titel nicht nennt (`Konfig (#21)`, `Neue Lint-Regeln (#40) (PR #52)`); ohne Titel die Referenzen (`#19/#26`), ohne beides die erste Zeile der ersten Nachricht des Tages (höchstens 60 Zeichen), sonst `(untitled)`; gleiche Einträge eines Projekts nur einmal. Der Text wird auf `summary_max_chars` Zeichen gekürzt und endet dann mit `…` (Default 200, `0` ohne Grenze); das Rezept: [Stundenzettel füllen](../how-to/45-stundenzettel.md#referenzen-und-ein-vorschlag-fur-den-text).
+
 **Tagesgrenze und Feiertage.** Wie bei `--workday`: ein Tag beginnt um `day_start`, Nachrichten davor zählen zum Vortag (die Lücke läuft über Mitternacht weiter). Alle Tage des Zeitraums erscheinen, Feiertage aus `bundesland` in `[work]` mit Namen; ein Feiertag oder Wochenende ändert an der Zählung nichts.
 
-JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_seconds`, `grid_seconds`, `rounding`, `rounding_scope`, `holiday_region`), je Tag `raw_seconds`, `rounded_seconds`, `weekend`, `holiday` und die Liste `categories` mit je Kategorie den Projekten (`project`, `key`, `remote`, roh und einzeln gerundet) und Sessions (`id`, `title`, `raw_seconds`, in Reihenfolge der ersten Nachricht), dann `categories` mit den Summen je Kategorie über den Zeitraum und `total`. Gerundete Summen sind Summen der gerundeten Tageszellen. Ein Tag ohne Aktivität hat eine leere Liste und Nullen.
+JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_seconds`, `grid_seconds`, `rounding`, `rounding_scope`, `summary_max_chars`, `holiday_region`), je Tag `raw_seconds`, `rounded_seconds`, `weekend`, `holiday` und die Liste `categories` mit je Kategorie den Projekten (`project`, `key`, `remote`, roh und einzeln gerundet, `refs`), Sessions (`id`, `title`, `raw_seconds`, `refs`, in Reihenfolge der ersten Nachricht), den Referenzen der Zelle (`refs`, Liste von Strings, `[]` ohne) und dem Buchungstext (`text`), dann `categories` mit den Summen je Kategorie über den Zeitraum und `total`. Gerundete Summen sind Summen der gerundeten Tageszellen. Ein Tag ohne Aktivität hat eine leere Liste und Nullen.
 
 ```json
 {
@@ -462,6 +490,7 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
   "day_start": "04:00",
   "max_gap_seconds": 1200, "min_credit_seconds": 180,
   "grid_seconds": 900, "rounding": "up", "rounding_scope": "category",
+  "summary_max_chars": 200,
   "holiday_region": "Baden-Württemberg",
   "days": [
     {
@@ -470,8 +499,10 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
       "categories": [
         {
           "category": "kompass", "raw_seconds": 9142, "rounded_seconds": 9900,
-          "projects": [{"project": "kompass", "key": "/home/mara/src/kompass", "remote": "https://git.invalid/mara/kompass", "raw_seconds": 9142, "rounded_seconds": 9900}],
-          "sessions": [{"id": "claude:7d1e02bb-02bb-4000-8000-0000000002bb", "title": "GPX-Export", "raw_seconds": 2712}]
+          "projects": [{"project": "kompass", "key": "/home/mara/src/kompass", "remote": "https://git.invalid/mara/kompass", "raw_seconds": 9142, "rounded_seconds": 9900, "refs": ["#31", "#48", "PR #52"]}],
+          "sessions": [{"id": "claude:7d1e02bb-02bb-4000-8000-0000000002bb", "title": "GPX-Export", "raw_seconds": 2712, "refs": ["#31", "PR #52"]}],
+          "refs": ["#31", "#48", "PR #52"],
+          "text": "kompass: GPX-Export (#31/PR #52), Tiles-Cache nach Neustart leer (#31), Wegpunkte stabil sortieren (#48), Umlaute in Ortsnamen (#48)"
         }
       ]
     }
@@ -481,7 +512,7 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
 }
 ```
 
-`--worktime` lässt sich nicht mit `--workday`, `--all-events`, `--period`, `--by` oder `--top` kombinieren. Ein Fehler in `[worktime]` bricht nur diesen Befehl ab (`kind` `config`).
+`--worktime` lässt sich nicht mit `--workday`, `--all-events`, `--period`, `--by` oder `--top` kombinieren; `--sessions` und `--summary` brauchen `--worktime`. Ein Fehler in `[worktime]` bricht nur diesen Befehl ab (`kind` `config`).
 
 ## `tui` { #tui }
 

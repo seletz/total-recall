@@ -111,6 +111,10 @@ rounding = "up"
 # "project" (every project per day; the category is the sum of its
 # rounded projects).
 scope = "category"
+# Length of the booking text per category and day that `--summary` builds
+# from the session titles and the issue/PR references in your messages;
+# 0 = no limit.
+summary_max_chars = 200
 # Categories, as an ordered list of rules; the first rule with a matching
 # pattern wins. A pattern is matched whole against the project name (as in
 # `stats --by project`), the git root or working directory (as a path and

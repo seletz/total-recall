@@ -165,6 +165,9 @@ type Worktime struct {
 	Grid     Duration `toml:"grid"`
 	Rounding string   `toml:"rounding"`
 	Scope    string   `toml:"scope"`
+	// SummaryMaxChars is the length of the booking text per category and
+	// day (stats --worktime --summary) in characters; 0 means no limit.
+	SummaryMaxChars int `toml:"summary_max_chars"`
 	// Categories are the ordered rules that map projects to categories
 	// ([[worktime.category]]); the first match wins, a project without a
 	// match is its own category.
@@ -181,13 +184,14 @@ type Category struct {
 
 // Built-in working time per project: gaps up to 20 minutes count in full,
 // longer ones 3 minutes, the sum per category and day is rounded up to
-// 15 minutes.
+// 15 minutes, the booking text is cut at 200 characters.
 const (
-	DefaultWorktimeMaxGap    = 20 * time.Minute
-	DefaultWorktimeMinCredit = 3 * time.Minute
-	DefaultWorktimeGrid      = 15 * time.Minute
-	DefaultWorktimeRounding  = "up"
-	DefaultWorktimeScope     = "category"
+	DefaultWorktimeMaxGap          = 20 * time.Minute
+	DefaultWorktimeMinCredit       = 3 * time.Minute
+	DefaultWorktimeGrid            = 15 * time.Minute
+	DefaultWorktimeRounding        = "up"
+	DefaultWorktimeScope           = "category"
+	DefaultWorktimeSummaryMaxChars = 200
 )
 
 // TUI configures `total-recall tui`. Flags override every value.
@@ -373,6 +377,7 @@ var fields = []struct {
 	{"worktime.grid", func(c *Config) string { return c.Worktime.Grid.String() }},
 	{"worktime.rounding", func(c *Config) string { return c.Worktime.Rounding }},
 	{"worktime.scope", func(c *Config) string { return c.Worktime.Scope }},
+	{"worktime.summary_max_chars", func(c *Config) string { return strconv.Itoa(c.Worktime.SummaryMaxChars) }},
 	{"worktime.category", func(c *Config) string { return formatCategories(c.Worktime.Categories) }},
 	{"tui.view", func(c *Config) string { return c.TUI.View }},
 	{"tui.graphics", func(c *Config) string { return c.TUI.Graphics }},
@@ -448,7 +453,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	}
 	c.Worktime = Worktime{
 		MaxGap: Duration{DefaultWorktimeMaxGap}, MinCredit: Duration{DefaultWorktimeMinCredit}, Grid: Duration{DefaultWorktimeGrid},
-		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, Categories: []Category{},
+		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week"}
 	c.Keys = map[string]KeyList{}
@@ -670,7 +675,7 @@ func (c *Config) validateWorkBounds() error {
 // never see it.
 func (c *Config) WorktimeSettings() (worktime.Settings, error) {
 	w := c.Worktime
-	s := worktime.Settings{MaxGap: w.MaxGap.Duration, MinCredit: w.MinCredit.Duration, Grid: w.Grid.Duration}
+	s := worktime.Settings{MaxGap: w.MaxGap.Duration, MinCredit: w.MinCredit.Duration, Grid: w.Grid.Duration, SummaryMaxChars: w.SummaryMaxChars}
 	if s.MaxGap <= 0 {
 		return s, fmt.Errorf("config: worktime.max_gap %s: want more than 0", s.MaxGap)
 	}
@@ -679,6 +684,9 @@ func (c *Config) WorktimeSettings() (worktime.Settings, error) {
 	}
 	if s.Grid < 0 || s.Grid > 24*time.Hour {
 		return s, fmt.Errorf("config: worktime.grid %s: want between 0 (no rounding) and 24h", s.Grid)
+	}
+	if s.SummaryMaxChars < 0 {
+		return s, fmt.Errorf("config: worktime.summary_max_chars %d: want 0 (no limit) or more", s.SummaryMaxChars)
 	}
 	var err error
 	if s.Rounding, err = worktime.ParseRounding(w.Rounding); err != nil {

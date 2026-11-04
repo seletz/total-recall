@@ -689,7 +689,7 @@ func TestWorktime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.MaxGap != 20*time.Minute || s.MinCredit != 3*time.Minute || s.Grid != 15*time.Minute || s.Rounding != worktime.Up || s.Scope != worktime.ScopeCategory || len(s.Rules) != 0 {
+	if s.MaxGap != 20*time.Minute || s.MinCredit != 3*time.Minute || s.Grid != 15*time.Minute || s.Rounding != worktime.Up || s.Scope != worktime.ScopeCategory || len(s.Rules) != 0 || s.SummaryMaxChars != 200 {
 		t.Errorf("defaults = %+v", s)
 	}
 	content := `[worktime]
@@ -698,6 +698,7 @@ min_credit = "5m"
 grid = "6m"
 rounding = "nearest"
 scope = "project"
+summary_max_chars = 80
 
 [[worktime.category]]
 name = "kunde"
@@ -715,7 +716,7 @@ match = "*"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.MaxGap != 30*time.Minute || s.MinCredit != 5*time.Minute || s.Grid != 6*time.Minute || s.Rounding != worktime.Nearest || s.Scope != worktime.ScopeProject {
+	if s.MaxGap != 30*time.Minute || s.MinCredit != 5*time.Minute || s.Grid != 6*time.Minute || s.Rounding != worktime.Nearest || s.Scope != worktime.ScopeProject || s.SummaryMaxChars != 80 {
 		t.Errorf("file = %+v", s)
 	}
 	if len(s.Rules) != 2 || s.Rules[0].Name != "kunde" || len(s.Rules[0].Patterns) != 2 || s.Rules[1].Name != "sonstiges" || !s.Rules[1].Matches("anything") {
@@ -734,6 +735,9 @@ match = "*"
 	if e := entries["worktime.max_gap"]; e.Value != "30m0s" || e.Origin != OriginFile {
 		t.Errorf("max_gap entry = %+v", e)
 	}
+	if e := entries["worktime.summary_max_chars"]; e.Value != "80" || e.Origin != OriginFile {
+		t.Errorf("summary_max_chars entry = %+v", e)
+	}
 }
 
 // TestWorktimeErrors: a bad [worktime] table loads, but Worktime and
@@ -751,6 +755,7 @@ func TestWorktimeErrors(t *testing.T) {
 		{"grid too coarse", "[worktime]\ngrid = \"25h\"\n", "worktime.grid"},
 		{"rounding unknown", "[worktime]\nrounding = \"ceil\"\n", "worktime.rounding"},
 		{"scope unknown", "[worktime]\nscope = \"cell\"\n", "worktime.scope"},
+		{"summary length negative", "[worktime]\nsummary_max_chars = -1\n", "worktime.summary_max_chars"},
 		{"category without name", "[[worktime.category]]\nmatch = [\"*\"]\n", "worktime.category"},
 		{"category without patterns", "[[worktime.category]]\nname = \"a\"\n", "worktime.category"},
 		{"category empty pattern", "[[worktime.category]]\nname = \"a\"\nmatch = [\"\"]\n", "worktime.category"},
@@ -771,12 +776,13 @@ func TestWorktimeErrors(t *testing.T) {
 			}
 		})
 	}
-	// A grid of zero disables rounding and is fine.
-	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", "[worktime]\ngrid = \"0m\"\n")})
+	// A grid of zero disables rounding, a summary length of zero the
+	// limit; both are fine.
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", "[worktime]\ngrid = \"0m\"\nsummary_max_chars = 0\n")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s, err := c.WorktimeSettings(); err != nil || s.Grid != 0 {
+	if s, err := c.WorktimeSettings(); err != nil || s.Grid != 0 || s.SummaryMaxChars != 0 {
 		t.Errorf("grid 0 = %+v, %v", s, err)
 	}
 }

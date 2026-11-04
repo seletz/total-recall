@@ -8,6 +8,7 @@
   "grid_seconds": 900,
   "rounding": "up",
   "rounding_scope": "category",
+  "summary_max_chars": 200,
   "holiday_region": "Baden-Württemberg",
   "days": [
     {
@@ -28,16 +29,20 @@
               "key": "/home/mara/src/fahrtenbuch",
               "remote": "https://git.invalid/mara/fahrtenbuch",
               "raw_seconds": 2700,
-              "rounded_seconds": 2700
+              "rounded_seconds": 2700,
+              "refs": []
             }
           ],
           "sessions": [
             {
               "id": "claude:7d1e02c0-02c0-4000-8000-0000000002c0",
               "title": "Fahrten zusammenfassen",
-              "raw_seconds": 2700
+              "raw_seconds": 2700,
+              "refs": []
             }
-          ]
+          ],
+          "refs": [],
+          "text": "fahrtenbuch: Fahrten zusammenfassen"
         },
         {
           "category": "kompass",
@@ -49,31 +54,55 @@
               "key": "/home/mara/src/kompass",
               "remote": "https://git.invalid/mara/kompass",
               "raw_seconds": 9142,
-              "rounded_seconds": 9900
+              "rounded_seconds": 9900,
+              "refs": [
+                "#31",
+                "#48",
+                "PR #52"
+              ]
             }
           ],
           "sessions": [
             {
               "id": "claude:7d1e02bb-02bb-4000-8000-0000000002bb",
               "title": "GPX-Export",
-              "raw_seconds": 2712
+              "raw_seconds": 2712,
+              "refs": [
+                "#31",
+                "PR #52"
+              ]
             },
             {
               "id": "claude:7d1e02bc-02bc-4000-8000-0000000002bc",
               "title": "Tiles-Cache nach Neustart leer",
-              "raw_seconds": 540
+              "raw_seconds": 540,
+              "refs": [
+                "#31"
+              ]
             },
             {
               "id": "claude:7d1e02bd-02bd-4000-8000-0000000002bd",
               "title": "Wegpunkte stabil sortieren",
-              "raw_seconds": 2680
+              "raw_seconds": 2680,
+              "refs": [
+                "#48"
+              ]
             },
             {
               "id": "claude:7d1e02bf-02bf-4000-8000-0000000002bf",
               "title": "Umlaute in Ortsnamen",
-              "raw_seconds": 3210
+              "raw_seconds": 3210,
+              "refs": [
+                "#48"
+              ]
             }
-          ]
+          ],
+          "refs": [
+            "#31",
+            "#48",
+            "PR #52"
+          ],
+          "text": "kompass: GPX-Export (#31/PR #52), Tiles-Cache nach Neustart leer (#31), Wegpunkte stabil sortieren (#48), Umlaute in Ortsnamen (#48)"
         },
         {
           "category": "wetterwarte",
@@ -85,16 +114,26 @@
               "key": "/home/mara/src/wetterwarte",
               "remote": "https://git.invalid/mara/wetterwarte",
               "raw_seconds": 1560,
-              "rounded_seconds": 1800
+              "rounded_seconds": 1800,
+              "refs": [
+                "mara/wetterwarte#238"
+              ]
             }
           ],
           "sessions": [
             {
               "id": "claude:7d1e02be-02be-4000-8000-0000000002be",
               "title": "Frostwarnung",
-              "raw_seconds": 1560
+              "raw_seconds": 1560,
+              "refs": [
+                "mara/wetterwarte#238"
+              ]
             }
-          ]
+          ],
+          "refs": [
+            "mara/wetterwarte#238"
+          ],
+          "text": "wetterwarte: Frostwarnung (mara/wetterwarte#238)"
         }
       ]
     }
