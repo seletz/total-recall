@@ -43,17 +43,17 @@ func TestHumanEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []HumanEvent{
-		{Time: ts("2026-01-05T08:00:00Z"), SessionID: "claude:h1", Title: "Alpha work", Project: "/w/alpha", RemoteURL: "https://example.test/o/alpha"},
-		{Time: ts("2026-01-05T08:30:00Z"), SessionID: "claude:h2", Title: "Beta work", Project: "/w/beta", RemoteURL: "https://example.test/o/beta"},
-		{Time: ts("2026-01-05T09:00:00Z"), SessionID: "claude:h1", Title: "Alpha work", Project: "/w/alpha", RemoteURL: "https://example.test/o/alpha"},
-		{Time: ts("2026-01-06T08:00:00Z"), SessionID: "claude:h3", Title: "", Project: "/w/gamma", Dir: true},
+		{Time: ts("2026-01-05T08:00:00Z"), SessionID: "claude:h1", Title: "Alpha work", Project: "/w/alpha", RemoteURL: "https://example.test/o/alpha", Text: "a"},
+		{Time: ts("2026-01-05T08:30:00Z"), SessionID: "claude:h2", Title: "Beta work", Project: "/w/beta", RemoteURL: "https://example.test/o/beta", Text: "d"},
+		{Time: ts("2026-01-05T09:00:00Z"), SessionID: "claude:h1", Title: "Alpha work", Project: "/w/alpha", RemoteURL: "https://example.test/o/alpha", Text: "c"},
+		{Time: ts("2026-01-06T08:00:00Z"), SessionID: "claude:h3", Title: "", Project: "/w/gamma", Dir: true, Text: "e"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d events, want %d: %+v", len(got), len(want), got)
 	}
 	for i := range want {
 		if !got[i].Time.Equal(want[i].Time) || got[i].SessionID != want[i].SessionID || got[i].Title != want[i].Title ||
-			got[i].Project != want[i].Project || got[i].Dir != want[i].Dir || got[i].RemoteURL != want[i].RemoteURL {
+			got[i].Project != want[i].Project || got[i].Dir != want[i].Dir || got[i].RemoteURL != want[i].RemoteURL || got[i].Text != want[i].Text {
 			t.Errorf("event %d = %+v, want %+v", i, got[i], want[i])
 		}
 	}

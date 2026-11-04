@@ -427,3 +427,78 @@ func TestSearchSession(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchBySession(t *testing.T) {
+	s, _ := openTestStore(t)
+	seed(t, s)
+	type row struct {
+		id, first, last string
+		hits            int
+	}
+	tests := []struct {
+		name  string
+		q     string
+		f     SearchFilter
+		order SearchOrder
+		want  []row
+		snip  string // snippet of the first row
+	}{
+		{"timeline oldest first", "login", SearchFilter{}, OrderFirstHit, []row{
+			{"other:ccc333", "2026-09-01T10:00:00Z", "2026-09-01T10:00:00Z", 1},
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, "audit [login]-flow"},
+		{"order hits", "login", SearchFilter{}, OrderHits, []row{
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4},
+			{"other:ccc333", "2026-09-01T10:00:00Z", "2026-09-01T10:00:00Z", 1}}, "please fix the [login] bug"},
+		{"actor", "login", SearchFilter{Actor: "agent"}, OrderFirstHit, []row{
+			{"claude:aaa111", "2026-10-31T22:10:00Z", "2026-10-31T22:11:00Z", 2}}, "looking at the [login] handler"},
+		{"since on event time", "login", SearchFilter{SessionFilter: SessionFilter{Since: ts("2026-10-31T22:05:00Z")}}, OrderFirstHit, []row{
+			{"claude:aaa111", "2026-10-31T22:10:00Z", "2026-10-31T22:12:00Z", 3}}, ""},
+		{"repo", "login", SearchFilter{SessionFilter: SessionFilter{Repo: "acme", Until: ts("2026-10-01T00:00:00Z")}}, OrderFirstHit, []row{
+			{"other:ccc333", "2026-09-01T10:00:00Z", "2026-09-01T10:00:00Z", 1}}, ""},
+		{"session", "login", SearchFilter{SessionID: "other:ccc333"}, OrderFirstHit, []row{
+			{"other:ccc333", "2026-09-01T10:00:00Z", "2026-09-01T10:00:00Z", 1}}, ""},
+		{"raw", "login NOT handler", SearchFilter{Raw: true}, OrderFirstHit, []row{
+			{"other:ccc333", "2026-09-01T10:00:00Z", "2026-09-01T10:00:00Z", 1},
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 3}}, ""},
+		{"limit by hits", "login", SearchFilter{SessionFilter: SessionFilter{Limit: 1}}, OrderHits, []row{
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, ""},
+		// Three sessions match; the limit keeps the two with the latest hits, shown oldest first.
+		{"limit keeps most recent", "login OR docs", SearchFilter{Raw: true, SessionFilter: SessionFilter{Limit: 2}}, OrderFirstHit, []row{
+			{"claude:aab222", "2026-10-15T08:00:00Z", "2026-10-15T09:00:00Z", 2},
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, ""},
+		{"limit one keeps the newest", "login", SearchFilter{SessionFilter: SessionFilter{Limit: 1}}, OrderFirstHit, []row{
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, ""},
+		{"no hits", "kubernetes", SearchFilter{}, OrderFirstHit, nil, ""},
+		{"empty query", "   ", SearchFilter{}, OrderFirstHit, nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := s.SearchBySession(ctx, tt.q, tt.f, tt.order)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d rows, want %d: %+v", len(got), len(tt.want), got)
+			}
+			for i, w := range tt.want {
+				g := got[i]
+				if g.SessionID != w.id || g.Hits != w.hits || g.FirstHit != ts(w.first) || g.LastHit != ts(w.last) {
+					t.Errorf("row %d = %s %d %s..%s, want %s %d %s..%s", i, g.SessionID, g.Hits, g.FirstHit.Format(time.RFC3339),
+						g.LastHit.Format(time.RFC3339), w.id, w.hits, w.first, w.last)
+				}
+				if g.SessionName == "" || g.Repo == "" || g.Snippet == "" {
+					t.Errorf("row %d without name/repo/snippet: %+v", i, g)
+				}
+			}
+			if tt.snip != "" && got[0].Snippet != tt.snip {
+				t.Errorf("snippet = %q, want %q", got[0].Snippet, tt.snip)
+			}
+		})
+	}
+	if _, err := s.SearchBySession(ctx, `"unbalanced`, SearchFilter{Raw: true}, OrderFirstHit); err == nil {
+		t.Error("bad FTS syntax: no error")
+	}
+	if _, err := s.SearchBySession(ctx, "login", SearchFilter{}, SearchOrder("rank")); err == nil {
+		t.Error("unknown order: no error")
+	}
+}

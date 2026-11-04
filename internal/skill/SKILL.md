@@ -7,29 +7,19 @@ description: Query the local archive of past coding-agent sessions (Claude Code 
 
 `total-recall` is a local SQLite archive of every coding-agent session on this machine, across all repositories. It holds the **conversation**: what the human asked, what the agent answered, which tools ran, with time stamps. This is how an agent in session A learns what was decided in session B, even when B ran in a repository that A cannot see.
 
-Start with `total-recall sql --json` and full-text search (FTS5): `search` returns hits, `sql` returns answers, because it can group, count and join. Always pass `--json` and parse stdout only.
+Start with `total-recall search --by-session --json` for the sessions of a topic, then `total-recall sql --json` with full-text search (FTS5) for everything that needs grouping, counting or joining: `search` returns hits, `sql` returns answers. Always pass `--json` and parse stdout only.
 
 ## The four core queries
 
-Replace `sbom` with the topic. FTS5 syntax: `word`, `"exact phrase"`, `prefix*`, `a AND b`, `a OR b`, `a NOT b`. The `MATCH` operand must be the table name `events_fts` (an alias does not work), and `events_fts.rowid` joins to `events.seq`.
+Replace `sbom` with the topic. FTS5 syntax (with `search --raw` and in `sql`): `word`, `"exact phrase"`, `prefix*`, `a AND b`, `a OR b`, `a NOT b`. In SQL the `MATCH` operand must be the table name `events_fts` (an alias does not work), and `events_fts.rowid` joins to `events.seq`.
 
 ### 1. Which sessions talk about X, and when
 
 ```sh
-total-recall sql --json "
-SELECT s.id, s.display_name,
-       coalesce(s.git_remote_url, s.git_root, s.cwd) AS repo,
-       min(e.ts) AS first_hit, max(e.ts) AS last_hit, count(*) AS hits
-FROM events_fts
-JOIN events e ON e.seq = events_fts.rowid
-JOIN sessions s ON s.id = e.session_id
-WHERE events_fts MATCH 'sbom'
-GROUP BY s.id
-ORDER BY first_hit DESC
-LIMIT 20"
+total-recall search sbom --by-session --json --limit 20
 ```
 
-One row per session with repo, time span and hit count. This is the right first query: it tells you where to read and gives the timeline for free.
+One row per session (subagents included) with `session_id`, `display_name`, `repo`, `first_hit`, `last_hit` (UTC), `hits` and the `snippet` of the first hit, oldest session first: a timeline. `--order hits` puts the sessions with the most hits first. The filters of `search` apply: `--since`/`--until` (on the event time), `--repo`, `--actor human` for sessions where the user raised the topic, `--raw` for FTS5 syntax. This is the right first query: it tells you where to read and gives the timeline for free. See [`search --by-session --json`](#search---by-session---json) for the fields.
 
 ### 2. What the human said about X
 
@@ -112,7 +102,7 @@ LIMIT 50"
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
 - `events.text` of tool results is truncated to 4 KiB. `events.raw` is the full original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); never select `raw` in a list query.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
-- `search` returns 20 hits by default (`--limit N` for more). Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
+- `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
 
 ## Schema and pitfalls
@@ -253,10 +243,11 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
+| `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory] [--top N]` | time series per period, optionally per key |
 | `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
-| `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell (`--sessions` adds them to the text output). Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
+| `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell, the issue/PR references of their titles and the user's messages (`refs`) and a booking text (`text`); `--sessions` and `--summary` add them to the text output. Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
 | `total-recall llm --skill` | prints this document |
 
@@ -329,6 +320,20 @@ One object per hit.
 | `kind` | |
 | `snippet` | matched words in `[…]` |
 | `rank` | FTS5 rank, lower is better |
+
+#### `search --by-session --json`
+
+One object per session, sorted by `first_hit` (`--order hits`: by `hits` descending).
+
+| field | meaning |
+|---|---|
+| `session_id` | |
+| `display_name` | display name of the session |
+| `repo` | as in `sessions --json` |
+| `first_hit` | time of the earliest hit, UTC |
+| `last_hit` | time of the latest hit, UTC |
+| `hits` | matching events in the session |
+| `snippet` | snippet of the earliest hit, matched words in `[…]` |
 
 #### `status --json`
 
@@ -438,6 +443,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `grid_seconds` | rounding grid, 0 = no rounding |
 | `rounding` | `up`, `down` or `nearest` |
 | `rounding_scope` | `category` (the sum per category and day is rounded once) or `project` (every project is rounded, the category is the sum) |
+| `summary_max_chars` | length the booking `text` of a cell is cut to, 0 = no limit |
 | `holiday_region` | region of the public holidays |
 | `days` | all days of the range, see below |
 | `categories` | per category over the range, see below |
@@ -464,6 +470,8 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `rounded_seconds` | time to book |
 | `projects` | projects of the category with time on the day, sorted by name |
 | `sessions` | sessions of the category on the day, in order of their first message; titles are the template for booking texts |
+| `refs` | issue and pull-request references of all sessions of the cell, from the session titles and the user's own messages only (never agent or tool output): `#31`, `PR #32`, `owner/repo#123`, `PR owner/repo#124`; deduplicated, sorted by repository and number; `[]` without any |
+| `text` | booking text proposal: `<project>: <title> (<refs>), <title>; <project>: …` with the sessions per project in order of their first message (an untitled session shows its refs, else the start of its first message), cut to `summary_max_chars` and then ending in `…` |
 
 #### `stats --json --worktime` days[].categories[].projects[]
 
@@ -474,6 +482,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `remote` | remote URL, `null` without a repository |
 | `raw_seconds` | |
 | `rounded_seconds` | the project rounded alone; with `rounding_scope` `category` the projects can sum to more than the category |
+| `refs` | references of the project's sessions, as in the cell |
 
 #### `stats --json --worktime` days[].categories[].sessions[]
 
@@ -482,6 +491,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `id` | session id, for `show` |
 | `title` | display name, `null` without |
 | `raw_seconds` | |
+| `refs` | references of the session's title and own messages of the day, sorted; `[]` without any |
 
 #### `stats --json --worktime` categories[]
 

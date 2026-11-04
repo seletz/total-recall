@@ -8,6 +8,7 @@
   "grid_seconds": 900,
   "rounding": "up",
   "rounding_scope": "category",
+  "summary_max_chars": 200,
   "holiday_region": "Baden-Württemberg",
   "days": [
     {
@@ -28,16 +29,20 @@
               "key": "/w/beta",
               "remote": "https://example.test/o/beta",
               "raw_seconds": 180,
-              "rounded_seconds": 900
+              "rounded_seconds": 900,
+              "refs": []
             }
           ],
           "sessions": [
             {
               "id": "claude:b2b2b2b2-0004-4000-8000-000000000004",
               "title": null,
-              "raw_seconds": 180
+              "raw_seconds": 180,
+              "refs": []
             }
-          ]
+          ],
+          "refs": [],
+          "text": "beta: plan the week"
         }
       ]
     },
@@ -77,16 +82,20 @@
               "key": "/w/alpha",
               "remote": "https://example.test/o/alpha",
               "raw_seconds": 360,
-              "rounded_seconds": 900
+              "rounded_seconds": 900,
+              "refs": []
             }
           ],
           "sessions": [
             {
               "id": "claude:a1a1a1a1-0006-4000-8000-000000000006",
               "title": null,
-              "raw_seconds": 360
+              "raw_seconds": 360,
+              "refs": []
             }
-          ]
+          ],
+          "refs": [],
+          "text": "alpha: run the linter"
         }
       ]
     },
@@ -126,16 +135,20 @@
               "key": "/w/alpha",
               "remote": "https://example.test/o/alpha",
               "raw_seconds": 180,
-              "rounded_seconds": 900
+              "rounded_seconds": 900,
+              "refs": []
             }
           ],
           "sessions": [
             {
               "id": "claude:c1c1c1c1-0003-4000-8000-000000000003",
               "title": null,
-              "raw_seconds": 180
+              "raw_seconds": 180,
+              "refs": []
             }
-          ]
+          ],
+          "refs": [],
+          "text": "alpha: push the branch"
         }
       ]
     }

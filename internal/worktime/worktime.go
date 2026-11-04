@@ -174,6 +174,9 @@ type Settings struct {
 	// Rules map projects to categories, in order; a project no rule
 	// matches is its own category, named like the project.
 	Rules []Rule
+	// SummaryMaxChars is the length of the booking text of a category
+	// and day in runes, 0 for no limit.
+	SummaryMaxChars int
 }
 
 // credit is the time a gap counts; a negative gap marks the first event
@@ -210,6 +213,9 @@ type Event struct {
 	Project string
 	Dir     bool
 	Remote  string
+	// Text is the message, the source of the references (FindRefs) and
+	// of the booking text.
+	Text string
 }
 
 // Options are the day rule and the range of Compute.
@@ -262,20 +268,31 @@ type Category struct {
 	// sorted by name; Sessions the sessions in order of their first message.
 	Projects []Project
 	Sessions []Session
+	// Refs are the references of all sessions, deduplicated and sorted;
+	// Text is the booking text (see Summary).
+	Refs []Ref
+	Text string
 }
 
 // Project is one project within a category on one day. Rounded is the
 // rounded Raw whatever the scope; with ScopeCategory the projects' rounded
-// values can sum to more than the category's.
+// values can sum to more than the category's. Refs are the references of
+// the project's sessions, deduplicated and sorted.
 type Project struct {
 	Name, Key, Remote string
 	Raw, Rounded      time.Duration
+	Refs              []Ref
 }
 
-// Session is one session within a category on one day.
+// Session is one session within a category on one day. Project is the
+// key of its project, Prompt the first own message of the day with text,
+// Refs the references of the title and the messages, sorted.
 type Session struct {
 	ID, Title string
+	Project   string
+	Prompt    string
 	Raw       time.Duration
+	Refs      []Ref
 }
 
 // Total sums a category (Name) or everything over the range: Raw, Rounded
@@ -299,9 +316,10 @@ func Compute(events []Event, s Settings, opts Options) Report {
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Time.Before(sorted[j].Time) })
 
 	type sessAcc struct {
-		id, title string
-		first     time.Time
-		raw       time.Duration
+		id, title, project, prompt string
+		first                      time.Time
+		raw                        time.Duration
+		refs                       []Ref
 	}
 	type projAcc struct {
 		key, remote string
@@ -346,10 +364,16 @@ func Compute(events []Event, s Settings, opts Options) Report {
 		p.raw += credit
 		sa := c.sessions[e.Session]
 		if sa == nil {
-			sa = &sessAcc{id: e.Session, title: e.Title, first: e.Time}
+			sa = &sessAcc{id: e.Session, title: e.Title, project: e.Project, first: e.Time, refs: FindRefs(e.Title)}
 			c.sessions[e.Session] = sa
 		}
 		sa.raw += credit
+		if sa.prompt == "" {
+			sa.prompt = e.Text
+		}
+		if refs := FindRefs(e.Text); len(refs) > 0 {
+			sa.refs = MergeRefs(sa.refs, refs)
+		}
 		if firstDay.IsZero() || day.Before(firstDay) {
 			firstDay = day
 		}
@@ -382,7 +406,7 @@ func Compute(events []Event, s Settings, opts Options) Report {
 			}
 			sort.Slice(cat.Projects, func(i, j int) bool { return cat.Projects[i].Name < cat.Projects[j].Name })
 			for _, sa := range c.sessions {
-				cat.Sessions = append(cat.Sessions, Session{ID: sa.id, Title: sa.title, Raw: sa.raw})
+				cat.Sessions = append(cat.Sessions, Session{ID: sa.id, Title: sa.title, Project: sa.project, Prompt: sa.prompt, Raw: sa.raw, Refs: sa.refs})
 			}
 			sort.SliceStable(cat.Sessions, func(i, j int) bool {
 				a, b := c.sessions[cat.Sessions[i].ID], c.sessions[cat.Sessions[j].ID]
@@ -391,6 +415,21 @@ func Compute(events []Event, s Settings, opts Options) Report {
 				}
 				return a.id < b.id
 			})
+			for i := range cat.Projects {
+				var lists [][]Ref
+				for _, sess := range cat.Sessions {
+					if sess.Project == cat.Projects[i].Key {
+						lists = append(lists, sess.Refs)
+					}
+				}
+				cat.Projects[i].Refs = MergeRefs(lists...)
+			}
+			var lists [][]Ref
+			for _, p := range cat.Projects {
+				lists = append(lists, p.Refs)
+			}
+			cat.Refs = MergeRefs(lists...)
+			cat.Text = Summary(cat, s.SummaryMaxChars)
 			switch s.Scope {
 			case ScopeProject:
 				for _, p := range cat.Projects {

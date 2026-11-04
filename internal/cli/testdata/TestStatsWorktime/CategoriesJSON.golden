@@ -8,6 +8,7 @@
   "grid_seconds": 900,
   "rounding": "up",
   "rounding_scope": "category",
+  "summary_max_chars": 200,
   "holiday_region": "Baden-Württemberg",
   "days": [
     {
@@ -37,16 +38,20 @@
               "key": "/w/gamma",
               "remote": null,
               "raw_seconds": 180,
-              "rounded_seconds": 900
+              "rounded_seconds": 900,
+              "refs": []
             }
           ],
           "sessions": [
             {
               "id": "claude:d3d3d3d3-0002-4000-8000-000000000002",
               "title": null,
-              "raw_seconds": 180
+              "raw_seconds": 180,
+              "refs": []
             }
-          ]
+          ],
+          "refs": [],
+          "text": "/w/gamma: count the words"
         }
       ]
     },
@@ -77,16 +82,20 @@
               "key": "/w/alpha",
               "remote": "https://example.test/o/alpha",
               "raw_seconds": 1980,
-              "rounded_seconds": 2700
+              "rounded_seconds": 2700,
+              "refs": []
             }
           ],
           "sessions": [
             {
               "id": "claude:a1a1a1a1-0004-4000-8000-000000000004",
               "title": null,
-              "raw_seconds": 1980
+              "raw_seconds": 1980,
+              "refs": []
             }
-          ]
+          ],
+          "refs": [],
+          "text": "alpha: build it"
         }
       ]
     },
