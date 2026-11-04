@@ -11,6 +11,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 ### Release
 
 - Die macOS-Binaries (amd64, arm64) sind mit einer Developer-ID signiert (Hardened Runtime, Apple-Zeitstempel) und von Apple notarisiert. Gatekeeper startet sie ohne Dialog, auch aus einem über den Browser geladenen Archiv mit Quarantäne-Attribut; der Fehler „Apple konnte nicht überprüfen …“ nach `brew upgrade --cask total-recall`, wenn ein Hook das Binary vor dem `postflight`-Schritt des Casks aufrief, entfällt. Signiert wird im Release-Lauf vor Archiv, SBOM und Prüfsummen, sodass alle drei das ausgelieferte Binary beschreiben; ohne die Secrets im Repository (Snapshot, CI, Forks) bleibt das Binary wie bisher unsigniert. Prüfung mit `codesign` und `spctl` sowie die Einrichtung der Secrets: [Release-Assets](50-release.md#signatur-der-macos-binaries) ([#116](https://github.com/seletz/total-recall/issues/116)).
+- Der manuell startbare Workflow `signed-snapshot.yml` baut einen signierten und notarisierten Snapshot der darwin-Binaries und hängt die Archive sieben Tage als Workflow-Artefakt an den Lauf, ohne Tag, Release oder Cask. So lassen sich die Secrets und die Signatur prüfen, bevor ein Release sie braucht: [Release-Assets](50-release.md#signatur-ohne-release-testen) ([#116](https://github.com/seletz/total-recall/issues/116)).
 
 ## v1.0.1
 
