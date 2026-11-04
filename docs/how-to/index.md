@@ -15,3 +15,4 @@ Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 - [Arbeitszeit nachvollziehen](40-arbeitszeit.md): erste und letzte Aktivität je Tag mit Soll und Saldo, in CLI und TUI.
 - [Stundenzettel füllen](45-stundenzettel.md): Arbeitszeit je Tag und Kategorie aus den Lücken zwischen den eigenen Nachrichten, Buchungstexte aus den Session-Titeln.
 - [Agenten anbinden](50-agenten-anbinden.md): den eingebetteten Skill für Claude Code ablegen.
+- [Archiv warten](60-wartung.md): die Datenbankdatei mit größeren Seiten kompakter neu aufbauen, wann und wie.
