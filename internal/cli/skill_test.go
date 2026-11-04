@@ -245,6 +245,7 @@ func TestSkillJSONFields(t *testing.T) {
 		{"show --json", show, "", nil},
 		{"show --json events[]", show, "events[]", reflect.TypeOf(EventJSON{})},
 		{"search --json", []string{"search", "sbom", "--json"}, "[]", reflect.TypeOf(HitJSON{})},
+		{"search --by-session --json", []string{"search", "sbom", "--json", "--by-session"}, "[]", reflect.TypeOf(SessionHitsJSON{})},
 		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{})},
 		{"stats --json", []string{"stats", "--json", "--month", "2026-10"}, "", reflect.TypeOf(StatsJSON{})},
 		{"stats --json --period", []string{"stats", "--json", "--period", "week", "--by", "project", "--month", "2026-10"}, "", reflect.TypeOf(ActivitySeriesJSON{})},

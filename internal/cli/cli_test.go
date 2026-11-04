@@ -494,6 +494,62 @@ func TestSearch(t *testing.T) {
 	e.mustRun(t, "search", `"unbalanced`, "AND", "--json")
 }
 
+func TestSearchBySession(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	sub := "claude:agent-a01"
+	main := "claude:" + tf.SmallSession1
+	type row struct {
+		id    string
+		hits  int
+		first string
+	}
+	tests := []struct {
+		name string
+		args []string
+		want []row
+	}{
+		// "count" occurs in the main session (09:30) and in its subagent (08:00:10).
+		{"timeline includes subagents", []string{"count"}, []row{{sub, 1, "2026-10-05T08:00:10.000Z"}, {main, 1, "2026-10-05T09:30:00.000Z"}}},
+		{"order hits", []string{"--raw", "lines OR count", "--order", "hits"}, []row{{main, 2, "2026-10-05T09:30:00.000Z"}, {sub, 1, "2026-10-05T08:00:10.000Z"}}},
+		{"actor", []string{"count", "--actor", "human"}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}},
+		{"since", []string{"count", "--since", "2026-10-05T11:00"}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}}, // local time, UTC+2
+		{"repo", []string{"count", "--repo", "beta"}, nil},
+		// Two sessions match; the limit keeps the one with the latest hit, not the oldest.
+		{"limit keeps most recent", []string{"count", "--limit", "1"}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}},
+		{"limit by hits", []string{"--raw", "lines OR count", "--order", "hits", "--limit", "1"}, []row{{main, 2, "2026-10-05T09:30:00.000Z"}}},
+		{"session", []string{"count", "--session", tf.SmallSession1[:8]}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"search", "--by-session", "--json"}, tt.args...)
+			got := decode[[]SessionHitsJSON](t, e.mustRun(t, args...))
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d rows, want %d: %+v", len(got), len(tt.want), got)
+			}
+			for i, w := range tt.want {
+				g := got[i]
+				if g.SessionID != w.id || g.Hits != w.hits || g.FirstHit != w.first {
+					t.Errorf("row %d = %+v, want %+v", i, g, w)
+				}
+				if g.DisplayName == "" || g.Repo == "" || g.Snippet == "" || g.LastHit == "" {
+					t.Errorf("row %d has empty fields: %+v", i, g)
+				}
+			}
+		})
+	}
+	out := e.mustRun(t, "search", "count", "--by-session")
+	if !strings.Contains(out, "FIRST") || !strings.Contains(out, "List files") || !strings.Contains(out, "[count]") || !strings.Contains(out, "2026-10-05 11:30") {
+		t.Errorf("table = %q", out)
+	}
+	if r := e.run(t, "", "search", "count", "--by-session", "--order", "rank"); r.code == 0 || !strings.Contains(r.stderr, "--order") {
+		t.Errorf("bad order: code %d, stderr %q", r.code, r.stderr)
+	}
+	if r := e.run(t, "", "search", "count", "--order", "hits"); r.code == 0 || !strings.Contains(r.stderr, "--by-session") {
+		t.Errorf("order without by-session: code %d, stderr %q", r.code, r.stderr)
+	}
+}
+
 func TestSQL(t *testing.T) {
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
