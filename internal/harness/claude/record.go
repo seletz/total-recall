@@ -28,6 +28,7 @@ var (
 		"permission-mode", "atis-latch", "pr-link", "queue-operation", "bridge-session",
 		"file-history-snapshot", "file-history-delta", "cost-state", "tools-used",
 		"session-owner",     // account and organization of the session (2.1.317+), no timestamp
+		"continued-in",      // session this one was continued in (2.1.318+), once at the end
 		"started", "result", // workflow journal.jsonl
 	}
 	handledUserBlocks      = []string{"text", "tool_result"}
@@ -46,6 +47,7 @@ var (
 		"ai-title":      {"sessionId"},
 		"agent-name":    {"sessionId"},
 		"session-owner": {"sessionId"},
+		"continued-in":  {"timestamp", "sessionId", "continuedInSessionId"},
 	}
 )
 

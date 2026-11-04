@@ -199,3 +199,23 @@ func TestCheckFormatSessionOwner(t *testing.T) {
 		t.Errorf("lines = %d, want 3", r.Lines)
 	}
 }
+
+// TestCheckFormatContinuedIn: Claude Code 2.1.318 writes a continued-in
+// record (the session this one was continued in) once at the end of a
+// transcript. It is a known meta record and must not count as drift.
+func TestCheckFormatContinuedIn(t *testing.T) {
+	cont := `{"type":"continued-in","timestamp":"2026-11-04T07:00:00.000Z","sessionId":"s","continuedInSessionId":"bbbbbbbb-0000-4000-8000-000000000002"}`
+	dir := writeTree(t, map[string]string{
+		"-w/s.jsonl": drUserLine("u1", "2.1.318", `"hi"`) + "\n" + cont + "\n",
+	})
+	r, err := New(dir).CheckFormat(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Clean() {
+		t.Errorf("continued-in reported as drift: %+v", r)
+	}
+	if r.Lines != 2 {
+		t.Errorf("lines = %d, want 2", r.Lines)
+	}
+}
