@@ -125,10 +125,33 @@ func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []mode
 // WriteBatchN is WriteBatch that also returns the number of events actually
 // inserted (events whose ID already existed are not counted).
 func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []model.Session, events []model.Event) (int, error) {
+	res, err := s.WriteBatchOpts(ctx, src, sessions, events, WriteOptions{})
+	return res.Inserted, err
+}
+
+// WriteOptions tune WriteBatchOpts.
+type WriteOptions struct {
+	// RewriteRaw replaces raw and raw_truncated of events that already exist
+	// with the incoming values. Nothing else of the row changes: text, actor
+	// and the full-text index stay as they are (ingest --reread --rewrite-raw).
+	RewriteRaw bool
+}
+
+// WriteResult counts what WriteBatchOpts changed.
+type WriteResult struct {
+	// Inserted is the number of events newly inserted.
+	Inserted int
+	// RawRewritten is the number of existing events whose raw was replaced
+	// (only with WriteOptions.RewriteRaw).
+	RawRewritten int
+}
+
+// WriteBatchOpts is WriteBatch with options and counts.
+func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []model.Session, events []model.Event, opts WriteOptions) (WriteResult, error) {
+	var res WriteResult
 	if s.readOnly {
-		return 0, fmt.Errorf("store: read-only")
+		return res, fmt.Errorf("store: read-only")
 	}
-	inserted := 0
 	incoming := map[string]model.Session{}
 	var order []string
 	add := func(ss model.Session) {
@@ -140,13 +163,13 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 	}
 	for _, ss := range sessions {
 		if ss.ID == "" {
-			return 0, fmt.Errorf("store: session without ID")
+			return res, fmt.Errorf("store: session without ID")
 		}
 		add(ss)
 	}
 	for _, e := range events {
 		if e.SessionID == "" || e.ID == "" {
-			return 0, fmt.Errorf("store: event %q without ID or session", e.ID)
+			return res, fmt.Errorf("store: event %q without ID or session", e.ID)
 		}
 		h, n := splitID(e.SessionID)
 		add(model.Session{ID: e.SessionID, Harness: h, NativeID: n, StartedAt: e.TS, EndedAt: e.TS})
@@ -154,17 +177,17 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, fmt.Errorf("store: begin: %w", err)
+		return res, fmt.Errorf("store: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	for _, id := range order {
 		old, err := getSession(ctx, tx, id)
 		if err != nil && !errors.Is(err, ErrNotFound) {
-			return 0, err
+			return res, err
 		}
 		if err := putSession(ctx, tx, mergeSession(old, incoming[id])); err != nil {
-			return 0, err
+			return res, err
 		}
 	}
 
@@ -174,10 +197,30 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
-			return 0, fmt.Errorf("store: prepare: %w", err)
+			return res, fmt.Errorf("store: prepare: %w", err)
 		}
 		defer func() { _ = stmt.Close() }()
+		var rewrite *sql.Stmt
+		if opts.RewriteRaw {
+			// Only these two columns: the UPDATE OF text trigger that keeps
+			// events_fts in sync must not fire, actor stays as reindex set it.
+			rewrite, err = tx.PrepareContext(ctx, `UPDATE events SET raw = ?, raw_truncated = ? WHERE id = ?`)
+			if err != nil {
+				return res, fmt.Errorf("store: prepare: %w", err)
+			}
+			defer func() { _ = rewrite.Close() }()
+		}
 		for _, e := range events {
+			if rewrite != nil {
+				r, err := rewrite.ExecContext(ctx, nullStr(e.Raw), e.RawTruncated, e.ID)
+				if err != nil {
+					return res, fmt.Errorf("store: rewrite raw of event %s: %w", e.ID, err)
+				}
+				if n, _ := r.RowsAffected(); n > 0 {
+					res.RawRewritten += int(n)
+					continue
+				}
+			}
 			var local any
 			if !e.TS.IsZero() {
 				local = e.TS.In(s.loc).Format(localTimeFormat)
@@ -186,14 +229,14 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 			if tsv == nil {
 				tsv = ""
 			}
-			res, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
+			r, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
 				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw), e.RawTruncated)
 			if err != nil {
-				return 0, fmt.Errorf("store: insert event %s: %w", e.ID, err)
+				return res, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}
-			if n, err := res.RowsAffected(); err == nil {
-				inserted += int(n)
+			if n, err := r.RowsAffected(); err == nil {
+				res.Inserted += int(n)
 			}
 		}
 	}
@@ -208,13 +251,13 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 			ON CONFLICT(path) DO UPDATE SET harness = excluded.harness, size = excluded.size,
 				mtime = excluded.mtime, "offset" = excluded."offset", ingested_at = excluded.ingested_at`,
 			src.Path, src.Harness, src.Size, formatTime(src.MTime), src.Offset, formatTime(at)); err != nil {
-			return 0, fmt.Errorf("store: update source: %w", err)
+			return res, fmt.Errorf("store: update source: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("store: commit: %w", err)
+		return res, fmt.Errorf("store: commit: %w", err)
 	}
-	return inserted, nil
+	return res, nil
 }
 
 type queryer interface {

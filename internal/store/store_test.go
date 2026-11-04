@@ -673,3 +673,72 @@ func TestSessionCwdsAndSetGit(t *testing.T) {
 		t.Errorf("updated = %d", n)
 	}
 }
+
+// TestWriteBatchRewriteRaw: with RewriteRaw, existing events get the incoming
+// raw and raw_truncated; text, actor, the full-text index and the sessions
+// stay as they are, new events are inserted as usual (#130).
+func TestWriteBatchRewriteRaw(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess, evs := sampleBatch()
+	src := SourceState{Path: "/src/a.jsonl", Harness: "claude", Size: 100, Offset: 100, MTime: ts("2026-10-31T22:05:00Z")}
+	if err := s.WriteBatch(ctx, src, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	counts := func() [3]int {
+		return [3]int{countRows(t, s, "SELECT count(*) FROM events"), countRows(t, s, "SELECT count(*) FROM events_fts"),
+			countRows(t, s, "SELECT count(*) FROM sessions")}
+	}
+	before := counts()
+	again := make([]model.Event, len(evs))
+	for i, e := range evs {
+		e.Raw = `{"x":2,"text":"readable again"}`
+		e.Text = "changed text must not be written"
+		e.Actor = model.ActorPeer
+		again[i] = e
+	}
+	again[1].Raw, again[1].RawTruncated = "", true
+	extra := ev("claude:e9", "claude:s1", "2026-11-01T09:00:00Z", model.ActorHuman, model.KindMessage, "user", "new one")
+	res, err := s.WriteBatchOpts(ctx, src, sess, append(again, extra), WriteOptions{RewriteRaw: true})
+	if err != nil {
+		t.Fatalf("WriteBatchOpts: %v", err)
+	}
+	if res.Inserted != 1 || res.RawRewritten != len(evs) {
+		t.Errorf("result = %+v, want 1 inserted, %d rewritten", res, len(evs))
+	}
+	after := counts()
+	if want := [3]int{before[0] + 1, before[1] + 1, before[2]}; after != want {
+		t.Errorf("counts = %v, want %v", after, want)
+	}
+	got, err := s.Events(ctx, "claude:s1", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, e := range got[:len(evs)] {
+		if e.Text != evs[i].Text || e.Actor != evs[i].Actor {
+			t.Errorf("event %s: text/actor changed: %q %q", e.ID, e.Text, e.Actor)
+		}
+		if i == 1 {
+			if e.Raw != "" {
+				t.Errorf("event %s: raw = %q, want dropped", e.ID, e.Raw)
+			}
+			continue
+		}
+		if e.Raw != `{"x":2,"text":"readable again"}` {
+			t.Errorf("event %s: raw = %q", e.ID, e.Raw)
+		}
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw_truncated = 1 AND raw IS NULL"); n != 1 {
+		t.Errorf("raw_truncated rows = %d, want 1", n)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events_fts WHERE text MATCH 'changed'"); n != 0 {
+		t.Errorf("full-text index picked up the unwanted text: %d rows", n)
+	}
+	// A second run rewrites the same values again: harmless and idempotent.
+	res, err = s.WriteBatchOpts(ctx, src, sess, append(again, extra), WriteOptions{RewriteRaw: true})
+	if err != nil || res.Inserted != 0 || res.RawRewritten != len(evs)+1 {
+		t.Errorf("second run: %+v, %v", res, err)
+	}
+	if got := counts(); got != after {
+		t.Errorf("counts after second run = %v, want %v", got, after)
+	}
+}

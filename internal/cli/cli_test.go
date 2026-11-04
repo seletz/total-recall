@@ -1303,3 +1303,35 @@ func TestSearchSession(t *testing.T) {
 		t.Errorf("table = %q", out)
 	}
 }
+
+// TestIngestRewriteRaw: --reread --rewrite-raw replaces raw of existing
+// events, keeps every count and refuses to run without --reread (#130).
+func TestIngestRewriteRaw(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if r := e.run(t, "", "ingest", "--all", "--rewrite-raw"); r.code == 0 || !strings.Contains(r.stderr, "--reread") {
+		t.Errorf("rewrite-raw without reread = %+v", r)
+	}
+	db, err := sql.Open("sqlite", e.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE events SET raw = '{"text":"«redacted:high_entropy»"}'`); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	counts := func() string {
+		return e.mustRun(t, "sql", "--format", "csv", "SELECT (SELECT count(*) FROM events), (SELECT count(*) FROM events_fts), (SELECT count(*) FROM sessions)")
+	}
+	before := counts()
+	out := e.mustRun(t, "ingest", "--all", "--reread", "--rewrite-raw")
+	if !strings.Contains(out, "0 new events, 9 raw rewritten") {
+		t.Errorf("rewrite summary = %q", out)
+	}
+	if got := counts(); got != before {
+		t.Errorf("counts after rewrite = %q, want %q", got, before)
+	}
+	if n := e.mustRun(t, "sql", "--format", "csv", "SELECT count(*) FROM events WHERE raw LIKE '%high_entropy%' OR raw IS NULL"); !strings.HasSuffix(strings.TrimSpace(n), "0") {
+		t.Errorf("raw still masked: %q", n)
+	}
+}

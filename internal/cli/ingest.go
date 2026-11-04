@@ -32,7 +32,7 @@ type HookPayload struct {
 }
 
 func (e *env) ingestCmd() *cobra.Command {
-	var all, hook, detach, regit, reread bool
+	var all, hook, detach, regit, reread, rewriteRaw bool
 	var payloadFile string
 	c := &cobra.Command{
 		Use:   "ingest [PATH...]",
@@ -51,6 +51,10 @@ func (e *env) ingestCmd() *cobra.Command {
                            from the beginning instead of the stored offset.
                            Events are idempotent; sessions get what earlier
                            versions did not store (continuation, account)
+  --rewrite-raw            with --reread: replace the stored raw line of every
+                           event with the freshly redacted one (repairs raw
+                           written by versions that masked whole values);
+                           text, actor and the full-text index stay as they are
   --detach                 continue in a detached background process and
                            return immediately`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -59,6 +63,9 @@ func (e *env) ingestCmd() *cobra.Command {
 			}
 			if reread && !all && len(args) == 0 {
 				return fmt.Errorf("ingest --reread: give PATH arguments or --all")
+			}
+			if rewriteRaw && !reread {
+				return fmt.Errorf("ingest --rewrite-raw: needs --reread")
 			}
 			if !all && !regit && len(args) == 0 {
 				return fmt.Errorf("ingest: give PATH arguments, --all, --regit or --hook")
@@ -70,7 +77,7 @@ func (e *env) ingestCmd() *cobra.Command {
 			if detach {
 				return e.app.StartDetached(childArgs(e.app.Args), cfg.LogPath())
 			}
-			return e.runIngest(cmd.Context(), cfg, args, all, regit, reread)
+			return e.runIngest(cmd.Context(), cfg, args, ingestFlags{all: all, regit: regit, reread: reread, rewriteRaw: rewriteRaw})
 		},
 	}
 	f := c.Flags()
@@ -78,6 +85,7 @@ func (e *env) ingestCmd() *cobra.Command {
 	f.BoolVar(&hook, "hook", false, "read hook JSON from stdin (always exits 0)")
 	f.BoolVar(&regit, "regit", false, "re-resolve git info of all sessions (for stale git info)")
 	f.BoolVar(&reread, "reread", false, "read the sources from the beginning again (fills session fields of older archives)")
+	f.BoolVar(&rewriteRaw, "rewrite-raw", false, "with --reread: replace the stored raw line of existing events with the freshly redacted one")
 	f.BoolVar(&detach, "detach", false, "run in a detached background process and return immediately")
 	f.StringVar(&payloadFile, "hook-payload", "", "internal: read the hook payload from this file and delete it")
 	_ = f.MarkHidden("hook-payload")
@@ -126,9 +134,18 @@ func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
 		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
 }
 
-func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string, all, regit, reread bool) error {
+// ingestFlags are the mode flags of `ingest`.
+type ingestFlags struct {
+	all, regit, reread, rewriteRaw bool
+}
+
+func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string, fl ingestFlags) error {
+	all, regit := fl.all, fl.regit
 	if regit && !cfg.Git.Resolve {
 		return fmt.Errorf("ingest --regit: git.resolve is disabled in the configuration")
+	}
+	if fl.rewriteRaw && !cfg.Ingest.StoreRaw {
+		return fmt.Errorf("ingest --rewrite-raw: ingest.store_raw is disabled in the configuration, it would drop raw instead")
 	}
 	log := newLogger(cfg.LogPath(), e.app.Now)
 	st, err := openWrite(cfg, log)
@@ -140,7 +157,8 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	if err != nil {
 		return err
 	}
-	d.Reread = reread
+	d.Reread = fl.reread
+	d.RewriteRaw = fl.rewriteRaw
 	var total ingest.Summary
 	if len(paths) > 0 {
 		s, err := ingest.Run(ctx, d, paths)
@@ -158,8 +176,12 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	}
 	out := e.out(cfg)
 	if len(paths) > 0 || all {
-		_, _ = fmt.Fprintf(out, "scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d sessions touched (%s)\n",
-			total.Scanned, total.Changed, total.Unchanged, total.Locked, total.Events, total.Sessions, total.Duration.Round(time.Millisecond))
+		rewritten := ""
+		if fl.rewriteRaw {
+			rewritten = fmt.Sprintf(", %d raw rewritten", total.RawRewritten)
+		}
+		_, _ = fmt.Fprintf(out, "scanned %d files: %d changed, %d unchanged, %d locked; %d new events%s, %d sessions touched (%s)\n",
+			total.Scanned, total.Changed, total.Unchanged, total.Locked, total.Events, rewritten, total.Sessions, total.Duration.Round(time.Millisecond))
 	}
 	if regit {
 		rs, err := ingest.Regit(ctx, d)
@@ -187,6 +209,7 @@ func addSummary(a, b ingest.Summary) ingest.Summary {
 	a.Unchanged += b.Unchanged
 	a.Locked += b.Locked
 	a.Events += b.Events
+	a.RawRewritten += b.RawRewritten
 	a.Sessions += b.Sessions
 	a.Errors = append(a.Errors, b.Errors...)
 	a.Duration += b.Duration

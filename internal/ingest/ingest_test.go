@@ -559,3 +559,59 @@ func TestReread(t *testing.T) {
 		t.Errorf("sources left at offset 0: %d", got)
 	}
 }
+
+// TestRereadRewriteRaw: --reread --rewrite-raw replaces raw of existing
+// events with the freshly redacted line and touches nothing else (#130).
+func TestRereadRewriteRaw(t *testing.T) {
+	e := newEnv(t)
+	tf.Small(t, e.dir)
+	r, err := redact.New(redact.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.deps.Redactor = r
+	first, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate an archive written by the version that masked whole values.
+	db, err := sql.Open("sqlite", "file:"+e.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE events SET raw = '{"text":"«redacted:high_entropy»"}', actor = 'peer' WHERE id = 'claude:a4'`); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	counts := func() [3]int {
+		return [3]int{e.count(t, "SELECT count(*) FROM events"), e.count(t, "SELECT count(*) FROM events_fts"),
+			e.count(t, "SELECT count(*) FROM sessions")}
+	}
+	before := counts()
+	e.deps.Reread, e.deps.RewriteRaw = true, true
+	sum, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Events != 0 || sum.RawRewritten != first.Events || sum.Changed != 4 {
+		t.Errorf("summary = %+v, want 0 new events, %d raw rewritten, 4 changed", sum, first.Events)
+	}
+	if got := counts(); got != before {
+		t.Errorf("counts = %v, want %v", got, before)
+	}
+	raw := e.str(t, "SELECT raw FROM events WHERE id = 'claude:a4'")
+	if !strings.Contains(raw, "thanks, now count the lines") || strings.Contains(raw, "high_entropy") {
+		t.Errorf("raw after rewrite = %q", raw)
+	}
+	if actor := e.str(t, "SELECT actor FROM events WHERE id = 'claude:a4'"); actor != "peer" {
+		t.Errorf("actor changed to %q", actor)
+	}
+	if got := e.count(t, `SELECT count(*) FROM events WHERE raw IS NULL`); got != 0 {
+		t.Errorf("events without raw: %d", got)
+	}
+	// Without Reread nothing is read, so nothing is rewritten.
+	e.deps.Reread = false
+	if sum, err := All(ctx, e.deps); err != nil || sum.RawRewritten != 0 || sum.Changed != 0 {
+		t.Errorf("without reread: %+v, %v", sum, err)
+	}
+}

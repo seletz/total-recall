@@ -63,6 +63,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
 | `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--reread` | die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an lesen statt ab dem gespeicherten Lesestand. Events sind idempotent (nichts wird doppelt), Sessions werden zusammengeführt; so bekommen Sessions nachträglich, was ältere Versionen noch nicht gespeichert haben, etwa Fortsetzung und Account (Schema v4). Nur mit `PATH…` oder `--all` |
+| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene und neu maskierte ersetzen. `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Repariert Archive, in denen frühere Versionen ganze Werte in `raw` maskiert haben ([#130](https://github.com/seletz/total-recall/issues/130)). Braucht `ingest.store_raw = true`, sonst Fehler |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -75,8 +76,18 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 - Fehler je Datei stehen auf stderr; die übrigen Dateien werden trotzdem gelesen. Gab es Fehler, ist der Exit-Code 1.
 - Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
 - Mit `--reread` zählen alle gelesenen Dateien als `changed`, obwohl `new events` 0 bleibt.
+- Mit `--rewrite-raw` steht hinter `new events` zusätzlich `N raw rewritten`: so viele vorhandene Events haben eine neue Rohzeile bekommen.
 
 **Altbestand nach einem Schema-Update.** Neue Session-Felder (seit Schema v4: `continued_in`, `account_id`, `organization_id`) stammen aus Records, die beim ersten Einlesen übersprungen wurden. Bereits gelesene Transkripte liefern sie erst nach einem einmaligen `total-recall ingest --all --reread`; das dauert so lange wie das erste Einlesen und ändert an den Events nichts.
+
+**Rohzeilen reparieren.** Bis v1.0.2 hat die Maskierung in `raw` ganze Werte ab 32 Zeichen durch `«redacted:high_entropy»` ersetzt (Befehle, Tool-Ausgaben, Nachrichtentexte; `text` war nie betroffen). Einmalig, vorher ein [Backup](#backup):
+
+```sh
+total-recall backup
+total-recall ingest --all --reread --rewrite-raw
+```
+
+Danach enthält `raw` wieder die vollständige, nur tokenweise maskierte Zeile und ist etwa doppelt so groß wie vorher. Transkripte, die es nicht mehr gibt, bleiben wie sie sind.
 
 Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 

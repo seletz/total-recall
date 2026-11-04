@@ -52,6 +52,11 @@ type Deps struct {
 	// stored offset. Events are idempotent, sessions merge: a reread adds
 	// what earlier versions did not store (ingest --reread).
 	Reread bool
+	// RewriteRaw replaces raw and raw_truncated of events that already exist
+	// with the freshly redacted line; text, actor and the full-text index
+	// stay untouched. Only useful together with Reread, which is what makes
+	// the existing events come by again (ingest --reread --rewrite-raw).
+	RewriteRaw bool
 	// Logf receives diagnostics; default discard.
 	Logf func(format string, args ...any)
 }
@@ -69,9 +74,11 @@ type Summary struct {
 	Unchanged int // sources without new data
 	Locked    int // sources skipped because another process holds the lock
 	Events    int // events newly inserted
-	Sessions  int // distinct sessions touched by new records
-	Errors    []FileError
-	Duration  time.Duration
+	// RawRewritten counts existing events whose raw was replaced (Deps.RewriteRaw).
+	RawRewritten int
+	Sessions     int // distinct sessions touched by new records
+	Errors       []FileError
+	Duration     time.Duration
 }
 
 // runner is the state of one Run/All call.
@@ -224,11 +231,12 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	flush := func(off int64) error {
 		src.Offset = off
 		src.Size = max(fi.Size(), off)
-		n, err := st.WriteBatchN(ctx, src, sessions, events)
+		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw})
 		if err != nil {
 			return err
 		}
-		r.sum.Events += n
+		r.sum.Events += res.Inserted
+		r.sum.RawRewritten += res.RawRewritten
 		sessions, events = sessions[:0], events[:0]
 		return nil
 	}
