@@ -45,7 +45,9 @@ type Store struct {
 	now      func() time.Time
 	logf     func(format string, args ...any)
 	readOnly bool
-	version  int // schema version found at open (read-only stores)
+	version  int    // schema version found at open (read-only stores)
+	lockDir  string // WithLockDir: shared maintenance lock held until Close
+	unlock   func()
 }
 
 // Option configures Open.
@@ -89,6 +91,14 @@ func Open(path string, opts ...Option) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("store: %w", err)
 	}
+	s := newStore(opts)
+	if s.lockDir != "" {
+		unlock, err := lockShared(s.lockDir)
+		if err != nil {
+			return nil, err
+		}
+		s.unlock = unlock
+	}
 	db, err := sql.Open("sqlite", dsn(path,
 		"_pragma=busy_timeout(10000)",
 		"_pragma=foreign_keys(1)",
@@ -97,13 +107,14 @@ func Open(path string, opts ...Option) (*Store, error) {
 		"_txlock=immediate",
 	))
 	if err != nil {
+		s.release()
 		return nil, fmt.Errorf("store: open %s: %w", path, err)
 	}
-	s := newStore(opts)
 	s.db = db
 	s.path = path
 	if err := s.migrateTo(context.Background(), len(migrations)); err != nil {
 		_ = db.Close()
+		s.release()
 		return nil, err
 	}
 	return s, nil
@@ -154,8 +165,20 @@ func (s *Store) SchemaWarning() string {
 		s.version, len(migrations))
 }
 
-// Close closes the database.
-func (s *Store) Close() error { return s.db.Close() }
+// Close closes the database and releases the maintenance lock, if any.
+func (s *Store) Close() error {
+	err := s.db.Close()
+	s.release()
+	return err
+}
+
+// release gives up the shared maintenance lock (once).
+func (s *Store) release() {
+	if s.unlock != nil {
+		s.unlock()
+		s.unlock = nil
+	}
+}
 
 // SchemaVersion returns the applied schema version.
 // A database without a schema_version table has version 0.

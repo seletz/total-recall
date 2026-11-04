@@ -118,6 +118,7 @@ total-recall status --errors 20         # bis zu 20 Fehlerzeilen statt 5
 ```text
 database              /Users/me/Library/Application Support/total-recall/archive.db
 size                  612.4 MiB
+page size             4096  (total-recall maintenance rebuilds with 16384 and saves space)
 schema                v2 (binary supports v2)
 sessions              274
 events                158203
@@ -133,7 +134,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
@@ -620,6 +621,50 @@ restored /Users/me/Documents/total-recall/archive-2026-11-01.db.gz to /tmp/archi
 | `--force` | eine bestehende Zieldatei ersetzen (samt `-wal`/`-shm`) |
 
 Ein bestehendes Ziel wird ohne `--force` nie überschrieben. Die Daten landen zuerst in einer Temporärdatei neben dem Ziel und werden geprüft (Schema-Version, `PRAGMA quick_check`); erst dann wird das Ziel ersetzt. Vor `--force` auf die laufende Datenbank: sicherstellen, dass gerade kein `ingest` läuft. Was seit dem Backup dazukam, liest das nächste `ingest --all` wieder ein, solange die Transkripte noch da sind.
+
+## `maintenance` { #maintenance }
+
+Baut die Datenbankdatei kompakt mit einer neuen Seitengröße neu auf und tauscht sie atomar aus. Die Zeilen des Archivs sind meist 1 bis 4 KiB groß; bei SQLites Standard von 4 KiB je Seite bleiben dadurch viele Seitenreste ungenutzt, mit 16 KiB je Seite ist die Datei um rund ein Siebtel kleiner, ohne dass sich am Schema etwas ändert. Wann und wie: [Archiv warten](../how-to/60-wartung.md).
+
+```sh
+total-recall maintenance --dry-run          # nur messen: wie groß würde die Datei?
+total-recall maintenance                    # Backup, Neuaufbau mit 16 KiB-Seiten, Austausch
+total-recall maintenance --page-size 8192   # andere Seitengröße
+total-recall maintenance --json
+```
+
+```text
+backup written: /Users/me/Documents/total-recall/archive-2026-11-04.db.gz
+rebuilding with page size 16384 into /Users/me/Library/Application Support/total-recall/archive.db.maint-2199473120
+archive replaced: /Users/me/Library/Application Support/total-recall/archive.db
+                BEFORE     AFTER
+size            858.3 MiB  738.1 MiB  (-14.0 %)
+page size       4096       16384
+pages           219724     47238
+freelist pages  131        0
+sessions        465        465
+events          220295     220295
+sources         471        471
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--page-size N` | Seitengröße der neuen Datei, Zweierpotenz von 512 bis 65536 (Default 16384) |
+| `--dry-run` | nur messen: die Kopie wird gebaut, geprüft und wieder gelöscht; kein Backup, kein Lock, das Archiv bleibt unverändert |
+| `--wait DAUER` | so lange auf laufende Hooks warten, die das Archiv noch offen haben (Default `60s`) |
+| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); JSON hat `db`, `dry_run`, `swapped`, `page_size`, `backup` (`null` ohne Backup), `before` und `after` (je `size_bytes`, `page_size`, `page_count`, `freelist_pages`, `sessions`, `events`, `sources`), `saved_bytes`, `duration_ms` |
+
+Ablauf, jeder Schritt bricht bei einem Fehler ab und lässt das Archiv unverändert:
+
+1. Prüfen, ob neben der Datenbank etwa die doppelte Dateigröße frei ist (Backup-Kopie und neue Kopie) und im Backup-Ordner die halbe; sonst Abbruch mit den Zahlen.
+2. Backup wie [`backup`](#backup) (gleicher Ordner, gleiche Aufbewahrung). Wie `backup` migriert der Befehl ein älteres Schema vorher.
+3. Exklusives Lock gegen Hooks (`locks/maintenance.lock` neben der Datenbank). Hält ein `ingest` oder `backup` das Archiv noch offen, wartet der Befehl bis `--wait` und bricht dann mit `writers active` ab. Hooks, die währenddessen starten, überspringen ihren Lauf (eine `INFO`-Zeile im Log, kein Fehler) und lesen beim nächsten Hook derselben Session oder beim nächsten `SessionStart` ab dem gespeicherten Offset weiter; es geht nichts verloren.
+4. WAL-Checkpoint. Hält ein lesender Prozess (TUI, `sql`, `status`) die Datei offen, bricht der Befehl mit `readers active` ab: den Prozess schließen und noch einmal starten.
+5. `PRAGMA page_size` und `VACUUM INTO` in eine Temporärdatei `archive.db.maint-*` neben der Datenbank.
+6. `PRAGMA integrity_check` auf der Kopie und Vergleich der Zeilenzahlen von `sessions`, `events`, `sources` mit dem Original.
+7. Austausch: `-wal`/`-shm` des Originals entfernen, Kopie per `rename` an die Stelle der Datenbank. Danach öffnet der Befehl die neue Datei einmal (WAL-Modus wieder an) und zeigt die Werte nachher.
+
+Ein Abbruch, auch mit `Ctrl-C`, löscht die Temporärdatei; Reste einer abgestürzten Wartung räumt der nächste Lauf weg. Hat die Wartung die Datei einmal ausgetauscht, ist sie fertig: Das Backup aus Schritt 2 ist nur eine Absicherung, [`restore`](#restore) spielt es bei Bedarf zurück.
 
 ## `doctor` { #doctor }
 
