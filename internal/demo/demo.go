@@ -15,7 +15,11 @@
 // one (Fronleichnam) and a two-week vacation in August; the week of
 // 2026-06-01 is laid out by hand for the activity screenshots. Several
 // sessions in October are written out as conversations about the release
-// of kompass, so a search for Query finds them.
+// of kompass, so a search for Query finds them. Sessions from September on
+// carry the account they ran on (AccountTeam for the projects of the
+// organization, AccountPersonal for the rest), and some sessions are
+// continued in the next one (continued-in record), among them two of the
+// October conversations.
 package demo
 
 import (
@@ -176,7 +180,14 @@ func writeSession(projects string, s session) error {
 	} else {
 		lines = append(lines, testfixture.AITitle(s.id, s.ai))
 	}
+	if s.account != "" {
+		lines = append(lines, testfixture.SessionOwnerOf(s.id, s.account, s.organization))
+	}
 	lines = append(lines, s.lines(s.id, "")...)
+	if s.continuedIn != "" {
+		last := s.turns[len(s.turns)-1]
+		lines = append(lines, testfixture.ContinuedIn(s.id, stamp(last.at.Add(last.replyAt+time.Hour)), s.continuedIn))
+	}
 	dir := filepath.Join(projects, projectDir(s.cwd))
 	if err := writeLines(filepath.Join(dir, s.id+".jsonl"), lines); err != nil {
 		return err

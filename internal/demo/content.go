@@ -239,7 +239,9 @@ func at(month time.Month, day, hour, min int) time.Time {
 }
 
 // featured are the conversations written out by hand: invented developer
-// chat about the release of kompass in German and English. Several mention
+// chat about the release of kompass in German and English; "Packaging" was
+// continued in "Homebrew-Tap einrichten" and "Signierte Releases" in
+// "Release v0.3.0", the session of the screenshot. Several mention
 // goreleaser and the Homebrew cask, the Query of the search screenshot.
 func featured() []session {
 	return []session{
@@ -277,6 +279,7 @@ func featured() []session {
 		},
 		{
 			id: "7d1e4c20-0003-4000-8000-000000000003", cwd: kompass.cwd, ai: "Packaging",
+			continuedIn: "7d1e4c20-0005-4000-8000-000000000005",
 			turns: []turn{
 				{at: at(time.October, 12, 15, 40),
 					prompt:  "Übernimm die .goreleaser.yml aus dem Notizen-Projekt und passe sie für kompass an.",
@@ -308,6 +311,7 @@ func featured() []session {
 		},
 		{
 			id: "7d1e4c20-0006-4000-8000-000000000006", cwd: kompass.cwd, title: "Signierte Releases",
+			continuedIn: "7d1e4c20-0001-4000-8000-000000000001",
 			turns: []turn{
 				{at: at(time.October, 22, 17, 30),
 					prompt:  "Können wir die Release-Artefakte mit cosign signieren?",

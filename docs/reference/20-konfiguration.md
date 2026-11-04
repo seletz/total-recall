@@ -99,6 +99,9 @@ automation_prefixes = ["Hourly ", "Weekend watch"]
 [git]
 resolve = true
 
+# [accounts]                     # Namen für Account-IDs (sessions --account, stats --by account, show)
+# "aaaaaaaa-0000-4000-8000-000000000001" = "work"
+
 [tui]
 view = "search"                  # Ansicht beim Start: search, stats, activity
 graphics = "auto"                # Chart: auto, text, kitty (--graphics)
@@ -185,6 +188,18 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 
 `automation_prefixes`
 :   Nachrichten, die mit einem dieser Texte beginnen, gelten als `automation`. Beispiel: geplante Prompts wie „Hourly …“.
+
+### `[accounts]` { #accounts }
+
+Namen für die Account- und Organisations-IDs, die Claude Code seit 2.1.317 in jede Session schreibt (`session-owner`-Record; Spalten `account_id` und `organization_id`). Schlüssel ist die ID, Wert der Name. Wer zwischen zwei Accounts wechselt, sieht mit den Namen auf einen Blick, welche Session wo lief.
+
+```toml
+[accounts]
+"aaaaaaaa-0000-4000-8000-000000000001" = "work"
+"bbbbbbbb-0000-4000-8000-000000000002" = "privat"
+```
+
+Die Namen nutzen [`sessions --account`](10-befehle.md#sessions) und [`search --account`](10-befehle.md#search) als Filter, [`stats --by account`](10-befehle.md#stats-period) als Schlüssel, `show` im Kopf und `sessions --json` im Feld `account`. IDs ohne Eintrag erscheinen unverändert. Der Abschnitt ist optional und wird wie die Kerneinstellungen beim Laden geprüft (nur Strings).
 
 ### `[work]` { #work }
 

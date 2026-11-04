@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -457,10 +458,10 @@ func TestRegit(t *testing.T) {
 	}
 }
 
-// TestSessionOwnerIsNotStored: session-owner records (Claude Code 2.1.317)
-// are skipped by the adapter, so neither an event nor a raw line reaches the
-// store, whatever store_raw says.
-func TestSessionOwnerIsNotStored(t *testing.T) {
+// TestSessionOwnerSetsAccount: session-owner records (Claude Code 2.1.317)
+// set account and organization of the session; neither an event nor a raw
+// line reaches the store, whatever store_raw says.
+func TestSessionOwnerSetsAccount(t *testing.T) {
 	e := newEnv(t)
 	s := "44444444-4444-4444-8444-444444444444"
 	p := tf.WriteFile(t, e.projects, "-w-delta/"+s+".jsonl", tf.Join(
@@ -476,15 +477,15 @@ func TestSessionOwnerIsNotStored(t *testing.T) {
 	if n := e.count(t, `SELECT count(*) FROM events WHERE raw LIKE '%session-owner%' OR raw LIKE '%acc00000%'`); n != 0 {
 		t.Errorf("%d events carry session-owner data in raw", n)
 	}
-	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
-		t.Errorf("sessions = %d, want 1", n)
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`' AND account_id = '`+tf.Account1+`' AND organization_id = '`+tf.Organization1+`'`); n != 1 {
+		t.Errorf("sessions with account = %d, want 1", n)
 	}
 }
 
-// TestContinuedInIsNotStored: continued-in records (Claude Code 2.1.318)
-// are skipped by the adapter, so neither an event nor a raw line reaches the
-// store; the session itself ingests as before.
-func TestContinuedInIsNotStored(t *testing.T) {
+// TestContinuedInLinksSession: continued-in records (Claude Code 2.1.318)
+// set the continuation link of the session without stretching its end;
+// neither an event nor a raw line reaches the store.
+func TestContinuedInLinksSession(t *testing.T) {
 	e := newEnv(t)
 	s := "55555555-5555-4555-8555-555555555555"
 	next := "66666666-6666-4666-8666-666666666666"
@@ -500,7 +501,61 @@ func TestContinuedInIsNotStored(t *testing.T) {
 	if n := e.count(t, `SELECT count(*) FROM events WHERE raw LIKE '%continued-in%' OR raw LIKE '%`+next+`%'`); n != 0 {
 		t.Errorf("%d events carry continued-in data in raw", n)
 	}
-	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
-		t.Errorf("sessions = %d, want 1", n)
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`' AND continued_in = 'claude:`+next+`'
+		AND ended_at = '2026-10-09T10:00:05.000Z'`); n != 1 {
+		t.Errorf("linked sessions = %d, want 1", n)
+	}
+	// The target is not ingested; the link stays and no row is invented.
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+next+`'`); n != 0 {
+		t.Errorf("target sessions = %d, want 0", n)
+	}
+}
+
+// TestReread: with Reread every source is read from the beginning. Events
+// and the full-text index stay unique, and session fields that earlier
+// versions did not store (here the account, simulated by clearing it) are
+// filled in.
+func TestReread(t *testing.T) {
+	e := newEnv(t)
+	tf.Small(t, e.dir)
+	first, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate an archive written before the account was stored.
+	db, err := sql.Open("sqlite", "file:"+e.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE sessions SET account_id = NULL, organization_id = NULL WHERE id = 'claude:"+sid+"'"); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	counts := func() [3]int {
+		return [3]int{e.count(t, "SELECT count(*) FROM events"), e.count(t, "SELECT count(*) FROM events_fts"),
+			e.count(t, "SELECT count(*) FROM sessions")}
+	}
+	before := counts()
+	if before[0] != first.Events || before[1] != first.Events {
+		t.Fatalf("counts after first ingest = %v, summary %d", before, first.Events)
+	}
+	e.deps.Reread = true
+	for i := range 2 {
+		sum, err := All(ctx, e.deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sum.Events != 0 || sum.Changed != 4 {
+			t.Errorf("reread %d summary = %+v, want 0 new events, 4 changed", i+1, sum)
+		}
+		if got := counts(); got != before {
+			t.Errorf("reread %d counts = %v, want %v", i+1, got, before)
+		}
+	}
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+sid+`' AND account_id = '`+tf.Account1+`'`); n != 1 {
+		t.Errorf("account after reread: %d sessions, want 1", n)
+	}
+	if got := e.count(t, `SELECT count(*) FROM sources WHERE "offset" = 0`); got != 0 {
+		t.Errorf("sources left at offset 0: %d", got)
 	}
 }

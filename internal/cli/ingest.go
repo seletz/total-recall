@@ -32,7 +32,7 @@ type HookPayload struct {
 }
 
 func (e *env) ingestCmd() *cobra.Command {
-	var all, hook, detach, regit bool
+	var all, hook, detach, regit, reread bool
 	var payloadFile string
 	c := &cobra.Command{
 		Use:   "ingest [PATH...]",
@@ -47,11 +47,18 @@ func (e *env) ingestCmd() *cobra.Command {
   ingest --regit           re-resolve git root and remote URL for the working
                            directory of every session (bypassing the cache)
                            and update the sessions; combinable with --all
+  --reread                 read the given files (or, with --all, every source)
+                           from the beginning instead of the stored offset.
+                           Events are idempotent; sessions get what earlier
+                           versions did not store (continuation, account)
   --detach                 continue in a detached background process and
                            return immediately`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if hook {
 				return e.runHook(cmd.Context(), detach, payloadFile)
+			}
+			if reread && !all && len(args) == 0 {
+				return fmt.Errorf("ingest --reread: give PATH arguments or --all")
 			}
 			if !all && !regit && len(args) == 0 {
 				return fmt.Errorf("ingest: give PATH arguments, --all, --regit or --hook")
@@ -63,13 +70,14 @@ func (e *env) ingestCmd() *cobra.Command {
 			if detach {
 				return e.app.StartDetached(childArgs(e.app.Args), cfg.LogPath())
 			}
-			return e.runIngest(cmd.Context(), cfg, args, all, regit)
+			return e.runIngest(cmd.Context(), cfg, args, all, regit, reread)
 		},
 	}
 	f := c.Flags()
 	f.BoolVar(&all, "all", false, "ingest all sources of all enabled harnesses")
 	f.BoolVar(&hook, "hook", false, "read hook JSON from stdin (always exits 0)")
 	f.BoolVar(&regit, "regit", false, "re-resolve git info of all sessions (for stale git info)")
+	f.BoolVar(&reread, "reread", false, "read the sources from the beginning again (fills session fields of older archives)")
 	f.BoolVar(&detach, "detach", false, "run in a detached background process and return immediately")
 	f.StringVar(&payloadFile, "hook-payload", "", "internal: read the hook payload from this file and delete it")
 	_ = f.MarkHidden("hook-payload")
@@ -117,7 +125,7 @@ func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
 		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
 }
 
-func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string, all, regit bool) error {
+func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string, all, regit, reread bool) error {
 	if regit && !cfg.Git.Resolve {
 		return fmt.Errorf("ingest --regit: git.resolve is disabled in the configuration")
 	}
@@ -131,6 +139,7 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	if err != nil {
 		return err
 	}
+	d.Reread = reread
 	var total ingest.Summary
 	if len(paths) > 0 {
 		s, err := ingest.Run(ctx, d, paths)

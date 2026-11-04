@@ -6,6 +6,24 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.1.0 (unveröffentlicht)
+
+Die Datenbank bekommt Schema v4: Fortsetzung und Account je Session. Ein schreibender Befehl (`ingest`, `backup`) migriert beim ersten Lauf und legt vorher `archive.db.pre-v3.bak` an. **Altbestand:** Sessions, die vor dem Update eingelesen wurden, bekommen die neuen Felder erst durch ein einmaliges `total-recall ingest --all --reread`; das liest alle Transkripte noch einmal, ohne Events zu verdoppeln.
+
+### Neu in der CLI
+
+- Fortgesetzte Sessions sind verkettet: Claude Code schreibt seit 2.1.318 am Ende eines Transkripts, in welcher Session es weiterging (`continued-in`). Das Archiv speichert die Verkettung in `sessions.continued_in`; `sessions --json` und `show --json` haben `continued_in` und `continued_from`, der Kopf von `show` und der Session-Ansicht der [TUI](30-tui.md#session) nennt beide Richtungen. Die Zielsession darf später oder nie eingelesen werden, der Ingest scheitert daran nicht ([#113](https://github.com/seletz/total-recall/issues/113), Schritt 2).
+- Account und Organisation je Session (Claude Code seit 2.1.317, Record `session-owner`) stehen in `sessions.account_id` und `organization_id`. `sessions --account` und `search --account` filtern danach (Name, ID oder ID-Präfix), [`stats --by account`](10-befehle.md#stats-period) zählt je Account (`unknown` für Sessions ohne), `show` zeigt beide im Kopf, JSON hat `account_id`, `organization_id` und `account` ([#97](https://github.com/seletz/total-recall/issues/97), Schritt 2).
+- [`ingest --reread`](10-befehle.md#ingest) liest die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an; Events bleiben eindeutig, Sessions bekommen die Felder, die ältere Versionen nicht gespeichert haben.
+
+### Konfiguration
+
+- Neu: [`[accounts]`](20-konfiguration.md#accounts) ordnet Account- und Organisations-IDs Namen zu, die `sessions`, `show` und `stats --by account` anzeigen und als Filter annehmen.
+
+### Dokumentation
+
+- [Schema](40-schema.md) und [Design](../explanation/design.md#sessions) beschreiben die drei neuen Spalten, der [Skill](../how-to/50-agenten-anbinden.md) Fortsetzungsketten und Accounts.
+
 ## v1.0.2
 
 Die macOS-Binaries sind ab dieser Version signiert und notarisiert. Sonst ändert sich nichts; die Datenbank bleibt bei Schema v3.

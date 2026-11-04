@@ -18,7 +18,7 @@ type ActivitySeriesJSON struct {
 	Until    NullString `json:"until"`
 	Timezone string     `json:"timezone"`
 	Period   string     `json:"period"` // day, week or month
-	By       NullString `json:"by"`     // project, agent, directory or null
+	By       NullString `json:"by"`     // project, agent, directory, account or null
 	// Keys are the dimension values in the order of the cells, by volume
 	// descending; "other" (--top) is last. For --by project these are the
 	// project names (base name of the git root, full path of a directory
@@ -169,13 +169,25 @@ func writeSeriesTable(w io.Writer, s ActivitySeriesJSON) error {
 }
 
 // keyNames returns the display names of the series keys: project names for
-// the project dimension, else nil (raw keys). Directories without a
-// repository are named by their path; home is abbreviated to "~" in it, an
-// empty home keeps the full path (the JSON output, which is meant for
-// scripts and should not depend on who runs it).
-func keyNames(s store.ActivitySeries, o seriesOptions, home string) map[string]string {
-	if o.byName == "" || o.by != store.DimProject {
+// the project dimension, the configured account names for the account
+// dimension (IDs without a name stay), else nil (raw keys). Directories
+// without a repository are named by their path; home is abbreviated to "~"
+// in it, an empty home keeps the full path (the JSON output, which is meant
+// for scripts and should not depend on who runs it).
+func keyNames(s store.ActivitySeries, o seriesOptions, home string, accounts map[string]string) map[string]string {
+	switch {
+	case o.byName == "":
 		return nil
+	case o.by == store.DimProject:
+		return project.Names(s.Keys, s.Dirs, home)
+	case o.by == store.DimAccount:
+		names := map[string]string{}
+		for _, k := range s.Keys {
+			if n := accounts[k]; n != "" {
+				names[k] = n
+			}
+		}
+		return names
 	}
-	return project.Names(s.Keys, s.Dirs, home)
+	return nil
 }

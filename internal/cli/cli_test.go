@@ -416,6 +416,14 @@ func TestEndToEnd(t *testing.T) {
 	if s2.HumanEvents != 1 || s2.AgentEvents != 1 || s2.Name != "Beta work" {
 		t.Errorf("session 2 = %+v", s2)
 	}
+	// Session 1 carries session-owner records, session 2 does not; no
+	// [accounts] are configured, so the name is null.
+	if s1.AccountID != NullString(tf.Account1) || s1.OrganizationID != NullString(tf.Organization1) || s1.Account != "" || s1.ContinuedIn != "" || s1.ContinuedFrom != "" {
+		t.Errorf("session 1 account/links = %+v", s1)
+	}
+	if s2.AccountID != "" || s2.OrganizationID != "" || s2.Account != "" {
+		t.Errorf("session 2 account = %+v", s2)
+	}
 	if all := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json", "--subagents")); len(all) != 3 {
 		t.Errorf("with subagents = %d", len(all))
 	}
@@ -681,6 +689,99 @@ func TestSessionsHidesEmpty(t *testing.T) {
 	all := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json", "--all-sessions"))
 	if len(all) != len(list)+1 {
 		t.Errorf("--all-sessions: %d sessions, want %d", len(all), len(list)+1)
+	}
+}
+
+// TestAccountsAndContinuation: [accounts] names the account of session 1,
+// a third session is continued in session 2, and sessions, show, search
+// and stats expose both.
+func TestAccountsAndContinuation(t *testing.T) {
+	e := newTestEnv(t)
+	tf.AppendFile(t, e.configPath, "\n[accounts]\n\""+tf.Account1+"\" = \"work\"\n")
+	s3 := "33333333-3333-4333-8333-333333333333"
+	tf.WriteFile(t, e.projects, "-w-beta/"+s3+".jsonl", tf.Join(
+		tf.User(s3, "f1", "2026-10-06T13:00:00.000Z", "/w/beta", "draft the release notes"),
+		tf.Assistant(s3, "f2", "2026-10-06T13:01:00.000Z", "/w/beta", "Draft written."),
+		tf.ContinuedIn(s3, "2026-10-06T13:55:00.000Z", tf.SmallSession2),
+	))
+	e.mustRun(t, "ingest", "--all")
+
+	byID := map[string]SessionJSON{}
+	for _, s := range decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json")) {
+		byID[s.NativeID] = s
+	}
+	s1, s2, s3j := byID[tf.SmallSession1], byID[tf.SmallSession2], byID[s3]
+	if s1.Account != "work" || s1.AccountID != NullString(tf.Account1) {
+		t.Errorf("session 1 = %+v", s1)
+	}
+	if s3j.ContinuedIn != NullString("claude:"+tf.SmallSession2) || s3j.ContinuedFrom != "" || s3j.EndedAt != "2026-10-06T13:01:00.000Z" {
+		t.Errorf("session 3 = %+v", s3j)
+	}
+	if s2.ContinuedFrom != NullString("claude:"+s3) || s2.ContinuedIn != "" {
+		t.Errorf("session 2 = %+v", s2)
+	}
+	for _, tt := range []struct {
+		account string
+		want    int
+	}{{"work", 1}, {tf.Account1, 1}, {"acc0", 1}, {"nope", 0}} {
+		if list := decode[[]SessionJSON](t, e.mustRun(t, "sessions", "--json", "--account", tt.account)); len(list) != tt.want {
+			t.Errorf("sessions --account %s = %d sessions, want %d", tt.account, len(list), tt.want)
+		}
+	}
+	if hits := decode[[]HitJSON](t, e.mustRun(t, "search", "files", "--json", "--account", "work")); len(hits) == 0 {
+		t.Errorf("search --account work: no hits")
+	}
+	if hits := decode[[]HitJSON](t, e.mustRun(t, "search", "files", "--json", "--account", "nope")); len(hits) != 0 {
+		t.Errorf("search --account nope = %+v", hits)
+	}
+
+	text := e.mustRun(t, "show", s3[:8])
+	if !strings.Contains(text, "continued in") || !strings.Contains(text, "claude:"+tf.SmallSession2) {
+		t.Errorf("show %s lacks the continuation:\n%s", s3[:8], text)
+	}
+	text = e.mustRun(t, "show", tf.SmallSession2[:8])
+	if !strings.Contains(text, "continued from") || !strings.Contains(text, "claude:"+s3) {
+		t.Errorf("show %s lacks the origin:\n%s", tf.SmallSession2[:8], text)
+	}
+	text = e.mustRun(t, "show", tf.SmallSession1[:8])
+	if !strings.Contains(text, "account") || !strings.Contains(text, "work ("+tf.Account1+")") || !strings.Contains(text, tf.Organization1) {
+		t.Errorf("show %s lacks the account:\n%s", tf.SmallSession1[:8], text)
+	}
+
+	series := decode[ActivitySeriesJSON](t, e.mustRun(t, "stats", "--json", "--month", "2026-10", "--period", "month", "--by", "account"))
+	if series.By != "account" || len(series.Keys) != 2 || series.Keys[0] != "work" || series.Keys[1] != "unknown" {
+		t.Errorf("stats --by account keys = %+v", series)
+	}
+	if tbl := e.mustRun(t, "stats", "--month", "2026-10", "--period", "month", "--by", "account"); !strings.Contains(tbl, "work") || !strings.Contains(tbl, "unknown") {
+		t.Errorf("stats --by account table:\n%s", tbl)
+	}
+}
+
+// TestIngestReread: --reread reads every source again from the start
+// without duplicating events or full-text rows, and refuses to run
+// without sources.
+func TestIngestReread(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if r := e.run(t, "", "ingest", "--reread"); r.code == 0 || !strings.Contains(r.stderr, "--reread") {
+		t.Errorf("reread without sources = %+v", r)
+	}
+	counts := func() string {
+		return e.mustRun(t, "sql", "--format", "csv", "SELECT (SELECT count(*) FROM events), (SELECT count(*) FROM events_fts), (SELECT count(*) FROM sessions)")
+	}
+	before := counts()
+	for range 2 {
+		out := e.mustRun(t, "ingest", "--all", "--reread")
+		if !strings.Contains(out, "scanned 4 files: 4 changed") || !strings.Contains(out, "0 new events") {
+			t.Errorf("reread summary = %q", out)
+		}
+		if got := counts(); got != before {
+			t.Errorf("counts after reread = %q, want %q", got, before)
+		}
+	}
+	p := filepath.Join(e.projects, "-w-beta", tf.SmallSession2+".jsonl")
+	if out := e.mustRun(t, "ingest", "--reread", p); !strings.Contains(out, "scanned 1 files: 1 changed") || !strings.Contains(out, "0 new events") {
+		t.Errorf("reread one file = %q", out)
 	}
 }
 

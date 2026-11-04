@@ -55,17 +55,30 @@ func AITitle(session, title string) Line {
 	return Line{"type": "ai-title", "aiTitle": title, "sessionId": session}
 }
 
-// SessionOwner returns a session-owner record (Claude Code 2.1.317+): account
-// and organization of the session, repeated several times per transcript,
-// without a timestamp. The adapter skips it.
+// Account and organization UUIDs of the fixtures; SessionOwner uses the
+// first account.
+const (
+	Account1      = "acc00000-0000-4000-8000-000000000001"
+	Account2      = "acc00000-0000-4000-8000-000000000002"
+	Organization1 = "org00000-0000-4000-8000-000000000001"
+)
+
+// SessionOwner returns a session-owner record (Claude Code 2.1.317+) for
+// Account1 and Organization1; see SessionOwnerOf.
 func SessionOwner(session string) Line {
-	return Line{"type": "session-owner", "accountUuid": "acc00000-0000-4000-8000-000000000001",
-		"organizationUuid": "org00000-0000-4000-8000-000000000001", "sessionId": session}
+	return SessionOwnerOf(session, Account1, Organization1)
+}
+
+// SessionOwnerOf returns a session-owner record (Claude Code 2.1.317+):
+// account and organization of the session, repeated several times per
+// transcript, without a timestamp. The adapter stores both on the session.
+func SessionOwnerOf(session, account, organization string) Line {
+	return Line{"type": "session-owner", "accountUuid": account, "organizationUuid": organization, "sessionId": session}
 }
 
 // ContinuedIn returns a continued-in record (Claude Code 2.1.318+): the
 // session this one was continued in, written once at the end of a
-// transcript. The adapter skips it.
+// transcript. The adapter stores the link on the session.
 func ContinuedIn(session, ts, continuedIn string) Line {
 	return Line{"type": "continued-in", "timestamp": ts, "sessionId": session, "continuedInSessionId": continuedIn}
 }

@@ -144,4 +144,17 @@ ALTER TABLE sessions ADD COLUMN display_name TEXT GENERATED ALWAYS AS
 	`
 ALTER TABLE events ADD COLUMN raw_truncated INTEGER NOT NULL DEFAULT 0;
 `,
+	// 4: continuation chain and account per session. continued_in holds the
+	// full ID of the session this one was continued in (Claude: continued-in
+	// record); no foreign key, the target may be ingested later or never.
+	// account_id and organization_id come from the Claude session-owner
+	// record. Sessions ingested before this version get the values on a
+	// re-read of their transcripts (ingest --reread).
+	`
+ALTER TABLE sessions ADD COLUMN continued_in TEXT;
+ALTER TABLE sessions ADD COLUMN account_id TEXT;
+ALTER TABLE sessions ADD COLUMN organization_id TEXT;
+CREATE INDEX sessions_continued_in ON sessions(continued_in);
+CREATE INDEX sessions_account_id ON sessions(account_id);
+`,
 }

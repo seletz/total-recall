@@ -40,7 +40,8 @@ type DirInfo struct {
 //     if new started earlier; otherwise they only fill empty fields;
 //   - identity fields (Harness, NativeID, ParentID) are set once;
 //   - Name, AITitle and AgentName: the last non-empty value written wins (titles can
-//     be renamed; the adapter decides what is authoritative).
+//     be renamed; the adapter decides what is authoritative);
+//   - ContinuedIn, AccountID and OrganizationID: the last non-empty value wins.
 func mergeSession(old, new model.Session) model.Session {
 	m := old
 	if m.ID == "" {
@@ -83,6 +84,15 @@ func mergeSession(old, new model.Session) model.Session {
 	}
 	if new.AgentName != "" {
 		m.AgentName = new.AgentName
+	}
+	if new.ContinuedIn != "" {
+		m.ContinuedIn = new.ContinuedIn
+	}
+	if new.AccountID != "" {
+		m.AccountID = new.AccountID
+	}
+	if new.OrganizationID != "" {
+		m.OrganizationID = new.OrganizationID
 	}
 	if !new.StartedAt.IsZero() && (m.StartedAt.IsZero() || new.StartedAt.Before(m.StartedAt)) {
 		m.StartedAt = new.StartedAt
@@ -212,7 +222,7 @@ type queryer interface {
 }
 
 const sessionCols = `id, harness, harness_version, native_id, parent_id, name, agent_name, cwd,
-	git_root, git_remote_url, git_branch, model, started_at, ended_at, ai_title`
+	git_root, git_remote_url, git_branch, model, started_at, ended_at, ai_title, continued_in, account_id, organization_id`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -220,12 +230,12 @@ type scanner interface{ Scan(dest ...any) error }
 func scanSession(sc scanner, extra ...any) (model.Session, error) {
 	var m model.Session
 	var ns [10]sql.NullString
-	var start, end, aiTitle sql.NullString
+	var start, end, aiTitle, continuedIn, account, organization sql.NullString
 	dest := []any{&m.ID, &m.Harness}
 	for i := range ns {
 		dest = append(dest, &ns[i])
 	}
-	dest = append(dest, &start, &end, &aiTitle)
+	dest = append(dest, &start, &end, &aiTitle, &continuedIn, &account, &organization)
 	dest = append(dest, extra...)
 	if err := sc.Scan(dest...); err != nil {
 		return m, err
@@ -234,6 +244,7 @@ func scanSession(sc scanner, extra ...any) (model.Session, error) {
 	m.GitRoot, m.GitRemoteURL, m.GitBranch, m.Model = ns[6].String, ns[7].String, ns[8].String, ns[9].String
 	m.StartedAt, m.EndedAt = parseTime(start), parseTime(end)
 	m.AITitle = aiTitle.String
+	m.ContinuedIn, m.AccountID, m.OrganizationID = continuedIn.String, account.String, organization.String
 	return m, nil
 }
 
@@ -250,15 +261,17 @@ func getSession(ctx context.Context, q queryer, id string) (model.Session, error
 
 func putSession(ctx context.Context, tx *sql.Tx, m model.Session) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET harness = excluded.harness, harness_version = excluded.harness_version,
 			native_id = excluded.native_id, parent_id = excluded.parent_id, name = excluded.name,
 			agent_name = excluded.agent_name, cwd = excluded.cwd, git_root = excluded.git_root,
 			git_remote_url = excluded.git_remote_url, git_branch = excluded.git_branch, model = excluded.model,
-			started_at = excluded.started_at, ended_at = excluded.ended_at, ai_title = excluded.ai_title`,
+			started_at = excluded.started_at, ended_at = excluded.ended_at, ai_title = excluded.ai_title,
+			continued_in = excluded.continued_in, account_id = excluded.account_id, organization_id = excluded.organization_id`,
 		m.ID, m.Harness, nullStr(m.HarnessVersion), nullStr(m.NativeID), nullStr(m.ParentID), nullStr(m.Name),
 		nullStr(m.AgentName), nullStr(m.Cwd), nullStr(m.GitRoot), nullStr(m.GitRemoteURL), nullStr(m.GitBranch),
-		nullStr(m.Model), formatTime(m.StartedAt), formatTime(m.EndedAt), nullStr(m.AITitle))
+		nullStr(m.Model), formatTime(m.StartedAt), formatTime(m.EndedAt), nullStr(m.AITitle),
+		nullStr(m.ContinuedIn), nullStr(m.AccountID), nullStr(m.OrganizationID))
 	if err != nil {
 		return fmt.Errorf("store: upsert session %s: %w", m.ID, err)
 	}

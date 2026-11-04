@@ -2,6 +2,7 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Release v0.3.0                                                             claude:7d1e4c20-0001-4000-8000-000000000001
  mara/kompass  main  2026-10-31 22:14 – 22:20 (6m)  2 human  4 agent
+ continued from claude:7d1e4c20-0006-4000-8000-000000000006
 ── 1/8 events · hit 1/8 · top · tools ──────────────────────────────────────────────────────────────────────────────────
 ── 2026-10-31 22:14:00  human ◄
 Lade den Homebrew-Cask mit goreleaser in den Tap hoch.
@@ -31,6 +32,5 @@ To git.invalid:mara/kompass
  * [new tag]         v0.3.0 -> v0.3.0
 
 ── 2026-10-31 22:20:00  agent
-Tagged v0.3.0 and pushed the tag. The release workflow is running; goreleaser builds the binaries and publishes the cask
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • esc back • 1 search • 2 stats • 3 activity …

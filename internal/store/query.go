@@ -22,6 +22,8 @@ type SessionFilter struct {
 	Harness string
 	// Name is a case-insensitive substring of name, AI title or agent name.
 	Name string
+	// Account is the account ID of the session or a prefix of it.
+	Account string
 	// TopLevel excludes subagent sessions (parent_id set).
 	TopLevel bool
 	// HideEmpty excludes sessions without events and without a start time
@@ -31,12 +33,17 @@ type SessionFilter struct {
 	Limit int
 }
 
-// SessionInfo is a session with event counts.
+// SessionInfo is a session with event counts and the reverse continuation
+// link.
 type SessionInfo struct {
 	model.Session
-	HumanEvents int
-	AgentEvents int
-	Events      int
+	// ContinuedFrom is the session that was continued in this one (the
+	// one whose ContinuedIn names this session); empty if none is known.
+	// If several claim it, the one that started last.
+	ContinuedFrom string
+	HumanEvents   int
+	AgentEvents   int
+	Events        int
 }
 
 // Repo returns the session's repository identity: remote URL, else git root, else cwd.
@@ -99,6 +106,10 @@ func (f SessionFilter) where(eventTime bool) ([]string, []any) {
 		a := likeArg(f.Name)
 		args = append(args, a, a, a)
 	}
+	if f.Account != "" {
+		cond = append(cond, `s.account_id LIKE ? ESCAPE '\'`)
+		args = append(args, strings.TrimSuffix(strings.TrimPrefix(likeArg(f.Account), "%"), "%")+"%")
+	}
 	return cond, args
 }
 
@@ -112,7 +123,8 @@ func prefixed(cols, alias string) string {
 
 const countCols = `(SELECT count(*) FROM events c WHERE c.session_id = s.id AND c.actor = 'human'),
 	(SELECT count(*) FROM events c WHERE c.session_id = s.id AND c.actor = 'agent'),
-	(SELECT count(*) FROM events c WHERE c.session_id = s.id)`
+	(SELECT count(*) FROM events c WHERE c.session_id = s.id),
+	(SELECT f.id FROM sessions f WHERE f.continued_in = s.id ORDER BY f.started_at DESC, f.id LIMIT 1)`
 
 func (s *Store) querySessions(ctx context.Context, cond []string, args []any, limit int) ([]SessionInfo, error) {
 	q := "SELECT " + prefixed(sessionCols, "s") + ", " + countCols + " FROM sessions s"
@@ -131,11 +143,12 @@ func (s *Store) querySessions(ctx context.Context, cond []string, args []any, li
 	var out []SessionInfo
 	for rows.Next() {
 		var si SessionInfo
-		m, err := scanSession(rows, &si.HumanEvents, &si.AgentEvents, &si.Events)
+		var from sql.NullString
+		m, err := scanSession(rows, &si.HumanEvents, &si.AgentEvents, &si.Events, &from)
 		if err != nil {
 			return nil, fmt.Errorf("store: sessions: %w", err)
 		}
-		si.Session = m
+		si.Session, si.ContinuedFrom = m, from.String
 		out = append(out, si)
 	}
 	return out, rows.Err()
