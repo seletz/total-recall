@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.1.0 (unveröffentlicht)
+
+### Release
+
+- Die macOS-Binaries (amd64, arm64) sind mit einer Developer-ID signiert (Hardened Runtime, Apple-Zeitstempel) und von Apple notarisiert. Gatekeeper startet sie ohne Dialog, auch aus einem über den Browser geladenen Archiv mit Quarantäne-Attribut; der Fehler „Apple konnte nicht überprüfen …“ nach `brew upgrade --cask total-recall`, wenn ein Hook das Binary vor dem `postflight`-Schritt des Casks aufrief, entfällt. Signiert wird im Release-Lauf vor Archiv, SBOM und Prüfsummen, sodass alle drei das ausgelieferte Binary beschreiben; ohne die Secrets im Repository (Snapshot, CI, Forks) bleibt das Binary wie bisher unsigniert. Prüfung mit `codesign` und `spctl` sowie die Einrichtung der Secrets: [Release-Assets](50-release.md#signatur-der-macos-binaries) ([#116](https://github.com/seletz/total-recall/issues/116)).
+
 ## v1.0.1
 
 ### Behoben

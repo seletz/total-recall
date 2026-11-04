@@ -23,6 +23,33 @@ builds:
       - -s -w
       - -X github.com/seletz/total-recall/internal/version.Version={{.Version}}
 
+# Sign and notarize the darwin binaries (Developer ID Application, hardened
+# runtime, Apple timestamp) with quill; it runs on the Linux release runner, no
+# macOS needed. The step is part of goreleaser's build pipeline and rewrites the
+# binaries in dist/ in place before archives, SBOMs and checksums are made, so
+# all three describe the signed binary. It is only active when the maintainer
+# set the secrets (release.yml passes them through); snapshot builds, CI and
+# forks without secrets build unsigned binaries as before. Notarization of a
+# bare Mach-O cannot be stapled: Gatekeeper fetches the ticket from Apple on
+# first launch. How to set up the secrets and check a release:
+# docs/reference/50-release.md.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - total-recall
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        # Wait for Apple's verdict so a rejected submission fails the release
+        # before anything is uploaded. 20m is the maximum goreleaser allows.
+        wait: true
+        timeout: 20m
+
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
@@ -98,8 +125,10 @@ homebrew_casks:
       bash: completions/total-recall.bash
       zsh: completions/_total-recall
       fish: completions/total-recall.fish
-    # Strip the macOS quarantine attribute so the unsigned binary runs without a
-    # Gatekeeper prompt. GoReleaser renders `hooks.post.install` as the
+    # Strip the macOS quarantine attribute so the binary runs without a
+    # Gatekeeper prompt. Kept as a safety net for releases built without the
+    # signing secrets (see notarize above); drop it once a notarized release
+    # has been verified. GoReleaser renders `hooks.post.install` as the
     # deprecated `postflight do` block, so the declarative `postflight_steps`
     # stanza is emitted via `custom_block`. `{{staged_path}}` is a Homebrew
     # install-time token; the braces are escaped to survive Go templating.
