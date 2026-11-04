@@ -8,6 +8,7 @@
   "grid_seconds": 900,
   "rounding": "up",
   "rounding_scope": "category",
+  "summary_max_chars": 200,
   "holiday_region": "Baden-Württemberg",
   "days": [
     {

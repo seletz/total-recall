@@ -90,9 +90,41 @@ total-recall stats --worktime --range last-week --sessions
 
 Die Titel sind die von Claude Code vergebenen oder deine eigenen (`/rename`); `total-recall show 7d1e02bb` zeigt die Session dahinter. Fasst eine Kategorie mehrere Projekte zusammen, steht ihre Aufteilung als Zeile `projects:` darüber.
 
+### Referenzen und ein Vorschlag für den Text
+
+Der Titel sagt, *was* die Session war, aber nicht, *woran* du gearbeitet hast. `--summary` sucht dafür in den Session-Titeln und deinen eigenen Nachrichten nach Issue- und PR-Nummern und baut je Tag und Kategorie einen Vorschlag für den Buchungstext; `--sessions` und `--summary` lassen sich kombinieren:
+
+```sh
+total-recall stats --worktime --range last-week --summary
+total-recall stats --worktime --range last-week --sessions --summary
+```
+
+```text
+2026-10-26 Mon: 3h43m raw, 4h00m rounded
+  fahrtenbuch: 45m raw, 45m rounded
+    refs: -
+    text: fahrtenbuch: Fahrten zusammenfassen
+  kompass: 2h32m raw, 2h45m rounded
+    refs: kompass #31, #48, PR #52
+    text: kompass: GPX-Export (#31/PR #52), Tiles-Cache nach Neustart leer (#31), Wegpunkte stabil sortieren (#48), Umlaute in Ortsnamen (#48)
+  wetterwarte: 26m raw, 30m rounded
+    refs: wetterwarte mara/wetterwarte#238
+    text: wetterwarte: Frostwarnung (mara/wetterwarte#238)
+```
+
+- `refs` sind alle Referenzen der Kategorie an dem Tag, je Projekt gruppiert, ohne Doppelte, nach Repository und Nummer sortiert; `-` ohne eine. Erkannt werden `#31`, `PR #32` (auch `pull request #32`), `owner/repo#123` und die Issue- und Pull-URLs von GitHub und GitLab (`…/owner/repo/issues/123` wird zu `owner/repo#123`, `…/pull/124` zu `PR owner/repo#124`). Ein `#` direkt hinter einem Buchstaben (`C#1`), ein Farbcode (`#1a2b3c`) oder der Anker einer URL zählen nicht.
+- `text` ist der Vorschlag: `<projekt>: <session>, <session>; <projekt>: …`. Eine Session steht mit ihrem Titel, dahinter in Klammern die Referenzen aus ihren Nachrichten, die der Titel nicht schon nennt; ohne Titel stehen nur die Referenzen (`#19/#26`), ohne beides der Anfang deiner ersten Nachricht. Der Text wird auf `summary_max_chars` Zeichen gekürzt (Standard 200, er endet dann mit `…`).
+
+Gezählt werden nur deine eigenen Nachrichten (`actor = 'human'`) und die Titel. Nummern, die der Agent schreibt oder ein Werkzeug ausgibt (etwa `gh issue list`), fehlen absichtlich: sonst stünde jede Issue-Liste im Buchungstext. Der Vorschlag ist eine Vorlage, kein fertiger Text: Kürze ihn, wenn der Stundenzettel weniger verträgt, und prüfe die Nummern, wenn dieselbe Nummer in mehreren Repositories vorkommt.
+
+```toml
+[worktime]
+summary_max_chars = 120   # kürzer; 0 = ohne Grenze
+```
+
 ## Für Skripte und Agenten
 
-`--json` liefert dieselben Werte in Sekunden, Projekte und Sessions immer eingeschlossen; `--format jsonl` eine Zeile. Alle Felder: [`stats --worktime`](../reference/10-befehle.md#stats-worktime). Ein Agent mit dem [Skill](50-agenten-anbinden.md) kann den Stundenzettel damit vorbereiten, etwa je Tag und Kategorie eine Buchung mit den Session-Titeln als Text.
+`--json` liefert dieselben Werte in Sekunden, Projekte, Sessions, `refs` und `text` immer eingeschlossen; `--format jsonl` eine Zeile. Alle Felder: [`stats --worktime`](../reference/10-befehle.md#stats-worktime). Ein Agent mit dem [Skill](50-agenten-anbinden.md) kann den Stundenzettel damit vorbereiten, etwa je Tag und Kategorie eine Buchung mit `text` als Vorschlag und `refs` zum Nachschlagen.
 
 ## Rundung anpassen
 

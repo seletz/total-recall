@@ -31,6 +31,9 @@ type WorktimeJSON struct {
 	GridSeconds   int    `json:"grid_seconds"`
 	Rounding      string `json:"rounding"`
 	RoundingScope string `json:"rounding_scope"`
+	// SummaryMaxChars is the length the booking text is cut to, 0 for no
+	// limit.
+	SummaryMaxChars int `json:"summary_max_chars"`
 	// HolidayRegion is the Bundesland whose public holidays are named.
 	HolidayRegion string `json:"holiday_region"`
 	// Days are all days of the range in order; a day without time has an
@@ -53,7 +56,11 @@ type WorktimeDayJSON struct {
 	Categories     []WorktimeCellJSON `json:"categories"`
 }
 
-// WorktimeCellJSON is one category on one day.
+// WorktimeCellJSON is one category on one day. Refs are the issue and
+// pull-request references of the titles and own messages of its sessions
+// (#31, PR #32, owner/repo#123), deduplicated and sorted, Text the
+// booking text "<project>: <title> (<refs>), …; <project>: …" cut to
+// summary_max_chars.
 type WorktimeCellJSON struct {
 	Category string `json:"category"`
 	// RawSeconds is the credited time, RoundedSeconds the time to book.
@@ -61,24 +68,30 @@ type WorktimeCellJSON struct {
 	RoundedSeconds int                   `json:"rounded_seconds"`
 	Projects       []WorktimeProjectJSON `json:"projects"`
 	Sessions       []WorktimeSessionJSON `json:"sessions"`
+	Refs           []string              `json:"refs"`
+	Text           string                `json:"text"`
 }
 
 // WorktimeProjectJSON is one project within a category on one day; Remote
 // is null without a repository. RoundedSeconds rounds the project alone.
+// Refs are the references of the project's sessions.
 type WorktimeProjectJSON struct {
 	Project        string     `json:"project"`
 	Key            string     `json:"key"` // git root, else working directory
 	Remote         NullString `json:"remote"`
 	RawSeconds     int        `json:"raw_seconds"`
 	RoundedSeconds int        `json:"rounded_seconds"`
+	Refs           []string   `json:"refs"`
 }
 
 // WorktimeSessionJSON is one session within a category on one day, in
-// order of its first message; Title is null without a title.
+// order of its first message; Title is null without a title. Refs are the
+// references of the title and the own messages of the day.
 type WorktimeSessionJSON struct {
 	ID         string     `json:"id"`
 	Title      NullString `json:"title"`
 	RawSeconds int        `json:"raw_seconds"`
+	Refs       []string   `json:"refs"`
 }
 
 // WorktimeCategoryTotalJSON sums one category over the range.
@@ -104,11 +117,12 @@ type worktimeReport struct {
 	settings     worktime.Settings
 	region       string
 	sessions     bool // text output lists sessions and projects per cell
+	summary      bool // text output adds refs and booking text per cell
 }
 
 // runWorktime is stats --worktime: the working time per day and category
 // estimated from the gaps between the user's own messages.
-func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng, month, sinceArg, untilArg string, sessions bool) error {
+func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng, month, sinceArg, untilArg string, sessions, summary bool) error {
 	loc := cfg.Location()
 	settings, err := cfg.WorktimeSettings()
 	if err != nil {
@@ -129,7 +143,7 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 	}
 	in := make([]worktime.Event, len(events))
 	for i, ev := range events {
-		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Title: ev.Title, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL}
+		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Title: ev.Title, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL, Text: ev.Text}
 	}
 	cal := holidays(cfg)
 	opts := worktime.Options{Location: loc, DayStart: cfg.DayStartOffset(), Home: cfg.Home, Holidays: cal}
@@ -141,7 +155,7 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 	}
 	r := worktimeReport{
 		rep: worktime.Compute(in, settings, opts), since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart,
-		settings: settings, region: cal.Region(), sessions: sessions,
+		settings: settings, region: cal.Region(), sessions: sessions, summary: summary,
 	}
 	if o.format.IsJSON() {
 		return o.object(r.json())
@@ -152,13 +166,22 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 // seconds converts a duration to whole seconds.
 func seconds(d time.Duration) int { return int(d.Seconds()) }
 
+// refStrings writes the references for JSON; never nil.
+func refStrings(refs []worktime.Ref) []string {
+	out := make([]string, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, r.String())
+	}
+	return out
+}
+
 // json converts the report to its JSON form.
 func (r worktimeReport) json() WorktimeJSON {
 	s := r.settings
 	out := WorktimeJSON{
 		Since: NullString(isoTime(r.since)), Until: NullString(isoTime(r.until)), Timezone: r.tz, DayStart: r.dayStart,
 		MaxGapSeconds: seconds(s.MaxGap), MinCreditSeconds: seconds(s.MinCredit), GridSeconds: seconds(s.Grid),
-		Rounding: s.Rounding.String(), RoundingScope: s.Scope.String(), HolidayRegion: r.region,
+		Rounding: s.Rounding.String(), RoundingScope: s.Scope.String(), SummaryMaxChars: s.SummaryMaxChars, HolidayRegion: r.region,
 		Days: make([]WorktimeDayJSON, 0, len(r.rep.Days)), Categories: make([]WorktimeCategoryTotalJSON, 0, len(r.rep.Categories)),
 	}
 	for _, d := range r.rep.Days {
@@ -170,12 +193,13 @@ func (r worktimeReport) json() WorktimeJSON {
 			cj := WorktimeCellJSON{
 				Category: c.Name, RawSeconds: seconds(c.Raw), RoundedSeconds: seconds(c.Rounded),
 				Projects: make([]WorktimeProjectJSON, 0, len(c.Projects)), Sessions: make([]WorktimeSessionJSON, 0, len(c.Sessions)),
+				Refs: refStrings(c.Refs), Text: c.Text,
 			}
 			for _, p := range c.Projects {
-				cj.Projects = append(cj.Projects, WorktimeProjectJSON{Project: p.Name, Key: p.Key, Remote: NullString(p.Remote), RawSeconds: seconds(p.Raw), RoundedSeconds: seconds(p.Rounded)})
+				cj.Projects = append(cj.Projects, WorktimeProjectJSON{Project: p.Name, Key: p.Key, Remote: NullString(p.Remote), RawSeconds: seconds(p.Raw), RoundedSeconds: seconds(p.Rounded), Refs: refStrings(p.Refs)})
 			}
 			for _, sess := range c.Sessions {
-				cj.Sessions = append(cj.Sessions, WorktimeSessionJSON{ID: sess.ID, Title: NullString(sess.Title), RawSeconds: seconds(sess.Raw)})
+				cj.Sessions = append(cj.Sessions, WorktimeSessionJSON{ID: sess.ID, Title: NullString(sess.Title), RawSeconds: seconds(sess.Raw), Refs: refStrings(sess.Refs)})
 			}
 			dj.Categories = append(dj.Categories, cj)
 		}
@@ -194,8 +218,8 @@ func totalJSON(t worktime.Total) WorktimeTotalJSON {
 
 // text writes the range and the settings, one row per day and category
 // (DATE DAY CATEGORY RAW ROUNDED HOLIDAY, a day without time as one row
-// with "-"), with --sessions the projects and sessions of every cell
-// below its row, and the totals per category.
+// with "-"), with --sessions or --summary one block per day instead (see
+// details), and the totals per category.
 func (r worktimeReport) text(w io.Writer) error {
 	rng := "all time"
 	if !r.since.IsZero() || !r.until.IsZero() {
@@ -214,12 +238,13 @@ func (r worktimeReport) text(w io.Writer) error {
 	_, _ = fmt.Fprintf(w, "gaps up to %s count in full, longer ones %s · %s · holidays %s\n", store.FormatSpan(s.MaxGap), store.FormatSpan(s.MinCredit), rounding, r.region)
 	_, _ = fmt.Fprintln(w, "a lower bound: meetings and work without an agent leave no messages")
 	_, _ = fmt.Fprintln(w)
-	if r.sessions {
+	details := r.sessions || r.summary
+	if details {
 		r.details(w)
 	} else if err := r.table(w); err != nil {
 		return err
 	}
-	if r.sessions && r.rep.Total.Days == 0 {
+	if details && r.rep.Total.Days == 0 {
 		_, _ = fmt.Fprintln(w, "no activity")
 	}
 	_, _ = fmt.Fprintln(w)
@@ -252,9 +277,10 @@ func (r worktimeReport) table(w io.Writer) error {
 }
 
 // details writes one block per day with time (inactive days are left
-// out): the categories with their time, and below each the projects (when
-// the category has more than one) and the sessions with their titles, as a
-// template for booking texts.
+// out): the categories with their time, and below each, with --sessions,
+// the projects (when the category has more than one) and the sessions
+// with their titles, and with --summary the references per project and
+// the booking text.
 func (r worktimeReport) details(w io.Writer) {
 	n := 0
 	for _, d := range r.rep.Days {
@@ -272,6 +298,10 @@ func (r worktimeReport) details(w io.Writer) {
 		_, _ = fmt.Fprintf(w, "%s: %s raw, %s rounded\n", head, span(d.Raw), span(d.Rounded))
 		for _, c := range d.Categories {
 			_, _ = fmt.Fprintf(w, "  %s: %s raw, %s rounded\n", c.Name, span(c.Raw), span(c.Rounded))
+			if !r.sessions {
+				r.summaryLines(w, c)
+				continue
+			}
 			if len(c.Projects) > 1 {
 				names := make([]string, len(c.Projects))
 				for i, p := range c.Projects {
@@ -286,8 +316,30 @@ func (r worktimeReport) details(w io.Writer) {
 				}
 				_, _ = fmt.Fprintf(w, "    %6s  %s  %s\n", span(sess.Raw), worktimeShortID(sess.ID), title)
 			}
+			r.summaryLines(w, c)
 		}
 	}
+}
+
+// summaryLines writes the references of a cell grouped by project
+// ("refs: kompass #21, #31; wetterwarte #238", "-" without any) and the
+// booking text, with --summary.
+func (r worktimeReport) summaryLines(w io.Writer, c worktime.Category) {
+	if !r.summary {
+		return
+	}
+	var groups []string
+	for _, p := range c.Projects {
+		if len(p.Refs) > 0 {
+			groups = append(groups, p.Name+" "+strings.Join(refStrings(p.Refs), ", "))
+		}
+	}
+	refs := "-"
+	if len(groups) > 0 {
+		refs = strings.Join(groups, "; ")
+	}
+	_, _ = fmt.Fprintf(w, "    refs: %s\n", refs)
+	_, _ = fmt.Fprintf(w, "    text: %s\n", c.Text)
 }
 
 // worktimeShortID shortens a session id like the sessions table: the

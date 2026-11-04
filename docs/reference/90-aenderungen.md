@@ -10,6 +10,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ### Neu in der CLI
 
+- `stats --worktime --summary` liefert je Tag und Kategorie die Issue- und PR-Referenzen aus den Session-Titeln und deinen eigenen Nachrichten (`#31`, `PR #32`, `owner/repo#123`, auch aus Issue- und Pull-URLs; nie aus Antworten des Agenten oder Werkzeugausgaben), je Projekt gruppiert und dedupliziert, sowie einen Vorschlag für den Buchungstext `<projekt>: <titel> (<refs>), …`, gekürzt auf `summary_max_chars` in `[worktime]` (Default 200). Kombinierbar mit `--sessions`; `--json` enthält `refs` und `text` immer, auch je Projekt und Session. Rezept: [Stundenzettel füllen](../how-to/45-stundenzettel.md#referenzen-und-ein-vorschlag-fur-den-text) ([#108](https://github.com/seletz/total-recall/issues/108)).
 - `search WORDS --by-session` fasst die Treffer je Session zusammen, Subagenten-Sessions eingeschlossen: eine Zeile mit `session_id`, `display_name`, `repo`, `first_hit`, `last_hit` (in JSON UTC, in der Tabelle lokale Zeit), `hits` und dem `snippet` des ersten Treffers, sortiert nach dem ersten Treffer als Zeitleiste oder mit `--order hits` nach Trefferzahl. Die Filter `--since`, `--until`, `--repo`, `--actor`, `--session`, `--raw` und die Ausgabeformate gelten wie bisher, `--limit` behält die Sessions mit den jüngsten Treffern. Die Kernabfrage 1 des Skills verweist jetzt auf diesen Befehl statt auf eine SQL-Abfrage: [`search`](10-befehle.md#search) ([#109](https://github.com/seletz/total-recall/issues/109)).
 
 ### Release
