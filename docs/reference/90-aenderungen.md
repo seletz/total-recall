@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.0.1 (unveröffentlicht)
+
+### Behoben
+
+- Claude Code 2.1.318 schreibt den neuen Record-Typ `continued-in` (die Session, in der diese fortgesetzt wurde; einmal am Ende des Transkripts). Der Adapter kennt ihn jetzt als Meta-Record: `doctor` meldet ihn nicht mehr als unbekannt, Ingest überspringt ihn wie bisher ohne Meldung. Die Verkettung selbst wird noch nicht gespeichert, das folgt in v1.1.0 ([#113](https://github.com/seletz/total-recall/issues/113), Schritt 1).
+
 ## v1.0.0
 
 Das erste öffentliche Release: das Repository ist ab dieser Version öffentlich, die Releases tragen eine SBOM je Plattform, die Installation geht über das Release-Archiv oder den Homebrew-Cask. Funktional ändert sich gegenüber v0.3.1 wenig; die Datenbank bleibt bei Schema v3, ein Update braucht keine Migration.

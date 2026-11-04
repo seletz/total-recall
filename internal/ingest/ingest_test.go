@@ -480,3 +480,27 @@ func TestSessionOwnerIsNotStored(t *testing.T) {
 		t.Errorf("sessions = %d, want 1", n)
 	}
 }
+
+// TestContinuedInIsNotStored: continued-in records (Claude Code 2.1.318)
+// are skipped by the adapter, so neither an event nor a raw line reaches the
+// store; the session itself ingests as before.
+func TestContinuedInIsNotStored(t *testing.T) {
+	e := newEnv(t)
+	s := "55555555-5555-4555-8555-555555555555"
+	next := "66666666-6666-4666-8666-666666666666"
+	p := tf.WriteFile(t, e.projects, "-w-epsilon/"+s+".jsonl", tf.Join(
+		tf.User(s, "e1", "2026-10-09T10:00:00.000Z", "/w/epsilon", "hello"),
+		tf.Assistant(s, "e2", "2026-10-09T10:00:05.000Z", "/w/epsilon", "hi"),
+		tf.ContinuedIn(s, "2026-10-09T10:00:06.000Z", next),
+	))
+	sum := run(t, e, p)
+	if sum.Events != 2 {
+		t.Errorf("events ingested = %d, want 2: %+v", sum.Events, sum)
+	}
+	if n := e.count(t, `SELECT count(*) FROM events WHERE raw LIKE '%continued-in%' OR raw LIKE '%`+next+`%'`); n != 0 {
+		t.Errorf("%d events carry continued-in data in raw", n)
+	}
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
+		t.Errorf("sessions = %d, want 1", n)
+	}
+}

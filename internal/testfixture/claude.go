@@ -63,6 +63,13 @@ func SessionOwner(session string) Line {
 		"organizationUuid": "org00000-0000-4000-8000-000000000001", "sessionId": session}
 }
 
+// ContinuedIn returns a continued-in record (Claude Code 2.1.318+): the
+// session this one was continued in, written once at the end of a
+// transcript. The adapter skips it.
+func ContinuedIn(session, ts, continuedIn string) Line {
+	return Line{"type": "continued-in", "timestamp": ts, "sessionId": session, "continuedInSessionId": continuedIn}
+}
+
 // Join concatenates lines as JSONL.
 func Join(lines ...Line) string {
 	var b strings.Builder
