@@ -23,10 +23,22 @@ import (
 // hook logs and exits and the next hook reads from the stored offset. The
 // lock exists because a process that already had the old file open would
 // otherwise keep writing into the old inode after the swap.
+//
+// flock has no writer preference: while writers keep reopening, an
+// exclusive request could starve. So Maintain first takes
+// <lockdir>/maintenance.pending exclusively, for the wait and the run, and
+// a writer takes its shared lock only after it found the pending file free.
+// Once maintenance waits, no new writer starts; it only has to outlast the
+// writers that were already open.
 
 // MaintenanceLockName is the lock file in the lock dir shared by writers
 // (shared lock) and maintenance (exclusive lock).
 const MaintenanceLockName = "maintenance.lock"
+
+// MaintenancePendingName is the lock file maintenance holds exclusively
+// while it waits for writers and during the run; a writer that finds it
+// locked skips.
+const MaintenancePendingName = "maintenance.pending"
 
 // Errors of Open with a lock dir and of Maintain.
 var (
@@ -48,12 +60,12 @@ var (
 // maintenance run holds the lock exclusively.
 func WithLockDir(dir string) Option { return func(s *Store) { s.lockDir = dir } }
 
-// openLockFile opens (creating) the maintenance lock file in dir.
-func openLockFile(dir string) (*os.File, error) {
+// openLockFile opens (creating) the lock file name in dir.
+func openLockFile(dir, name string) (*os.File, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("store: lock dir: %w", err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, MaintenanceLockName), os.O_CREATE|os.O_RDWR, 0o644)
+	f, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("store: lock: %w", err)
 	}
@@ -79,13 +91,26 @@ func releaseLock(f *os.File) func() {
 	}
 }
 
-// lockShared takes the writer's shared lock without waiting.
+// lockShared takes the writer's shared lock without waiting. It fails with
+// ErrMaintenance when maintenance runs or is waiting for writers.
 func lockShared(dir string) (release func(), err error) {
-	f, err := openLockFile(dir)
+	pending, err := openLockFile(dir, MaintenancePendingName)
 	if err != nil {
 		return nil, err
 	}
-	ok, err := flockNB(f, syscall.LOCK_SH)
+	ok, err := flockNB(pending, syscall.LOCK_SH)
+	_ = pending.Close() // releases the probe lock
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrMaintenance
+	}
+	f, err := openLockFile(dir, MaintenanceLockName)
+	if err != nil {
+		return nil, err
+	}
+	ok, err = flockNB(f, syscall.LOCK_SH)
 	if err != nil || !ok {
 		_ = f.Close()
 		if err == nil {
@@ -96,11 +121,27 @@ func lockShared(dir string) (release func(), err error) {
 	return releaseLock(f), nil
 }
 
-// lockMaintenance takes the exclusive lock, retrying for up to wait while
-// writers hold it, and fails with ErrWritersActive otherwise.
+// lockMaintenance announces the run (exclusive pending lock, so that no new
+// writer starts) and then takes the exclusive lock, retrying for up to wait
+// while the writers that were already open hold it; it fails with
+// ErrWritersActive otherwise. release gives up both.
 func lockMaintenance(dir string, wait time.Duration) (release func(), err error) {
-	f, err := openLockFile(dir)
+	pending, err := openLockFile(dir, MaintenancePendingName)
 	if err != nil {
+		return nil, err
+	}
+	ok, err := flockNB(pending, syscall.LOCK_EX)
+	if err != nil || !ok {
+		_ = pending.Close()
+		if err == nil {
+			err = fmt.Errorf("%w (another maintenance run)", ErrMaintenance)
+		}
+		return nil, err
+	}
+	releasePending := releaseLock(pending)
+	f, err := openLockFile(dir, MaintenanceLockName)
+	if err != nil {
+		releasePending()
 		return nil, err
 	}
 	deadline := time.Now().Add(wait)
@@ -108,16 +149,19 @@ func lockMaintenance(dir string, wait time.Duration) (release func(), err error)
 		ok, err := flockNB(f, syscall.LOCK_EX)
 		if err != nil {
 			_ = f.Close()
+			releasePending()
 			return nil, err
 		}
 		if ok {
-			return releaseLock(f), nil
+			releaseMain := releaseLock(f)
+			return func() { releaseMain(); releasePending() }, nil
 		}
 		if time.Now().After(deadline) {
 			_ = f.Close()
+			releasePending()
 			return nil, ErrWritersActive
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

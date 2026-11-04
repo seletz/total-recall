@@ -309,9 +309,74 @@ func TestOpenRefusedDuringMaintenance(t *testing.T) {
 	_ = b.Close()
 }
 
+// TestMaintainPendingStopsNewWriters: once maintenance waits for an open
+// writer, a new writer is refused, so maintenance cannot starve under
+// continuous writing. The sequence is driven by observation, not timing.
+func TestMaintainPendingStopsNewWriters(t *testing.T) {
+	s, p := openTestStore(t)
+	fillStore(t, s, "a", 20)
+	_ = s.Close()
+	dir := filepath.Dir(p)
+	lockDir := filepath.Join(dir, "locks")
+
+	w, err := Open(p, WithLockDir(lockDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := maintainOpts(dir)
+	o.Wait = 30 * time.Second
+	done := make(chan error, 1)
+	go func() {
+		_, err := Maintain(ctx, p, o)
+		done <- err
+	}()
+	// Wait until maintenance has announced itself: a new writer is refused.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		n, err := Open(p, WithLockDir(lockDir))
+		if errors.Is(err, ErrMaintenance) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = n.Close()
+		if time.Now().After(deadline) {
+			t.Fatal("new writers are still admitted while maintenance waits")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("maintenance finished while a writer was open: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	// A second maintenance run is refused as well.
+	o2 := o
+	o2.Wait = 0
+	if _, err := Maintain(ctx, p, o2); !errors.Is(err, ErrMaintenance) {
+		t.Errorf("second maintenance = %v, want ErrMaintenance", err)
+	}
+	fillStore(t, w, "late", 2)
+	_ = w.Close()
+	if err := <-done; err != nil {
+		t.Fatalf("Maintain: %v", err)
+	}
+	if ps := pageStats(t, p); ps.PageSize != 16384 || ps.Events != 22 {
+		t.Errorf("after = %+v", ps)
+	}
+	// Both locks are released: a writer opens again.
+	n, err := Open(p, WithLockDir(lockDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = n.Close()
+}
+
 // TestMaintainLosesNoWrites runs a writer that keeps appending through two
-// maintenance runs. Every write that was acknowledged must be in the final
-// archive; a writer that meets the maintenance lock retries.
+// maintenance runs, reopening at once after every write. Every write that
+// was acknowledged must be in the final archive; a writer that meets the
+// maintenance lock retries.
 func TestMaintainLosesNoWrites(t *testing.T) {
 	s, p := openTestStore(t)
 	fillStore(t, s, "a", 50)
@@ -338,7 +403,7 @@ func TestMaintainLosesNoWrites(t *testing.T) {
 				mu.Lock()
 				refused++
 				mu.Unlock()
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(time.Millisecond)
 				continue
 			}
 			if err != nil {
@@ -362,7 +427,7 @@ func TestMaintainLosesNoWrites(t *testing.T) {
 	for round := 0; round < 2; round++ {
 		time.Sleep(50 * time.Millisecond)
 		o := maintainOpts(dir)
-		o.Wait = 5 * time.Second
+		o.Wait = 30 * time.Second
 		if round == 1 {
 			o.PageSize = 8192
 		}
