@@ -29,7 +29,8 @@ func click(x, y int) tea.MouseClickMsg {
 
 // TestMouse drives the view with mouse messages: the wheel over the list
 // moves the mark, over the preview it scrolls the preview; a click marks a
-// hit and gives the list the focus, a click on the marked hit opens it.
+// hit and gives the list the focus, a click on the marked hit or on the
+// preview opens it.
 func TestMouse(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	hits, err := st.Search(context.Background(), "release", store.SearchFilter{})
@@ -70,7 +71,11 @@ func TestMouse(t *testing.T) {
 		{"click on marked hit opens it", []tea.Msg{click(5, 2), click(5, 2)}, 0, focusList, auto, true},
 		{"click on input focuses input", []tea.Msg{tuitest.Key("tab"), click(5, 0)}, 0, focusInput, auto, false},
 		{"click below the hits is ignored", []tea.Msg{click(5, height-2)}, 0, focusInput, auto, false},
-		{"click in preview is ignored", []tea.Msg{click(previewX, 2)}, 0, focusInput, auto, false},
+		{"click in preview opens the marked hit", []tea.Msg{click(previewX, 2)}, 0, focusInput, auto, true},
+		{"click in preview opens from the list too", []tea.Msg{click(5, 2+linesPerHit), click(previewX, height-2)}, 1, focusList, auto, true},
+		{"click on the separator is ignored", []tea.Msg{click(49, 2)}, 0, focusInput, auto, false},
+		{"click on the rule is ignored", []tea.Msg{click(previewX, 1)}, 0, focusInput, auto, false},
+		{"click on the status line is ignored", []tea.Msg{click(previewX, height-1)}, 0, focusInput, auto, false},
 		{"repo filter ignores the mouse", []tea.Msg{tuitest.Key("tab"), tuitest.Key("r"), click(5, 2+linesPerHit)}, 0, focusRepo, auto, false},
 	}
 	for _, tt := range tests {

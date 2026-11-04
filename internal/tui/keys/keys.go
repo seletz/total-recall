@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Context is the view an action belongs to. Keys of one context may not
@@ -428,4 +429,69 @@ func Display(k string) string {
 	}
 	out.WriteString(rest)
 	return out.String()
+}
+
+// codes are the rune codes of the named keys ParseKey accepts.
+var codes = map[string]rune{
+	"enter": tea.KeyEnter, "tab": tea.KeyTab, "backspace": tea.KeyBackspace, "esc": tea.KeyEscape, "space": tea.KeySpace,
+	"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight,
+	"insert": tea.KeyInsert, "delete": tea.KeyDelete, "pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown, "home": tea.KeyHome, "end": tea.KeyEnd,
+}
+
+// Press returns the key press Bubble Tea would deliver for a key name as
+// ParseKey returns it, so a click on a key hint can be handled exactly like
+// the key: key.Matches recognises it, and a text input inserts a plain
+// character. An unknown name yields a press that matches nothing.
+func Press(name string) tea.KeyPressMsg {
+	var k tea.KeyPressMsg
+	rest := name
+	for {
+		if r, ok := strings.CutPrefix(rest, "ctrl+"); ok {
+			k.Mod, rest = k.Mod|tea.ModCtrl, r
+		} else if r, ok := strings.CutPrefix(rest, "alt+"); ok {
+			k.Mod, rest = k.Mod|tea.ModAlt, r
+		} else if r, ok := strings.CutPrefix(rest, "shift+"); ok {
+			k.Mod, rest = k.Mod|tea.ModShift, r
+		} else {
+			break
+		}
+	}
+	switch {
+	case codes[rest] != 0:
+		k.Code = codes[rest]
+		if rest == "space" && k.Mod == 0 {
+			k.Text = " "
+		}
+	case isFunctionKey(rest):
+		n := 0
+		for _, r := range rest[1:] {
+			n = n*10 + int(r-'0')
+		}
+		k.Code = tea.KeyF1 + rune(n-1)
+	case utf8.RuneCountInString(rest) == 1:
+		k.Code, _ = utf8.DecodeRuneInString(rest)
+		if k.Mod == 0 {
+			k.Text = rest
+		}
+	}
+	return k
+}
+
+// Shown returns the keys a binding names in its help text, in that order:
+// every key of a binding of one action, the first key of every action of a
+// group. The help text lists the display names (see Display) joined by
+// slashes; a key the text does not name is left out.
+func Shown(b key.Binding) []string {
+	var out []string
+	rest := b.Help().Key
+	for _, k := range b.Keys() {
+		d := Display(k)
+		after, ok := strings.CutPrefix(rest, d)
+		if !ok || (after != "" && !strings.HasPrefix(after, "/")) {
+			continue
+		}
+		out = append(out, k)
+		rest = strings.TrimPrefix(after, "/")
+	}
+	return out
 }

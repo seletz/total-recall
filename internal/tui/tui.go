@@ -6,8 +6,10 @@
 // without importing this package. The app forwards key presses to the active
 // view and every other message to all views; the active view may claim the
 // keyboard with [Focused]. Mouse clicks and wheel turns in the body reach
-// the current view with coordinates relative to the body; clicks on the
-// header switch the view. The session detail is a layer above the views:
+// the current view with coordinates relative to the body; a click on a tab
+// in the header switches the view, a click on a key hint in the footer
+// presses that key, a click beside the help panel closes the help. The
+// session detail is a layer above the views:
 // opened by the search view's OpenSession, closed by its Back, it replaces
 // the body while the search view keeps its state underneath.
 package tui

@@ -319,9 +319,10 @@ func (m Model) wheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
 
 // click marks the hit under the pointer and gives the list the focus; a
 // click on the hit that is marked while the list has the focus opens it.
-// A click on the input line moves the focus back into the input. Clicks on
-// the preview, the rule and below the hits do nothing, so do clicks while
-// the repo filter is typed.
+// A click on the preview opens the marked hit like enter, whichever
+// element has the focus. A click on the input line moves the focus back
+// into the input. Clicks on the rules, the separator, the status line and
+// below the hits do nothing, so do clicks while the repo filter is typed.
 func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	if msg.Button != tea.MouseLeft || m.focus == focusRepo {
 		return m, nil
@@ -331,11 +332,16 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 		m.input.Focus()
 		return m, nil
 	}
-	if left, _ := m.columns(); msg.X >= left {
+	row := msg.Y - (chromeRows - 1)
+	if row < 0 || row >= max(m.height-chromeRows, 0) {
 		return m, nil
 	}
-	row := msg.Y - (chromeRows - 1)
-	if row < 0 || row/linesPerHit >= m.visibleHits() {
+	if left, _ := m.columns(); msg.X > left {
+		return m, m.open()
+	} else if msg.X == left {
+		return m, nil
+	}
+	if row/linesPerHit >= m.visibleHits() {
 		return m, nil
 	}
 	i := m.offset + row/linesPerHit
