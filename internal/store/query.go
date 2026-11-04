@@ -321,21 +321,7 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
-	hs, he := f.HighlightStart, f.HighlightEnd
-	if hs == "" && he == "" {
-		hs, he = "[", "]"
-	}
-	cond, args := f.where(true)
-	cond = append([]string{"events_fts MATCH ?"}, cond...)
-	args = append([]any{hs, he, query}, args...)
-	if f.Actor != "" {
-		cond = append(cond, "e.actor = ?")
-		args = append(args, f.Actor)
-	}
-	if f.SessionID != "" {
-		cond = append(cond, "e.session_id = ?")
-		args = append(args, f.SessionID)
-	}
+	cond, args := f.where(query)
 	q := "SELECT " + prefixed(eventCols, "e") + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
 		repoExpr + `, snippet(events_fts, 0, ?, ?, '…', 16), bm25(events_fts)
 		FROM events_fts
@@ -359,6 +345,106 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 			return nil, fmt.Errorf("store: search: %w", err)
 		}
 		h.Event = e
+		out = append(out, h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: search: %w", err)
+	}
+	return out, nil
+}
+
+// SearchOrder sorts the rows of SearchBySession.
+type SearchOrder string
+
+const (
+	// OrderFirstHit sorts by the first hit, oldest first: a timeline.
+	OrderFirstHit SearchOrder = "first_hit"
+	// OrderHits sorts by hit count, most hits first.
+	OrderHits SearchOrder = "hits"
+)
+
+// SessionHits aggregates the hits of a full-text search in one session.
+type SessionHits struct {
+	SessionID   string
+	SessionName string // name, else AI title, else agent name, else native ID
+	Repo        string
+	FirstHit    time.Time // time of the earliest hit
+	LastHit     time.Time // time of the latest hit
+	Hits        int
+	Snippet     string // snippet of the earliest hit
+}
+
+// where builds the FTS match and the filters of f on aliases "e" and
+// "s", with the snippet delimiters as the first two arguments.
+func (f SearchFilter) where(query string) ([]string, []any) {
+	hs, he := f.HighlightStart, f.HighlightEnd
+	if hs == "" && he == "" {
+		hs, he = "[", "]"
+	}
+	cond, args := f.SessionFilter.where(true)
+	cond = append([]string{"events_fts MATCH ?"}, cond...)
+	args = append([]any{hs, he, query}, args...)
+	if f.Actor != "" {
+		cond = append(cond, "e.actor = ?")
+		args = append(args, f.Actor)
+	}
+	if f.SessionID != "" {
+		cond = append(cond, "e.session_id = ?")
+		args = append(args, f.SessionID)
+	}
+	return cond, args
+}
+
+// SearchBySession runs a full-text query and groups the hits per session:
+// one row per session (subagents included) with the time of the first and
+// last hit, the hit count and the snippet of the first hit. Limit caps the
+// number of sessions in the given order.
+func (s *Store) SearchBySession(ctx context.Context, query string, f SearchFilter, order SearchOrder) ([]SessionHits, error) {
+	var orderBy string
+	switch order {
+	case OrderFirstHit, "":
+		orderBy = "g.first_hit, g.session_id"
+	case OrderHits:
+		orderBy = "g.hits DESC, g.first_hit, g.session_id"
+	default:
+		return nil, fmt.Errorf("store: search: unknown order %q", order)
+	}
+	if !f.Raw {
+		query = ftsQuery(query)
+	}
+	if strings.TrimSpace(query) == "" {
+		return nil, nil
+	}
+	cond, args := f.where(query)
+	q := `WITH m AS (
+			SELECT e.session_id, e.ts, e.seq, snippet(events_fts, 0, ?, ?, '…', 16) AS snip
+			FROM events_fts
+			JOIN events e ON e.seq = events_fts.rowid
+			JOIN sessions s ON s.id = e.session_id
+			WHERE ` + strings.Join(cond, " AND ") + `),
+		g AS (SELECT session_id, min(ts) AS first_hit, max(ts) AS last_hit, count(*) AS hits FROM m GROUP BY session_id)
+		SELECT g.session_id, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
+		repoExpr + `, g.first_hit, g.last_hit, g.hits,
+			(SELECT snip FROM m WHERE m.session_id = g.session_id ORDER BY m.ts, m.seq LIMIT 1)
+		FROM g
+		JOIN sessions s ON s.id = g.session_id
+		ORDER BY ` + orderBy
+	if f.Limit > 0 {
+		q += fmt.Sprintf(" LIMIT %d", f.Limit)
+	}
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: search: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []SessionHits
+	for rows.Next() {
+		var h SessionHits
+		var first, last, snip sql.NullString
+		if err := rows.Scan(&h.SessionID, &h.SessionName, &h.Repo, &first, &last, &h.Hits, &snip); err != nil {
+			return nil, fmt.Errorf("store: search: %w", err)
+		}
+		h.FirstHit, h.LastHit, h.Snippet = parseTime(first), parseTime(last), snip.String
 		out = append(out, h)
 	}
 	if err := rows.Err(); err != nil {

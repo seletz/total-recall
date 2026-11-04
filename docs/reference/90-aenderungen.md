@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.1.0 (unveröffentlicht)
+
+### Neu in der CLI
+
+- `search WORDS --by-session` fasst die Treffer je Session zusammen, Subagenten-Sessions eingeschlossen: eine Zeile mit `session_id`, `display_name`, `repo`, `first_hit`, `last_hit` (in JSON UTC, in der Tabelle lokale Zeit), `hits` und dem `snippet` des ersten Treffers, sortiert nach dem ersten Treffer als Zeitleiste oder mit `--order hits` nach Trefferzahl. Die Filter `--since`, `--until`, `--repo`, `--actor`, `--session`, `--raw` und die Ausgabeformate gelten wie bisher, `--limit` zählt Sessions. Die Kernabfrage 1 des Skills verweist jetzt auf diesen Befehl statt auf eine SQL-Abfrage: [`search`](10-befehle.md#search) ([#109](https://github.com/seletz/total-recall/issues/109)).
+
 ## v1.0.2
 
 Die macOS-Binaries sind ab dieser Version signiert und notarisiert. Sonst ändert sich nichts; die Datenbank bleibt bei Schema v3.

@@ -187,11 +187,20 @@ total-recall search backup retention --since 2026-10-01      # beide Wörter mü
 total-recall search --raw 'cask AND (homebrew OR tap)'       # FTS5-Syntax
 total-recall search redaction --actor human --repo seletz/total-recall --json
 total-recall search backup --session 9a1b2c3d                # nur in dieser Session
+total-recall search goreleaser --by-session                  # eine Zeile je Session, Zeitleiste
 ```
 
 ```text
 2026-10-31 19:38  Release-Pipeline aufsetzen  seletz/total-recall  claude:9a1b2c3d-…  [human]
     Bitte richte [goreleaser] mit einem Homebrew-Cask ein.
+```
+
+Mit `--by-session` werden die Treffer je Session zusammengefasst, Subagenten-Sessions eingeschlossen: erster und letzter Treffer (lokale Zeit; in JSON UTC als `first_hit` und `last_hit`), Anzahl der Treffer, ID, Name, Repo und der Textausschnitt des ersten Treffers. Sortiert nach dem ersten Treffer, älteste Session zuerst, also als Zeitleiste; `--order hits` sortiert nach Trefferzahl, meiste zuerst. `--limit` zählt dann Sessions statt Treffer. Die Filter wirken wie bei der einfachen Suche, `--actor human` etwa liefert die Sessions, in denen du selbst das Thema angesprochen hast.
+
+```text
+FIRST             LAST              HITS  ID                  NAME                         REPO                 SNIPPET
+2026-10-31 19:38  2026-10-31 21:02  7     claude:9a1b2c3d-…   Release-Pipeline aufsetzen   seletz/total-recall  Bitte richte [goreleaser] mit einem Homebrew-Cask ein.
+2026-11-02 09:15  2026-11-02 09:16  2     claude:4f7a0b11-…   Release v0.3.0               seletz/total-recall  …der [goreleaser]-Lauf ist durch…
 ```
 
 | Option | Bedeutung |
@@ -200,7 +209,9 @@ total-recall search backup --session 9a1b2c3d                # nur in dieser Ses
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
 | `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
-| `--limit N` | höchstens N Treffer (Default 20, 0 = alle) |
+| `--limit N` | höchstens N Treffer (Default 20, 0 = alle); mit `--by-session` höchstens N Sessions |
+| `--by-session` | eine Zeile je Session statt je Treffer: `first_hit`, `last_hit`, `hits`, `snippet` des ersten Treffers |
+| `--order first_hit\|hits` | Sortierung mit `--by-session`: nach erstem Treffer, älteste zuerst (Default), oder nach Trefferzahl, meiste zuerst |
 
 Ohne `--raw` wird jedes Wort in Anführungszeichen gesetzt. Dann müssen alle Wörter vorkommen, und Sonderzeichen sind harmlos.
 
