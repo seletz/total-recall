@@ -203,8 +203,12 @@ func TestWriteBatchIdempotent(t *testing.T) {
 		t.Fatalf("Events = %d", len(got))
 	}
 	e := got[3]
-	if e.ID != "claude:e4" || e.TokensIn != 10 || e.TokensOut != 20 || e.Model != "m1" || e.Raw != `{"x":1}` || !e.TS.Equal(evs[3].TS) || e.SourcePath != "/src/a.jsonl" {
+	if e.ID != "claude:e4" || e.TokensIn != 10 || e.TokensOut != 20 || e.Model != "m1" || !e.TS.Equal(evs[3].TS) || e.SourcePath != "/src/a.jsonl" {
 		t.Errorf("round trip mismatch: %+v", e)
+	}
+	// Events does not load raw (#131); it is stored nevertheless.
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE id = 'claude:e4' AND raw = '{\"x\":1}'"); n != 1 {
+		t.Errorf("stored raw rows for e4 = %d, want 1", n)
 	}
 	if got[1].ToolName != "Bash" {
 		t.Errorf("tool name = %q", got[1].ToolName)

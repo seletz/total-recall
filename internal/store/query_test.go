@@ -1,6 +1,12 @@
 package store
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -500,5 +506,110 @@ func TestSearchBySession(t *testing.T) {
 	}
 	if _, err := s.SearchBySession(ctx, "login", SearchFilter{}, SearchOrder("rank")); err == nil {
 		t.Error("unknown order: no error")
+	}
+}
+
+// TestReadPathsDoNotLoadRaw: the read queries behind show, search, sessions,
+// stats and the TUI never load events.raw; no read command outputs it and it
+// is the largest column by far (#131). The column stays stored for the
+// paths that need it (UserMessages, backup).
+func TestReadPathsDoNotLoadRaw(t *testing.T) {
+	for _, c := range strings.Split(eventCols, ",") {
+		if strings.TrimSpace(c) == "raw" {
+			t.Fatalf("eventCols contains raw: %q", eventCols)
+		}
+	}
+	// Every SQL string of the package: only the writer and the one reader
+	// that needs it (UserMessages) may name the column.
+	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true}
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	word := regexp.MustCompile(`\braw\b`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") || allowed[f] {
+			continue
+		}
+		src, err := parser.ParseFile(token.NewFileSet(), f, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(src, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
+				t.Errorf("%s: a query names raw: %s", f, lit.Value)
+			}
+			return true
+		})
+	}
+	s, _ := openTestStore(t)
+	sess, evs := sampleBatch()
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE raw IS NOT NULL AND raw <> ''"); n != len(evs) {
+		t.Fatalf("stored raw rows = %d, want %d", n, len(evs))
+	}
+	got, err := s.Events(ctx, "claude:s1", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range got {
+		if e.Raw != "" {
+			t.Errorf("Events: %s has raw loaded", e.ID)
+		}
+	}
+	hits, err := s.Search(ctx, "login", SearchFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 {
+		t.Fatal("Search: no hits")
+	}
+	for _, h := range hits {
+		if h.Event.Raw != "" {
+			t.Errorf("Search: %s has raw loaded", h.Event.ID)
+		}
+	}
+	var seen int
+	err = s.UserMessages(ctx, "claude", func(m UserMessage) error {
+		if m.Raw != "" {
+			seen++
+		}
+		return nil
+	})
+	if err != nil || seen == 0 {
+		t.Errorf("UserMessages: raw rows = %d, err = %v; reindex --actors still needs raw", seen, err)
+	}
+}
+
+// BenchmarkEventsLargeRaw reads a session whose events carry a raw line of
+// a few KiB each, the shape of tool calls in a real archive: the cost show
+// pays when the read path loads raw (#131).
+func BenchmarkEventsLargeRaw(b *testing.B) {
+	dir := b.TempDir()
+	s, err := Open(dir + "/bench.db")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	raw := `{"filler":"` + strings.Repeat("x", 4<<10) + `"}`
+	sess := []model.Session{{ID: "claude:s1", Harness: "claude", NativeID: "s1", Cwd: "/w/app"}}
+	var evs []model.Event
+	for i := 0; i < 2000; i++ {
+		t := time.Date(2026, 10, 31, 22, 0, i, 0, time.UTC).Format(time.RFC3339)
+		e := ev(fmt.Sprintf("claude:e%04d", i), "claude:s1", t, model.ActorAgent, model.KindToolResult, "tool", "login.go:12")
+		e.Raw = raw
+		evs = append(evs, e)
+	}
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		got, err := s.Events(ctx, "claude:s1", true)
+		if err != nil || len(got) != len(evs) {
+			b.Fatalf("Events = %d %v", len(got), err)
+		}
 	}
 }
