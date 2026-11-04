@@ -76,7 +76,7 @@ Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, kein
 
 | Maus | Wirkung |
 |---|---|
-| Rad | blättert, was unter dem Zeiger liegt: die Trefferliste (bewegt die Markierung wie ++up++/++down++), die Vorschau, den Verlauf einer Session, die Tage der Aktivität |
+| Rad | blättert, was unter dem Zeiger liegt: die Trefferliste (bewegt die Markierung wie ++up++/++down++), die Vorschau, den Verlauf einer Session, die Tage der Aktivität (wie ++up++/++down++ dort: am Rand einen Tag weiter in der Zeit) |
 | Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1`, `2`, `3`; schließt eine offene Session |
 | Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
@@ -188,9 +188,14 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 
 *Ein Monat (`m`): Monatsarbeitszeit gegen das Soll der Arbeitstage, Feiertag ohne Soll*
 
+![Mit ++up++ drei Tage zurückgeblättert: ein gleitendes Fenster von sieben Tagen, Freitag bis Donnerstag, mit Kopfzeile und Kennzahlen für genau diese Tage](../assets/screenshots/activity-days.png)
+
+*Mit ++up++ drei Tage zurückgeblättert: ein gleitendes Fenster von sieben Tagen, Freitag bis Donnerstag, mit Kopfzeile und Kennzahlen für genau diese Tage*
+
 - **Umschalter** oben: Zeitfenster (`d` ein Tag, `w` eine ISO-Woche ab Montag, `m` ein Monat) und was zählt (`human`, der Standard: nur eigene Nachrichten, denn Agent-Events laufen nachts weiter und dehnen die Spanne; `h` schaltet auf `all`, eigene Nachrichten und Agent-Events wie in der Statistik; den Standard setzt `count` in [`[work]`](20-konfiguration.md#work)). Rechts das Fenster: `this week`/`last week` (bzw. `today`/`yesterday`, `this month`/`last month`), Kalenderwoche oder Monat und der erste und letzte Tag; ein Feiertag steht bei einem einzelnen Tag mit Namen dahinter.
 - **Kopfzeile** bei Woche und Monat: die Arbeitszeit der Periode (Summe der Spannen, fett und gefärbt: türkis unter, grün im Rahmen, orange über dem Wochenrahmen `weekly_low`–`weekly_high`, bei einer Woche mit fünf Arbeitstagen 32–48 h, sonst anteilig), die Tage mit Aktivität, das Soll (Tagessoll × Arbeitstage der Periode) mit dem Saldo dagegen und die Feiertage der Periode mit Namen. Arbeitstage sind Montag bis Freitag ohne Feiertage, mit oder ohne Aktivität, aber nur bis heute: in der laufenden Woche oder dem laufenden Monat zählen künftige Tage noch nicht. Ein vergessener Tag oder Urlaub drückt den Saldo also, ein Feiertag nicht.
-- **Zeitfenster:** Start ist die aktuelle Woche (`activity_window` in [`[tui]`](20-konfiguration.md#tui)). ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
+- **Zeitfenster:** Start ist die aktuelle Woche (`activity_window` in [`[tui]`](20-konfiguration.md#tui)). ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um eine ganze Periode: einen Tag, eine Woche oder einen Monat. `c` springt in die aktuelle Periode (heute, diese Woche, dieser Monat), `l` in die vorige (gestern, letzte Woche, letzter Monat). Ein Periodenwechsel behält den zuletzt gezeigten Tag bei: aus der letzten Woche führt `m` in den Monat, der ihren letzten Tag enthält.
+- **Tageweise blättern:** ++up++ und ++down++ (`k`/`j`, ebenso das Mausrad) blättern durch die Zeit. Passen nicht alle Tage auf den Bildschirm, scrollen sie erst die Zeilen; am oberen bzw. unteren Rand rückt das Fenster um einen Tag zurück bzw. vor, der neue Tag erscheint oben bzw. unten. Woche und Monat werden so zu einem **gleitenden Fenster**, das seine Länge behält: sieben Tage bzw. die Tage des Monats, in dem es begann (Dezember: 31, auch über den Jahreswechsel). Kopfzeile, Soll, Saldo und Kennzahlen gelten für genau die sichtbaren Tage; die Kalenderwoche bzw. der Monat stehen rechts oben nur, wenn das Fenster wieder eine ganze Woche (Montag bis Sonntag) oder einen ganzen Monat zeigt. `c`, `l`, `d`, `w` und `m` richten wieder am Kalender aus. Das Fenster endet nie nach der laufenden Periode: in dieser Woche oder diesem Monat tut ++down++ nichts, weiter zurück führt es bis in die laufende Periode; ++right++ springt eine Periode vor, höchstens bis dahin.
 - **Zeilen:** je Tag Wochentag und Datum, erste und letzte Aktivität als Uhrzeit, die Spanne dazwischen, die Differenz zum Tagessoll und ein Balken auf einer Zeitachse. Tage ohne Aktivität stehen mit `-` und leerem Balken da, damit Lücken auffallen.
 - **Normalarbeitszeit:** Kernzeit und Tagessoll kommen aus `[work]` in der [Konfiguration](20-konfiguration.md#work), Standard 09:00–17:00 und 8 h. Die Kernzeit liegt als Band mit Linien an Anfang und Ende auf der Achse jedes Werktags (`│───│`, farbig hinterlegt). Der Balken ist innerhalb der Kernzeit blau (`█`), davor und danach orange (`▓`), nach Mitternacht rot (`▒`); am Wochenende violett ohne Band. Ohne Farben (`NO_COLOR`) unterscheiden die Zeichen.
 - **Spanne und Differenz:** Die Spanne eines Arbeitstags wird gegen `daily_low`/`daily_high` bewertet und mit der Differenz zum Soll (`+1h15m`, `-2h35m`) gefärbt: türkis unter, grün im Rahmen, orange deutlich über Soll. Wochenende und Feiertage haben kein Soll, ihre ganze Spanne ist die Differenz; ein Tag ohne Aktivität hat keine (`-`), zählt bei Woche und Monat aber als Arbeitstag mit (siehe Kopfzeile).
@@ -198,7 +203,7 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 - **Tagesgrenze:** Ein Tag beginnt um `day_start` aus der [Konfiguration](20-konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt; die Zeitachse läuft entsprechend von 04 bis 04 Uhr. Die Spanne ist die tatsächlich verstrichene Zeit, auch über eine Zeitumstellung hinweg.
 - **Kennzahlen** unter der Linie bei Woche und Monat: Median, Mittelwert, Minimum und Maximum von erster Aktivität, letzter Aktivität (als Uhrzeit, nach Mitternacht mit `(+1)`) und Spanne über die Tage mit Aktivität; die Spannen sind nach der Tagesbewertung gefärbt. `s` blendet den Block aus und ein; er weicht von selbst, wenn sonst weniger als drei Tageszeilen blieben.
 - **Farben** kommen aus dem gemeinsamen [Theme](#farben) und folgen damit dem Terminalhintergrund; Magenta ist den Feiertagen vorbehalten.
-- **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad blättern. Ergebnisse werden je Fenster und Zählweise gecacht.
+- **Statuszeile:** Anzahl Tage, Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad scrollen erst durch die Zeilen und blättern dann tageweise weiter. Ergebnisse werden je Fenster und Zählweise gecacht.
 
 Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er (und mit ihm der Feiertagsname auf der Achse), die Uhrzeiten, Spanne und Differenz bleiben. Die Kopfzeile wird bei schmalen Fenstern rechts abgeschnitten (`…`); die Feiertage stehen dann noch in den Zeilen.
 
@@ -261,12 +266,12 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | Taste | Aktion | Wirkung |
 |---|---|---|
 | `d` / `w` / `m` | `activity_day`, `activity_week`, `activity_month` | Fenster ein Tag / eine Woche / ein Monat |
-| ++left++ / ++right++, `,` / `.`, `[` / `]` | `activity_earlier`, `activity_later` | eine Periode zurück / vor |
+| ++left++ / ++right++, `,` / `.`, `[` / `]` | `activity_earlier`, `activity_later` | eine Periode zurück / vor (nicht über die laufende hinaus) |
 | `c` | `activity_current` | heute / diese Woche / dieser Monat |
 | `l` | `activity_last` | gestern / letzte Woche / letzter Monat |
 | `h` | `activity_human` | Zählweise: nur eigene Nachrichten ↔ alle Events |
 | `s` | `activity_figures` | Kennzahlen (Median, Mittelwert, Min/Max) ein/aus |
-| ++up++ / `k`, ++down++ / `j` | `activity_up`, `activity_down` | blättern, wenn nicht alle Tage passen |
+| ++up++ / `k`, ++down++ / `j` | `activity_up`, `activity_down` | einen Tag zurück / vor; passen nicht alle Tage auf den Bildschirm, erst durch die Zeilen scrollen |
 
 ### Tastenbelegung anpassen { #tastenbelegung-anpassen }
 

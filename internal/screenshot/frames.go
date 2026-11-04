@@ -66,7 +66,8 @@ func must(loc *time.Location, err error) *time.Location {
 // the archive's own clock, the morning after its last conversation. The
 // stats window is the 28 days up to 2026-11-01, all of October. The
 // activity shots show the hand-laid week of 2026-06-01 with Fronleichnam on
-// the Thursday, and June 2026 as the month.
+// the Thursday, that week moved three days back by ↑, and June 2026 as the
+// month.
 var (
 	searchNow = demo.Now
 	statsNow  = time.Date(2026, 11, 1, 12, 0, 0, 0, berlin)
@@ -88,6 +89,8 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, eine Woche mit Kernzeit, Feiertag und Kennzahlen"},
 	{Name: "activity-month", Width: Width, Height: Height, Start: tui.ViewActivity, Now: monthNow, Keys: []string{"m"},
 		Caption: "Aktivität je Tag, ein Monat mit Monatsarbeitszeit"},
+	{Name: "activity-days", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"k", "k", "k"},
+		Caption: "Aktivität je Tag, mit ↑ drei Tage zurück: ein gleitendes Fenster von sieben Tagen"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
 	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},

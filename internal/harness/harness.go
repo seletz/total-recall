@@ -19,6 +19,16 @@ type Adapter interface {
 	Parse(ctx context.Context, path string, offset int64, emit func(model.Record) error) (int64, error)
 }
 
+// Reclassifier is implemented by adapters that can derive the actor of a
+// stored user message again, after the classification rules changed
+// (ingest --reclassify). ev carries the stored text and raw record;
+// subagent says whether the event's session is a subagent transcript. ok is
+// false when the adapter cannot decide from what is stored; the stored actor
+// then stays.
+type Reclassifier interface {
+	Reclassify(ev model.Event, subagent bool) (actor model.Actor, ok bool)
+}
+
 var registry = map[string]Adapter{}
 
 // Register adds an adapter; called from adapter packages' init or from main.

@@ -75,6 +75,12 @@ func WithPeerPrefixes(p ...string) Option {
 	return func(a *Adapter) { a.classifier.PeerPrefixes = append(a.classifier.PeerPrefixes, p...) }
 }
 
+// WithPeerPasteHeaders adds first-line prefixes that classify a message
+// consisting of one pasted block as actor "peer" (Classifier.PeerPasteHeaders).
+func WithPeerPasteHeaders(h ...string) Option {
+	return func(a *Adapter) { a.classifier.PeerPasteHeaders = append(a.classifier.PeerPasteHeaders, h...) }
+}
+
 // WithAutomationPrefixes adds text prefixes that classify a user message as actor "automation".
 func WithAutomationPrefixes(p ...string) Option {
 	return func(a *Adapter) {

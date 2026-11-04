@@ -80,6 +80,30 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 
 Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
+## `reindex` { #reindex }
+
+Bestimmt abgeleitete Felder gespeicherter Events neu, ohne die Transkripte zu lesen.
+
+```sh
+total-recall reindex --actors --dry-run   # zeigen, was sich ändern würde
+total-recall reindex --actors             # anwenden
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--actors` | den Actor jeder gespeicherten User-Nachricht mit den aktuellen Regeln neu bestimmen (eingebaute Regeln plus [`[harness.claude.actors]`](20-konfiguration.md#harnessclaudeactors)) und die Events aktualisieren, deren Actor sich ändert. Idempotent: ein zweiter Lauf mit denselben Regeln ändert nichts |
+| `--dry-run` | nur zählen, nichts schreiben |
+
+Ausgabe:
+
+```text
+reindex --actors: 1234 user messages, 17 changed (human -> peer: 17) (0.4s)
+reindex --actors (dry run): 1234 user messages, 17 would change (human -> peer: 17) (0.4s)
+```
+
+- Die Textregeln (Präfixe, Kopfzeilen eingefügter Blöcke) laufen über den gespeicherten Text; die Flags des Records (`origin.kind`, `isMeta`, geplante Prompts) kommen aus `raw`. Fehlt `raw` (`ingest.store_raw = false` oder Zeile größer als `ingest.raw_max_bytes`) und trifft keine Textregel, bleibt der Actor stehen; die Zahl steht als `undecided` in der Ausgabe.
+- Typischer Anlass: ein Koordinator hat Aufträge in Sessions eingefügt, die als `human` gezählt wurden, siehe [Stundenzettel füllen](../how-to/45-stundenzettel.md#mehrere-agenten).
+
 ## `status` { #status }
 
 Zeigt den Zustand des Archivs.

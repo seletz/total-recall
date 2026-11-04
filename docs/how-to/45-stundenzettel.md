@@ -122,6 +122,28 @@ Gezählt werden nur deine eigenen Nachrichten (`actor = 'human'`) und die Titel.
 summary_max_chars = 120   # kürzer; 0 = ohne Grenze
 ```
 
+## Mehrere Agenten: Aufträge eines Koordinators { #mehrere-agenten }
+
+Verteilt ein koordinierender Agent Aufgaben an andere Sessions, indem er sie in deren Terminal tippt oder als Block einfügt, stehen diese Aufträge im Transkript wie eigene Nachrichten. Ohne Gegenmaßnahme zählt jeder Auftrag als Arbeitszeit, die letzte Aktivität rutscht in die Nacht und die Lücken zwischen den Aufträgen landen auf dem Stundenzettel. Nachrichten, die eine Session über den Socket an eine andere schickt, erkennt `total-recall` von selbst als `peer`; für das Tippen und Einfügen braucht es zwei Regeln in der Konfiguration:
+
+```toml
+[harness.claude.actors]
+peer_prefixes = ["From coordinator:", "Vom Koordinator:"]
+peer_paste_headers = ["# Task:", "Auftrag:"]
+```
+
+- `peer_prefixes`: Beginnt eine Nachricht mit einem der Texte, stammt sie von einem anderen Agenten (`peer`).
+- `peer_paste_headers`: Besteht eine Nachricht nur aus einem eingefügten Block und beginnt dessen erste Zeile mit einem der Texte, ebenso. Ein Block, den du selbst einfügst (ein Log, eine Fehlermeldung), hat eine andere erste Zeile und bleibt `human`; ein Block mit eigenem Text davor oder danach auch.
+
+Der Koordinator muss die Aufträge entsprechend beginnen; das lässt sich in seinen Anweisungen festlegen. Die Regeln gelten für alles, was ab jetzt eingelesen wird. Für die Tage davor:
+
+```sh
+total-recall reindex --actors --dry-run   # 17 would change (human -> peer: 17)
+total-recall reindex --actors
+```
+
+Danach zählen `stats --worktime` und `stats --workday` nur noch, was du selbst geschrieben hast. Details zu den Regeln: [`[harness.claude.actors]`](../reference/20-konfiguration.md#harnessclaudeactors), zum Befehl: [`reindex`](../reference/10-befehle.md#reindex).
+
 ## Für Skripte und Agenten
 
 `--json` liefert dieselben Werte in Sekunden, Projekte, Sessions, `refs` und `text` immer eingeschlossen; `--format jsonl` eine Zeile. Alle Felder: [`stats --worktime`](../reference/10-befehle.md#stats-worktime). Ein Agent mit dem [Skill](50-agenten-anbinden.md) kann den Stundenzettel damit vorbereiten, etwa je Tag und Kategorie eine Buchung mit `text` als Vorschlag und `refs` zum Nachschlagen.

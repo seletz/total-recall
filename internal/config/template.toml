@@ -63,6 +63,9 @@ skip_record_types = []
 [harness.claude.actors]
 # Additional message prefixes for actor classification.
 peer_prefixes = []
+# A message that is exactly one pasted block whose first line starts with
+# one of these is a task from another agent ("peer"), e.g. ["# Task:", "Auftrag:"].
+peer_paste_headers = []
 automation_prefixes = ["Hourly ", "Weekend watch"]
 
 [work]
