@@ -69,7 +69,7 @@ func TestFrames(t *testing.T) {
 		{"ShiftBack", []string{"["}},
 		{"ShiftBackTwice", []string{"[", "["}},
 		{"ShiftBackForth", []string{"[", "]"}},
-		{"ShiftForwardEmpty", []string{"]"}},
+		{"ShiftForwardStopsAtThisWeek", []string{"]"}},
 		{"CurrentAfterShift", []string{"[", "[", "c"}},
 		{"AllThenHuman", []string{"h", "h"}},
 		{"DayKeepsAnchor", []string{"[", "d"}},
@@ -83,12 +83,79 @@ func TestFrames(t *testing.T) {
 		{"MonthFiguresOff", []string{"m", "l", "s"}},
 		{"HolidayDay", []string{"d", "[", "[", "[", "[", "["}},
 		{"HolidayDayAll", []string{"d", "[", "[", "[", "[", "[", "h"}},
+		// ↑/↓ move the window by a day once the rows cannot scroll: a week
+		// becomes a sliding window of seven days without an ISO week label.
+		{"DayBack", []string{"k"}},
+		{"DayBackArrow", []string{"up"}},
+		{"DayBackForth", []string{"k", "k", "j"}},
+		{"DayForwardStopsAtThisWeek", []string{"j", "down"}},
+		{"DayBackToLastWeek", repeat("k", 7)},
+		{"DayScrollsSingleDay", []string{"d", "k"}},
+		{"DayScrollsSingleDayForthStops", []string{"d", "k", "j", "j"}},
+		// Last month has 31 rows and 18 fit: 13 presses scroll to the end,
+		// the 14th moves the window to Dec 2 – Jan 1 and keeps the length.
+		{"MonthScrollThenShift", append([]string{"m", "l"}, repeat("j", 14)...)},
+		{"MonthDayBackKeepsLength", []string{"m", "l", "k"}},
+		// → after day steps jumps a period but not past this week.
+		{"LaterClampedToThisWeek", []string{"k", "k", "]"}},
+		{"LaterFromLastWeekDays", []string{"l", "k", "k", "]"}},
+		{"CurrentAfterDays", []string{"k", "k", "k", "c"}},
+		{"PeriodSwitchAfterDays", []string{"k", "k", "d"}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := drive(t, newModel(t, st), tt.keys...)
 			golden.RequireEqual(t, tuitest.Frame(m))
+		})
+	}
+}
+
+// repeat returns the key name n times.
+func repeat(k string, n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = k
+	}
+	return out
+}
+
+// TestDayStepBounds pins the window after day steps against the clock: ↑
+// moves the first and the last day back by one, ↓ moves them on, and the
+// window never ends after the current period, so mid-week the way back
+// to this week stays open while ↓ in this week does nothing.
+func TestDayStepBounds(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	wed := func() time.Time { return time.Date(2026, 1, 7, 15, 0, 0, 0, testfixture.ActivityLocation) }
+	day := func(d int) time.Time { return time.Date(2026, 1, d, 0, 0, 0, 0, testfixture.ActivityLocation) }
+	tests := []struct {
+		name         string
+		now          func() time.Time
+		keys         []string
+		since, until time.Time
+	}{
+		{"sunday start", clock, nil, day(5), day(12)},
+		{"sunday one back", clock, []string{"k"}, day(4), day(11)},
+		{"sunday down stops", clock, []string{"j"}, day(5), day(12)},
+		{"sunday back and forth", clock, []string{"k", "k", "k", "j"}, day(3), day(10)},
+		{"sunday forth stops at this week", clock, []string{"k", "k", "j", "j", "j"}, day(5), day(12)},
+		{"wednesday down stops", wed, []string{"j"}, day(5), day(12)},
+		{"wednesday back and forth returns", wed, []string{"k", "k", "j", "j"}, day(5), day(12)},
+		{"wednesday day view ends today", wed, []string{"d", "k", "j", "j"}, day(7), day(8)},
+		{"wednesday later clamps", wed, []string{"k", "k", "k", "]"}, day(5), day(12)},
+		{"wednesday later from last week", wed, []string{"l", "k", "]"}, day(4), day(11)},
+		{"month back keeps length", clock, []string{"m", "k"}, time.Date(2025, 12, 31, 0, 0, 0, 0, testfixture.ActivityLocation), time.Date(2026, 1, 31, 0, 0, 0, 0, testfixture.ActivityLocation)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New(Options{Loader: st, Now: tt.now, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true})
+			m = drive(t, m, tt.keys...)
+			if got := m.span.since(); !got.Equal(tt.since) {
+				t.Errorf("since = %v, want %v", got, tt.since)
+			}
+			if got := m.span.until(); !got.Equal(tt.until) {
+				t.Errorf("until = %v, want %v", got, tt.until)
+			}
 		})
 	}
 }
@@ -279,6 +346,8 @@ func TestCache(t *testing.T) {
 		{"shift equals last", []string{"[", "l"}, 2},
 		{"all events back and forth", []string{"h", "h", "h"}, 2},
 		{"scrolling does not load", []string{"m", "j", "j", "k"}, 2},
+		{"day step loads once per window", []string{"k", "j", "k"}, 2},
+		{"day step at the limit does not load", []string{"j", "j"}, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -311,28 +380,32 @@ func TestStaleResultDropped(t *testing.T) {
 	}
 }
 
-// TestWheel checks that the mouse wheel scrolls the day rows like ↑/↓.
+// TestWheel checks that the mouse wheel acts like ↑/↓: it scrolls the day
+// rows of last month and, at the top or when every row fits, moves the
+// window by a day.
 func TestWheel(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	down := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelDown}
 	up := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelUp}
 	tests := []struct {
-		name string
-		msgs []tea.Msg
-		want int
+		name   string
+		msgs   []tea.Msg
+		offset int
+		shift  int
 	}{
-		{"down", []tea.Msg{down}, 1},
-		{"down twice", []tea.Msg{down, down}, 2},
-		{"down then up", []tea.Msg{down, down, up}, 1},
-		{"up at the top stays", []tea.Msg{up}, 0},
-		{"week does not scroll", []tea.Msg{tuitest.Key("w"), down}, 0},
+		{"down", []tea.Msg{down}, 1, 0},
+		{"down twice", []tea.Msg{down, down}, 2, 0},
+		{"down then up", []tea.Msg{down, down, up}, 1, 0},
+		{"up at the top moves a day back", []tea.Msg{up}, 0, -1},
+		{"week moves a day", []tea.Msg{tuitest.Key("c"), tuitest.Key("w"), up, up, down}, 0, -1},
+		{"week does not move past today", []tea.Msg{tuitest.Key("c"), tuitest.Key("w"), down}, 0, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msgs := append([]tea.Msg{bodySize, tuitest.Key("m"), tuitest.Key("l")}, tt.msgs...)
 			m := tuitest.Drive(t, newModel(t, st), msgs...).(Model)
-			if m.offset != tt.want {
-				t.Errorf("offset = %d, want %d", m.offset, tt.want)
+			if m.offset != tt.offset || m.span.shift != tt.shift {
+				t.Errorf("offset = %d, shift = %d, want %d and %d", m.offset, m.span.shift, tt.offset, tt.shift)
 			}
 		})
 	}
@@ -343,8 +416,8 @@ func TestStartWindow(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	for name, p := range map[string]store.Period{"": store.PeriodWeek, "day": store.PeriodDay, "week": store.PeriodWeek, "month": store.PeriodMonth, "bogus": store.PeriodWeek} {
 		m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Window: name})
-		if m.window.Period != p || m.window.Count != 1 {
-			t.Errorf("Window %q: start = %+v", name, m.window)
+		if m.span.window.Period != p || m.span.window.Count != 1 || m.span.shift != 0 {
+			t.Errorf("Window %q: start = %+v", name, m.span)
 		}
 	}
 }
@@ -353,19 +426,28 @@ func TestStartWindow(t *testing.T) {
 // them in its help.
 func TestConfiguredKeys(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	km, err := keys.Resolve(map[string][]string{keys.ActivityEarlier: {"<"}, keys.ActivityLater: {">"}})
+	km, err := keys.Resolve(map[string][]string{keys.ActivityEarlier: {"<"}, keys.ActivityLater: {">"}, keys.ActivityUp: {"u"}, keys.ActivityDown: {"n"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Keys: km})
-	start := m.window
-	if got := drive(t, m, "["); !got.window.Equal(start) {
+	start := m.span
+	if got := drive(t, m, "["); !got.span.equal(start) {
 		t.Errorf("[ still shifts the window")
 	}
-	if got := drive(t, m, "<", "<", ">"); !got.window.Equal(start.Shift(-1)) {
-		t.Errorf("< and > do not shift: %v", got.window)
+	if got := drive(t, m, "<", "<", ">"); !got.span.equal(start.periods(-1)) {
+		t.Errorf("< and > do not shift: %v", got.span)
+	}
+	if got := drive(t, m, "k", "up"); !got.span.equal(start) {
+		t.Errorf("k and ↑ still move the window")
+	}
+	if got := drive(t, m, "u", "u", "n"); !got.span.equal(start.days(-1)) {
+		t.Errorf("u and n do not move the window: %v", got.span)
 	}
 	if h := m.keys.Range.Help(); h.Key != "</>" {
 		t.Errorf("range group help = %q", h.Key)
+	}
+	if h := m.keys.Up.Help(); h.Key != "u" {
+		t.Errorf("up help = %q", h.Key)
 	}
 }
