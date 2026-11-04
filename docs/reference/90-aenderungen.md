@@ -12,7 +12,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **Mausklicks in allen Ansichten.** Klickbar ist, was es per Taste gibt, mit derselben Wirkung: die Tastenhinweise der Fußzeile (bei `d/w/m period` jede Taste einzeln, Abgeschnittenes nicht), Periode und Dimension der Statistik, Fenster, Zählweise und Kennzahlen der Aktivität, die Vorschau der Suche (öffnet die Session wie ++enter++) und ein Klick neben das Hilfe-Fenster (schließt es). Rad, Tabs, Trefferliste und Eingabezeile wie bisher; `--no-mouse` und `mouse = false` unverändert: [Maus](30-tui.md#maus) ([#140](https://github.com/seletz/total-recall/issues/140)).
 
-## v1.1.0 (unveröffentlicht)
+## v1.1.0
 
 Dieses Release behebt einen **Datenverlust** in der Rohzeile `raw` (siehe [Behoben](#behoben)) und hebt die Datenbank auf Schema v4: Fortsetzung und Account je Session. Ein schreibender Befehl (`ingest`, `backup`, `maintenance`) migriert beim ersten Lauf und legt vorher `archive.db.pre-v3.bak` an.
 
