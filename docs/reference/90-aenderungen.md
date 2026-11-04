@@ -6,6 +6,13 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.1.0 (unveröffentlicht)
+
+### Neu
+
+- Aufträge, die ein koordinierender Agent in eine Session tippt oder als Block einfügt, zählen nicht mehr als eigene Nachrichten. Neben `peer_prefixes` gibt es in `[harness.claude.actors]` die Liste `peer_paste_headers`: Eine Nachricht, die nur aus einem eingefügten Block besteht und deren erste Zeile mit einem der Einträge beginnt (etwa `# Task:` oder `Auftrag:`), bekommt `actor = 'peer'`. `stats --workday` und `stats --worktime` zählen weiterhin nur `human`, die Arbeitszeit endet damit wieder mit der eigenen letzten Nachricht ([#111](https://github.com/seletz/total-recall/issues/111)). Beispielkonfiguration: [Stundenzettel füllen](../how-to/45-stundenzettel.md#mehrere-agenten), Regeln: [`[harness.claude.actors]`](20-konfiguration.md#harnessclaudeactors).
+- Neuer Befehl [`reindex --actors`](10-befehle.md#reindex): wendet die aktuellen Actor-Regeln auf alle gespeicherten User-Nachrichten an, ohne die Transkripte zu lesen; idempotent, `--dry-run` zeigt nur, wie viele Events sich ändern würden ([#111](https://github.com/seletz/total-recall/issues/111)).
+
 ## v1.0.2
 
 Die macOS-Binaries sind ab dieser Version signiert und notarisiert. Sonst ändert sich nichts; die Datenbank bleibt bei Schema v3.

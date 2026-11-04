@@ -135,6 +135,7 @@ func newRoot(app *App) (*cobra.Command, *env) {
 	e := &env{app: app, g: g}
 	root.AddCommand(
 		e.ingestCmd(),
+		e.reindexCmd(),
 		e.statusCmd(),
 		e.sessionsCmd(),
 		e.showCmd(),

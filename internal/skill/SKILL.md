@@ -134,7 +134,7 @@ The `'utc'` modifier interprets the literal in the machine's time zone. Date-onl
 
 ### Actors
 
-`events.actor`: `human` = typed by the user (also `!cmd` bash input and pasted content); `agent` = the assistant; `peer` = another agent session or a subagent hand-back; `automation` = scheduled prompts, system reminders, slash-command plumbing, continuation summaries; `tool` = tool results. "What did the user say or decide" is `actor = 'human'`; the agent's conclusions are `actor = 'agent' AND kind = 'message'`. Ignore `automation` when counting real work.
+`events.actor`: `human` = typed by the user (also `!cmd` bash input and pasted content); `agent` = the assistant; `peer` = another agent session, a subagent hand-back, or a task a coordinating agent typed or pasted into the session (matched by the configured `peer_prefixes` / `peer_paste_headers`); `automation` = scheduled prompts, system reminders, slash-command plumbing, continuation summaries; `tool` = tool results. "What did the user say or decide" is `actor = 'human'`; the agent's conclusions are `actor = 'agent' AND kind = 'message'`. Ignore `automation` when counting real work.
 
 ### Subagents
 
