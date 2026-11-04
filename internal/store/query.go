@@ -397,15 +397,13 @@ func (f SearchFilter) where(query string) ([]string, []any) {
 
 // SearchBySession runs a full-text query and groups the hits per session:
 // one row per session (subagents included) with the time of the first and
-// last hit, the hit count and the snippet of the first hit. Limit caps the
-// number of sessions in the given order.
+// last hit, the hit count and the snippet of the first hit. With
+// OrderFirstHit a Limit keeps the sessions with the latest hits and still
+// lists them oldest first; with OrderHits it keeps the sessions with the
+// most hits.
 func (s *Store) SearchBySession(ctx context.Context, query string, f SearchFilter, order SearchOrder) ([]SessionHits, error) {
-	var orderBy string
 	switch order {
-	case OrderFirstHit, "":
-		orderBy = "g.first_hit, g.session_id"
-	case OrderHits:
-		orderBy = "g.hits DESC, g.first_hit, g.session_id"
+	case OrderFirstHit, "", OrderHits:
 	default:
 		return nil, fmt.Errorf("store: search: unknown order %q", order)
 	}
@@ -422,15 +420,25 @@ func (s *Store) SearchBySession(ctx context.Context, query string, f SearchFilte
 			JOIN events e ON e.seq = events_fts.rowid
 			JOIN sessions s ON s.id = e.session_id
 			WHERE ` + strings.Join(cond, " AND ") + `),
-		g AS (SELECT session_id, min(ts) AS first_hit, max(ts) AS last_hit, count(*) AS hits FROM m GROUP BY session_id)
-		SELECT g.session_id, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
-		repoExpr + `, g.first_hit, g.last_hit, g.hits,
-			(SELECT snip FROM m WHERE m.session_id = g.session_id ORDER BY m.ts, m.seq LIMIT 1)
+		g AS (SELECT session_id, min(ts) AS first_hit, max(ts) AS last_hit, count(*) AS hits FROM m GROUP BY session_id),
+		r AS (SELECT g.session_id, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id) AS name, ` +
+		repoExpr + ` AS repo, g.first_hit, g.last_hit, g.hits,
+			(SELECT snip FROM m WHERE m.session_id = g.session_id ORDER BY m.ts, m.seq LIMIT 1) AS snip
 		FROM g
-		JOIN sessions s ON s.id = g.session_id
-		ORDER BY ` + orderBy
+		JOIN sessions s ON s.id = g.session_id)
+		SELECT session_id, name, repo, first_hit, last_hit, hits, snip FROM `
+	limit := ""
 	if f.Limit > 0 {
-		q += fmt.Sprintf(" LIMIT %d", f.Limit)
+		limit = fmt.Sprintf(" LIMIT %d", f.Limit)
+	}
+	switch {
+	case order == OrderHits:
+		q += "r ORDER BY hits DESC, first_hit, session_id" + limit
+	case limit != "":
+		// Keep the sessions with the latest hits, then show them as a timeline.
+		q += "(SELECT * FROM r ORDER BY last_hit DESC, session_id" + limit + ") ORDER BY first_hit, session_id"
+	default:
+		q += "r ORDER BY first_hit, session_id"
 	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {

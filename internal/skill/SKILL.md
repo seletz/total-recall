@@ -102,7 +102,7 @@ LIMIT 50"
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
 - `events.text` of tool results is truncated to 4 KiB. `events.raw` is the full original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); never select `raw` in a list query.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
-- `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit counts sessions. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
+- `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
 
 ## Schema and pitfalls

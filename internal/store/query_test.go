@@ -460,7 +460,13 @@ func TestSearchBySession(t *testing.T) {
 		{"raw", "login NOT handler", SearchFilter{Raw: true}, OrderFirstHit, []row{
 			{"other:ccc333", "2026-09-01T10:00:00Z", "2026-09-01T10:00:00Z", 1},
 			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 3}}, ""},
-		{"limit", "login", SearchFilter{SessionFilter: SessionFilter{Limit: 1}}, OrderHits, []row{
+		{"limit by hits", "login", SearchFilter{SessionFilter: SessionFilter{Limit: 1}}, OrderHits, []row{
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, ""},
+		// Three sessions match; the limit keeps the two with the latest hits, shown oldest first.
+		{"limit keeps most recent", "login OR docs", SearchFilter{Raw: true, SessionFilter: SessionFilter{Limit: 2}}, OrderFirstHit, []row{
+			{"claude:aab222", "2026-10-15T08:00:00Z", "2026-10-15T09:00:00Z", 2},
+			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, ""},
+		{"limit one keeps the newest", "login", SearchFilter{SessionFilter: SessionFilter{Limit: 1}}, OrderFirstHit, []row{
 			{"claude:aaa111", "2026-10-31T22:00:00Z", "2026-10-31T22:12:00Z", 4}}, ""},
 		{"no hits", "kubernetes", SearchFilter{}, OrderFirstHit, nil, ""},
 		{"empty query", "   ", SearchFilter{}, OrderFirstHit, nil, ""},

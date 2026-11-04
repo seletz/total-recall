@@ -515,7 +515,9 @@ func TestSearchBySession(t *testing.T) {
 		{"actor", []string{"count", "--actor", "human"}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}},
 		{"since", []string{"count", "--since", "2026-10-05T11:00"}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}}, // local time, UTC+2
 		{"repo", []string{"count", "--repo", "beta"}, nil},
-		{"limit", []string{"count", "--limit", "1"}, []row{{sub, 1, "2026-10-05T08:00:10.000Z"}}},
+		// Two sessions match; the limit keeps the one with the latest hit, not the oldest.
+		{"limit keeps most recent", []string{"count", "--limit", "1"}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}},
+		{"limit by hits", []string{"--raw", "lines OR count", "--order", "hits", "--limit", "1"}, []row{{main, 2, "2026-10-05T09:30:00.000Z"}}},
 		{"session", []string{"count", "--session", tf.SmallSession1[:8]}, []row{{main, 1, "2026-10-05T09:30:00.000Z"}}},
 	}
 	for _, tt := range tests {
