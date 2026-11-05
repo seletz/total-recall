@@ -9,15 +9,18 @@ import (
 	"github.com/seletz/total-recall/internal/model"
 )
 
-// Meta records (table session_meta, schema v6): harness records that are
+// Meta records (table session_meta, schema v7): harness records that are
 // no message but belong to a session, kept as their whole line like
 // events.raw (redacted by ingest, compressed here with rawBlob). They are
-// no events: no text, no full-text index, no statistic reads them. This
-// file writes them (writeMeta, from WriteBatchOpts), counts them for
+// no events: no text, no full-text index, no statistic reads them. Large
+// values the adapter took out of the line (model.Meta.Attachments) go to
+// the blobs table once per hash, linked in meta_blobs like event_blobs.
+// This file writes them (writeMeta, from WriteBatchOpts), counts them for
 // status (MetaStats) and reads single ones for tests and tools (metaOf).
 
 // writeMeta inserts the meta records of a batch (existing IDs are
-// skipped) and, with rewrite, replaces raw of the ones that exist.
+// skipped) with their attachments and, with rewrite, replaces raw and the
+// attachments of the ones that exist.
 func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, rewrite bool, res *WriteResult) error {
 	ins, err := tx.PrepareContext(ctx, `INSERT INTO session_meta (id, session_id, ts, type, source_id, source_offset, raw)
 		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
@@ -33,6 +36,8 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 		}
 		defer func() { _ = upd.Close() }()
 	}
+	blobs := newBlobWriter(ctx, tx, "meta_blobs", "meta_id")
+	defer blobs.close()
 	sources := map[string]int64{}
 	for _, m := range metas {
 		blob := rawBlob(m.Raw)
@@ -43,6 +48,9 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 			}
 			if n, _ := r.RowsAffected(); n > 0 {
 				res.RawRewritten += int(n)
+				if err := blobs.replace(m.ID, m.Attachments, res); err != nil {
+					return err
+				}
 				continue
 			}
 		}
@@ -62,8 +70,11 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 		if err != nil {
 			return fmt.Errorf("store: insert meta record %s: %w", m.ID, err)
 		}
-		if n, err := r.RowsAffected(); err == nil {
+		if n, err := r.RowsAffected(); err == nil && n > 0 {
 			res.MetaInserted += int(n)
+			if err := blobs.add(m.ID, m.Attachments, res); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

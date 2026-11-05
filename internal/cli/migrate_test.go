@@ -220,7 +220,7 @@ func TestMigrateCommand(t *testing.T) {
 		}
 		e.mustRun(t, "ingest", "--all")
 	})
-	t.Run("v4 archive: raw trimmed through the adapter", func(t *testing.T) {
+	t.Run("v4 archive: raw compressed, blob tables added", func(t *testing.T) {
 		e := newTestEnv(t)
 		_ = os.Remove(e.db)
 		if err := store.CreateAtVersion(e.db, 4); err != nil {
@@ -248,9 +248,13 @@ func TestMigrateCommand(t *testing.T) {
 		if v := e.schemaVersion(t); v != latest {
 			t.Fatalf("version after migrate = %d", v)
 		}
-		want := `{"type":"user","uuid":"e1","message":{"content":"hi"}}`
+		// Since #180 the line stays whole: migration 5 only compresses it.
+		want := `{"type":"user","uuid":"e1","sessionId":"s1","cwd":"/w","gitBranch":"main","message":{"role":"user","content":"hi","usage":{"input_tokens":3}}}`
 		if n := e.count(t, "SELECT count(*) FROM events e JOIN sources s ON s.id = e.source_id WHERE e.id = 'claude:e1' AND s.path = '/p/a.jsonl' AND typeof(e.raw) = 'blob' AND raw_text(e.raw) = '"+want+"'"); n != 1 {
-			t.Errorf("trimmed raw after migrate: %d rows match, want 1 (%s)", n, want)
+			t.Errorf("raw after migrate: %d rows match, want 1 (%s)", n, want)
+		}
+		if n := e.count(t, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('blobs', 'event_blobs')"); n != 2 {
+			t.Errorf("blob tables after migrate: %d, want 2", n)
 		}
 	})
 	t.Run("--yes --json", func(t *testing.T) {

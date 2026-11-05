@@ -422,3 +422,12 @@ func (m *Model) showHit() {
 	}
 	m.vp.SetYOffset(target)
 }
+
+// SetKeys replaces the key bindings (the viewport's too), so a changed
+// [keys] table applies without a restart; the session and the scroll
+// position stay as they are.
+func (m Model) SetKeys(km keys.Map) tea.Model {
+	m.keys = newKeyMap(km)
+	m.vp.KeyMap = m.keys.viewportKeys()
+	return m
+}

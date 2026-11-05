@@ -49,6 +49,7 @@ func Deps(cfg *config.Config, st *store.Store, log *logfile.Logger) (ingest.Deps
 		Store:       st,
 		StoreRaw:    cfg.Ingest.StoreRaw,
 		RawMaxBytes: cfg.Ingest.RawMaxBytes,
+		StoreBlobs:  cfg.Ingest.StoreBlobs,
 		ResolveGit:  cfg.Git.Resolve,
 		LockDir:     LockDir(cfg),
 		Logf:        func(f string, a ...any) { log.Infof(f, a...) },
@@ -79,18 +80,6 @@ func Adapters(cfg *config.Config) []harness.Adapter {
 	return out
 }
 
-// RawTrimmers collects the raw trimmers of the adapters that have one
-// (harness.RawTrimmer), by harness name, for store.WithRawTrimmers.
-func RawTrimmers(as []harness.Adapter) map[string]store.RawTrimFunc {
-	m := map[string]store.RawTrimFunc{}
-	for _, a := range as {
-		if t, ok := a.(harness.RawTrimmer); ok {
-			m[a.Name()] = t.TrimRaw
-		}
-	}
-	return m
-}
-
 // PlanLines renders a migration plan as the lines `migrate` prints after
 // the database line: the schema versions and every pending step, the
 // pre-migration copy and the free space needed.
@@ -116,8 +105,7 @@ func PlanLines(plan store.MigratePlan) []string {
 // for running hooks, one line per step to logf and the progress of a long
 // step to progress (both optional).
 func Migrate(ctx context.Context, cfg *config.Config, wait time.Duration, logf func(string, ...any), progress func(store.Progress)) (store.MigrateResult, error) {
-	return store.Migrate(ctx, cfg.DB, store.MigrateOptions{LockDir: LockDir(cfg), Wait: wait, Logf: logf, Progress: progress,
-		RawTrimmers: RawTrimmers(Adapters(cfg))})
+	return store.Migrate(ctx, cfg.DB, store.MigrateOptions{LockDir: LockDir(cfg), Wait: wait, Logf: logf, Progress: progress})
 }
 
 // MaintainOptions are the options of store.Maintain for cfg: the

@@ -95,6 +95,7 @@ func TestTextPositive(t *testing.T) {
 func TestTextNegative(t *testing.T) {
 	r := mustNew(t, Options{})
 	tests := []struct{ name, in string }{
+		{"dunder tool name assignment", "tool=mcp__Example_Server_365__Do_The_Thing_With_A_Long_Name"},
 		{"git sha", "commit 3f9a1c0e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a3f fixed it"},
 		{"short sha", "see 3f9a1c0"},
 		{"sha assignment", "GIT_SHA=3f9a1c0e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a3f"},
@@ -358,5 +359,84 @@ func TestJSONTranscriptLineRegression(t *testing.T) {
 	}
 	if strings.Contains(got, Marker("high_entropy")) {
 		t.Errorf("whole value masked as high_entropy: %s", got)
+	}
+}
+
+// TestJSONArrayElements: a string element of a JSON array has no key. It is
+// checked like a value under a harmless key (one bare high-entropy token is
+// masked as a whole), and the element before it counts as a sensitive key
+// when it is a flag such as --api-key (#162). Prose, commands, paths and
+// identifiers in arrays stay (#130).
+func TestJSONArrayElements(t *testing.T) {
+	r := mustNew(t, Options{})
+	tests := []struct {
+		name   string
+		in     string
+		secret string // masked; "" = the input must survive byte for byte
+		kind   string
+		keep   string
+	}{
+		{"flag api-key", `{"args":["--api-key","q9w8e7r6t5"]}`, "q9w8e7r6t5", "secret", `"--api-key"`},
+		{"flag token", `["run","--token","Zz9_yy8-xx7","--verbose"]`, "Zz9_yy8-xx7", "secret", `"--verbose"`},
+		{"flag password", `{"cmd":["login","--password","hunter2"]}`, "hunter2", "secret", `"login"`},
+		{"flag with equals", `{"args":["--api-key=q9w8e7r6t5"]}`, "q9w8e7r6t5", "secret", `--api-key=`},
+		{"single-dash flag", `{"args":["-password","hunter2"]}`, "hunter2", "secret", `"-password"`},
+		{"bare high entropy element", `{"args":["` + entropic + `"]}`, entropic, "high_entropy", `"args":`},
+		{"high entropy after command", `{"args":["echo","` + entropic + `","|","wc"]}`, entropic, "high_entropy", `"echo"`},
+		{"nested array in object in array", `[{"args":["--token","q9w8e7r6t5"]}]`, "q9w8e7r6t5", "secret", `"--token"`},
+		{"object value after array", `{"a":["x"],"value":"` + entropic + `"}`, entropic, "high_entropy", `"a":["x"]`},
+		{"known token in element", `{"args":["-H","Authorization: token ` + ghp + `"]}`, ghp, "github_token", `"Authorization: token `},
+		{"flag with placeholder", `{"args":["--token","${GITHUB_TOKEN}","--password","<pw>"]}`, "", "", ""},
+		{"flag before number", `{"args":["--token",5,"q9w8e7r6t5"]}`, "", "", ""},
+		{"flag before object", `{"args":["--token",{"a":1},"q9w8e7r6t5"]}`, "", "", ""},
+		{"flag does not leak into object", `{"a":["--token"],"b":"q9w8e7r6t5"}`, "", "", ""},
+		{"flag does not leak into nested array", `{"a":["--token",["q9w8e7r6t5"]]}`, "", "", ""},
+		{"flag before short value", `{"args":["--token","pw"]}`, "", "", ""},
+		{"dash prefixed prose fragment", `{"words":["--secrets","q9w8e7r6t5"]}`, "q9w8e7r6t5", "secret", `"--secrets"`},
+		{"dash prefixed non-option", `{"words":["--secrets_vom_cluster:","q9w8e7r6t5","-(check-secrets.sh)","Zz9_yy8-xx7","--token.test","q9w8e7r6t5"]}`, "", "", ""},
+		{"bare secret word is prose", `{"words":["token","q9w8e7r6t5","password","hunter2"]}`, "", "", ""},
+		{"array under sensitive key", `{"passwords":["hunter2","Zz9_yy8-xx7"]}`, "hunter2", "secret", `"passwords":`},
+		{"array under denied key", `{"tokens":["q9w8e7r6t5","Zz9_yy8-xx7"]}`, "", "", ""},
+		{"array under identifier key", `{"messageIds":["` + entropic + `"],"ids":["` + entropic + `"],"signatures":["` + entropic + `"]}`, "", "", ""},
+		{"nested array inherits key", `{"messageIds":[["` + entropic + `"]],"x":{"y":1}}`, "", "", ""},
+		{"identifier key does not leak", `{"ids":["a"],"values":["` + entropic + `"]}`, entropic, "high_entropy", `"ids":["a"]`},
+		{"tool names", `{"tools":["mcp__Example_Server_365__Do_The_Thing_With_A_Long_Name","mcp__Other_42__List_Items_Quickly_Now"]}`, "", "", ""},
+		{"harmless flags", `{"args":["--format","json","--since","2026-10-01T14:30:00Z","--max-tokens","4096"]}`, "", "", ""},
+		{"prose element", `{"content":["Die Migration auf Schema v4 ist durch, jetzt noch die Tests für ingest --reread."]}`, "", "", ""},
+		{"command element", `{"args":["go test ./... && go vet ./... && golangci-lint run 2>&1 | tail -n 20"]}`, "", "", ""},
+		{"path element", `{"files":["/Users/bob/develop/total-recall/internal/redact/redact.go","internal/redact/redact_test.go"]}`, "", "", ""},
+		{"sha and uuid elements", `{"ids":["3f9a1c0e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a3f","7d1e4c20-0001-4000-8000-000000000001"]}`, "", "", ""},
+		{"long identifier element", `{"tests":["TestWriteBatchIdempotencyWithDuplicateEvents"]}`, "", "", ""},
+		{"diff element", `{"lines":["--- a/internal/store/write.go","+++ b/internal/store/write.go","@@ -170,7 +170,7 @@"]}`, "", "", ""},
+		{"base64 image element", `{"data":["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"]}`, "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := r.JSON(tt.in)
+			if err != nil {
+				t.Fatalf("JSON: %v", err)
+			}
+			if !json.Valid([]byte(got)) {
+				t.Fatalf("invalid JSON: %s", got)
+			}
+			if tt.secret == "" {
+				if got != tt.in {
+					t.Errorf("unexpected change:\n in: %s\nout: %s", tt.in, got)
+				}
+				return
+			}
+			if strings.Contains(got, tt.secret) {
+				t.Errorf("secret not masked:\n in: %s\nout: %s", tt.in, got)
+			}
+			if !strings.Contains(got, Marker(tt.kind)) {
+				t.Errorf("missing marker %q in %s", tt.kind, got)
+			}
+			if !strings.Contains(got, tt.keep) {
+				t.Errorf("lost context %q in %s", tt.keep, got)
+			}
+			if again, _ := r.JSON(got); again != got {
+				t.Errorf("not idempotent: %s -> %s", got, again)
+			}
+		})
 	}
 }

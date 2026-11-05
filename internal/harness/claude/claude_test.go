@@ -1,7 +1,9 @@
 package claude
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/model"
 )
@@ -381,15 +384,18 @@ func TestClassifyExtraPrefixes(t *testing.T) {
 }
 
 func TestMixedUserBlocks(t *testing.T) {
-	evs := parseLine(t, New(""), userLine("", `[{"type":"tool_result","tool_use_id":"t1","content":"r"},{"type":"image","source":{}},{"type":"text","text":"<system-reminder>x</system-reminder>"}]`))
-	if len(evs) != 2 {
+	evs := parseLine(t, New(""), userLine("", `[{"type":"tool_result","tool_use_id":"t1","content":"r"},{"type":"image","source":{}},{"type":"text","text":"<system-reminder>x</system-reminder>"},{"type":"smell"}]`))
+	if len(evs) != 3 {
 		t.Fatalf("events = %+v", evs)
 	}
 	if evs[0].ID != "claude:u-1#0" || evs[0].Actor != model.ActorTool {
 		t.Errorf("ev0 = %+v", evs[0])
 	}
-	if evs[1].ID != "claude:u-1#2" || evs[1].Actor != model.ActorAutomation || evs[1].Kind != model.KindMessage {
+	if evs[1].ID != "claude:u-1#1" || evs[1].Actor != model.ActorHuman || evs[1].Kind != model.KindMessage || evs[1].Text != "[image]" {
 		t.Errorf("ev1 = %+v", evs[1])
+	}
+	if evs[2].ID != "claude:u-1#2" || evs[2].Actor != model.ActorAutomation || evs[2].Kind != model.KindMessage {
+		t.Errorf("ev2 = %+v", evs[2])
 	}
 }
 
@@ -517,7 +523,7 @@ func TestParseAITitle(t *testing.T) {
 }
 
 func TestSkippedRecordTypes(t *testing.T) {
-	types := []string{"api-request", "api-request-blob", "api-request-shape", "last-prompt"}
+	types := []string{"api-request", "api-request-blob", "last-prompt"}
 	for _, typ := range types {
 		t.Run(typ, func(t *testing.T) {
 			p := writeFile(t, "p/"+sid+".jsonl", `{"type":"`+typ+`","uuid":"z","sessionId":"`+sid+`","message":{"role":"user","content":"x"}}`+"\n")
@@ -558,8 +564,10 @@ func TestSkippedAttachmentTypes(t *testing.T) {
 		opts    []Option
 		want    int
 	}{
-		{"skipped built in", "prompt_snapshot", nil, 0},
+		{"skipped reminder", "total_tokens_reminder", nil, 0},
 		{"skipped catalog", "deferred_tools_record", nil, 0},
+		{"kept system prompt", "prompt_snapshot", nil, 1},
+		{"configured skip of the system prompt", "prompt_snapshot", []Option{WithSkipRecordTypes("attachment/prompt_snapshot")}, 0},
 		{"kept instructions", "instructions", nil, 1},
 		{"kept new subtype", "something_new", nil, 1},
 		{"configured skip", "instructions", []Option{WithSkipRecordTypes("attachment/instructions")}, 0},
@@ -813,5 +821,183 @@ func TestParseEmitErrorAndCancel(t *testing.T) {
 
 	if _, err := New("").Parse(context.Background(), filepath.Join(t.TempDir(), "missing.jsonl"), 0, func(model.Record) error { return nil }); err == nil {
 		t.Error("missing file: want error")
+	}
+}
+
+// TestRawIsTheFullLine: since #180 raw is the whole transcript line, not an
+// extract; the fields the store keeps in columns stay in it too.
+func TestRawIsTheFullLine(t *testing.T) {
+	line := userLine(`"gitBranch":"main","version":"2.1.0","requestId":"req_1"`, `"hi"`)
+	evs := parseLine(t, New(""), line)
+	if len(evs) != 1 || evs[0].Raw != line {
+		t.Errorf("raw = %q, want the line %q", evs[0].Raw, line)
+	}
+}
+
+func TestAttachments(t *testing.T) {
+	png := []byte("\x89PNG\r\n\x1a\nnot really a picture")
+	jpg := bytes.Repeat([]byte{0xff, 0xd8, 0xff, 0xe0}, 300) // 1200 bytes
+	b64 := base64.StdEncoding.EncodeToString
+	hash := blobref.Hash
+	a := New("")
+
+	t.Run("pasted image", func(t *testing.T) {
+		line := userLine("", `[{"type":"text","text":"look at this"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"`+b64(png)+`"}}]`)
+		evs := parseLine(t, a, line)
+		if len(evs) != 2 {
+			t.Fatalf("events = %+v", evs)
+		}
+		if evs[0].ID != "claude:u-1#0" || evs[0].Text != "look at this" || len(evs[0].Attachments) != 0 {
+			t.Errorf("text event = %+v", evs[0])
+		}
+		img := evs[1]
+		if img.ID != "claude:u-1#1" || img.Kind != model.KindMessage || img.Role != "user" || img.Actor != model.ActorHuman || img.Text != "[image image/png 28 B]" {
+			t.Errorf("image event = %+v", img)
+		}
+		if len(img.Attachments) != 1 || img.Attachments[0].SHA256 != hash(png) || img.Attachments[0].MediaType != "image/png" || !bytes.Equal(img.Attachments[0].Data, png) {
+			t.Errorf("image attachments = %+v", img.Attachments)
+		}
+		for _, e := range evs {
+			if strings.Contains(e.Raw, b64(png)) || !strings.Contains(e.Raw, `"data":"blob:sha256:`+hash(png)+`"`) {
+				t.Errorf("raw of %s still carries the data or no reference: %s", e.ID, e.Raw)
+			}
+			if !strings.Contains(e.Raw, `"cwd":"/tmp/x"`) {
+				t.Errorf("raw of %s is not the full line: %s", e.ID, e.Raw)
+			}
+		}
+	})
+
+	t.Run("tool result with image twice", func(t *testing.T) {
+		// The Read tool returns the image as a tool_result block and Claude
+		// Code repeats it in toolUseResult.file: one blob, two positions.
+		line := `{"type":"user","uuid":"u-2","timestamp":"2026-10-02T10:00:01.000Z","sessionId":"` + sid + `","cwd":"/tmp/x",` +
+			`"message":{"role":"user","content":[{"tool_use_id":"t1","type":"tool_result","content":[{"type":"text","text":"here"},{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"` + b64(jpg) + `"}}]}]},` +
+			`"toolUseResult":{"type":"image","file":{"base64":"` + b64(jpg) + `","type":"image/jpeg","originalSize":1200,"dimensions":{"originalWidth":2,"originalHeight":2}}}}`
+		evs := parseLine(t, a, line)
+		if len(evs) != 1 {
+			t.Fatalf("events = %+v", evs)
+		}
+		e := evs[0]
+		if e.Kind != model.KindToolResult || e.Text != "here\n[image image/jpeg 1.2 KiB]" {
+			t.Errorf("event = %+v", e)
+		}
+		if len(e.Attachments) != 2 || e.Attachments[0].SHA256 != hash(jpg) || e.Attachments[1].SHA256 != hash(jpg) || e.Attachments[1].MediaType != "image/jpeg" {
+			t.Errorf("attachments = %+v", e.Attachments)
+		}
+		if strings.Contains(e.Raw, b64(jpg)) || strings.Count(e.Raw, "blob:sha256:"+hash(jpg)) != 2 || !strings.Contains(e.Raw, `"originalSize":1200`) {
+			t.Errorf("raw = %s", e.Raw)
+		}
+	})
+
+	t.Run("document and unknown source", func(t *testing.T) {
+		pdf := []byte("%PDF-1.4 fake")
+		line := userLine("", `[{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"`+b64(pdf)+`"}},{"type":"image","source":{"type":"url","url":"https://x.invalid/a.png"}},{"type":"image","source":{}}]`)
+		evs := parseLine(t, a, line)
+		if len(evs) != 3 {
+			t.Fatalf("events = %+v", evs)
+		}
+		if evs[0].Text != "[document application/pdf 13 B]" || len(evs[0].Attachments) != 1 || evs[0].Attachments[0].MediaType != "application/pdf" {
+			t.Errorf("document event = %+v", evs[0])
+		}
+		if evs[1].Text != "[image]" || len(evs[1].Attachments) != 0 || evs[2].Text != "[image]" || len(evs[2].Attachments) != 0 {
+			t.Errorf("image events = %+v, %+v", evs[1], evs[2])
+		}
+		if strings.Contains(evs[0].Raw, b64(pdf)) || !strings.Contains(evs[0].Raw, `"url":"https://x.invalid/a.png"`) {
+			t.Errorf("raw = %s", evs[0].Raw)
+		}
+	})
+
+	t.Run("subagent paste is still classified", func(t *testing.T) {
+		p := writeFile(t, "proj/"+sid+"/subagents/agent-a1.jsonl", userLine("", `[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"`+b64(png)+`"}}]`)+"\n")
+		recs, _ := parseFile(t, a, p, 0)
+		if len(recs) != 1 || len(recs[0].Events) != 1 || recs[0].Events[0].Actor != model.ActorPeer || len(recs[0].Events[0].Attachments) != 1 {
+			t.Errorf("records = %+v", recs)
+		}
+	})
+
+	t.Run("line that is not JSON after all", func(t *testing.T) {
+		evs := parseLine(t, a, `{"type":"user","base64":`)
+		if len(evs) != 0 {
+			t.Errorf("events = %+v", evs)
+		}
+	})
+}
+
+func TestSizeLabel(t *testing.T) {
+	for _, tt := range []struct {
+		n    int
+		want string
+	}{{0, "0 B"}, {29, "29 B"}, {1023, "1023 B"}, {1024, "1.0 KiB"}, {1200, "1.2 KiB"}, {1 << 20, "1.0 MiB"}, {3*(1<<20) + 400000, "3.4 MiB"}} {
+		if got := sizeLabel(tt.n); got != tt.want {
+			t.Errorf("sizeLabel(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+// TestMetaLift: the shape of an api-request-shape record and the system
+// prompt of a prompt_snapshot attachment leave the line as JSON
+// attachments; the line keeps a reference; the record's ID hashes the
+// line with the reference, so the same shape in another session has the
+// same attachment but its own record; a record of the type without the
+// value is kept as it is.
+func TestMetaLift(t *testing.T) {
+	shape := `{"system":[{"type":"text","text":"be brief"}],"tools":[{"name":"Read"}]}`
+	prompt := `[{"type":"text","text":"be brief"}]`
+	tests := []struct {
+		name, line, path, data string
+	}{
+		{"request shape", `{"type":"api-request-shape","sessionId":"` + sid + `","timestamp":"2026-10-01T10:00:00Z","shape":` + shape + `,"version":"2.1.400"}`, "shape", shape},
+		{"prompt snapshot", `{"type":"attachment","uuid":"ps-1","sessionId":"` + sid + `","timestamp":"2026-10-01T10:00:00Z","attachment":{"type":"prompt_snapshot","systemPrompt":` + prompt + `,"reminderFold":true}}`, "attachment.systemPrompt", prompt},
+	}
+	// A newer prompt snapshot carries the tool definitions too: both leave.
+	t.Run("prompt snapshot with tools", func(t *testing.T) {
+		tools := `[{"name":"Read","input_schema":{"type":"object"}}]`
+		line := `{"type":"attachment","uuid":"ps-2","sessionId":"` + sid + `","attachment":{"type":"prompt_snapshot","systemPrompt":` + prompt + `,"tools":` + tools + `,"inlineTools":false}}`
+		p := writeFile(t, "p/"+sid+".jsonl", line+"\n")
+		recs, _ := parseFile(t, New(""), p, 0)
+		if len(recs) != 1 || len(recs[0].Meta) != 1 || len(recs[0].Meta[0].Attachments) != 2 {
+			t.Fatalf("records = %+v", recs)
+		}
+		m := recs[0].Meta[0]
+		want := `{"type":"attachment","uuid":"ps-2","sessionId":"` + sid + `","attachment":{"type":"prompt_snapshot","systemPrompt":"` + blobref.Ref{SHA256: blobref.Hash([]byte(prompt))}.String() +
+			`","tools":"` + blobref.Ref{SHA256: blobref.Hash([]byte(tools))}.String() + `","inlineTools":false}}`
+		if m.Raw != want || string(m.Attachments[1].Data) != tools {
+			t.Errorf("raw = %s\nattachments = %+v", m.Raw, m.Attachments)
+		}
+	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, "p/"+sid+".jsonl", tt.line+"\n")
+			recs, _ := parseFile(t, New(""), p, 0)
+			if len(recs) != 1 || len(recs[0].Meta) != 1 {
+				t.Fatalf("records = %+v", recs)
+			}
+			m := recs[0].Meta[0]
+			h := blobref.Hash([]byte(tt.data))
+			if len(m.Attachments) != 1 || m.Attachments[0].MediaType != "application/json" || m.Attachments[0].SHA256 != h || string(m.Attachments[0].Data) != tt.data {
+				t.Errorf("attachments = %+v", m.Attachments)
+			}
+			want := strings.Replace(tt.line, tt.data, `"`+blobref.Ref{SHA256: h}.String()+`"`, 1)
+			if m.Raw != want {
+				t.Errorf("raw:\n got %s\nwant %s", m.Raw, want)
+			}
+			if m.TS.IsZero() {
+				t.Error("ts not taken from the record")
+			}
+		})
+	}
+	// Same shape, another session: same blob, another record.
+	other := strings.ReplaceAll(tests[0].line, sid, "0000aaaa-0000-0000-0000-000000000002")
+	p := writeFile(t, "p/two.jsonl", tests[0].line+"\n"+other+"\n")
+	recs, _ := parseFile(t, New(""), p, 0)
+	if len(recs) != 2 || recs[0].Meta[0].ID == recs[1].Meta[0].ID || recs[0].Meta[0].Attachments[0].SHA256 != recs[1].Meta[0].Attachments[0].SHA256 {
+		t.Errorf("two sessions: %+v", recs)
+	}
+	// A shape record without a shape value stays whole.
+	line := `{"type":"api-request-shape","sessionId":"` + sid + `","shape":"n/a"}`
+	p = writeFile(t, "p/none.jsonl", line+"\n")
+	recs, _ = parseFile(t, New(""), p, 0)
+	if len(recs) != 1 || recs[0].Meta[0].Raw != line || len(recs[0].Meta[0].Attachments) != 0 {
+		t.Errorf("without value: %+v", recs)
 	}
 }

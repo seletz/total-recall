@@ -125,8 +125,10 @@ func versionOf(path string) (string, error) {
 }
 
 // Changed says the configuration file was written: Config is the new
-// effective configuration. The app applies what concerns it (reload
-// interval, mouse); everything else takes effect at the next start.
+// effective configuration. The app applies what the running TUI uses
+// (reload interval, mouse, key bindings, project definitions, day
+// boundary, working time, start modes of the activity view); the settings
+// page says per key what a change does (see effect).
 type Changed struct {
 	Config *config.Config
 }
@@ -442,4 +444,12 @@ func plural(n int, noun string) string {
 		return fmt.Sprintf("%d %s", n, noun)
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// SetKeys replaces the key bindings, so a changed [keys] table applies
+// without a restart; the pages keep their state.
+func (m Model) SetKeys(km keys.Map) tea.Model {
+	m.opts.Keys = km
+	m.keys = newKeyMap(km)
+	return m
 }

@@ -8,11 +8,66 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.3.0 (unveröffentlicht)
 
+### Was dieses Update mit dem Archiv macht
+
+Dieses Release bringt Schema **v7** (zwei kurze Migrationen, v6 und v7) und ändert, was im Archiv liegt. Grundsatz: Das Archiv soll ohne die Transkripte auskommen, die Claude Code nach einigen Wochen löscht; „lässt sich aus dem Transkript neu schreiben“ gilt nicht mehr als Sicherheitsnetz.
+
+**Eine Ausnahme von der Regel, dass fertige Migrationen nicht geändert werden.** Migration 5 (v1.2.0) hat `raw` beim Umbau zum komprimierten BLOB auf einen Auszug entschlackt (ohne Buchhaltung der Harness, Token-Zahlen, Diffs). Dieser Schritt ist nachträglich entfernt worden: Migration 5 komprimiert jetzt nur noch. Das bricht die Forward-only-Regel einmal und mit Absicht, denn ein Archiv, das noch auf v4 steht, behält beim Update so alle Felder, statt sie erst zu verlieren und dann aus den Transkripten zurückzuholen. Es gibt noch keine fremden Benutzer, die ein v4-Archiv mit v1.2 migriert hätten; dokumentiert bleibt es trotzdem.
+
+**Was je nach Ausgangslage passiert:**
+
+- **Archiv auf v4** (bis v1.1.x): `migrate` komprimiert `raw` und behält alle Felder. Was damals wegen `raw_max_bytes` (16 KiB) nicht gespeichert wurde, holt der Reread aus den Transkripten.
+- **Archiv auf v5** (v1.2.x): `raw` bleibt der Auszug von v1.2, bis `ingest --all --reread --rewrite-raw` gelaufen ist. Danach ist jede Zeile vollständig, deren Transkript noch da ist.
+- **Transkript schon gelöscht:** Der Auszug (oder die leere Zeile) bleibt, wie er ist. Was weg ist, bleibt weg; deshalb den Reread bald nach dem Update ausführen (Claude Code löscht nach `cleanupPeriodDays`, standardmäßig 30 Tagen).
+
+**Was neu gespeichert wird:**
+
+- **Vollständige Rohzeilen**, ohne Größengrenze (`raw_max_bytes` ist jetzt 0): jede Transkriptzeile, wie sie war, maskiert und komprimiert ([#180](https://github.com/seletz/total-recall/issues/180)).
+- **Bilder und Dokumente als Blobs**, einmal je Inhalt. Sie werden **nicht maskiert**, ein Screenshot mit einem Token darin liegt unverändert im Archiv; `ingest.store_blobs = false` verwirft sie ([#181](https://github.com/seletz/total-recall/issues/181), [Datenschutz](../explanation/datenschutz.md)).
+- **Meta-Records**: Records, die keine Nachricht sind, aber zur Session gehören, darunter der **System-Prompt und die Tool-Definitionen** jeder Runde, die geladenen `CLAUDE.md`-Dateien, Hook-Ausgaben, während der Arbeit getippter Text, Modus, Pull Request, Kosten, Datei-Historie ([#182](https://github.com/seletz/total-recall/issues/182), [Datenschutz](../explanation/datenschutz.md)). System-Prompts und Tool-Definitionen liegen maskiert und einmal je Inhalt über alle Sessions als Blob; `store_blobs = false` lässt sie **nicht** aus, abschalten geht nur über `skip_record_types`.
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Stand v5, 532 Sessions, 239 791 Events, 534 Transkripte, alle noch vorhanden):
+
+| | vorher (v5) | nach `migrate` | nach Reread | nach `maintenance` |
+|---|---|---|---|---|
+| Datei | 453 MiB | 469 MiB | 854 MiB | 830 MiB |
+| Backup (`.db.zst`) | 224 MiB | | | 526 MiB |
+| Dauer | | 0,6 s | 4 min 36 s | 8 s |
+
+Davon `raw` 271 MiB in 240 061 Events (komprimiert, Faktor 3,3), Bilder und Dokumente 904 Blobs mit 108 MiB, Meta-Records 49 MiB in 76 766 Zeilen, darin System-Prompts und Tool-Definitionen als 517 JSON-Blobs, 38 MiB roh, 13 MiB gespeichert (356 verschiedene Request-Formen aus 951 Records, 161 verschiedene System-Prompts und Tool-Listen aus 1 491 Snapshots). `migrate` braucht neben der Datenbank Platz für die Kopie `archive.db.pre-v5.bak` (566 MiB in dem Beispiel, es prüft das vorher); die Kopie kann weg, sobald alles läuft. Der Reread schreibt jede Zeile neu, die Datei wächst dabei bis `maintenance` auf ihre Endgröße plus Freiliste.
+
+**Die Schritte, in dieser Reihenfolge** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+
+```sh
+total-recall backup                               # 1. sichern
+total-recall migrate                              # 2. Sekunden: legt vier Tabellen an
+total-recall ingest --all --reread --rewrite-raw  # 3. Rohzeilen, Bilder und Meta-Records aus den Transkripten nachtragen
+total-recall maintenance                          # 4. Platz der ersetzten Zeilen freigeben
+```
+
+Schritt 3 lässt sich abbrechen und wiederholen und funktioniert nur für Transkripte, die noch da sind; die Hooks füllen danach alles Neue von selbst.
+
 ### Archiv
 
-- **Meta-Records (Schema v6).** Records der Harness, die keine Nachricht sind, aber zur Session gehören, landen in der neuen Tabelle `session_meta`: bei Claude Code der eingefügte Kontext (`attachment`: die geladenen `CLAUDE.md`-Dateien, @-erwähnte Dateien, Ausgaben der Hooks, …), während der Arbeit getippter Text (`queue-operation`, auch entfernter), Modus und Pull Request (`pr-link`), Kosten je Modell (`cost-state`), der Index der Datei-Historie, das Workflow-Journal, und jeder Typ, den der Adapter nicht kennt. Je Record die ganze Zeile, maskiert und komprimiert wie `raw`; gleicher Inhalt je Session einmal; kein Event, nicht in Suche und Statistik. Draußen bleiben der API-Request-Cache (`api-request*`, 1,3 GB auf einem lokalen Archiv), `last-prompt` und acht Attachment-Subtypen (System-Prompt, Kataloge, Erinnerungen); `skip_record_types` nimmt jetzt auch `attachment/<subtyp>`. Nach `migrate` einmal `ingest --all --reread`, dann sind die Records der noch vorhandenen Transkripte da; `status` zeigt Zahl und Größe (`meta records`). Messung und Entscheidung je Typ im [Design](../explanation/design.md#session_meta), was neu gespeichert wird unter [Datenschutz](../explanation/datenschutz.md) ([#182](https://github.com/seletz/total-recall/issues/182)).
+- **Meta-Records (Schema v7).** Records der Harness, die keine Nachricht sind, aber zur Session gehören, landen in der neuen Tabelle `session_meta`: bei Claude Code der eingefügte Kontext (`attachment`: die geladenen `CLAUDE.md`-Dateien, @-erwähnte Dateien, Ausgaben der Hooks, der System-Prompt als `prompt_snapshot`, …), während der Arbeit getippter Text (`queue-operation`, auch entfernter), Modus und Pull Request (`pr-link`), Kosten je Modell (`cost-state`), System-Prompt und Tool-Definitionen je Request-Form (`api-request-shape`), der Index der Datei-Historie, das Workflow-Journal, und jeder Typ, den der Adapter nicht kennt. Je Record die ganze Zeile, maskiert und komprimiert wie `raw`; gleicher Inhalt je Session einmal; kein Event, nicht in Suche und Statistik. System-Prompts und Tool-Definitionen stehen nicht in der Zeile, sondern als JSON-Blob einmal je Inhalt über alle Sessions (`blobs`, `meta_blobs`; `blob HASH` gibt sie aus). Draußen bleiben der API-Request-Cache (`api-request`, `api-request-blob`: 1,25 GB auf einem lokalen Archiv, wiederholt nur die Nachrichten), `last-prompt` und sieben Attachment-Subtypen (Kataloge, Erinnerungen); `skip_record_types` nimmt jetzt auch `attachment/<subtyp>`. `status` zeigt Zahl und Größe (`meta records`), die Ingest-Zusammenfassung `N meta records`; die Zeile `blobs` zählt die JSON-Blobs mit. Messung und Entscheidung je Typ im [Design](../explanation/design.md#session_meta), was neu gespeichert wird unter [Datenschutz](../explanation/datenschutz.md) ([#182](https://github.com/seletz/total-recall/issues/182)).
+- **Rohzeilen wieder vollständig, ohne Limit** ([#180](https://github.com/seletz/total-recall/issues/180)). `events.raw` ist die ganze Transkriptzeile, nicht mehr der Auszug von v1.2.0 (der Buchhaltung, Token-Zahlen und Diffs wegließ), und `ingest.raw_max_bytes` ist jetzt `0` (keine Grenze; bis v1.2 wurden Zeilen über 16 KiB ganz verworfen). Dafür gibt es ein zweites Kompressions-Wörterbuch, trainiert auf vollständigen Zeilen; Archive mit dem alten bleiben lesbar. Migration 5 beschneidet die Zeilen eines v4-Archivs nicht mehr.
+- **Bilder und Dokumente als Blobs** ([#181](https://github.com/seletz/total-recall/issues/181)). Screenshots, die du in eine Session einfügst, und Bilder oder PDFs, die ein Werkzeug liest, kommen einmal je Inhalt (SHA-256) in die neue Tabelle `blobs`; in der Rohzeile steht an ihrer Stelle ein Verweis mit dem Hash, aus beidem lässt sich die Zeile Byte für Byte wiederherstellen ([Schema](40-schema.md#blobs)). PNG und JPEG liegen wie geliefert, PDF und Text zstd-komprimiert. `ingest.store_blobs = false` schaltet das ab. Bilder werden **nicht maskiert** ([Datenschutz](../explanation/datenschutz.md)).
+- Eingefügte Bilder sind jetzt ein Event mit Platzhalter (`[image image/png 84.3 KiB]`), auch im Text eines Tool-Ergebnisses; frühere Versionen übersprangen diese Blöcke, `--reread` legt die Events nach.
+
+### Behoben
+
+- **Geheimnisse in JSON-Arrays wurden in `raw` nicht erkannt.** Ein String in einem Array hat keinen eigenen Schlüssel und bekam deshalb nur die Textregeln, nicht die Prüfung auf ein ganzes hochentropisches Token; ein Geheimnis ohne bekanntes Format hinter `"--api-key"` in einer Argumentliste blieb stehen. Jetzt gilt für Array-Elemente dieselbe Prüfung wie für Objektwerte, mit dem Schlüssel des Arrays: unter `"passwords": [...]` wird jedes Element maskiert, ein einzelnes hochentropisches Token ≥ 32 Zeichen wird `«redacted:high_entropy»` (nicht unter Bezeichner-Schlüsseln wie `messageIds`), und steht davor eine Option mit sensiblem Namen (`--token`, `--api-key`, `--password`, …), wird das Element auch dann `«redacted:secret»`, wenn es kurz ist. Prosa, Befehle, Pfade, Diffs, SHAs, UUIDs und Werkzeugnamen wie `mcp__server__tool` in Arrays bleiben erhalten; auf den Rohzeilen echter Transkripte änderte sich ein winziger Bruchteil der Array-Elemente, im gespeicherten Auszug praktisch keines. `text` war nie betroffen. Bestehende Archive bekommen die neu maskierten Rohzeilen mit dem Lauf `ingest --all --reread --rewrite-raw`, der ohnehin zu den Update-Schritten dieser Version gehört ([#179](https://github.com/seletz/total-recall/issues/179), siehe [`ingest`](10-befehle.md#ingest)); Transkripte, die inzwischen gelöscht sind, behalten ihre alte Rohzeile ([#162](https://github.com/seletz/total-recall/issues/162), [Design](../explanation/design.md#redaction)).
+
+### TUI
+
+- **Einstellungen wirken sofort.** Die Seite [Settings](30-tui.md#settings) der Ansicht Config übernimmt mehr Werte ohne Neustart: die Tastenbelegung `[keys]` (Tasten, Fußzeile und Hilfe aller Ansichten), `day_start` und die Tabelle `[work]` (Kernzeiten, Ziel und Grenzen zeichnen die Aktivität neu; Tagesgrenze und Bundesland laden das Fenster neu und markieren die Feiertage der Statistik neu; `count` schaltet die Zählweise um) sowie `tui.activity_projects`. Fenster, Markierung, Scrollposition und Eingabe bleiben dabei erhalten, wie schon bei `reload`, `mouse` und den Projektdefinitionen. Die Zeile `default` sagt zu jedem Schlüssel, was eine Änderung tut: `applied at once`, `takes effect at the next start` (`db`, `timezone` und die Startzustände der Ansichten) oder `used by the next command or action` (alles, was die TUI nicht selbst nutzt); die Meldung nach dem Schreiben wiederholt es. Eine im Editor geänderte Tabelle mit einem Fehler lässt die bisherigen Werte in Kraft ([#165](https://github.com/seletz/total-recall/issues/165)).
 
 ### Neu in der CLI
+
+- **`blob HASH [--out DATEI]`** gibt ein Bild oder Dokument aus dem Archiv aus, `--json` nur die Metadaten samt Events; Binärdaten nie auf ein Terminal ([`blob`](10-befehle.md#blob)).
+- **`show`** nennt unter jedem Event seine Anhänge mit Hash, Typ und Größe, im JSON `attachments` je Event. **`status`** zeigt Anzahl und Größe der Blobs (JSON `blobs`, `blob_bytes`, `blob_stored_bytes`), die TUI auf der Seite *status* ebenso. `ingest` meldet neue Anhänge (`N attachments (X MiB)`).
+- **`ingest --all --reread --rewrite-raw`** schreibt jetzt auch Rohzeilen für Events, die bisher keine hatten, und trägt die Blobs nach; abbrechbar, wiederholbar, idempotent.
+- Gemessen auf einer Kopie eines echten Archivs (530 Sessions, 239 000 Events, 451 MiB in Schema v5, 8 330 Events ohne Rohzeile): `migrate` auf v6 0,6 s, Datei unverändert. `ingest --all --reread --rewrite-raw` 3 min 50 s, 239 769 Rohzeilen neu geschrieben, 136 neue Events (eingefügte Bilder), keines mehr ohne Rohzeile; `raw` wächst komprimiert von 121 auf 269 MiB (Verhältnis 3,2), dazu 903 Blobs mit 108 MiB (864 PNG, 39 JPEG; 1 890 Verweise, 883 Blobs stehen mehrmals in den Zeilen, ohne Dedup wären es 229 MiB). Ein zweiter Lauf dauert gleich lang und ändert nichts. Nach `maintenance` (8 s) ist die Datei 740 MiB groß, das Backup (`.db.zst`) 467 MiB.
 
 - **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
 
@@ -23,6 +78,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 ### Installation
 
 - Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).
+
+### TUI
+
+- **Die Aktivität je Tag füllt die Höhe.** Bisher zeigte die Ansicht genau die Tage der Periode, sieben bei einer Woche, und ließ den Rest des Bildschirms leer. Jetzt stehen immer so viele Tageszeilen, wie zwischen Kopf- und Fußzeile passen: vor der Periode die Tage davor, gedämpft, die Tage der Periode mit `▎` markiert. `d`, `w` und `m` bestimmen nur noch, welche Tage Kopfzeile, Soll, Saldo, Kennzahlen und Legende zusammenfassen; nach einer Größenänderung passt sich die Liste sofort an, ist die Periode länger als der Platz, scrollt sie wie bisher. Neu ist `o`: der neueste Tag unten (Default, wie ein Protokoll) oder oben, auch per Klick auf `day` im Spaltenkopf, dessen Pfeil die Richtung zeigt; ++up++ und ++down++ zeigen immer die Zeile darüber bzw. darunter. Start mit `activity_newest` in [`[tui]`](20-konfiguration.md#tui) ([Aktivität](30-tui.md#aktivitat), [#173](https://github.com/seletz/total-recall/issues/173)).
 
 ### Intern
 

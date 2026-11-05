@@ -1,9 +1,11 @@
 package store
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/model"
 )
 
@@ -124,5 +126,67 @@ func TestMetaSessionTouched(t *testing.T) {
 	got, err := getSession(ctx, s.db(), "claude:s1")
 	if err != nil || got.Name != "Title" || !got.StartedAt.Equal(sess.StartedAt) || !got.EndedAt.Equal(sess.EndedAt) {
 		t.Errorf("session after meta = %+v, %v", got, err)
+	}
+}
+
+// TestWriteMetaAttachments: the attachments of meta records go to blobs
+// once per hash and are linked in meta_blobs; a reread writes nothing
+// twice; a rewrite replaces the links; BlobMeta lists the records of a
+// blob; a wrong hash is refused.
+func TestWriteMetaAttachments(t *testing.T) {
+	s, _ := openTestStore(t)
+	shape := []byte(`{"system":[{"type":"text","text":"` + strings.Repeat("be brief ", 30) + `"}],"tools":[]}`)
+	att := model.Attachment{SHA256: blobref.Hash(shape), MediaType: "application/json", Data: shape}
+	ref := `"` + blobref.Ref{SHA256: att.SHA256}.String() + `"`
+	m1 := metaRecord("claude:m1", "claude:s1", "api-request-shape", `{"type":"api-request-shape","shape":`+ref+`}`)
+	m2 := metaRecord("claude:m2", "claude:s2", "api-request-shape", `{"type":"api-request-shape","shape":`+ref+`}`)
+	m1.Attachments, m2.Attachments = []model.Attachment{att}, []model.Attachment{att}
+	res, err := s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{m1, m2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MetaInserted != 2 || res.Blobs != 1 || res.BlobBytes != int64(len(shape)) {
+		t.Errorf("result = %+v", res)
+	}
+	for q, want := range map[string]int{
+		"SELECT count(*) FROM blobs": 1,
+		"SELECT count(*) FROM blobs WHERE media_type = 'application/json' AND encoding = 'zstd' AND bytes = " + itoa(len(shape)) + " AND length(data) < bytes": 1,
+		"SELECT count(*) FROM meta_blobs": 2,
+		"SELECT count(*) FROM meta_blobs WHERE meta_id = 'claude:m2' AND position = 0 AND sha256 = '" + att.SHA256 + "'": 1,
+	} {
+		if got := countRows(t, s, q); got != want {
+			t.Errorf("%s = %d, want %d", q, got, want)
+		}
+	}
+	if ids, err := s.BlobMeta(ctx, att.SHA256); err != nil || len(ids) != 2 || ids[0] != "claude:m1" || ids[1] != "claude:m2" {
+		t.Errorf("BlobMeta = %v, %v", ids, err)
+	}
+	if _, data, err := s.Blob(ctx, att.SHA256); err != nil || !bytes.Equal(data, shape) {
+		t.Errorf("Blob = %q, %v", data, err)
+	}
+	// Reread: nothing new.
+	res, err = s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{m1}})
+	if err != nil || res.MetaInserted != 0 || res.Blobs != 0 || countRows(t, s, "SELECT count(*) FROM meta_blobs") != 2 {
+		t.Errorf("reread = %+v, %v", res, err)
+	}
+	// Rewrite with another shape: the link follows, the old blob stays.
+	shape2 := []byte(`{"system":[],"tools":[{"name":"Read"}]}`)
+	m1.Attachments = []model.Attachment{{SHA256: blobref.Hash(shape2), MediaType: "application/json", Data: shape2}}
+	m1.Raw = `{"type":"api-request-shape","shape":"` + blobref.Ref{SHA256: blobref.Hash(shape2)}.String() + `"}`
+	res, err = s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{m1}, RewriteRaw: true})
+	if err != nil || res.RawRewritten != 1 || res.Blobs != 1 {
+		t.Errorf("rewrite = %+v, %v", res, err)
+	}
+	if got := countRows(t, s, "SELECT count(*) FROM meta_blobs WHERE meta_id = 'claude:m1' AND sha256 = '"+blobref.Hash(shape2)+"'"); got != 1 {
+		t.Errorf("link after rewrite = %d", got)
+	}
+	if ids, _ := s.BlobMeta(ctx, att.SHA256); len(ids) != 1 || ids[0] != "claude:m2" {
+		t.Errorf("BlobMeta after rewrite = %v", ids)
+	}
+	// A hash that does not match its data is refused.
+	bad := metaRecord("claude:m3", "claude:s1", "api-request-shape", `{}`)
+	bad.Attachments = []model.Attachment{{SHA256: "0000", MediaType: "application/json", Data: shape}}
+	if _, err := s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{bad}}); err == nil || !strings.Contains(err.Error(), "hash") {
+		t.Errorf("bad hash: %v", err)
 	}
 }

@@ -87,8 +87,9 @@ summary_max_chars = 200          # Länge der Zusammenfassung je Zelle in --work
 
 [ingest]
 tool_result_max_bytes = 4096
-raw_max_bytes = 16384
+raw_max_bytes = 0
 store_raw = true
+store_blobs = true
 
 [harness.claude]
 enabled = true
@@ -121,6 +122,7 @@ stats_period = "day"             # Statistik beim Start: day, week, month
 stats_dimension = "project"      # project, agent, directory
 activity_window = "week"         # Aktivität beim Start: day, week, month
 activity_projects = false        # Balken der Aktivität beim Start in Projektfarben (p)
+activity_newest = "bottom"       # neuester Tag der Aktivität unten oder oben (o)
 reload = "5s"                    # Archiv auf Änderungen prüfen und neu laden; "0" = aus (--reload)
 
 [chart]
@@ -186,10 +188,13 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
 
 `raw_max_bytes`
-:   Obergrenze für den Auszug der Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression). Ist er größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. Gilt auch für [Meta-Records](40-schema.md): eine größere Zeile wird nicht gespeichert (eine Zeile im Log). `0` heißt: keine Grenze. Default: 16384 Bytes.
+:   Obergrenze für die Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression, ohne die Daten von Bildern und Dokumenten). Ist sie größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1; der lesbare Text (`text`) wird trotzdem gespeichert. Gilt auch für [Meta-Records](40-schema.md#session_meta): eine größere Zeile wird nicht gespeichert (eine Zeile im Log). Default: `0`, keine Grenze: Das Archiv soll die Zeile vollständig halten, denn die Transkripte verschwinden nach einigen Wochen. Bis v1.2 war der Default 16384; Archive aus der Zeit holen die fehlenden Zeilen mit [`ingest --all --reread --rewrite-raw`](10-befehle.md#ingest) nach.
 
 `store_raw`
-:   Einen Auszug der Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`). Mit `false` werden auch keine [Meta-Records](40-schema.md) gespeichert, denn die bestehen nur aus ihrer Zeile. Default: `true`.
+:   Die Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`) und macht das Archiv vom Transkript unabhängig. Mit `false` werden auch keine [Meta-Records](40-schema.md#session_meta) gespeichert, denn die bestehen nur aus ihrer Zeile. Default: `true`.
+
+`store_blobs`
+:   Bilder und Dokumente aus den Zeilen (eingefügte Screenshots, von Werkzeugen gelesene Bilder) als [Blobs](40-schema.md#blobs) speichern, einmal je Inhalt. Mit `false` werden die Daten verworfen; in `raw` bleibt der Verweis mit dem Hash, im Text der Platzhalter. Bilder werden nicht maskiert, siehe [Datenschutz](../explanation/datenschutz.md). Die JSON-Blobs der [Meta-Records](40-schema.md#session_meta) (System-Prompts, Tool-Definitionen) sind davon **nicht** betroffen: Sie sind maskierter Text und bleiben auch mit `false` erhalten, sonst wäre der Inhalt weg; wer sie nicht will, schließt die Typen mit `skip_record_types` aus. Default: `true`.
 
 ### `[harness.claude]`
 
@@ -200,7 +205,7 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Wo die Transkripte liegen. Default: `$CLAUDE_CONFIG_DIR/projects`, sonst `~/.claude/projects`.
 
 `skip_record_types`
-:   Weitere Record-Typen, die übersprungen werden. Die Standard-Ausschlüsse gelten immer: `api-request`, `api-request-blob`, `api-request-shape`, `last-prompt` und acht Attachment-Subtypen (System-Prompt, Kataloge, Erinnerungen der Harness; Liste im [Design](../explanation/design.md#session_meta)). Alle anderen Typen, auch unbekannte, landen als [Meta-Records](40-schema.md) im Archiv. Ein Eintrag `attachment/<subtyp>` schließt einen einzelnen Attachment-Subtyp aus, `attachment` alle.
+:   Weitere Record-Typen, die übersprungen werden. Die Standard-Ausschlüsse gelten immer: `api-request`, `api-request-blob`, `last-prompt` und sieben Attachment-Subtypen (Kataloge und Erinnerungen der Harness; Liste im [Design](../explanation/design.md#session_meta)). Alle anderen Typen, auch unbekannte, landen als [Meta-Records](40-schema.md#session_meta) im Archiv. Ein Eintrag `attachment/<subtyp>` schließt einen einzelnen Attachment-Subtyp aus, `attachment` alle; `["api-request-shape", "attachment/prompt_snapshot"]` lässt die System-Prompts und Tool-Definitionen draußen.
 
 ### `[harness.claude.actors]`
 
@@ -358,6 +363,9 @@ Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansich
 
 `activity_projects`
 :   `true`: die Aktivität je Tag startet mit den Balken in [Projektfarben](30-tui.md#aktivitat) statt nach Kernzeit; `p` schaltet in beide Richtungen. Die Farben sind die der Statistik: `color` aus [`[[project]]`](#project), sonst die Reihenfarben in der Reihenfolge des ersten Auftretens. Default: `false`.
+
+`activity_newest`
+:   Wo die Aktivität je Tag den neuesten Tag zeigt: `bottom` (die Tage laufen von oben nach unten, wie ein Protokoll) oder `top`; `o` schaltet in beide Richtungen, siehe [Reihenfolge](30-tui.md#aktivitat). Default: `bottom`.
 
 `reload`
 :   Intervall, in dem die TUI das Archiv auf Änderungen prüft und die sichtbare Ansicht neu lädt, siehe [Neuladen](30-tui.md#neuladen). Eine Dauer wie `"5s"` oder `"1m"`, mindestens `"1s"`; `"0"` schaltet das Neuladen ab (`R` lädt dann noch von Hand). Override: `--reload`. Default: `"5s"`.

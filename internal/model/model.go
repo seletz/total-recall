@@ -115,12 +115,30 @@ type Event struct {
 	TokensOut    int64
 	SourcePath   string
 	SourceOffset int64
-	// Raw is the original JSON line (redacted before storing). It is set
+	// Raw is the original JSON line (redacted before storing), with the
+	// data of every attachment replaced by a blobref reference. It is set
 	// by the adapters on ingest; the store's read queries leave it empty.
 	Raw string
 	// RawTruncated is set when Raw was dropped because the line exceeded the
 	// configured size cap (ingest.raw_max_bytes).
 	RawTruncated bool
+	// Attachments are the binary parts (images, documents) the adapter
+	// took out of Raw, in the order of their references; the store keeps
+	// them as blobs. Read queries leave the list empty.
+	Attachments []Attachment
+}
+
+// Attachment is one binary part of a transcript line (an image or a
+// document delivered as base64) that lives outside Raw: the line refers to
+// it by SHA256 (see internal/blobref), the store keeps the bytes once per
+// hash.
+type Attachment struct {
+	// SHA256 is the hex digest of Data, the key of the stored blob.
+	SHA256 string
+	// MediaType is the type the harness delivered, e.g. "image/png".
+	MediaType string
+	// Data is the attachment as delivered, decoded.
+	Data []byte
 }
 
 // Meta is a harness record that carries no message but belongs to a
@@ -142,8 +160,14 @@ type Meta struct {
 	Type         string
 	SourcePath   string
 	SourceOffset int64
-	// Raw is the complete JSON line (redacted before storing).
+	// Raw is the complete JSON line (redacted before storing), with the
+	// values of Attachments replaced by blobref references.
 	Raw string
+	// Attachments are large structured parts of the line the adapter took
+	// out (a system prompt, tool definitions), stored once per hash like
+	// the attachments of an event. Data is JSON for media type
+	// application/json and is redacted like Raw.
+	Attachments []Attachment
 }
 
 // Record is what an adapter emits per transcript line: session facts, zero

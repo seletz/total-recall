@@ -214,16 +214,44 @@ CREATE TABLE events_v5 (
 	raw_truncated INTEGER NOT NULL DEFAULT 0
 );
 `,
-	// 6: meta records (#182): harness records that are no message but
+	// 6: attachments (#181). blobs holds every image or document that was
+	// delivered as base64 in a transcript line once per SHA-256, as
+	// delivered (encoding '') or zstd-compressed ('zstd', see blob.go);
+	// event_blobs links an event to its attachments in the order of the
+	// references in its raw line (blobref). No foreign key to events: a
+	// later rebuild of the events table (like migration 5) must stay
+	// possible, and nothing deletes events. The migration moves no data:
+	// `ingest --all --reread --rewrite-raw` fills raw and the blobs from the
+	// transcripts afterwards (#180).
+	`
+CREATE TABLE blobs (
+	sha256     TEXT PRIMARY KEY,
+	media_type TEXT NOT NULL,
+	bytes      INTEGER NOT NULL,
+	encoding   TEXT NOT NULL DEFAULT '',
+	data       BLOB NOT NULL
+);
+CREATE TABLE event_blobs (
+	event_id TEXT NOT NULL,
+	position INTEGER NOT NULL,
+	sha256   TEXT NOT NULL REFERENCES blobs(sha256),
+	PRIMARY KEY (event_id, position)
+) WITHOUT ROWID;
+CREATE INDEX event_blobs_sha256 ON event_blobs(sha256);
+	`,
+	// 7: meta records (#182): harness records that are no message but
 	// belong to a session (Claude: attachments, queued commands, modes,
-	// file-history snapshots, workflow journal, types the adapter does
-	// not know). One row per record with the whole line as a redacted
-	// zstd BLOB like events.raw; no event, no full-text index, no view
-	// reads it. id is the harness's record ID or a hash of session, type
-	// and content, so the same content is stored once per session and a
-	// reread is idempotent. ts may be NULL (records without a time
-	// stamp). The archive gets the records of existing transcripts with
-	// ingest --all --reread.
+	// system prompts, file-history snapshots, workflow journal, types the
+	// adapter does not know). One row per record with the whole line as
+	// a redacted zstd BLOB like events.raw; no event, no full-text index,
+	// no view reads it. id is the harness's record ID or a hash of
+	// session, type and content, so the same content is stored once per
+	// session and a reread is idempotent. ts may be NULL (records
+	// without a time stamp). meta_blobs links a record to the large
+	// values the adapter took out of its line (blobref references, like
+	// event_blobs): a system prompt or the tool definitions are stored
+	// once per hash across all sessions. The archive gets the records of
+	// existing transcripts with ingest --all --reread.
 	`
 CREATE TABLE session_meta (
 	seq           INTEGER PRIMARY KEY,
@@ -236,6 +264,13 @@ CREATE TABLE session_meta (
 	raw           BLOB NOT NULL
 );
 CREATE INDEX session_meta_session ON session_meta(session_id, type);
+CREATE TABLE meta_blobs (
+	meta_id  TEXT NOT NULL,
+	position INTEGER NOT NULL,
+	sha256   TEXT NOT NULL REFERENCES blobs(sha256),
+	PRIMARY KEY (meta_id, position)
+) WITHOUT ROWID;
+CREATE INDEX meta_blobs_sha256 ON meta_blobs(sha256);
 `,
 }
 
@@ -247,13 +282,15 @@ var migrationNotes = []migrationNote{
 	{Summary: "sessions: harness-generated title (ai_title) and the derived display_name"},
 	{Summary: "events: raw_truncated marks events whose raw line was dropped for its size"},
 	{Summary: "sessions: continuation chain (continued_in), account_id and organization_id with indexes"},
-	{Summary: "events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of source_path; " +
+	{Summary: "events: raw zstd-compressed (BLOB), source_id instead of source_path; " +
 		"rewrites every event, about a minute per 100,000 events, and needs free disk space of about twice the archive size next to it (copy and WAL)",
 		// Measured on a 1.1 GiB archive: the WAL grows to 0.36 times the
 		// file (the new events table; dropped pages only join the freelist).
 		Space: 0.5},
-	{Summary: "session_meta: harness records that are no message (attachments, queued commands, modes, file-history snapshots, unknown types) as redacted, compressed lines; " +
-		"existing transcripts are read again with ingest --all --reread"},
+	{Summary: "blobs and event_blobs for attachments (images, documents) referenced from raw; moves no data, " +
+		"run `ingest --all --reread --rewrite-raw` afterwards to fill raw and the blobs from the transcripts"},
+	{Summary: "session_meta and meta_blobs: harness records that are no message (attachments, queued commands, modes, system prompts, file-history snapshots, unknown types) as redacted, compressed lines; " +
+		"moves no data, the same `ingest --all --reread --rewrite-raw` fills them from the transcripts"},
 }
 
 // migrationNote is the description of one migration.
@@ -279,8 +316,8 @@ type migrationStep func(ctx context.Context, tx *sql.Tx, report func(done, total
 
 // migrationSteps holds the Go part of the migrations that have one, keyed
 // by version; each entry builds the step for the store that migrates, so a
-// step can use the store's options (migration 5: the raw trimmers). Most
-// migrations are SQL only and have no entry.
+// step can use the store's options. Most migrations are SQL only and have
+// no entry.
 var migrationSteps = map[int]func(s *Store) migrationStep{
 	5: func(s *Store) migrationStep { return s.migrateRawV5 },
 }

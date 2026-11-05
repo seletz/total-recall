@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/gitinfo"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/harness/claude"
@@ -646,6 +648,168 @@ func TestHistorySuppressionIsNotStored(t *testing.T) {
 	}
 }
 
+// imageLine is a user record that pastes a small synthetic image.
+func imageLine(uuid, ts string, img []byte) tf.Line {
+	l := tf.User(sid, uuid, ts, "/w/x", "")
+	l["message"] = map[string]any{"role": "user", "content": []any{
+		map[string]any{"type": "text", "text": "see the picture"},
+		map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": base64.StdEncoding.EncodeToString(img)}},
+	}}
+	return l
+}
+
+// TestAttachmentsAreStoredOnce: the data of pasted images leaves raw and
+// is kept once per hash (#181); the references survive redaction; with
+// StoreBlobs off nothing but the reference is kept.
+func TestAttachmentsAreStoredOnce(t *testing.T) {
+	img := []byte("\x89PNG\r\n\x1a\nsynthetic picture for the ingest test")
+	for _, storeBlobs := range []bool{true, false} {
+		t.Run(fmt.Sprintf("store_blobs=%v", storeBlobs), func(t *testing.T) {
+			e := newEnv(t)
+			r, err := redact.New(redact.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.deps.Redactor, e.deps.StoreBlobs = r, storeBlobs
+			p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl",
+				imageLine("u1", "2026-10-01T10:00:00Z", img).JSON()+imageLine("u2", "2026-10-01T10:00:01Z", img).JSON())
+			sum := run(t, e, p)
+			if sum.Events != 4 {
+				t.Errorf("events = %d, want 4 (text and image per line)", sum.Events)
+			}
+			h := blobref.Hash(img)
+			raw := e.str(t, "SELECT raw_text(raw) FROM events WHERE id = 'claude:u1#1'")
+			if !strings.Contains(raw, `"data":"blob:sha256:`+h+`"`) || strings.Contains(raw, base64.StdEncoding.EncodeToString(img)) {
+				t.Errorf("raw = %q", raw)
+			}
+			if got := e.str(t, "SELECT text FROM events WHERE id = 'claude:u2#1'"); got != "[image image/png 45 B]" {
+				t.Errorf("placeholder = %q", got)
+			}
+			want := map[string]int{"SELECT count(*) FROM blobs": 1, "SELECT count(*) FROM event_blobs": 2, "SELECT count(*) FROM event_blobs WHERE sha256 = '" + h + "'": 2}
+			if !storeBlobs {
+				want = map[string]int{"SELECT count(*) FROM blobs": 0, "SELECT count(*) FROM event_blobs": 0}
+			}
+			for q, n := range want {
+				if got := e.count(t, q); got != n {
+					t.Errorf("%s = %d, want %d", q, got, n)
+				}
+			}
+			if sum.Blobs != len(want)-2 || (storeBlobs && sum.BlobBytes != int64(len(img))) {
+				t.Errorf("summary blobs = %d (%d bytes)", sum.Blobs, sum.BlobBytes)
+			}
+			if storeBlobs {
+				line, err := e.st.RawLine(ctx, "claude:u1#1")
+				if err != nil || line != strings.TrimSuffix(imageLine("u1", "2026-10-01T10:00:00Z", img).JSON(), "\n") {
+					t.Errorf("RawLine = %q, %v", line, err)
+				}
+			}
+		})
+	}
+}
+
+// TestRewriteRawFillsBlobsAndMissingRaw: `ingest --all --reread
+// --rewrite-raw` brings an archive from before #180/#181 up to date:
+// events without raw get the line, lines with attachments get their
+// blobs; a second run changes nothing more; a source whose transcript is
+// gone keeps what it has.
+func TestRewriteRawFillsBlobsAndMissingRaw(t *testing.T) {
+	img := []byte("\x89PNG\r\n\x1a\nanother synthetic picture")
+	e := newEnv(t)
+	e.deps.StoreBlobs = true
+	tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl",
+		tf.User(sid, "u0", "2026-10-01T09:59:00Z", "/w/x", "hello").JSON()+imageLine("u1", "2026-10-01T10:00:00Z", img).JSON())
+	gone := tf.WriteFile(t, e.projects, "-w-y/"+tf.SmallSession2+".jsonl",
+		tf.User(tf.SmallSession2, "g1", "2026-10-02T10:00:00Z", "/w/y", "I stay as I am").JSON())
+	if sum, err := All(ctx, e.deps); err != nil || sum.Events != 4 {
+		t.Fatalf("first run: %+v, %v", sum, err)
+	}
+	// Simulate the old archive: no raw for u0 (dropped for its size), an
+	// extract without the image event for u1, no blobs.
+	db, err := sql.Open("sqlite", "file:"+e.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`UPDATE events SET raw = NULL, raw_truncated = 1 WHERE id = 'claude:u0'`,
+		`DELETE FROM event_blobs`, `DELETE FROM blobs`,
+		`DELETE FROM events WHERE id = 'claude:u1#1'`,
+		`UPDATE events SET raw = NULL WHERE id = 'claude:g1'`,
+	} {
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	_ = db.Close()
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	e.deps.Reread, e.deps.RewriteRaw = true, true
+	sum, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Events != 1 || sum.RawRewritten != 2 || sum.Blobs != 1 || sum.Changed != 1 {
+		t.Errorf("rewrite run = %+v, want 1 new event, 2 raw rewritten, 1 blob, 1 changed", sum)
+	}
+	for q, want := range map[string]int{
+		"SELECT count(*) FROM events WHERE raw IS NULL":                                                1, // g1: transcript gone
+		"SELECT count(*) FROM events WHERE id = 'claude:u0' AND raw IS NOT NULL AND raw_truncated = 0": 1,
+		"SELECT count(*) FROM events WHERE id = 'claude:u1#1'":                                         1,
+		"SELECT count(*) FROM blobs":                                                                   1,
+		"SELECT count(*) FROM event_blobs WHERE event_id = 'claude:u1#1'":                              1,
+		"SELECT count(*) FROM events":                                                                  4,
+	} {
+		if got := e.count(t, q); got != want {
+			t.Errorf("%s = %d, want %d", q, got, want)
+		}
+	}
+	// A second run is idempotent: the same rewrites, no new rows.
+	again, err := All(ctx, e.deps)
+	if err != nil || again.Events != 0 || again.RawRewritten != 3 || again.Blobs != 0 || e.count(t, "SELECT count(*) FROM event_blobs") != 1 {
+		t.Errorf("second run = %+v, %v", again, err)
+	}
+}
+
+// TestRewriteRawCancelKeepsOffsetsConsistent: a cancelled rewrite leaves
+// whole lines written and the run can be repeated.
+func TestRewriteRawCancelKeepsOffsetsConsistent(t *testing.T) {
+	e := newEnv(t)
+	var lines []tf.Line
+	for i := 0; i < 30; i++ {
+		lines = append(lines, tf.User(sid, fmt.Sprintf("u%02d", i), fmt.Sprintf("2026-10-01T10:00:%02dZ", i), "/w/x", "line"))
+	}
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", tf.Join(lines...))
+	run(t, e, p)
+	e.deps.BatchSize = 5
+	e.deps.Reread, e.deps.RewriteRaw = true, true
+	cctx, cancel := context.WithCancel(ctx)
+	n := 0
+	e.deps.Logf = func(string, ...any) {}
+	// Cancel after the first batches were written: wrap the store? Simpler:
+	// cancel from a goroutine is racy, so cancel through the git resolver,
+	// which is called per record with a cwd.
+	e.deps.GitResolve = func(c context.Context, cwd string) (gitinfo.Info, error) {
+		n++
+		if n == 12 {
+			cancel()
+		}
+		return gitinfo.Info{}, gitinfo.ErrNotRepo
+	}
+	e.deps.ResolveGit = true
+	// The dirs cache answers after the first call; force fresh lookups.
+	e.git.infos = map[string]gitinfo.Info{}
+	_, err := Run(cctx, e.deps, []string{p})
+	if err == nil {
+		// Cancellation may land after the file was done when the cache
+		// short-circuits the resolver; the run is then simply complete.
+		t.Log("run completed before the cancel")
+	}
+	sum := run(t, e, p)
+	if sum.RawRewritten != 30 || sum.Events != 0 || e.count(t, "SELECT count(*) FROM events") != 30 {
+		t.Errorf("after repeat = %+v", sum)
+	}
+}
+
 // TestMetaRecords: meta records (attachments, modes, pull-request links)
 // land in session_meta redacted and compressed, the same content once per
 // session, no event and no full-text hit; store_raw = false keeps none,
@@ -658,7 +822,7 @@ func TestMetaRecords(t *testing.T) {
 		tf.PermissionMode(s, "auto"),
 		tf.User(s, "u1", "2026-10-01T10:00:00Z", "/w/x", "hello"),
 		tf.Attachment(s, "att-1", "2026-10-01T10:00:01Z", "/w/x", "instructions", "token: "+secret),
-		tf.Attachment(s, "att-2", "2026-10-01T10:00:01Z", "/w/x", "prompt_snapshot", "skipped subtype"),
+		tf.Attachment(s, "att-2", "2026-10-01T10:00:01Z", "/w/x", "total_tokens_reminder", "skipped subtype"),
 		tf.PRLink(s, "2026-10-01T10:00:02Z", 7),
 		tf.Assistant(s, "u2", "2026-10-01T10:00:03Z", "/w/x", "hi"),
 		tf.PermissionMode(s, "auto"),
@@ -683,7 +847,7 @@ func TestMetaRecords(t *testing.T) {
 			"SELECT count(*) FROM session_meta WHERE type = 'pr-link' AND ts = '2026-10-01T10:00:02.000Z'":         1,
 			"SELECT count(*) FROM session_meta WHERE id = 'claude:att-1' AND raw_text(raw) LIKE '%«redacted:%'":    1,
 			"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%" + secret + "%'":                        0,
-			"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%prompt_snapshot%'":                       0,
+			"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%total_tokens_reminder%'":                 0,
 			"SELECT count(*) FROM events":                                                                           2,
 			"SELECT count(*) FROM events_fts WHERE events_fts MATCH 'instructions'":                                 0,
 			"SELECT count(*) FROM sessions WHERE id = 'claude:" + s + "' AND ended_at = '2026-10-01T10:00:03.000Z'": 1,
@@ -705,6 +869,70 @@ func TestMetaRecords(t *testing.T) {
 		}
 		if got := e.count(t, "SELECT count(*) FROM session_meta"); got != 4 {
 			t.Errorf("meta rows = %d, want 4", got)
+		}
+	})
+	t.Run("system prompts and shapes are blobs once across sessions", func(t *testing.T) {
+		for _, storeBlobs := range []bool{true, false} {
+			t.Run(fmt.Sprintf("store_blobs=%v", storeBlobs), func(t *testing.T) {
+				e := newEnv(t)
+				r, err := redact.New(redact.Options{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				e.deps.Redactor, e.deps.StoreBlobs = r, storeBlobs
+				s2 := tf.SmallSession2
+				system := []string{"You are a demo.", "token: " + secret}
+				tf.WriteFile(t, e.projects, "-w-x/"+s+".jsonl", tf.Join(
+					tf.APIRequestShape(s, "2026-10-01T10:00:00Z", system, "Read", "Edit"),
+					tf.PromptSnapshot(s, "ps-1", "2026-10-01T10:00:01Z", "/w/x", system...),
+					tf.APIRequestShape(s, "2026-10-01T10:05:00Z", system, "Read", "Edit"), // same shape, next turn
+				))
+				tf.WriteFile(t, e.projects, "-w-y/"+s2+".jsonl", tf.Join(
+					tf.APIRequestShape(s2, "2026-10-02T10:00:00Z", system, "Read", "Edit"),
+					tf.PromptSnapshot(s2, "ps-2", "2026-10-02T10:00:01Z", "/w/y", system...),
+				))
+				sum, err := All(ctx, e.deps)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Two distinct values (the shape, the prompt), both kept even
+				// without store_blobs: they are redacted JSON, not images.
+				if sum.Meta != 4 || sum.Blobs != 2 {
+					t.Errorf("summary = %+v, want 4 meta records, 2 blobs", sum)
+				}
+				for q, want := range map[string]int{
+					"SELECT count(*) FROM blobs":                                                    2,
+					"SELECT count(*) FROM blobs WHERE media_type = 'application/json'":              2,
+					"SELECT count(*) FROM meta_blobs":                                               4,
+					"SELECT count(DISTINCT sha256) FROM meta_blobs":                                 2,
+					"SELECT count(*) FROM session_meta WHERE type = 'api-request-shape'":            2,
+					"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%blob:sha256:%'":   4,
+					"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%You are a demo%'": 0,
+					"SELECT count(*) FROM events":                                                   0,
+				} {
+					if got := e.count(t, q); got != want {
+						t.Errorf("%s = %d, want %d", q, got, want)
+					}
+				}
+				// The blob is redacted and the line refers to the redacted hash.
+				sha := e.str(t, "SELECT sha256 FROM meta_blobs WHERE meta_id = 'claude:ps-1'")
+				_, data, err := e.st.Blob(ctx, sha)
+				if err != nil || !strings.Contains(string(data), "You are a demo") || strings.Contains(string(data), secret) || !strings.Contains(string(data), "«redacted:") {
+					t.Errorf("blob = %q, %v", data, err)
+				}
+				if sha != blobref.Hash(data) {
+					t.Errorf("link %s is not the hash of the stored data", sha)
+				}
+				if raw := e.str(t, "SELECT raw_text(raw) FROM session_meta WHERE id = 'claude:ps-1'"); !strings.Contains(raw, `"systemPrompt":"blob:sha256:`+sha+`"`) {
+					t.Errorf("raw = %s", raw)
+				}
+				// Reread with rewrite: idempotent (the repeated shape line
+				// rewrites its record a second time, that is all).
+				e.deps.Reread, e.deps.RewriteRaw = true, true
+				if again, err := All(ctx, e.deps); err != nil || again.Meta != 0 || again.Blobs != 0 || again.RawRewritten != 5 || e.count(t, "SELECT count(*) FROM meta_blobs") != 4 {
+					t.Errorf("reread = %+v, %v", again, err)
+				}
+			})
 		}
 	})
 	t.Run("store_raw off keeps none", func(t *testing.T) {

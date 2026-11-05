@@ -581,3 +581,54 @@ func mustDefinition(t *testing.T, name, color string, match ...string) project.D
 func sameColor(a, b color.Color) bool {
 	return color.RGBAModel.Convert(a) == color.RGBAModel.Convert(b)
 }
+
+// TestSetHolidays: a calendar set later marks the axis of the loaded
+// window without a query; the same region again does nothing.
+func TestSetHolidays(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := drive(t, New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Home: home}))
+	holidayNames := func(m Model) string {
+		var names []string
+		for i, mk := range m.spec.Marks {
+			if mk.Holiday != "" {
+				names = append(names, m.spec.Labels[i]+" "+mk.Holiday)
+			}
+		}
+		return strings.Join(names, ", ")
+	}
+	if got := holidayNames(m); got != "" {
+		t.Fatalf("holidays without a calendar: %q", got)
+	}
+	mm, cmd := m.SetHolidays(holiday.New("Baden-Württemberg"))
+	m = tuitest.Run(t, mm, cmd).(Model)
+	if got := holidayNames(m); got != "25 Weihnachten, 26 Zweiter Weihnachtsfeiertag, 01 Neujahr, 06 Epiphanias" {
+		t.Errorf("marks after SetHolidays: %q", got)
+	}
+	if _, cmd := m.SetHolidays(holiday.New("Baden-Württemberg")); cmd != nil {
+		t.Error("the same region rebuilt the chart")
+	}
+	mm, cmd = m.SetHolidays(nil)
+	if m = tuitest.Run(t, mm, cmd).(Model); holidayNames(m) != "" {
+		t.Errorf("holidays after SetHolidays(nil): %q", holidayNames(m))
+	}
+}
+
+// TestSetKeys: new bindings act at once and show in the footer groups.
+func TestSetKeys(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	km, err := keys.Resolve(map[string][]string{keys.StatsWeeks: {"W"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := drive(t, New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation}))
+	m = m.SetKeys(km).(Model)
+	if got := drive(t, m, "w"); got.window.Period != store.PeriodDay {
+		t.Error("w still switches to weeks")
+	}
+	if got := drive(t, m, "W"); got.window.Period != store.PeriodWeek {
+		t.Error("W does not switch to weeks")
+	}
+	if h := m.keys.Period.Help(); h.Key != "d/W/m" {
+		t.Errorf("period group help = %q", h.Key)
+	}
+}

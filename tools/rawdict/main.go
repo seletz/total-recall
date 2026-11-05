@@ -7,18 +7,20 @@
 //	go run ./tools/rawdict measure -db FILE [-dict FILE] [-limit N]
 //	go run ./tools/rawdict dump -db FILE -out DIR [-limit N]
 //
-// train builds the dictionary from the trimmed raw lines of the demo
-// archive (internal/demo) plus the generated lines of synth.go, or from the
-// files of -samples, and writes it to -out. samples writes those synthetic
-// lines as one file per line. measure
-// reads an archive (schema v4: raw as text, or v5: raw as zstd blob),
-// trims the lines like the Claude adapter does, compresses them with and
-// without a dictionary and prints sizes only, never content. dump writes
-// the trimmed lines of an archive as sample files for a local comparison;
-// never commit the output of dump or a dictionary trained from it: the
-// repository holds only dictionaries trained from synthetic lines.
+// train builds the dictionary from the raw lines of the demo archive
+// (internal/demo) plus the generated lines of synth.go, or from the files
+// of -samples, and writes it to -out. samples writes those synthetic lines
+// as one file per line. measure reads an archive (schema v4: raw as text,
+// v5 or later: raw as zstd blob), compresses the lines with and without a
+// dictionary and prints sizes only, never content. dump writes the lines
+// of an archive as sample files for a local comparison; never commit the
+// output of dump or a dictionary trained from it: the repository holds
+// only dictionaries trained from synthetic lines.
 //
-// The training input is the same on every run (samples shows it); the
+// Dictionary v1 (raw-v1.zdict) was trained on the extracts v5 stored;
+// since #180 raw is the whole line, with the harness's bookkeeping,
+// usage and IDs, and v2 (raw-v2.zdict) is trained on whole lines. The
+// training input is the same on every run (samples shows it); the
 // dictionary builder breaks ties in map order, so two runs give byte-wise
 // different, equivalent dictionaries. A new dictionary that ships gets a
 // new ID and is appended to rawz.Dicts; the old one stays for old rows.
@@ -46,7 +48,7 @@ import (
 	"github.com/seletz/total-recall/internal/store/rawz"
 )
 
-const defaultOut = "internal/store/rawz/dict/raw-v1.zdict"
+const defaultOut = "internal/store/rawz/dict/raw-v2.zdict"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -80,9 +82,9 @@ func usage() {
 // demo archive's lines as training input.
 const synthSamples = 6000
 
-// trainingLines returns the synthetic training input: the trimmed raw
-// lines of the demo archive and the generated lines, sorted and
-// deduplicated (deterministic input for the trainer).
+// trainingLines returns the synthetic training input: the raw lines of
+// the demo archive and the generated lines, sorted and deduplicated
+// (deterministic input for the trainer).
 func trainingLines() ([][]byte, error) {
 	lines, err := demoLines()
 	if err != nil {
@@ -91,8 +93,8 @@ func trainingLines() ([][]byte, error) {
 	return append(lines, synthLines(synthSamples)...), nil
 }
 
-// demoLines returns the trimmed raw lines of the demo archive, one per
-// event, deduplicated and sorted.
+// demoLines returns the raw lines of the demo archive, one per event,
+// deduplicated and sorted.
 func demoLines() ([][]byte, error) {
 	tmp, err := os.MkdirTemp("", "total-recall-rawdict-")
 	if err != nil {
@@ -169,7 +171,7 @@ func train(args []string) error {
 	fs := flag.NewFlagSet("train", flag.ExitOnError)
 	samplesDir := fs.String("samples", "", "directory of sample files (default: the demo archive's lines)")
 	out := fs.String("out", defaultOut, "dictionary file to write")
-	id := fs.Uint("id", uint(rawz.DictIDV1), "dictionary ID")
+	id := fs.Uint("id", uint(rawz.DictIDV2), "dictionary ID")
 	size := fs.Int("size", 112<<10, "maximum dictionary size in bytes")
 	hash := fs.Int("hash", 6, "minimum match length the builder indexes (4-8)")
 	_ = fs.Parse(args)
@@ -213,10 +215,9 @@ func samples(args []string) error {
 	return writeSamples(*out, lines)
 }
 
-// rawLines calls fn with the trimmed raw line of every event of the
-// archive at path that has one (text rows of schema v4 are trimmed, blobs
-// of v5 are decoded first).
-func rawLines(path string, limit int, fn func(orig, trimmed []byte) error) error {
+// rawLines calls fn with the raw line of every event of the archive at
+// path that has one (blobs of v5 and later are decoded first).
+func rawLines(path string, limit int, fn func(line []byte) error) error {
 	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
 	if err != nil {
 		return err
@@ -243,11 +244,7 @@ func rawLines(path string, limit int, fn func(orig, trimmed []byte) error) error
 			}
 			raw = []byte(s)
 		}
-		trimmed, err := claude.TrimRaw(raw)
-		if err != nil {
-			trimmed = raw
-		}
-		if err := fn(raw, trimmed); err != nil {
+		if err := fn(raw); err != nil {
 			return err
 		}
 	}
@@ -279,14 +276,13 @@ func measure(args []string) error {
 	if err != nil {
 		return err
 	}
-	var n, orig, trimmed, zWith, zWithout int64
+	var n, orig, zWith, zWithout int64
 	var tWith, tWithout, tDecode time.Duration
 	start := time.Now()
-	err = rawLines(*dbPath, *limit, func(o, t []byte) error {
+	err = rawLines(*dbPath, *limit, func(line []byte) error {
 		n++
-		orig += int64(len(o))
-		trimmed += int64(len(t))
-		s := string(t)
+		orig += int64(len(line))
+		s := string(line)
 		t0 := time.Now()
 		b := with.Encode(s)
 		tWith += time.Since(t0)
@@ -311,10 +307,9 @@ func measure(args []string) error {
 		return fmt.Sprintf("%5.1f %%", 100*float64(a)/float64(b))
 	}
 	fmt.Printf("events with raw      %d\n", n)
-	fmt.Printf("raw as stored        %s\n", mib(orig))
-	fmt.Printf("trimmed              %s  (%s of stored)\n", mib(trimmed), pct(trimmed, orig))
-	fmt.Printf("zstd, no dictionary  %s  (%s of trimmed, %s of stored)  %s\n", mib(zWithout), pct(zWithout, trimmed), pct(zWithout, orig), tWithout.Round(time.Millisecond))
-	fmt.Printf("zstd, dictionary     %s  (%s of trimmed, %s of stored)  %s\n", mib(zWith), pct(zWith, trimmed), pct(zWith, orig), tWith.Round(time.Millisecond))
+	fmt.Printf("raw uncompressed     %s\n", mib(orig))
+	fmt.Printf("zstd, no dictionary  %s  (%s)  %s\n", mib(zWithout), pct(zWithout, orig), tWithout.Round(time.Millisecond))
+	fmt.Printf("zstd, dictionary     %s  (%s)  %s\n", mib(zWith), pct(zWith, orig), tWith.Round(time.Millisecond))
 	fmt.Printf("decode               %s\n", tDecode.Round(time.Millisecond))
 	fmt.Printf("total                %s\n", time.Since(start).Round(time.Millisecond))
 	return nil
@@ -330,8 +325,8 @@ func dump(args []string) error {
 		return fmt.Errorf("dump: -db and -out are required")
 	}
 	var lines [][]byte
-	err := rawLines(*dbPath, *limit, func(_, t []byte) error {
-		lines = append(lines, append([]byte(nil), t...))
+	err := rawLines(*dbPath, *limit, func(line []byte) error {
+		lines = append(lines, append([]byte(nil), line...))
 		return nil
 	})
 	if err != nil {
