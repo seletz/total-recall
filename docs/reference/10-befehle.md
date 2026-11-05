@@ -552,19 +552,20 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
 
 ## `tui` { #tui }
 
-Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap, erste und letzte Aktivität je Tag. Nur lesend. Bedienung, Tasten und Grafikmodi: [TUI](30-tui.md).
+Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap, erste und letzte Aktivität je Tag, dazu die Ansicht [Config](30-tui.md#config) mit Status, Einstellungen, Wartungsaktionen und Prüfung der Installation. Lesend, bis auf die Aktionen und das Ändern von Einstellungen in Config, die nach Bestätigung schreiben wie die gleichnamigen Befehle. Bedienung, Tasten und Grafikmodi: [TUI](30-tui.md).
 
 ```sh
 total-recall tui                              # Suche
 total-recall tui stats                        # Statistik
 total-recall tui activity                     # erste und letzte Aktivität je Tag
+total-recall tui config                       # Status, Einstellungen, Aktionen, Setup
 total-recall tui --query "goreleaser cask"    # Suche mit vorbelegtem Text
 total-recall tui stats --graphics text        # Chart als Text, keine Terminal-Abfrage
 ```
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `tui.view` aus der Config, sonst `search` |
+| `search` \| `stats` \| `activity` \| `config` | Ansicht beim Start, Default `tui.view` aus der Config, sonst `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort |
 | `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty, kitty und herdr, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `tui.graphics` aus der Config, sonst `auto` |
 | `--no-mouse` | Maus dem Terminal überlassen (Textauswahl durch Ziehen). Default `tui.mouse` aus der Config; `--no-mouse=false` schaltet die Maus für einen Aufruf ein |

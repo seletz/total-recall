@@ -29,6 +29,8 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 `total-recall config init` schreibt eine kommentierte Vorlage. Eine bestehende Datei wird nie überschrieben.
 
+Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und ändert einzelne Schlüssel in der Datei: Kommentare und alle anderen Zeilen bleiben erhalten, ein auskommentierter Schlüssel der Vorlage wird an seiner Stelle aktiviert, vorher entsteht `config.toml.bak`, geschrieben wird atomar und nur, was die Prüfung besteht. Die Tabellen `[accounts]` und `[[worktime.category]]` ändert man weiter im Editor (`E` in der TUI). Rezept: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md).
+
 ## Regeln
 
 - `~` und Umgebungsvariablen (`$HOME`, `${VAR}`) werden in Pfaden aufgelöst.
@@ -286,7 +288,7 @@ match = "*"
 Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansicht gehen vor: **Flag > Config > Default**.
 
 `view`
-:   Ansicht beim Start: `search`, `stats` oder `activity`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
+:   Ansicht beim Start: `search`, `stats`, `activity` oder `config`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
 
 `graphics`
 :   Darstellung des Charts in der Statistik: `auto`, `text` oder `kitty`, siehe [Grafikmodi](30-tui.md#grafikmodi). Override: `--graphics`. Default: `auto`.

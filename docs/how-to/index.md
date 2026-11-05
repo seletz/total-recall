@@ -16,3 +16,4 @@ Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 - [Stundenzettel füllen](45-stundenzettel.md): Arbeitszeit je Tag und Kategorie aus den Lücken zwischen den eigenen Nachrichten, Buchungstexte aus den Session-Titeln.
 - [Agenten anbinden](50-agenten-anbinden.md): den eingebetteten Skill für Claude Code ablegen.
 - [Archiv warten](60-wartung.md): die Datenbankdatei mit größeren Seiten kompakter neu aufbauen, wann und wie.
+- [Einstellungen in der TUI ändern](65-einstellungen-tui.md): Werte der Konfiguration, Wartungsaktionen und die Prüfung der Installation in der Ansicht Config.
