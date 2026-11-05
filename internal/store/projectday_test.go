@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/seletz/total-recall/internal/model"
 )
 
 // projectStrings formats the projects of a day as "key:events[dir]" with
@@ -117,6 +119,62 @@ func TestProjectDaysOpenBounds(t *testing.T) {
 	}
 	if len(got) == 0 || got[0].Label != "2025-12-28" || got[len(got)-1].Label != "2026-10-31" {
 		t.Errorf("days = %d, first %q, last %q", len(got), got[0].Label, got[len(got)-1].Label)
+	}
+}
+
+// TestProjectDaysProjectMapper: the keys go through f.Project like the
+// project dimension of ActivitySeries: two repositories of one configured
+// project merge into one project of the day with their events and slots
+// together, a subagent takes its parent's key and remote, a mapped
+// directory is no directory any more.
+func TestProjectDaysProjectMapper(t *testing.T) {
+	s, _ := openTestStore(t)
+	sessions := []model.Session{
+		{ID: "claude:m1", Harness: "claude", NativeID: "m1", Cwd: "/w/kompass-api", GitRoot: "/w/kompass-api", GitRemoteURL: "https://git.invalid/mara/kompass-api",
+			StartedAt: ts("2026-03-01T10:00:00Z"), EndedAt: ts("2026-03-01T10:05:00Z")},
+		{ID: "claude:m2", Harness: "claude", NativeID: "m2", Cwd: "/w/kompass-web/x", GitRoot: "/w/kompass-web", GitRemoteURL: "https://git.invalid/mara/kompass-web",
+			StartedAt: ts("2026-03-01T11:00:00Z"), EndedAt: ts("2026-03-01T11:05:00Z")},
+		{ID: "claude:m2sub", Harness: "claude", NativeID: "m2sub", ParentID: "claude:m2", Cwd: "/w/kompass-web/x",
+			StartedAt: ts("2026-03-01T11:01:00Z"), EndedAt: ts("2026-03-01T11:02:00Z")},
+		{ID: "claude:m3", Harness: "claude", NativeID: "m3", Cwd: "/w/notes",
+			StartedAt: ts("2026-03-01T12:00:00Z"), EndedAt: ts("2026-03-01T12:05:00Z")},
+	}
+	evs := []model.Event{
+		ev("claude:m1-1", "claude:m1", "2026-03-01T10:00:00Z", model.ActorHuman, model.KindMessage, "user", "a"),
+		ev("claude:m2-1", "claude:m2", "2026-03-01T11:00:00Z", model.ActorHuman, model.KindMessage, "user", "b"),
+		ev("claude:m2s-1", "claude:m2sub", "2026-03-01T11:01:00Z", model.ActorAgent, model.KindMessage, "assistant", "c"),
+		ev("claude:m3-1", "claude:m3", "2026-03-01T12:00:00Z", model.ActorHuman, model.KindMessage, "user", "d"),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/m.jsonl", Harness: "claude", Offset: 1}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	mapper := func(key string, dir bool, remote string) string {
+		switch {
+		case strings.HasPrefix(remote, "https://git.invalid/mara/kompass"):
+			return "kompass"
+		case key == "/w/notes" && dir:
+			return "notizbox"
+		}
+		return key
+	}
+	tests := []struct {
+		name   string
+		mapper func(key string, dir bool, remote string) string
+		want   string
+	}{
+		{"without mapper", nil, "/w/kompass-web:2@11h0m0s:1@11h1m0s:1 /w/kompass-api:1@10h0m0s:1 /w/notes:1[dir]@12h0m0s:1"},
+		{"with mapper", mapper, "kompass:3@10h0m0s:1@11h0m0s:1@11h1m0s:1 notizbox:1@12h0m0s:1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := s.ProjectDays(ctx, WorkdayFilter{Location: time.UTC, Project: tt.mapper})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || projectStrings(got[0]) != tt.want {
+				t.Errorf("got %d days, %q; want 1 day, %q", len(got), projectStrings(got[0]), tt.want)
+			}
+		})
 	}
 }
 

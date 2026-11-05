@@ -46,7 +46,9 @@ type ProjectSlot struct {
 // f.Location with the day beginning at f.DayStart, human events only with
 // f.HumanOnly, else human and agent events; the range of days is
 // DayOf(Since) to DayOf(Until) minus one, gap-free, an open bound takes
-// the first or last day with activity. f.Holidays is not used.
+// the first or last day with activity. f.Project renames the keys like
+// ActivityFilter.Project does for the project dimension. f.Holidays is
+// not used.
 func (s *Store) ProjectDays(ctx context.Context, f WorkdayFilter) ([]ProjectDay, error) {
 	if f.DayStart < 0 || f.DayStart >= 24*time.Hour {
 		return nil, fmt.Errorf("store: project days: day start %s out of range", f.DayStart)
@@ -69,7 +71,8 @@ func (s *Store) ProjectDays(ctx context.Context, f WorkdayFilter) ([]ProjectDay,
 		args = append(args, formatTime(f.Until))
 	}
 	rows, err := s.db().QueryContext(ctx, `SELECT e.ts,
-			COALESCE(s.cwd, ''), COALESCE(s.git_root, ''), COALESCE(p.cwd, ''), COALESCE(p.git_root, '')
+			COALESCE(s.cwd, ''), COALESCE(s.git_root, ''), COALESCE(p.cwd, ''), COALESCE(p.git_root, ''),
+			COALESCE(s.git_remote_url, ''), COALESCE(p.git_remote_url, '')
 		FROM events e
 		JOIN sessions s ON s.id = e.session_id
 		LEFT JOIN sessions p ON p.id = s.parent_id
@@ -87,8 +90,8 @@ func (s *Store) ProjectDays(ctx context.Context, f WorkdayFilter) ([]ProjectDay,
 	var firstDay, lastDay time.Time
 	for rows.Next() {
 		var tsv sql.NullString
-		var cwd, gitRoot, pcwd, pgitRoot string
-		if err := rows.Scan(&tsv, &cwd, &gitRoot, &pcwd, &pgitRoot); err != nil {
+		var cwd, gitRoot, pcwd, pgitRoot, remote, premote string
+		if err := rows.Scan(&tsv, &cwd, &gitRoot, &pcwd, &pgitRoot, &remote, &premote); err != nil {
 			return nil, fmt.Errorf("store: project days: %w", err)
 		}
 		t := parseTime(tsv)
@@ -96,6 +99,9 @@ func (s *Store) ProjectDays(ctx context.Context, f WorkdayFilter) ([]ProjectDay,
 			continue
 		}
 		key, dir := activityKey(DimProject, "", "", cwd, gitRoot, pcwd, pgitRoot, "", "")
+		if f.Project != nil {
+			key, dir = mapProject(f.Project, key, dir, remote, premote, pcwd, pgitRoot)
+		}
 		if seen, ok := isDir[key]; !ok || seen {
 			isDir[key] = dir
 		}

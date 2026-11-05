@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -127,13 +129,32 @@ func adapters(cfg *config.Config) []harness.Adapter {
 	return out
 }
 
-// openWrite opens the archive read-write (migrating it if needed) and holds
-// the shared maintenance lock until Close: while `maintenance` rebuilds the
-// archive, it fails with store.ErrMaintenance.
-func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
-	return store.Open(cfg.DB, store.WithLocation(cfg.Location()),
+// openWrite opens the archive read-write and holds the shared maintenance
+// lock until Close: while `maintenance` or `migrate` holds the archive, it
+// fails with store.ErrMaintenance. It never migrates: an archive with an
+// older schema is store.ErrSchemaOutdated unless extra has
+// store.AllowOutdated (backup).
+func openWrite(cfg *config.Config, log *logger, extra ...store.Option) (*store.Store, error) {
+	opts := append([]store.Option{store.WithLocation(cfg.Location()),
 		store.WithLockDir(lockDir(cfg)),
-		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
+		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) })}, extra...)
+	return store.Open(cfg.DB, opts...)
+}
+
+// warnOutdatedOnce logs, at WARN, that the hook wrote nothing because the
+// archive needs a migration: once per schema pair and local day, remembered
+// in a marker file in the lock dir, so the log does not fill up with one
+// line per hook while the user has not migrated yet.
+func warnOutdatedOnce(cfg *config.Config, log *logger, now time.Time, event string, err error) {
+	stamp := err.Error() + " " + now.In(cfg.Location()).Format("2006-01-02")
+	marker := filepath.Join(lockDir(cfg), "schema-warned")
+	if b, rerr := os.ReadFile(marker); rerr == nil && strings.TrimSpace(string(b)) == stamp {
+		return
+	}
+	if merr := os.MkdirAll(lockDir(cfg), 0o755); merr == nil {
+		_ = os.WriteFile(marker, []byte(stamp+"\n"), 0o644)
+	}
+	log.Warnf("hook %s: nothing written, the archive needs a migration (%v); hooks catch up afterwards", event, err)
 }
 
 // ingestFlags are the mode flags of `ingest`.
@@ -288,6 +309,12 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		// Nothing is lost: the next hook of the session (or SessionStart
 		// with --all) reads on from the stored offset.
 		log.Infof("hook %s: maintenance in progress, skipped; the next hook catches up", p.HookEventName)
+		return nil
+	}
+	if errors.Is(err, store.ErrSchemaOutdated) {
+		// Same here: the stored offsets are untouched, the first hook after
+		// `total-recall migrate` reads everything that was skipped.
+		warnOutdatedOnce(cfg, log, e.app.Now(), p.HookEventName, err)
 		return nil
 	}
 	if err != nil {

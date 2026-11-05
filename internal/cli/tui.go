@@ -90,6 +90,10 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	if err != nil {
 		return tui.Options{}, err
 	}
+	projects, err := cfg.ProjectResolver()
+	if err != nil {
+		return tui.Options{}, errKind(ErrKindConfig, err)
+	}
 	view := cfg.TUI.View
 	if f.View != "" {
 		view = f.View
@@ -118,7 +122,7 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	}
 	return tui.Options{
 		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse, Reload: reload,
-		DayStart: cfg.DayStartOffset(), Work: work, Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home,
+		DayStart: cfg.DayStartOffset(), Work: work, Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home, Projects: projects,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow, ActivityProjects: cfg.TUI.ActivityProjects,
 		Keys: km,
 	}, nil

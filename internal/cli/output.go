@@ -122,6 +122,8 @@ func errorKind(err error) string {
 		return ErrKindNotFound
 	case errors.Is(err, store.ErrAmbiguous):
 		return ErrKindAmbiguous
+	case errors.Is(err, store.ErrSchemaOutdated), errors.Is(err, store.ErrSchemaTooNew), errors.Is(err, store.ErrMaintenance):
+		return ErrKindDB
 	}
 	return ErrKindInternal
 }
@@ -219,11 +221,25 @@ func (e *env) readRun(f *outputFlags, fn func(cmd *cobra.Command, args []string,
 			o.width = e.app.TerminalWidth()
 		}
 		if err := fn(cmd, args, o); err != nil {
-			return err
+			return e.schemaHint(err)
 		}
 		o.finish()
 		return nil
 	}
+}
+
+// schemaHint adds the migration advice to a query error that is likely due
+// to the archive's older schema (a column or table of a newer migration).
+// Other errors pass unchanged.
+func (e *env) schemaHint(err error) error {
+	if !e.schemaOutdated {
+		return err
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "no such column") && !strings.Contains(msg, "no such table") {
+		return err
+	}
+	return fmt.Errorf("%w; the archive schema is older than this binary, %s", err, migrateHint)
 }
 
 // terminalWidth returns the width of the terminal w is attached to, or 0

@@ -345,3 +345,34 @@ func TestStatsWorktimeErrors(t *testing.T) {
 		t.Errorf("config show must report [worktime]: exit %d\n%s", r.code, r.stdout)
 	}
 }
+
+// TestStatsWorktimeProjects: [[project]] definitions apply before the
+// category rules, which see the configured name; two repositories of one
+// project are one project row.
+func TestStatsWorktimeProjects(t *testing.T) {
+	_, db := fixturedb.Activity(t)
+	e := newTestEnv(t)
+	e.now = activityNow
+	appendConfig(t, e, projectDefinitions+"\n[[worktime.category]]\nname = \"kunde\"\nmatch = \"kompass\"\n")
+	out := decode[WorktimeJSON](t, runActivity(t, e, db, "--worktime", "--month", "2025-12", "--json").stdout)
+	c, ok := cellOf(out, "2025-12-18", "kunde")
+	if !ok || c.RawSeconds != 33*60 {
+		t.Fatalf("kunde = %+v (ok %v)", c, ok)
+	}
+	if len(c.Projects) != 1 || c.Projects[0].Project != "kompass" || c.Projects[0].Key != "kompass" {
+		t.Errorf("projects = %+v", c.Projects)
+	}
+	if g, ok := cellOf(out, "2025-12-16", "notizbox"); !ok || len(g.Projects) != 1 || g.Projects[0].Project != "notizbox" {
+		t.Errorf("notizbox = %+v (ok %v)", g, ok)
+	}
+	for _, cat := range out.Categories {
+		if cat.Category == "alpha" || cat.Category == "beta" {
+			t.Errorf("category %q survived the definitions: %+v", cat.Category, out.Categories)
+		}
+	}
+	e2 := newTestEnv(t)
+	appendConfig(t, e2, "\n[[project]]\nname = \"x\"\n")
+	if r := runActivity(t, e2, db, "--worktime", "--month", "2025-12"); r.code == 0 || !strings.Contains(r.stderr, "project[0]") {
+		t.Errorf("broken definition: exit %d, stderr %q", r.code, r.stderr)
+	}
+}

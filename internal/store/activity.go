@@ -111,6 +111,14 @@ type ActivityFilter struct {
 	// whole range) and folds the rest of every period into OtherKey, which is
 	// always the last key. 0 keeps all keys.
 	TopN int
+	// Project renames the keys of DimProject before they are counted and
+	// folded: it gets the raw key (the git root, else the working
+	// directory), whether it is a working directory and the remote URL ("",
+	// without a repository) and returns the key to count under. Keys with
+	// the same result are merged, so one configured project can span several
+	// repositories (project.Resolver.Key); a key it renames is no longer a
+	// directory. nil keeps the raw keys. Ignored for the other dimensions.
+	Project func(key string, dir bool, remote string) string
 }
 
 // ActivityCell is the activity of one dimension value in one period.
@@ -216,6 +224,24 @@ func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parent
 	return cwd, true
 }
 
+// mapProject applies the project mapper of a filter to a key of DimProject.
+// The remote URL is the parent's when the key came from the parent session
+// (like the key itself) and "" for a working directory without repository;
+// a renamed key is no directory any more.
+func mapProject(m func(key string, dir bool, remote string) string, key string, dir bool, remote, premote, pcwd, pgitRoot string) (string, bool) {
+	if pgitRoot != "" || pcwd != "" {
+		remote = premote
+	}
+	if dir {
+		remote = ""
+	}
+	mapped := m(key, dir, remote)
+	if mapped != key {
+		return mapped, false
+	}
+	return key, dir
+}
+
 func (b *bucket) merge(o *bucket) {
 	for id := range o.sessions {
 		if b.sessions == nil {
@@ -258,7 +284,8 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	}
 	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id,
 			s.harness, COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''),
-			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(s.account_id, ''), COALESCE(p.account_id, '')
+			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(s.account_id, ''), COALESCE(p.account_id, ''),
+			COALESCE(s.git_remote_url, ''), COALESCE(p.git_remote_url, '')
 		FROM events e
 		JOIN sessions s ON s.id = e.session_id
 		LEFT JOIN sessions p ON p.id = s.parent_id
@@ -274,8 +301,8 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	var first, last time.Time
 	for rows.Next() {
 		var tsv sql.NullString
-		var actor, session, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount string
-		if err := rows.Scan(&tsv, &actor, &session, &harness, &parentID, &cwd, &gitRoot, &pcwd, &pgitRoot, &account, &paccount); err != nil {
+		var actor, session, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount, remote, premote string
+		if err := rows.Scan(&tsv, &actor, &session, &harness, &parentID, &cwd, &gitRoot, &pcwd, &pgitRoot, &account, &paccount, &remote, &premote); err != nil {
 			return ActivitySeries{}, fmt.Errorf("store: activity: %w", err)
 		}
 		t := parseTime(tsv)
@@ -284,6 +311,9 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		}
 		start := periodStart(t.In(loc), f.Period)
 		key, dir := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount)
+		if f.Dimension == DimProject && f.Project != nil {
+			key, dir = mapProject(f.Project, key, dir, remote, premote, pcwd, pgitRoot)
+		}
 		if seen, ok := isDir[key]; !ok || seen {
 			isDir[key] = dir
 		}

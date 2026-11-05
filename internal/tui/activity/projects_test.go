@@ -9,10 +9,12 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/demo"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
@@ -182,6 +184,69 @@ func TestProjectSharedColors(t *testing.T) {
 	}
 }
 
+// TestProjectDefinitions checks the bars against a synthetic [[project]]
+// configuration, resolved like the stats view: alpha and beta (two
+// repositories, matched by remote) merge into one project kompass with
+// the events of both, shown by its name and in its configured colour, the
+// directory gamma becomes notizbox in the first free palette colour; the
+// raw keys appear nowhere.
+func TestProjectDefinitions(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	defs := []project.Definition{
+		mustDefinition(t, "kompass", "#123456", testfixture.ActivityAlphaRemote, testfixture.ActivityBetaRemote),
+		mustDefinition(t, "notizbox", "", "~/gamma"),
+	}
+	r, err := project.NewResolver(defs, "/w")
+	if err != nil {
+		t.Fatal(err)
+	}
+	colors := &chart.Colors{}
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true, Home: "/w", Projects: r, Colors: colors})
+	m = drive(t, m, "p", "m", "l")
+	// The same window without definitions, for the counted events.
+	raw := drive(t, newModel(t, st), "p", "m", "l").projectLayout()
+	events := map[string]int{}
+	for i, k := range raw.keys {
+		events[k] = raw.events[i]
+	}
+	p := m.projectLayout()
+	if got := strings.Join(p.keys, ","); got != "kompass,notizbox" {
+		t.Fatalf("projects = %q, want kompass,notizbox", got)
+	}
+	if want := events[testfixture.ActivityAlpha] + events[testfixture.ActivityBeta]; p.events[0] != want || p.events[1] != events[testfixture.ActivityGamma] {
+		t.Errorf("events = %v, want %d and %d", p.events, want, events[testfixture.ActivityGamma])
+	}
+	if c := p.styles[0].GetForeground(); !sameColor(c, lipgloss.Color("#123456")) {
+		t.Errorf("kompass colour = %v, want the configured #123456", c)
+	}
+	if c := p.styles[1].GetForeground(); !sameColor(c, m.th.Tone(chart.Palette[0])) {
+		t.Errorf("notizbox colour = %v, want the first palette colour", c)
+	}
+	if c := colors.Color("kompass"); !sameColor(c, lipgloss.Color("#123456")) {
+		t.Errorf("shared colour of kompass = %v: the pinned colour is not in the shared Colors", c)
+	}
+	frame := tuitest.Frame(m)
+	for _, want := range []string{"projects: █ kompass ", "▓ notizbox "} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("frame lacks %q:\n%s", want, frame)
+		}
+	}
+	for _, bad := range []string{"alpha", "beta", "gamma"} {
+		if strings.Contains(frame, bad) {
+			t.Errorf("frame shows the raw key %q:\n%s", bad, frame)
+		}
+	}
+}
+
+func mustDefinition(t *testing.T, name, color string, match ...string) project.Definition {
+	t.Helper()
+	d, err := project.NewDefinition(name, "", color, match)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
 func sameColor(a, b color.Color) bool {
 	ar, ag, ab, aa := a.RGBA()
 	br, bg, bb, ba := b.RGBA()
@@ -243,7 +308,7 @@ func TestProjectCache(t *testing.T) {
 			l := &countingLoader{st: st}
 			m := newModel(t, l)
 			if len(tt.keys) > 0 && tt.keys[0] == "P" {
-				m = New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true, Projects: true})
+				m = New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true, ByProject: true})
 				tt.keys = tt.keys[1:]
 			}
 			drive(t, m, tt.keys...)
@@ -259,7 +324,7 @@ func TestProjectCache(t *testing.T) {
 func TestProjectStart(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	l := &countingLoader{st: st}
-	m := New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true, Projects: true})
+	m := New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true, ByProject: true})
 	m = drive(t, m)
 	f := tuitest.Frame(m)
 	if !m.proj.on || !strings.Contains(f, "bars: hours [projects]") || !strings.Contains(f, "projects: █") {

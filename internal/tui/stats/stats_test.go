@@ -3,6 +3,7 @@ package stats
 import (
 	"context"
 	"errors"
+	"image/color"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/holiday"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
@@ -532,4 +534,50 @@ func TestClick(t *testing.T) {
 			t.Errorf("dim = %v after a click on the ellipsis", m.dim)
 		}
 	})
+}
+
+// TestProjectDefinitions: the view counts under the configured projects
+// and colours a project as configured; the automatic colours avoid it.
+func TestProjectDefinitions(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	defs := []project.Definition{
+		mustDefinition(t, "kompass", "blue", "https://example.test/o/alpha", "https://example.test/o/beta"),
+		mustDefinition(t, "notizbox", "", "~/gamma"),
+	}
+	r, err := project.NewResolver(defs, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Home: home, Projects: r})
+	m = drive(t, m, "m")
+	var names []string
+	for _, s := range m.spec.Series {
+		names = append(names, s.Name)
+	}
+	if got := strings.Join(names, ","); got != "kompass,notizbox" {
+		t.Fatalf("series = %q, want kompass,notizbox", got)
+	}
+	if c := m.spec.Series[0].Color; !sameColor(c, chart.Palette[0]) {
+		t.Errorf("kompass colour = %v, want blue", c)
+	}
+	if c := m.spec.Series[1].Color; !sameColor(c, chart.Palette[1]) {
+		t.Errorf("notizbox colour = %v, want the first free palette colour (orange)", c)
+	}
+	frame := tuitest.Frame(m)
+	if !strings.Contains(frame, "kompass") || strings.Contains(frame, "alpha") {
+		t.Errorf("frame:\n%s", frame)
+	}
+}
+
+func mustDefinition(t *testing.T, name, color string, match ...string) project.Definition {
+	t.Helper()
+	d, err := project.NewDefinition(name, "", color, match)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func sameColor(a, b color.Color) bool {
+	return color.RGBAModel.Convert(a) == color.RGBAModel.Convert(b)
 }

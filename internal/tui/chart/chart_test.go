@@ -470,31 +470,82 @@ func equalColors(a, b []color.Color) bool {
 	return true
 }
 
+func TestColorsFix(t *testing.T) {
+	spec := func(keys ...string) Spec {
+		s := Spec{Title: "events"}
+		for _, k := range keys {
+			s.Series = append(s.Series, Series{Key: k, Name: k, Values: []float64{1}})
+		}
+		return s
+	}
+	colorsOf := func(s Spec) []color.Color {
+		var out []color.Color
+		for _, sr := range s.Series {
+			out = append(out, sr.Color)
+		}
+		return out
+	}
+	var c Colors
+	c.Fix("kompass", Palette[0])             // blue is reserved for kompass
+	c.Fix("iris", lipgloss.Color("#123456")) // a colour outside the palette
+	got := colorsOf(c.Assign(spec("/w/alpha", "kompass", "/w/beta", "iris", store.OtherKey)))
+	// Automatic colours skip the reserved blue: alpha orange, beta green.
+	want := []color.Color{Palette[1], Palette[0], Palette[2], lipgloss.Color("#123456"), OtherColor}
+	if !equalColors(got, want) {
+		t.Errorf("assignment = %v, want %v", got, want)
+	}
+	// A fixed colour survives a later Fix of the same key with a new value.
+	c.Fix("kompass", Palette[3])
+	if got := colorsOf(c.Assign(spec("kompass"))); !sameColor(got[0], Palette[3]) {
+		t.Errorf("refixed = %v", got)
+	}
+	// When every palette colour is reserved, the automatic ones cycle anyway.
+	var all Colors
+	for i, p := range Palette {
+		all.Fix(fmt.Sprintf("fixed%d", i), p)
+	}
+	if got := colorsOf(all.Assign(spec("/w/free"))); !sameColor(got[0], Palette[0]) {
+		t.Errorf("all reserved: %v", got)
+	}
+}
+
+func TestPaletteMatchesProject(t *testing.T) {
+	if len(Palette) != len(project.Palette) {
+		t.Fatalf("chart palette has %d colours, project palette %d", len(Palette), len(project.Palette))
+	}
+	for i, p := range project.Palette {
+		if !sameColor(Palette[i], lipgloss.Color(p.Hex)) {
+			t.Errorf("Palette[%d] = %v, project %s = %s", i, Palette[i], p.Name, p.Hex)
+		}
+	}
+}
+
 // TestColorsColor checks the shared colour function: a key keeps its
-// colour across calls, a fixed colour wins over the palette without using
-// one of its entries, and other is always grey.
+// colour across calls, a pinned colour wins and the automatic ones skip
+// it, other is always grey, and Assign agrees with Color.
 func TestColorsColor(t *testing.T) {
-	c := Colors{Fixed: map[string]color.Color{"/w/fixed": lipgloss.Color("#123456")}}
+	var c Colors
+	c.Fix("/w/fixed", lipgloss.Color("#123456"))
+	c.Fix("kompass", Palette[0])
 	tests := []struct {
 		key  string
 		want color.Color
 	}{
-		{"/w/alpha", Palette[0]},
+		{"/w/alpha", Palette[1]},
 		{"/w/fixed", lipgloss.Color("#123456")},
-		{"/w/beta", Palette[1]},
-		{"/w/alpha", Palette[0]},
+		{"/w/beta", Palette[2]},
+		{"/w/alpha", Palette[1]},
 		{store.OtherKey, OtherColor},
-		{"/w/fixed", lipgloss.Color("#123456")},
+		{"kompass", Palette[0]},
 	}
 	for _, tt := range tests {
 		if got := c.Color(tt.key); !sameColor(got, tt.want) {
 			t.Errorf("Color(%q) = %v, want %v", tt.key, got, tt.want)
 		}
 	}
-	// Assign agrees with Color, fixed keys included.
-	spec := Spec{Series: []Series{{Key: "/w/fixed"}, {Key: "/w/beta"}, {Key: store.OtherKey}}}
+	spec := Spec{Series: []Series{{Key: "/w/fixed"}, {Key: "/w/beta"}, {Key: store.OtherKey}, {Key: "/w/gamma"}}}
 	got := c.Assign(spec)
-	for i, want := range []color.Color{lipgloss.Color("#123456"), Palette[1], OtherColor} {
+	for i, want := range []color.Color{lipgloss.Color("#123456"), Palette[2], OtherColor, Palette[3]} {
 		if !sameColor(got.Series[i].Color, want) {
 			t.Errorf("Assign series %d = %v, want %v", i, got.Series[i].Color, want)
 		}

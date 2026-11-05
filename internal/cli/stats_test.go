@@ -183,3 +183,69 @@ func TestStatsSeriesErrors(t *testing.T) {
 		})
 	}
 }
+
+// projectDefinitions merges alpha and beta of the Activity fixture into
+// one configured project by remote URL and names gamma's directory.
+const projectDefinitions = `
+[[project]]
+name = "kompass"
+color = "green"
+match = ["https://example.test/o/alpha", "https://example.test/o/beta"]
+
+[[project]]
+name = "notizbox"
+match = "/w/gamma"
+`
+
+// TestStatsSeriesProjects: [[project]] definitions apply to --by project:
+// matching keys are merged under the project name before --top folds,
+// unmatched keys keep their derived name.
+func TestStatsSeriesProjects(t *testing.T) {
+	e := newTestEnv(t)
+	_, db := fixturedb.Activity(t)
+	appendConfig(t, e, projectDefinitions)
+	r := runActivity(t, e, db, append([]string{"--period", "week", "--by", "project", "--json"}, activityRange...)...)
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	out := decode[ActivitySeriesJSON](t, r.stdout)
+	if want := []string{"kompass", "notizbox"}; strings.Join(out.Keys, ",") != strings.Join(want, ",") {
+		t.Errorf("keys = %v, want %v", out.Keys, want)
+	}
+	var alpha, beta, gamma ActivityJSON
+	for _, tot := range tf.ActivityTotals {
+		a := ActivityJSON{Sessions: tot.Sessions, Human: tot.Human, Agent: tot.Agent}
+		switch tot.Project {
+		case tf.ActivityAlpha:
+			a.Sessions++
+			a.Agent += tf.ActivitySubagentCount.Agent
+			alpha = a
+		case tf.ActivityBeta:
+			beta = a
+		case tf.ActivityGamma:
+			gamma = a
+		}
+	}
+	want := ActivityJSON{Sessions: alpha.Sessions + beta.Sessions, Human: alpha.Human + beta.Human, Agent: alpha.Agent + beta.Agent}
+	if len(out.ByKey) != 2 || out.ByKey[0].ActivityJSON != want || out.ByKey[1].ActivityJSON != gamma {
+		t.Errorf("by_key = %+v, want kompass %+v, notizbox %+v", out.ByKey, want, gamma)
+	}
+	// The text table shows the same names; with --top 1 the merged project
+	// is one key and the rest is other.
+	r = runActivity(t, e, db, append([]string{"--period", "week", "--by", "project", "--top", "1"}, activityRange...)...)
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	if !strings.Contains(r.stdout, "kompass") || !strings.Contains(r.stdout, "other") || strings.Contains(r.stdout, "alpha") || strings.Contains(r.stdout, "notizbox") {
+		t.Errorf("top 1 table:\n%s", r.stdout)
+	}
+	// A broken definition stops only stats --by project, with a config error.
+	e2 := newTestEnv(t)
+	appendConfig(t, e2, "\n[[project]]\nname = \"x\"\n")
+	if r := runActivity(t, e2, db, "--period", "week", "--by", "project"); r.code == 0 || !strings.Contains(r.stderr, "project[0]") {
+		t.Errorf("broken definition: exit %d, stderr %q", r.code, r.stderr)
+	}
+	if r := runActivity(t, e2, db, "--period", "week"); r.code != 0 {
+		t.Errorf("broken definition stops --period without --by: %s", r.stderr)
+	}
+}

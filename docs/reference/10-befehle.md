@@ -45,7 +45,7 @@ Zeiten in der Ausgabe sind in lokaler Zeit (`--tz`). In der Datenbank und in der
 
 Zeitangaben für `--since` und `--until` sind lokale Zeit: `2026-10-01`, `2026-10-01T14:30` oder RFC 3339. Ein reines Datum bei `--until` schließt den ganzen Tag ein: `--until 2026-10-31` heißt „bis einschließlich 31. Oktober“.
 
-Die lesenden Befehle öffnen die Datenbank nur lesend. Ist ihr Schema älter als das Programm, gibt es eine Warnung; ein schreibender Befehl wie `ingest` migriert sie (siehe [Design](../explanation/design.md#schema-versionierung)).
+Die lesenden Befehle öffnen die Datenbank nur lesend. Ist ihr Schema älter als das Programm, gibt es eine Warnung auf stderr; die Befehle laufen, soweit sie keine neuen Spalten brauchen, sonst nennt der Fehler den Weg: `total-recall backup`, dann [`total-recall migrate`](#migrate). Kein Befehl migriert von selbst (siehe [Design](../explanation/design.md#schema-versionierung)).
 
 ## `ingest` { #ingest }
 
@@ -145,7 +145,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
@@ -322,7 +322,7 @@ total-recall stats --period month --since 2026-01-01          # nur je Monat, oh
 | Option | Bedeutung |
 |---|---|
 | `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0, zuletzt eine Zeile `total` für den ganzen Zeitraum |
-| `--by project\|agent\|directory\|account` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname (Basisname des Git-Roots; bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. `account`: der Account, auf dem die Session lief, mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sonst die ID; Sessions ohne Account (vor Claude Code 2.1.317 bzw. vor einem `ingest --reread`) stehen unter `unknown`. Subagent-Sessions zählen bei `project`, `directory` und `account` zu ihrer Eltern-Session |
+| `--by project\|agent\|directory\|account` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname, zuerst aus den Definitionen [`[[project]]`](20-konfiguration.md#project) (die erste passende gewinnt; mehrere Repositories mit derselben Definition sind ein Schlüssel, auch für `--top`), sonst der Basisname des Git-Roots (bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. `account`: der Account, auf dem die Session lief, mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sonst die ID; Sessions ohne Account (vor Claude Code 2.1.317 bzw. vor einem `ingest --reread`) stehen unter `unknown`. Subagent-Sessions zählen bei `project`, `directory` und `account` zu ihrer Eltern-Session |
 | `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
 
 Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt. Den Schluss bilden Zeilen mit der Periode `total`: ohne `--by` eine für den Zeitraum, mit `--by` eine je Schlüssel und eine über alle Schlüssel (KEY `*`).
@@ -478,7 +478,7 @@ total        15h53m  16h45m   4
 
 **Untergrenze.** Meetings, Lesen, Denken und alles, was ohne Agent passiert, hinterlässt keine Nachricht und fehlt. Die Werte sind eine Untergrenze, kein Ersatz für eine Zeiterfassung; `--workday` liefert die Anwesenheit dazu.
 
-**Kategorien.** Projekte (Git-Root, sonst Arbeitsverzeichnis, Namen wie bei `--by project`) werden über die Regeln `[[worktime.category]]` zugeordnet, die erste passende gewinnt. Ein Projekt ohne Regel ist seine eigene Kategorie und heißt wie das Projekt, Verzeichnisse ohne Repository als Pfad mit `~`. Eine letzte Regel mit `match = "*"` sammelt den Rest.
+**Kategorien.** Projekte (Git-Root, sonst Arbeitsverzeichnis, Namen wie bei `--by project`, also zuerst aus [`[[project]]`](20-konfiguration.md#project)) werden über die Regeln `[[worktime.category]]` zugeordnet, die erste passende gewinnt; die Regeln sehen den konfigurierten Projektnamen. Ein Projekt ohne Regel ist seine eigene Kategorie und heißt wie das Projekt, Verzeichnisse ohne Repository als Pfad mit `~`. Eine letzte Regel mit `match = "*"` sammelt den Rest.
 
 | Option | Bedeutung |
 |---|---|
@@ -669,7 +669,7 @@ sources         471        471
 Ablauf, jeder Schritt bricht bei einem Fehler ab und lässt das Archiv unverändert:
 
 1. Prüfen, ob neben der Datenbank etwa die doppelte Dateigröße frei ist (Backup-Kopie und neue Kopie) und im Backup-Ordner die halbe; sonst Abbruch mit den Zahlen.
-2. Backup wie [`backup`](#backup) (gleicher Ordner, gleiche Aufbewahrung). Wie `backup` migriert der Befehl ein älteres Schema vorher.
+2. Backup wie [`backup`](#backup) (gleicher Ordner, gleiche Aufbewahrung). Ein älteres Schema migriert der Befehl nicht; er bricht mit dem Hinweis auf [`migrate`](#migrate) ab.
 3. Exklusives Lock gegen Hooks (`locks/maintenance.lock` neben der Datenbank). Hält ein `ingest` oder `backup` das Archiv noch offen, wartet der Befehl bis `--wait` und bricht dann mit `writers active` ab; schon beim Warten kündigt er sich an (`locks/maintenance.pending`), damit kein neuer Schreiber mehr startet. Hooks, die währenddessen starten, überspringen ihren Lauf (eine `INFO`-Zeile im Log, kein Fehler) und lesen beim nächsten Hook derselben Session oder beim nächsten `SessionStart` ab dem gespeicherten Offset weiter; es geht nichts verloren.
 4. WAL-Checkpoint. Hält ein lesender Prozess gerade eine Lesetransaktion offen (eine laufende Abfrage von `sql`, `status` oder der TUI), bricht der Befehl mit `readers active` ab: den Prozess schließen oder kurz warten und noch einmal starten. Eine TUI im Leerlauf hält keine offen; sie bemerkt die ausgetauschte Datei bei der nächsten Prüfung und öffnet sie neu, siehe [Neuladen](30-tui.md#neuladen).
 5. `PRAGMA page_size` und `VACUUM INTO` in eine Temporärdatei `archive.db.maint-*` neben der Datenbank.
@@ -677,6 +677,50 @@ Ablauf, jeder Schritt bricht bei einem Fehler ab und lässt das Archiv unveränd
 7. Austausch: `-wal`/`-shm` des Originals entfernen, Kopie per `rename` an die Stelle der Datenbank. Danach öffnet der Befehl die neue Datei einmal (WAL-Modus wieder an) und zeigt die Werte nachher.
 
 Ein Abbruch, auch mit `Ctrl-C`, löscht die Temporärdatei; Reste einer abgestürzten Wartung räumt der nächste Lauf weg. Hat die Wartung die Datei einmal ausgetauscht, ist sie fertig: Das Backup aus Schritt 2 ist nur eine Absicherung, [`restore`](#restore) spielt es bei Bedarf zurück.
+
+## `migrate` { #migrate }
+
+Bringt die Datenbank auf das Schema dieser Programmversion. Das ist der einzige Weg dahin: Kein anderer Befehl migriert, auch kein Hook. Nach einem Update auf eine Version mit neuem Schema schreiben die Hooks nichts, bis dieser Befehl gelaufen ist; [`status`](#status), [`doctor`](#doctor) und die [TUI](30-tui.md) weisen darauf hin. Rezept: [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
+
+```sh
+total-recall backup                 # zuerst sichern
+total-recall migrate --dry-run      # nur den Plan zeigen
+total-recall migrate                # Plan zeigen, nachfragen, migrieren
+total-recall migrate --yes          # ohne Nachfrage, für Skripte
+total-recall migrate --json
+```
+
+```text
+database  /Users/me/Library/Application Support/total-recall/archive.db  (738.1 MiB)
+schema    v4 -> v5, 1 pending migration:
+  v5   events: …
+backup    /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
+space     about 1660.7 MiB free needed next to the database (copy and migration)
+Migrate now? Hooks that run meanwhile skip and catch up afterwards. [y/N] y
+store: schema v4 -> v5: backup written to /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
+migration v5: 120000/220295 (54 %)
+migration v5: 220295/220295 (100 %)
+store: migration v5 applied (3m12.4s)
+migrated v4 -> v5 (3m14.1s); the copy /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak can be removed once everything works
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--dry-run` | nur den Plan zeigen: Versionen, ausstehende Migrationen, Pfad der Kopie, nötiger Platz; nichts ändern |
+| `--yes` | nicht nachfragen |
+| `--wait DAUER` | so lange auf laufende Hooks warten, die das Archiv noch offen haben (Default `60s`) |
+| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); JSON hat `db`, `dry_run`, `from`, `to`, `pending`, `steps` (je `version`, `summary`, `space_factor`), `size_bytes`, `need_bytes`, `backup` (`null`, wenn nichts aussteht), `migrated`, `duration_ms`. Ohne `--yes` fragt auch `--json` nach |
+
+Ablauf, jeder Schritt bricht bei einem Fehler ab:
+
+1. Plan: Version der Datenbank und des Programms, je ausstehender Migration eine Zeile. Ist die Datenbank aktuell, endet der Befehl hier (`is current, nothing to migrate`).
+2. Nachfrage, sofern nicht `--yes`. Alles außer `y` oder `yes` bricht ab (`migration cancelled, the archive is unchanged`, Exit 1).
+3. Prüfen, ob neben der Datenbank genug frei ist: die Kopie (etwa Dateigröße), dazu der Platzbedarf der größten Migration (als Faktor der Dateigröße; eine Migration, die alle Events umschreibt, braucht noch einmal etwa die Dateigröße für die WAL) und ein Viertel Reserve.
+4. Exklusives Lock gegen Hooks wie bei [`maintenance`](#maintenance): Hält ein `ingest` oder `backup` das Archiv noch offen, wartet der Befehl bis `--wait` und bricht dann mit `writers active` ab. Hooks, die währenddessen starten, überspringen ihren Lauf und lesen danach nach. Die TUI darf offen bleiben; sie zeigt die Migration nach der nächsten Prüfung.
+5. Kopie `archive.db.pre-v<N>.bak` neben der Datenbank (N = bisherige Version), per `VACUUM INTO`.
+6. Die Migrationen, jede in eigener Transaktion, danach ein WAL-Checkpoint. Bei langen Migrationen zeigt der Befehl den Fortschritt, höchstens alle zwei Sekunden.
+
+Ein Fehler lässt die Datenbank auf der letzten vollständig angewandten Version; die Kopie bleibt liegen. Sie lässt sich wie jede Datenbankdatei öffnen (`total-recall --db archive.db.pre-v4.bak status`, mit dem alten Binary) oder zurückkopieren. Läuft alles, kann sie weg.
 
 ## `doctor` { #doctor }
 

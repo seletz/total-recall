@@ -8,7 +8,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -176,8 +175,8 @@ func (p *projectLayout) bar(l layout, cells []cellKind, d store.Workday) string 
 
 // legend is the line below the rows while the shown window is by project:
 // its projects by volume, each with its glyph in its colour, its name as
-// in the stats view and its counted events; the projects beyond the
-// palette folded into other.
+// in the stats view (a configured project by its name) and its counted
+// events; the projects beyond the palette folded into other.
 func (m Model) legend() string {
 	st := m.styles
 	label := st.label.Render("projects:")
@@ -185,7 +184,7 @@ func (m Model) legend() string {
 	if p == nil || len(p.keys) == 0 {
 		return label + " " + st.faint.Render("no activity")
 	}
-	names := project.Names(p.keys, p.dirs, m.opts.Home)
+	names := m.opts.Projects.Names(p.keys, p.dirs, m.opts.Home)
 	var parts []string
 	other := 0
 	for i, k := range p.keys {

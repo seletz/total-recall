@@ -11,6 +11,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/holiday"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui"
 )
@@ -33,8 +34,30 @@ type Shot struct {
 	Now           time.Time
 	// Keys are pressed in order: single characters, "enter", "tab", "esc".
 	Keys []string
+	// Projects applies the project definitions of the demo config
+	// (Projects), so configured names and colours show.
+	Projects bool
 	// Caption describes the shot for the docs.
 	Caption string
+}
+
+// Projects are the [[project]] definitions of the demo config: two of the
+// demo's projects with a configured colour, so a shot with Shot.Projects
+// shows configured colours next to the automatic ones.
+var Projects = must2(project.NewResolver([]project.Definition{
+	mustDefinition("fahrtenbuch", "Fahrtenbuch mit PDF-Export", "green", "~/src/fahrtenbuch"),
+	mustDefinition("wetterwarte", "Dashboard der Wetterstation", "purple", "https://git.invalid/mara/wetterwarte"),
+}, demo.Home))
+
+func mustDefinition(name, description, color string, match ...string) project.Definition {
+	return must2(project.NewDefinition(name, description, color, match))
+}
+
+func must2[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }
 
 // Frame is the rendered final frame of a Shot, with colours.
@@ -91,8 +114,8 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, ein Monat mit Monatsarbeitszeit"},
 	{Name: "activity-days", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"k", "k", "k"},
 		Caption: "Aktivität je Tag, mit ↑ drei Tage zurück: ein gleitendes Fenster von sieben Tagen"},
-	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"},
-		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende"},
+	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"}, Projects: true,
+		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende; fahrtenbuch und wetterwarte mit Farben aus [[project]]"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
 	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},
@@ -116,11 +139,15 @@ func options(s Shot, st *store.Store) (tui.Options, error) {
 		return tui.Options{}, fmt.Errorf("shot %s: no archive", s.Name)
 	}
 	now := s.Now
-	return tui.Options{
+	opts := tui.Options{
 		Store: st, Location: berlin, Now: func() time.Time { return now },
 		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, NoMouse: true,
 		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: demo.Home,
-	}, nil
+	}
+	if s.Projects {
+		opts.Projects = Projects
+	}
+	return opts, nil
 }
 
 // Render drives the app of a shot headlessly against the archive st (the

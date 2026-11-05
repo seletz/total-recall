@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
@@ -281,4 +282,27 @@ func TestReloadReplaced(t *testing.T) {
 	h.write(t, betaSession, "live-6", time.Date(2025, 12, 4, 20, 32, 0, 0, testfixture.ActivityLocation), "and once more")
 	m = h.tick(t, m, 5*time.Second)
 	requireContains(t, frame(m), "1/4 events", "and once more", "updated 13:00:10")
+}
+
+// TestHeaderMigrationPending: the header says loudly that the archive needs
+// a migration, in place of the reload time.
+func TestHeaderMigrationPending(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	if err := store.CreateAtVersion(path, 1); err != nil {
+		t.Fatal(err)
+	}
+	r, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	app, err := New(Options{Store: r, Now: func() time.Time { return tuitest.Now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.width = tuitest.Width
+	h := ansi.Strip(app.header())
+	if !strings.Contains(h, "migration pending: total-recall migrate") || strings.Contains(h, "updated") {
+		t.Errorf("header = %q", h)
+	}
 }

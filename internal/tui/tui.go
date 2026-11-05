@@ -33,6 +33,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/chart"
@@ -104,6 +105,9 @@ type Options struct {
 	// Home is the home directory, shown as "~" in project names of
 	// directories without a repository; empty keeps full paths.
 	Home string
+	// Projects assigns sessions to the configured projects ([[project]])
+	// and supplies their colours; the zero value has none.
+	Projects project.Resolver
 	// NoMouse leaves the mouse to the terminal: no wheel scrolling and no
 	// clicks, but text is selected by plain dragging.
 	NoMouse bool
@@ -242,7 +246,7 @@ func statsOptions(opts Options, colors *chart.Colors) (stats.Options, error) {
 	if err != nil {
 		return stats.Options{}, fmt.Errorf("stats dimension: %w", err)
 	}
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays, Colors: colors}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays, Projects: opts.Projects, Colors: colors}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}
@@ -255,7 +259,7 @@ func activityOptions(opts Options, colors *chart.Colors) (activity.Options, erro
 	if _, err := store.ParsePeriod(opts.ActivityWindow); err != nil {
 		return activity.Options{}, fmt.Errorf("activity window: %w", err)
 	}
-	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly, Projects: opts.ActivityProjects, Home: opts.Home, Colors: colors}
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly, ByProject: opts.ActivityProjects, Home: opts.Home, Projects: opts.Projects, Colors: colors}
 	if opts.Store != nil {
 		ao.Loader = opts.Store
 	}

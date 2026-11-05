@@ -58,6 +58,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/keys"
@@ -101,12 +102,16 @@ type Options struct {
 	// HumanOnly starts the view counting own messages only; the key h
 	// switches to all events and back.
 	HumanOnly bool
-	// Projects starts the view with the bars coloured by project; the key
+	// ByProject starts the view with the bars coloured by project; the key
 	// p switches to the working hours and back.
-	Projects bool
+	ByProject bool
 	// Home is the home directory, abbreviated to "~" in the project names
 	// of the legend; empty means no abbreviation.
 	Home string
+	// Projects assigns the project keys to the configured projects
+	// ([[project]]), as the stats view does, and supplies their colours;
+	// the zero value leaves the keys and uses the palette.
+	Projects project.Resolver
 	// Colors maps the projects to their colours; share the app's with the
 	// stats view, so a project looks alike in both. nil means own colours.
 	Colors *chart.Colors
@@ -218,7 +223,7 @@ func New(opts Options) Model {
 		keys:      newKeyMap(opts.Keys),
 		span:      single(initialPeriod(opts.Window), opts.Now(), opts.Location),
 		humanOnly: opts.HumanOnly,
-		proj:      projects{on: opts.Projects, cache: map[dayKey]store.ProjectDay{}},
+		proj:      projects{on: opts.ByProject, cache: map[dayKey]store.ProjectDay{}},
 		cache:     map[dayKey]store.Workday{},
 		figures:   true,
 		th:        theme.New(true),
@@ -484,7 +489,7 @@ func (m Model) fetch(since, until time.Time) (Model, tea.Cmd) {
 	qs, qu := m.bounds(since, until)
 	wf := store.WorkdayFilter{
 		Since: qs, Until: qu, Location: m.opts.Location,
-		DayStart: m.opts.DayStart, HumanOnly: m.humanOnly, Holidays: m.opts.Holidays,
+		DayStart: m.opts.DayStart, HumanOnly: m.humanOnly, Holidays: m.opts.Holidays, Project: m.opts.Projects.Key,
 	}
 	return m, func() tea.Msg {
 		start := now()
@@ -507,8 +512,16 @@ func (m *Model) stop() {
 }
 
 // show puts days, and the project days while the bars are by project, on
-// screen as the wanted window.
+// screen as the wanted window; a configured project gets its configured
+// colour pinned in the shared Colors first.
 func (m Model) show(days []store.Workday, projects []store.ProjectDay, took time.Duration) Model {
+	for _, d := range projects {
+		for _, p := range d.Projects {
+			if hex := m.opts.Projects.Color(p.Key); hex != "" {
+				m.opts.Colors.Fix(p.Key, lipgloss.Color(hex))
+			}
+		}
+	}
 	m.shown = shown{span: m.span, humanOnly: m.humanOnly, days: days, byProject: m.proj.on, projects: projects, loaded: true}
 	m.took = took
 	m.clampOffset()
