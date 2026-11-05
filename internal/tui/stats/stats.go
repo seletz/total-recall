@@ -85,6 +85,10 @@ type Options struct {
 	// projects ([[project]]) and supplies their colours; the zero value
 	// leaves the keys and uses the palette.
 	Projects project.Resolver
+	// Colors maps the series keys to their colours; share the app's with
+	// the activity view, so a project looks alike in both. nil means own
+	// colours.
+	Colors *chart.Colors
 }
 
 func (o *Options) defaults() {
@@ -99,6 +103,9 @@ func (o *Options) defaults() {
 	}
 	if o.Chart == nil {
 		o.Chart = NewTextChart()
+	}
+	if o.Colors == nil {
+		o.Colors = &chart.Colors{}
 	}
 }
 
@@ -190,7 +197,7 @@ func New(opts Options) Model {
 		dim:    opts.Dimension,
 		window: window.New(opts.Period, opts.Now(), opts.Location),
 		cache:  map[filter]store.ActivitySeries{},
-		colors: &chart.Colors{},
+		colors: opts.Colors,
 		chart:  opts.Chart,
 		heat:   heatmap{cache: map[heatFilter]store.Stats{}},
 		th:     theme.New(true),

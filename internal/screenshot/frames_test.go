@@ -39,16 +39,17 @@ func frames(t *testing.T) []Frame {
 // the markers of its view, and no frame holds a path of the machine.
 func TestRenderAll(t *testing.T) {
 	markers := map[string][]string{
-		"search":          {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
-		"session":         {"› session", "Release v0.3.0", "· tools", "tool_use Read", "tool_use Bash", "tool (tool_result)", "goreleaser", "mara/kompass"},
-		"stats":           {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
-		"heatmap":         {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
-		"activity-week":   {"[3 activity]", "period: day [week] month", "week:", "Thu 2026-06-04", "Fronleichnam", "00:45 (+1)", "count: all [human]"},
-		"activity-month":  {"[3 activity]", "period: day week [month]", "month:", "2026-06", "Fronleichnam"},
-		"activity-days":   {"[3 activity]", "period: day [week] month", "week:", "2026-05-29 – 2026-06-04", "Fri 2026-05-29", "Thu 2026-06-04", "7 days"},
-		"compact":         {"[3 activity]", "week:"},
-		"help":            {"[2 stats]", "keys: stats", "closes this help", "esc back"},
-		"heatmap-compact": {"[2 stats]", "░▒▓█", "heatmap"},
+		"search":            {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
+		"session":           {"› session", "Release v0.3.0", "· tools", "tool_use Read", "tool_use Bash", "tool (tool_result)", "goreleaser", "mara/kompass"},
+		"stats":             {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
+		"heatmap":           {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
+		"activity-week":     {"[3 activity]", "period: day [week] month", "week:", "Thu 2026-06-04", "Fronleichnam", "00:45 (+1)", "count: all [human]"},
+		"activity-month":    {"[3 activity]", "period: day week [month]", "month:", "2026-06", "Fronleichnam"},
+		"activity-days":     {"[3 activity]", "period: day [week] month", "week:", "2026-05-29 – 2026-06-04", "Fri 2026-05-29", "Thu 2026-06-04", "7 days"},
+		"activity-projects": {"[3 activity]", "bars: hours [projects]", "projects: █ fahrtenbuch", "▓ wetterwarte", "▒ kompass", "▞ dotfiles", "Fronleichnam"},
+		"compact":           {"[3 activity]", "week:"},
+		"help":              {"[2 stats]", "keys: stats", "closes this help", "esc back"},
+		"heatmap-compact":   {"[2 stats]", "░▒▓█", "heatmap"},
 	}
 	for _, f := range frames(t) {
 		t.Run(f.Shot.Name, func(t *testing.T) {

@@ -24,6 +24,11 @@ type WorkdayFilter struct {
 	HumanOnly bool
 	// Holidays names the public holidays; nil means there are none.
 	Holidays Holidays
+	// Project renames the project keys of ProjectDays before they are
+	// counted, like ActivityFilter.Project (project.Resolver.Key), so the
+	// activity view shows the same projects as the stats; nil keeps the
+	// keys. Workday does not use it.
+	Project func(key string, dir bool, remote string) string
 }
 
 // Holidays names public holidays; *holiday.Calendar implements it.
