@@ -33,8 +33,10 @@ import (
 	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
+	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
@@ -70,15 +72,23 @@ const (
 	ViewSearch   = "search"
 	ViewStats    = "stats"
 	ViewActivity = "activity"
+	ViewConfig   = "config"
 )
 
 // ViewNames lists the views in tab order.
-var ViewNames = []string{ViewSearch, ViewStats, ViewActivity}
+var ViewNames = []string{ViewSearch, ViewStats, ViewActivity, ViewConfig}
 
 // Options configure the app.
 type Options struct {
 	// Store is the read-only archive; nil in shell tests.
 	Store *store.Store
+	// Config is the effective configuration the config view shows and
+	// edits; nil in shell tests (the view shows a hint).
+	Config *config.Config
+	// ConfigView are the further options of the config view: version of
+	// the binary, settings file of the harness, probes. Config, Store,
+	// Location, Now, Keys and Home are filled in from this Options.
+	ConfigView configview.Options
 	// Location is the time zone for day boundaries; nil means UTC.
 	Location *time.Location
 	// Now is the clock; nil means time.Now.
@@ -182,7 +192,7 @@ func New(opts Options) (App, error) {
 	if err != nil {
 		return App{}, err
 	}
-	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao)}
+	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao), configview.New(configOptions(opts))}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -211,6 +221,16 @@ func Run(ctx context.Context, opts Options, in io.Reader, out io.Writer) error {
 	}
 	_, err = tea.NewProgram(app, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out)).Run()
 	return err
+}
+
+// configOptions is what the config view gets from the app options.
+func configOptions(opts Options) configview.Options {
+	co := opts.ConfigView
+	co.Config, co.Location, co.Now, co.Keys, co.Home = opts.Config, opts.Location, opts.Now, opts.Keys, opts.Home
+	if opts.Store != nil {
+		co.Store = opts.Store
+	}
+	return co
 }
 
 // searchOptions is what the search view gets from the app options. A nil

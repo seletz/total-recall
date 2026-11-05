@@ -1,4 +1,4 @@
- total-recall                                                     [1 search]  2 stats   3 activity
+ total-recall                                          [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -13,8 +13,8 @@
                      │ tab     list     a  actor      1 search      ?   help │
                      │ tab/esc input    t  time       2 stats       esc back │
                      │ enter   open     r  repo       3 activity    q   quit │
-                     │ ↑/k     up       ^r raw fts    R reload      ^c  quit │
-                     │ ↓/j     down                                          │
+                     │ ↑/k     up       ^r raw fts    4 config      ^c  quit │
+                     │ ↓/j     down                   R reload               │
                      │                                                       │
                      │ esc or ? closes this help                             │
                      ╰───────────────────────────────────────────────────────╯

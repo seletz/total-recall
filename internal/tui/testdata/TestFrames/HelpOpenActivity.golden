@@ -1,6 +1,5 @@
- total-recall                                                      1 search   2 stats  [3 activity]
+ total-recall                                           1 search   2 stats  [3 activity]  4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-
 
 
 
@@ -20,11 +19,12 @@ help │
 back │
 │ m one month           c     this day/week/month    ↓/j day forward (scroll)    3 activity    q
 quit │
-│ h human/all events    l     last day/week/month                                R reload      ^c
+│ h human/all events    l     last day/week/month                                4 config      ^c
 quit │
+│                                                                                R reload
+│
 │
 │
 │ esc or ? closes this help
-│
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  esc back • q quit

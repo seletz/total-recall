@@ -1,4 +1,4 @@
- total-recall                                                      1 search  [2 stats]  3 activity
+ total-recall                                           1 search  [2 stats]  3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -13,8 +13,8 @@
             │ d days      p by project      <     earlier     1 search      ?    help │
             │ W weeks     a by agent        →/./] later       S stats       esc  back │
             │ m months    v by directory    -     zoom out    3 activity    x/^q quit │
-            │ e metric    h heatmap         +/=   zoom in     R reload      ^c   quit │
-            │                               g     graphics                            │
+            │ e metric    h heatmap         +/=   zoom in     4 config      ^c   quit │
+            │                               g     graphics    R reload                │
             │                                                                         │
             │ esc or ? closes this help                                               │
             ╰─────────────────────────────────────────────────────────────────────────╯

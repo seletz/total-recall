@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
@@ -61,6 +62,10 @@ type App struct {
 	stale     []bool
 	updated   time.Time
 	reloadErr error
+	// busy is set while an action of the config view writes to the
+	// archive: the checks pause, so a maintenance run is not disturbed by
+	// a reader, and everything reloads when the action is done.
+	busy bool
 }
 
 // Init starts every view, asks the terminal for its background colour (the
@@ -198,7 +203,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.opts.Store == nil {
 			return a, nil
 		}
+		if a.busy {
+			return a, a.tick()
+		}
 		return a, a.poll()
+	case configview.Busy:
+		return a.setBusy(msg.On)
+	case configview.Changed:
+		return a.configChanged(msg)
 	case pollMsg:
 		return a.polled(msg)
 	case reopenMsg:
@@ -241,6 +253,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, a.show(1)
 	case key.Matches(msg, a.keys.Activity):
 		return a, a.show(2)
+	case key.Matches(msg, a.keys.Config):
+		return a, a.show(3)
 	case key.Matches(msg, a.keys.Reload):
 		if a.opts.Store == nil {
 			return a, nil
@@ -249,6 +263,39 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, a.reload()
 	}
 	return a.forward(msg)
+}
+
+// setBusy pauses the reload while an action writes and reloads everything
+// once it is done; the view gets the message too.
+func (a App) setBusy(on bool) (tea.Model, tea.Cmd) {
+	a.busy = on
+	_, cmd := a.broadcastModel(configview.Busy{On: on})
+	if on || a.opts.Store == nil {
+		return a, cmd
+	}
+	// The file may have been swapped (maintenance): let the next check
+	// decide between a reload and a reopen, right away.
+	return a, tea.Batch(cmd, a.poll())
+}
+
+// configChanged applies what the app takes from the configuration: the
+// reload interval (a reload that was off starts) and the mouse.
+func (a App) configChanged(msg configview.Changed) (tea.Model, tea.Cmd) {
+	cfg := msg.Config
+	wasOff := a.opts.Reload <= 0
+	a.opts.Reload = cfg.TUI.Reload.Duration
+	a.opts.NoMouse = !cfg.TUI.Mouse
+	_, cmd := a.broadcastModel(msg)
+	if wasOff && a.opts.Reload > 0 {
+		return a, tea.Batch(cmd, a.tick())
+	}
+	return a, cmd
+}
+
+// broadcastModel is broadcast on a value receiver.
+func (a *App) broadcastModel(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd := a.broadcast(msg)
+	return a, cmd
 }
 
 // mouse routes a click or wheel turn. A left click on a key hint in the
