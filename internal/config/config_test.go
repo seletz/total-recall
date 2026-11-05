@@ -791,3 +791,98 @@ func TestWorktimeErrors(t *testing.T) {
 		t.Errorf("grid 0 = %+v, %v", s, err)
 	}
 }
+
+func TestProjects(t *testing.T) {
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.ProjectResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Empty() {
+		t.Errorf("default resolver has definitions: %+v", r.Definitions())
+	}
+	content := `[[project]]
+name = "kompass"
+description = "Wanderkarten"
+color = "blue"
+match = ["https://git.invalid/mara/kompass*", "~/src/kompass-*"]
+
+[[project]]
+name = "notizbox"
+color = "#A1B2C3"
+match = "~/notes"
+
+[[project]]
+name = "sonstiges"
+match = "*"
+`
+	c, err = Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", content)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err = c.ProjectResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defs := r.Definitions()
+	if len(defs) != 3 || defs[0].Name != "kompass" || defs[0].Description != "Wanderkarten" || defs[0].Color != "#4e79a7" || len(defs[0].Match) != 2 ||
+		defs[1].Name != "notizbox" || defs[1].Color != "#a1b2c3" || defs[1].Match[0] != "~/notes" || defs[2].Name != "sonstiges" || defs[2].Color != "" {
+		t.Errorf("definitions = %+v", defs)
+	}
+	// "~" in the patterns is the configured home.
+	if got := r.Key("/home/u/notes", true, ""); got != "notizbox" {
+		t.Errorf("Key(~/notes) = %q", got)
+	}
+	if got := r.Key("/home/u/src/kompass-web", false, ""); got != "kompass" {
+		t.Errorf("Key(~/src/kompass-web) = %q", got)
+	}
+	if got := c.Origin("project"); got != OriginFile {
+		t.Errorf("origin of project = %s", got)
+	}
+	entries := map[string]Entry{}
+	for _, e := range c.Entries() {
+		entries[e.Key] = e
+	}
+	if e := entries["project"]; e.Value != `[kompass (#4e79a7) = ["https://git.invalid/mara/kompass*", "~/src/kompass-*"], notizbox (#a1b2c3) = ["~/notes"], sonstiges = ["*"]]` || e.Origin != OriginFile {
+		t.Errorf("project entry = %+v", e)
+	}
+	if ps := c.Problems(); len(ps) != 0 {
+		t.Errorf("Problems = %v", ps)
+	}
+}
+
+// TestProjectErrors: a bad [[project]] list loads, but ProjectResolver and
+// Problems report it.
+func TestProjectErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"without name", "[[project]]\nmatch = [\"*\"]\n", "project[0]"},
+		{"without patterns", "[[project]]\nname = \"a\"\n", "project[0]"},
+		{"empty pattern", "[[project]]\nname = \"a\"\nmatch = [\"\"]\n", "project[0]"},
+		{"bad colour", "[[project]]\nname = \"a\"\ncolor = \"pink\"\nmatch = \"a\"\n", `color "pink"`},
+		{"short hex colour", "[[project]]\nname = \"a\"\ncolor = \"#abc\"\nmatch = \"a\"\n", "project[0]"},
+		{"second entry", "[[project]]\nname = \"a\"\nmatch = \"a\"\n[[project]]\nname = \"b\"\n", "project[1]"},
+		{"twice", "[[project]]\nname = \"a\"\nmatch = [\"x\"]\n[[project]]\nname = \"a\"\nmatch = [\"y\"]\n", `project "a" is listed twice`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.content)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err != nil {
+				t.Fatalf("Load must not fail on [[project]]: %v", err)
+			}
+			if _, err := c.ProjectResolver(); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("ProjectResolver error = %v, want containing %q", err, tt.wantErr)
+			}
+			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.wantErr) {
+				t.Errorf("Problems = %v, want one containing %q", ps, tt.wantErr)
+			}
+		})
+	}
+}

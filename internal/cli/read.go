@@ -16,6 +16,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/model"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -871,17 +872,23 @@ messages: the values are a lower bound.`,
 		}
 		defer func() { _ = st.Close() }()
 		if series {
+			var projects project.Resolver
+			if opts.byName != "" && opts.by == store.DimProject {
+				if projects, err = cfg.ProjectResolver(); err != nil {
+					return errKind(ErrKindConfig, err)
+				}
+			}
 			as, err := st.ActivitySeries(cmd.Context(), store.ActivityFilter{
 				Since: since, Until: until, Location: loc,
-				Period: opts.period, Dimension: opts.by, TopN: opts.top,
+				Period: opts.period, Dimension: opts.by, TopN: opts.top, Project: projects.Key,
 			})
 			if err != nil {
 				return err
 			}
 			if o.format.IsJSON() {
-				return o.object(seriesJSON(as, opts, keyNames(as, opts, "", cfg.Accounts), since, until, cfg.Timezone))
+				return o.object(seriesJSON(as, opts, keyNames(as, opts, "", cfg.Accounts, projects), since, until, cfg.Timezone))
 			}
-			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home, cfg.Accounts), since, until, cfg.Timezone))
+			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home, cfg.Accounts, projects), since, until, cfg.Timezone))
 		}
 		s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
 		if err != nil {
