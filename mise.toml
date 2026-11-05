@@ -5,6 +5,9 @@ go = "latest"
 goreleaser = "2.19.0"
 "go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint" = "2.15.0"
 uv = "latest"
+# Only for the web UI (web/, spike #171): Node runs at build time, never at
+# run time. The package versions are pinned in web/package-lock.json.
+node = "26"
 
 [env]
 CGO_ENABLED = "0"
@@ -14,6 +17,33 @@ description = "Build the CLI binary"
 run = """
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o total-recall ./cmd/total-recall
+"""
+
+[tasks."web:install"]
+description = "Install the pinned npm dependencies of the web UI (web/package-lock.json)"
+run = "npm ci --prefix web"
+
+[tasks."web:build"]
+description = "Build the web UI with Vite into internal/web/dist, which the Go binary embeds; run `mise run build` afterwards"
+depends = ["web:install"]
+run = "npm run build --prefix web"
+
+[tasks."web:check"]
+description = "Type-check (svelte-check) and unit-test (vitest) the web UI"
+depends = ["web:install"]
+run = ["npm run check --prefix web", "npm test --prefix web"]
+
+[tasks."web:dev"]
+description = "Vite dev server with hot reload on http://127.0.0.1:5173; proxies /api to `total-recall serve` (start it with --token and open http://127.0.0.1:5173/#token=...)"
+depends = ["web:install"]
+run = "npm run dev --prefix web"
+
+[tasks."serve:demo"]
+description = "Serve the web UI against the demo archive with a fixed token (http://127.0.0.1:8787/#token=demo)"
+depends = ["demo:db", "web:build"]
+run = """
+printf 'timezone = "Europe/Berlin"\n' > build/demo-config.toml
+go run ./cmd/total-recall --config build/demo-config.toml --db build/demo.db serve --token demo "$@"
 """
 
 [tasks."demo:db"]

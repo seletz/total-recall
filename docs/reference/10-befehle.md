@@ -609,6 +609,27 @@ total-recall tui stats --graphics text        # Chart als Text, keine Terminal-A
 
 Die Defaults der Ansicht, des Grafikmodus, der Maus, des Neuladens und des Startzustands von Statistik und Aktivität stehen im Abschnitt [`[tui]`](20-konfiguration.md#tui) der Konfiguration, die Tastenbelegung in [`[keys]`](20-konfiguration.md#keys); Flags und Argument gehen vor. Ein unbekannter Modus oder eine unbekannte Ansicht ist ein Fehler. Beenden mit `q` oder ++ctrl+c++. Kein `--json`. Entwurf, Messwerte und Entscheidung zur Übernahme: [Spike: TUI](../explanation/spike-tui.md).
 
+## `serve` { #serve }
+
+!!! note "Prototyp"
+    `serve` ist das Ergebnis des [Spikes Web-UI](../explanation/spike-webui.md) und noch nicht übernommen; Befehl, Flags und API können sich ändern oder wieder verschwinden.
+
+Serviert eine im Binary eingebettete Web-Oberfläche (Suche, Statistik) und ihre JSON-API nur auf `127.0.0.1`. Lesend. Die Adresse mit dem Token für diesen Lauf steht beim Start auf der Ausgabe; die Oberfläche lädt neu, wenn die Hooks ins Archiv schreiben.
+
+```sh
+total-recall serve                  # http://127.0.0.1:8787/#token=…
+total-recall serve --port 0 --open  # freier Port, im Browser öffnen
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--port N` | Port auf `127.0.0.1`, Default `8787`; `0` wählt einen freien |
+| `--token TEXT` | festes Token statt eines zufälligen je Lauf (für die Entwicklung) |
+| `--open` | die Adresse im Standardbrowser öffnen |
+| `--poll DAUER` | Intervall, in dem das Archiv auf Änderungen geprüft wird, Default `2s`, mindestens `1s` |
+
+Anfragen von anderen Hosts oder Origins werden abgewiesen, die API verlangt das Token; die Seite lädt nichts aus dem Netz. Ein Binary ohne gebaute Oberfläche (`go build` ohne `mise run web:build`) zeigt eine Hinweisseite, die API funktioniert trotzdem. Beenden mit ++ctrl+c++.
+
 ## `sql` { #sql }
 
 Führt eine SQL-Abfrage aus, nur lesend. Die Datenbank wird mit `mode=ro` und `PRAGMA query_only` geöffnet. Ändern ist nicht möglich.

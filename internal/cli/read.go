@@ -615,6 +615,17 @@ type SessionHitsJSON struct {
 	Snippet     NullString `json:"snippet"`
 }
 
+// hitsJSON converts search hits to their JSON form (also the web API).
+func hitsJSON(hits []store.SearchHit) []HitJSON {
+	out := make([]HitJSON, 0, len(hits))
+	for _, h := range hits {
+		out = append(out, HitJSON{SessionID: h.Event.SessionID, SessionName: NullString(h.SessionName), Repo: NullString(h.Repo),
+			EventID: h.Event.ID, TS: isoTime(h.Event.TS), Actor: string(h.Event.Actor), Kind: string(h.Event.Kind),
+			Snippet: NullString(h.Snippet), Rank: h.Rank})
+	}
+	return out
+}
+
 func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
 	var of outputFlags
@@ -678,13 +689,7 @@ first hit, oldest session first (--order hits for most hits first).`,
 			return errKind(ErrKindSQL, err)
 		}
 		if o.format.IsJSON() {
-			out := make([]HitJSON, 0, len(hits))
-			for _, h := range hits {
-				out = append(out, HitJSON{SessionID: h.Event.SessionID, SessionName: NullString(h.SessionName), Repo: NullString(h.Repo),
-					EventID: h.Event.ID, TS: isoTime(h.Event.TS), Actor: string(h.Event.Actor), Kind: string(h.Event.Kind),
-					Snippet: NullString(h.Snippet), Rank: h.Rank})
-			}
-			return writeList(o, out)
+			return writeList(o, hitsJSON(hits))
 		}
 		w := o.w
 		for _, h := range hits {

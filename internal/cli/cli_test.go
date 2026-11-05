@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -73,13 +74,20 @@ type result struct {
 // run executes the CLI in-process.
 func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 	t.Helper()
+	return e.runCtx(t, context.Background(), stdin, args...)
+}
+
+// runCtx runs the command with ctx (serve stops when it is done).
+func (e *testEnv) runCtx(t *testing.T, ctx context.Context, stdin string, args ...string) result {
+	t.Helper()
 	var out, errb bytes.Buffer
 	app := &App{
-		Stdin:  strings.NewReader(stdin),
-		Stdout: &out,
-		Stderr: &errb,
-		Args:   args,
-		Home:   cmp.Or(e.home, e.dir),
+		Context: ctx,
+		Stdin:   strings.NewReader(stdin),
+		Stdout:  &out,
+		Stderr:  &errb,
+		Args:    args,
+		Home:    cmp.Or(e.home, e.dir),
 		Getenv: func(k string) string {
 			if k == "TOTAL_RECALL_CONFIG" {
 				return e.configPath

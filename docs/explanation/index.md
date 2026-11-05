@@ -13,3 +13,4 @@ In diesem Abschnitt:
 - [Design (Spezifikation)](design.md): die verbindliche Spezifikation: Ziele, Architektur, Datenmodell, Actor-Klassifikation, Redaction, Hooks, Schema-Versionierung, CLI.
 - [Einlesen über Hooks](hooks.md): was ein Hook-Lauf liest, warum `--detach`, wie das Nachlesen Lücken auffängt.
 - [Spike: TUI (Historie)](spike-tui.md): Entwurf, Messwerte und die Entscheidung, die TUI zu übernehmen; Protokoll mit Stand vom November 2026.
+- [Spike: Web-UI mit Svelte](spike-webui.md): Prototyp `total-recall serve` mit eingebetteter Svelte-UI, Sicherheit, Build, Messwerte und Empfehlung; Entscheidung offen.

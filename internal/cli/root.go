@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -40,6 +41,9 @@ type App struct {
 	// to, or 0 when it is not a terminal (table cells are then never cut).
 	// Default: terminalWidth(Stdout).
 	TerminalWidth func() int
+	// Context is the context of the run; a long-running command (serve)
+	// stops when it is done. Default: context.Background.
+	Context context.Context
 }
 
 func (a *App) defaults() {
@@ -64,6 +68,9 @@ func (a *App) defaults() {
 	if a.TerminalWidth == nil {
 		a.TerminalWidth = func() int { return terminalWidth(a.Stdout) }
 	}
+	if a.Context == nil {
+		a.Context = context.Background()
+	}
 }
 
 // globals are the persistent flags.
@@ -84,7 +91,7 @@ func Main(app *App) int {
 	app.defaults()
 	root, e := newRoot(app)
 	root.SetArgs(app.Args)
-	if err := root.Execute(); err != nil {
+	if err := root.ExecuteContext(app.Context); err != nil {
 		var ec exitCode
 		if errors.As(err, &ec) {
 			return int(ec)
@@ -153,6 +160,7 @@ func newRoot(app *App) (*cobra.Command, *env) {
 		e.configCmd(),
 		e.llmCmd(),
 		e.tuiCmd(),
+		e.serveCmd(),
 		versionCmd(),
 	)
 	return root, e

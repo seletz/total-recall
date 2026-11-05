@@ -24,6 +24,24 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Set up Node
+        # Only the web UI (web/) needs it, at build time.
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Check and build the web UI
+        # Same commands as `mise run web:check` and `mise run web:build`:
+        # pinned install, svelte-check, vitest, Vite build into
+        # internal/web/dist so that go test runs with the embedded UI.
+        run: |
+          npm ci --prefix web
+          npm run check --prefix web
+          npm test --prefix web
+          npm run build --prefix web
+
       - name: go vet
         run: go vet ./...
 
@@ -106,6 +124,14 @@ jobs:
         # Same version as the pin in mise.toml (task release:snapshot);
         # scripts/tool-versions-check.sh finds drift.
         run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Set up Node
+        # goreleaser's before hooks build the web UI (web/).
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Install cosign
         # Lets goreleaser-action verify the sigstore signature of the

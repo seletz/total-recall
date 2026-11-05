@@ -9,3 +9,8 @@
 /completions/
 .venv/
 __pycache__/
+# Web UI build (mise run web:build); the Go binary embeds it. Only .gitkeep
+# is tracked so that `go build` works without a build.
+/internal/web/dist/*
+!/internal/web/dist/.gitkeep
+/web/node_modules/
