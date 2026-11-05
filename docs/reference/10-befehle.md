@@ -77,7 +77,7 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 9 meta rec
 - Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
 - `meta records`: neu gespeicherte [Meta-Records](40-schema.md) (Anhänge, Modus, Pull Request, Datei-Historie, …); gleicher Inhalt je Session zählt nur beim ersten Mal.
 - Mit `--reread` zählen alle gelesenen Dateien als `changed`, obwohl `new events` 0 bleibt.
-- Mit `--rewrite-raw` steht hinter `meta records` zusätzlich `N raw rewritten`: so viele vorhandene Events und Meta-Records haben eine neue Rohzeile bekommen.
+- Mit `--rewrite-raw` steht hinter `meta records` zusätzlich `N events and M meta records raw rewritten`: so viele vorhandene Events und Meta-Records haben eine neue Rohzeile bekommen. Gezählt werden Zeilen der Tabellen, jede einmal je Lauf, auch wenn ihr Record im Transkript mehrfach vorkommt; was derselbe Lauf neu angelegt hat, steht nur bei `new events` oder `meta records`.
 - Wurden Bilder oder Dokumente gespeichert, folgt `N attachments (X MiB)`: so viele neue Blobs, mit ihrer Größe, wie geliefert.
 
 **Altbestand nach einem Schema-Update.** Neue Session-Felder (seit Schema v4: `continued_in`, `account_id`, `organization_id`) stammen aus Records, die beim ersten Einlesen übersprungen wurden. Bereits gelesene Transkripte liefern sie erst nach einem einmaligen `total-recall ingest --all --reread`; das dauert so lange wie das erste Einlesen und ändert an den Events nichts.

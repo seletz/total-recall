@@ -19,6 +19,7 @@ import (
 	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/harness"
+	"github.com/seletz/total-recall/internal/ingest"
 	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
@@ -397,7 +398,8 @@ func TestHooksPrint(t *testing.T) {
 func TestEndToEnd(t *testing.T) {
 	e := newTestEnv(t)
 	out := e.mustRun(t, "ingest", "--all")
-	if !strings.Contains(out, "scanned 4 files") || !strings.Contains(out, "9 new events") {
+	// The workflow journal is the one meta record of the small tree (#201).
+	if !strings.Contains(out, "scanned 4 files") || !strings.Contains(out, "9 new events, 1 meta records") {
 		t.Errorf("ingest summary = %q", out)
 	}
 	if out := e.mustRun(t, "ingest", "--all"); !strings.Contains(out, "0 new events") || !strings.Contains(out, "4 unchanged") {
@@ -1343,7 +1345,7 @@ func TestIngestRewriteRaw(t *testing.T) {
 	before := counts()
 	out := e.mustRun(t, "ingest", "--all", "--reread", "--rewrite-raw")
 	// 9 events and 1 meta record (the workflow journal) are rewritten.
-	if !strings.Contains(out, "0 new events, 0 meta records, 10 raw rewritten") {
+	if !strings.Contains(out, "0 new events, 0 meta records, 9 events and 1 meta records raw rewritten") {
 		t.Errorf("rewrite summary = %q", out)
 	}
 	if got := counts(); got != before {
@@ -1436,5 +1438,29 @@ func TestShowAttachments(t *testing.T) {
 	}
 	if out := e.mustRun(t, "status"); !strings.Contains(out, "1 attachments, 34 B (34 B stored)") {
 		t.Errorf("status = %q", out)
+	}
+}
+
+// TestAddSummaryCoversEveryField: a counter added to ingest.Summary and
+// forgotten in addSummary silently prints 0 (#201).
+func TestAddSummaryCoversEveryField(t *testing.T) {
+	var one ingest.Summary
+	v := reflect.ValueOf(&one).Elem()
+	for i := range v.NumField() {
+		switch f := v.Field(i); f.Kind() {
+		case reflect.Int, reflect.Int64:
+			f.SetInt(1)
+		case reflect.Slice:
+			f.Set(reflect.MakeSlice(f.Type(), 1, 1))
+		default:
+			t.Fatalf("field %s: kind %s not covered", v.Type().Field(i).Name, f.Kind())
+		}
+	}
+	sum := reflect.ValueOf(addSummary(addSummary(ingest.Summary{}, one), one))
+	for i := range sum.NumField() {
+		f, name := sum.Field(i), v.Type().Field(i).Name
+		if (f.Kind() == reflect.Slice && f.Len() != 2) || (f.Kind() != reflect.Slice && f.Int() != 2) {
+			t.Errorf("addSummary drops %s", name)
+		}
 	}
 }

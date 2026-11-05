@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -142,6 +143,60 @@ type WriteOptions struct {
 	// not in sessions creates a bare session row; it never widens a
 	// session's start or end.
 	Meta []model.Meta
+	// Written carries the rows already written across the batches of a
+	// run, so that WriteResult counts each row once per run. Nil counts per
+	// batch.
+	Written *WrittenRows
+}
+
+// WrittenRows remembers which rows a run has written. A record can come
+// by many times: the state records a harness repeats every round are one
+// meta record, a resumed session copies lines of the one before. Each
+// time the row is written again, but it counts once, and as new if the
+// run inserted it. Only rows of committed batches are in here.
+type WrittenRows struct {
+	events, meta map[string]struct{}
+}
+
+// NewWrittenRows returns an empty set for one run.
+func NewWrittenRows() *WrittenRows {
+	return &WrittenRows{events: map[string]struct{}{}, meta: map[string]struct{}{}}
+}
+
+// batch returns the trackers of one batch for events and meta records.
+func (w *WrittenRows) batch() (events, meta *batchRows) {
+	if w == nil {
+		return &batchRows{}, &batchRows{}
+	}
+	return &batchRows{run: w.events}, &batchRows{run: w.meta}
+}
+
+// batchRows tracks one table within a batch; the IDs join the run's set
+// on commit, a batch that rolls back leaves it as it was.
+type batchRows struct {
+	run, batch map[string]struct{}
+}
+
+// first records id and reports whether this is its first write.
+func (b *batchRows) first(id string) bool {
+	if _, ok := b.run[id]; ok {
+		return false
+	}
+	if _, ok := b.batch[id]; ok {
+		return false
+	}
+	if b.batch == nil {
+		b.batch = map[string]struct{}{}
+	}
+	b.batch[id] = struct{}{}
+	return true
+}
+
+// commit adds the IDs of the batch to the run's set.
+func (b *batchRows) commit() {
+	if b.run != nil {
+		maps.Copy(b.run, b.batch)
+	}
 }
 
 // WriteResult counts what WriteBatchOpts changed.
@@ -149,8 +204,11 @@ type WriteResult struct {
 	// Inserted is the number of events newly inserted.
 	Inserted int
 	// RawRewritten is the number of existing events and meta records whose
-	// raw was replaced (only with WriteOptions.RewriteRaw).
+	// raw was replaced (only with WriteOptions.RewriteRaw); a row written
+	// again counts once, see WriteOptions.Written.
 	RawRewritten int
+	// MetaRewritten is the part of RawRewritten that are meta records.
+	MetaRewritten int
 	// MetaInserted is the number of meta records newly inserted.
 	MetaInserted int
 	// Blobs is the number of attachments newly stored (an attachment that
@@ -218,6 +276,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		}
 	}
 
+	eventRows, metaRows := opts.Written.batch()
 	if len(events) > 0 {
 		sources := map[string]int64{}
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO events
@@ -247,7 +306,9 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 					return res, fmt.Errorf("store: rewrite raw of event %s: %w", e.ID, err)
 				}
 				if n, _ := r.RowsAffected(); n > 0 {
-					res.RawRewritten += int(n)
+					if eventRows.first(e.ID) {
+						res.RawRewritten++
+					}
 					// The new raw line references its own attachments.
 					if err := blobs.replace(e.ID, e.Attachments, &res); err != nil {
 						return res, err
@@ -283,6 +344,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			}
 			if n, err := r.RowsAffected(); err == nil && n > 0 {
 				res.Inserted += int(n)
+				eventRows.first(e.ID)
 				if err := blobs.add(e.ID, e.Attachments, &res); err != nil {
 					return res, err
 				}
@@ -291,7 +353,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 	}
 
 	if len(opts.Meta) > 0 {
-		if err := s.writeMeta(ctx, tx, opts.Meta, opts.RewriteRaw, &res); err != nil {
+		if err := s.writeMeta(ctx, tx, opts.Meta, opts.RewriteRaw, metaRows, &res); err != nil {
 			return res, err
 		}
 	}
@@ -299,6 +361,8 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 	if err := tx.Commit(); err != nil {
 		return res, fmt.Errorf("store: commit: %w", err)
 	}
+	eventRows.commit()
+	metaRows.commit()
 	return res, nil
 }
 

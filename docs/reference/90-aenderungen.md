@@ -6,6 +6,13 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.3.1 (unveröffentlicht)
+
+### Behoben
+
+- [`ingest`](10-befehle.md#ingest) meldet Meta-Records wieder richtig: Die Zusammenfassung zeigte immer `0 meta records`, die Records selbst wurden gespeichert ([#201](https://github.com/seletz/total-recall/issues/201)).
+- `ingest --reread --rewrite-raw` zählt Zeilen der Tabellen statt Vorkommen im Transkript und trennt Events von Meta-Records: `N events and M meta records raw rewritten` statt `N raw rewritten`. Bisher zählte jeder Zustands-Record, den Claude Code jede Runde neu schreibt, bei jedem Vorkommen, auch wenn derselbe Lauf die Zeile eben erst angelegt hatte ([#201](https://github.com/seletz/total-recall/issues/201)).
+
 ## v1.3.0
 
 ### Was dieses Update mit dem Archiv macht

@@ -20,8 +20,9 @@ import (
 
 // writeMeta inserts the meta records of a batch (existing IDs are
 // skipped) with their attachments and, with rewrite, replaces raw and the
-// attachments of the ones that exist.
-func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, rewrite bool, res *WriteResult) error {
+// attachments of the ones that exist. rows keeps a record that comes by
+// again from counting twice.
+func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, rewrite bool, rows *batchRows, res *WriteResult) error {
 	ins, err := tx.PrepareContext(ctx, `INSERT INTO session_meta (id, session_id, ts, type, source_id, source_offset, raw)
 		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
 	if err != nil {
@@ -47,7 +48,10 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 				return fmt.Errorf("store: rewrite raw of meta record %s: %w", m.ID, err)
 			}
 			if n, _ := r.RowsAffected(); n > 0 {
-				res.RawRewritten += int(n)
+				if rows.first(m.ID) {
+					res.RawRewritten++
+					res.MetaRewritten++
+				}
 				if err := blobs.replace(m.ID, m.Attachments, res); err != nil {
 					return err
 				}
@@ -72,6 +76,7 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 		}
 		if n, err := r.RowsAffected(); err == nil && n > 0 {
 			res.MetaInserted += int(n)
+			rows.first(m.ID)
 			if err := blobs.add(m.ID, m.Attachments, res); err != nil {
 				return err
 			}
