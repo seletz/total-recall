@@ -7,7 +7,7 @@ icon: lucide/flask-conical
 
 Spike zum Epic [#170](https://github.com/seletz/total-recall/issues/170) (Sub-Issue [#171](https://github.com/seletz/total-recall/issues/171)): Lässt sich zusätzlich zur TUI eine Web-Oberfläche mit Svelte bauen, die im statischen Go-Binary mitkommt und nur lokal läuft? Stand der Untersuchung: 5. November 2026. Die Entscheidung, ob es weitergeht, ist offen; der Prototyp ist deshalb ein eigenes Unterkommando `total-recall serve`, das sich wieder entfernen lässt ([Entfernungsanleitung](#entfernungsanleitung)).
 
-Kurzfassung: **Es geht, und es ist klein.** Die eingebettete UI kostet 66 KiB im Binary, der Go-HTTP-Stack 3,9 MiB. Node wird nur beim Bauen gebraucht, `go build` ohne gebaute UI funktioniert weiter (Platzhalterseite), Build, CI und goreleaser laufen mit vier zusätzlichen Zeilen. Die offenen Punkte sind nicht technisch, sondern Umfang und Pflege: eine zweite Oberfläche neben der TUI, eine zweite Toolchain mit 87 npm-Paketen und die Frage, was die Web-UI besser kann als die TUI. Empfehlung: [weiterverfolgen, abgespeckt](#empfehlung).
+Kurzfassung: **Es geht, und es ist klein.** Die eingebettete UI kostet 66 KiB im Binary, der Go-HTTP-Stack 3,9 MiB. Node wird nur beim Bauen gebraucht, `go build` ohne gebaute UI funktioniert weiter (Platzhalterseite), Build, CI und goreleaser laufen mit vier zusätzlichen Zeilen. Die offenen Punkte sind nicht technisch, sondern Umfang und Pflege: eine zweite Oberfläche neben der TUI, eine zweite Toolchain mit 87 npm-Paketen und die Frage, was die Web-UI besser kann als die TUI. Empfehlung: [weiterverfolgen](#empfehlung), mit Browser-Tests als Bedingung, SvelteKit von Anfang an und Setup/Config als Ansicht; die TUI bleibt.
 
 ## Fragen
 
@@ -21,7 +21,7 @@ Aus dem Issue, mit Verweis auf die Antwort:
 6. **Tests und Screenshots** gegen das Demo-Archiv → [Tests](#tests), [Screenshots](#screenshots).
 7. **Aufwand und Nutzen**, Empfehlung → [Aufwand](#aufwandsschaetzung), [Empfehlung](#empfehlung).
 
-Dazugekommen nach der ersten Durchsicht: **Gestaltung.** Wie die Web-UI hübsch und stylbar wird und wie Vorschläge dafür entstehen → [Gestaltung](#gestaltung).
+Dazugekommen nach der ersten Durchsicht: **Gestaltung**, wie die Web-UI hübsch und stylbar wird und wie Vorschläge dafür entstehen → [Gestaltung](#gestaltung); **Browser-Tests** als Bedingung → [Tests](#tests); **Setup und Config** als Ansicht und die Folge für den Umfang → [Empfehlung](#empfehlung).
 
 ## Festgelegt
 
@@ -153,11 +153,19 @@ Node ist in `mise.toml` als `node = "26"` gepinnt (Major), die Pakete exakt in `
 | `web/`         | vitest, reine Module                                           | SSE-Parser, Snippet-Teilung (auch `<script>` bleibt Text), Chart-Layout (Stapel, leere Perioden, Ticks, Metriken)                                                                                                          |
 | `web/`         | svelte-check                                                   | Typen in `.svelte` und `.ts`, a11y-Warnungen                                                                                                                                                                               |
 
-Nicht vorhanden: ein Browser-Test (Playwright) gegen das Binary. Für zwei Ansichten reicht die Kombination aus Go-Tests der API und Unit-Tests der reinen Module; wächst die UI, ist ein Playwright-Lauf gegen `serve:demo` der nächste Schritt (das Vorbild macht es so).
+Nicht vorhanden im Prototyp, aber **Pflicht für die Übernahme: ein Browser-Test gegen das Binary.** Playwright gegen `mise run serve:demo`, also gegen das Demo-Archiv, dieselben Daten, die alle Go-Tests und die TUI-Screenshots verwenden. Das Archiv ist deterministisch, deshalb dürfen die Tests exakte Werte prüfen (929 Sessions, „release“ liefert vier Treffer, 16 Wochenbalken). Derselbe Lauf erzeugt die Screenshots der Doku und der Design-Runden, siehe [Screenshots](#screenshots) und [Gestaltung](#gestaltung). Form:
+
+- `web/e2e/*.test.ts`, Playwright als devDependency in `web/`, Chromium über `npx playwright install chromium` (nur für diesen Task, nicht für `web:check`).
+- Task `web:e2e`: baut UI und Binary, startet `serve` gegen `build/demo.db` mit festem Token und fester Uhr auf einem eigenen Port, wartet auf `/api/status`, läuft die Specs, stoppt den Prozess; so macht es das e2e-Skript des Vorbilds.
+- Feste Uhr: `serve` bekommt eine Umgebungsvariable oder ein verstecktes Flag, das `App.Now` setzt (wie die TUI-Screenshots `demo.Now` verwenden), damit Statistik- und Aktivitätsfenster bei jedem Lauf gleich sind.
+- Specs je Ansicht: Suche tippen, Treffer zählen, Hervorhebung prüfen, Actor-Filter; Statistik umschalten, Balken und Tabelle prüfen; Live-Update: ein Commit auf eine Kopie des Archivs, Event kommt, Ansicht lädt neu; Token fehlt, Seite sagt es; später Config: Wert ändern, Datei prüfen, Konflikt mit der TUI.
+- CI: eigener Job mit Chromium, Traces und Screenshots bei Fehlschlag als Artefakt.
 
 ## Screenshots
 
-Die Bilder zeigen den Prototyp gegen das Demo-Archiv (`mise run demo:db`, erfundene Entwicklerin, erfundene Projekte), aufgenommen mit Playwright/Chromium bei 1200×720 Punkten, Zeitzone Europe/Berlin. Sie sind von Hand aufgenommen und nicht Teil von `docs:screenshots:check`; diese Prüfung vergleicht `docs/assets/screenshots/` als Ganzes, deshalb liegen die Web-Bilder in `docs/assets/webui/`. Reproduzierbar machen ließe sich das wie beim Vorbild mit einem Playwright-Skript gegen `mise run serve:demo`; dann wäre aber Chromium ein Build-Werkzeug der Doku.
+Die Bilder zeigen den Prototyp gegen das Demo-Archiv (`mise run demo:db`, erfundene Entwicklerin, erfundene Projekte), aufgenommen mit Playwright/Chromium bei 1200×720 Punkten, Zeitzone Europe/Berlin. Für den Spike sind sie von Hand aufgenommen und nicht Teil von `docs:screenshots:check`; diese Prüfung vergleicht `docs/assets/screenshots/` als Ganzes, deshalb liegen die Web-Bilder in `docs/assets/webui/`.
+
+Bei Übernahme werden sie reproduzierbar: derselbe Playwright-Lauf wie die [Browser-Tests](#tests) schreibt die Bilder jeder Ansicht nach `docs/assets/webui/` (Task `docs:webui`, Prüfung `docs:webui:check` wie bei den TUI-Screenshots), gegen das Demo-Archiv mit fester Uhr. Das ist auch die Grundlage der Design-Runden: jede Variante wird mit denselben Ansichten und denselben Daten gerendert, sonst ist nichts vergleichbar. Chromium wird damit ein Werkzeug der Doku; PNGs aus einem Browser sind über Plattformen nicht byteweise stabil, die Prüfung vergleicht deshalb wie bei den TUI-Bildern nur auf derselben Plattform oder mit Toleranz.
 
 ![Suche: Eingabe mit Actor-Filter, Trefferliste mit Zeit, Session, Repo, Actor und hervorgehobenem Snippet](../assets/webui/webui-search-light.png)
 
@@ -213,7 +221,7 @@ Gegen ein echtes Archiv (180.000 Events) gelten die Zahlen des [TUI-Spikes](spik
 | Bundle         | 54 KiB JS                                                                        | größer durch Router und Client-Runtime von Kit; beim Vorbild einige hundert KiB mit vielen Seiten                   |
 | Wann richtig   | 2 bis 5 Ansichten, eine Seite, keine Unterseiten mit Parametern                  | ab etwa 5 Ansichten mit Parametern (`/session/[id]`), Layouts, Fehlerseiten, Preloading                             |
 
-Für den Spike war Svelte ohne Kit die richtige Wahl: weniger Teile, nichts Generiertes, der Router ist zehn Zeilen. Kommt die Web-UI mit Sessions-Detail (`/session/<id>`), Aktivität und Config, lohnt Kit; der Umstieg ist mechanisch (Komponenten bleiben, Routing und `fetch` wandern in Routen und `load`), solange die Komponenten keine eigene Router-Logik ansammeln. Entscheidung: **Svelte ohne Kit, solange es unter fünf Ansichten sind; Umstieg als eigenes Issue, sobald die Session-Detailseite kommt.**
+Für den Spike war Svelte ohne Kit die richtige Wahl: weniger Teile, nichts Generiertes, der Router ist zehn Zeilen. Die Ansichten werden aber wachsen: Suche, Session-Detail (`/session/<id>`), Statistik, Aktivität, Setup und Config, jede mit Parametern in der Adresse. Das ist die Grenze, ab der Kit sich lohnt: Dateirouten, Layouts, Fehlerseiten und `load` sind dann weniger Code als ein eigener Router, und das Vorbild zeigt, dass Kit als statische SPA mit `ssr = false` genau wie der Prototyp eingebettet wird. Der Umstieg ist mechanisch (Komponenten bleiben, Routing und `fetch` wandern in Routen und `load`) und am billigsten, bevor die Ansichten da sind. Entscheidung: **beim Übernehmen des Prototyps auf SvelteKit mit `adapter-static` wechseln, nicht später.** Im Spike nicht gemessen: Paketzahl und Bundle mit Kit; beide sind im Übernahme-Issue nachzutragen.
 
 Paketmanager: npm statt Bun, weil `package-lock.json` von jedem SBOM-Werkzeug und von `actions/setup-node` direkt gelesen wird und Node ohnehin da ist; Bun wäre schneller (Vorbild), bringt aber ein zweites Binary in die Toolchain.
 
@@ -255,6 +263,7 @@ Der Prototyp ist bewusst schlicht: Systemschrift, ein Akzent, eine Palette. Soll
 - **Suche:** Treffer als Karten mit klarer Hierarchie: Session-Name zuerst, Zeit und Repo gedämpft, Actor als kleiner farbiger Chip, Snippet in der Monospace mit weicher Markierungsfarbe; Pfeiltasten und ++enter++ wie in der TUI.
 - **Statistik:** Hover-Tooltips an den Balken, Haarlinien-Raster, Periodenlabels, die sich auf schmalen Bildschirmen ausdünnen, Tabelle mit Tabellenziffern und fixiertem Kopf.
 - **Aktivität:** eine Zeile je Tag, Kernzeit als blasses Band, Wochenende und Feiertage schattiert, Projekt-Slots als runde Balken, heute markiert.
+- **Setup und Config:** hier ist der Browser der TUI klar überlegen. Projekte mit Farbfeld und Farbwähler, die Palette als Reihe von Swatches mit Vorschau im Chart, Pfade und Muster in Eingabefeldern mit Prüfung beim Tippen, Herkunft jedes Werts (Default, Datei, Umgebung) als Chip, Status der Hooks je Harness mit Knopf zum Einrichten, Theme-Wahl der Web-UI selbst. Schreibend mit denselben Locks und derselben Datei wie die TUI-Config-Ansicht, damit beide nie aneinander vorbeischreiben; die TUI bleibt für alles, was im Terminal näher liegt.
 - **Zustände:** Leerzustand mit einem Satz, Skelett erst nach 300 ms, Fehlerbanner, das die Ursache nennt, Live-Punkt mit Erklärung beim Hover.
 
 ### Stylbar
@@ -269,7 +278,7 @@ Zwei Ebenen, beide ohne Build:
 Die Entscheidung über das Aussehen soll **am Bild** fallen, nicht am Code: Agenten machen Vorschläge, Stefan wählt und sagt, was ihm gefällt und was nicht; daraus entsteht das Design-Dokument. Konkret:
 
 1. **Varianten als Theme-Dateien.** Ein Vorschlag ist ein Token-Satz plus Schriftpaar, kein Umbau der Komponenten. Zwei bis drei Varianten je Runde (z. B. „Terminal“: Monospace-lastig, dunkel; „Papier“: warme Grautöne, Serife für Titel; „Werkbank“: kühle Grautöne, Sans, kräftiger Akzent), jede eine Datei unter `web/src/themes/`.
-2. **Screenshots je Variante, automatisch.** Das Playwright-Skript aus dem Spike (gegen `mise run serve:demo`, feste Uhr, Demo-Archiv) rendert jede Ansicht in jeder Variante bei 1200 px und 360 px, hell und dunkel, nach `docs/assets/webui/<variante>/`. Eine Runde ist ein Branch mit Bildern, kein laufender Server.
+2. **Screenshots je Variante, automatisch.** Der Playwright-Lauf der [Browser-Tests](#tests) (gegen `mise run serve:demo`, feste Uhr, Demo-Archiv, dieselben Daten wie alle Tests) rendert jede Ansicht in jeder Variante bei 1200 px und 360 px, hell und dunkel, nach `docs/assets/webui/<variante>/`. Eine Runde ist ein Branch mit Bildern, kein laufender Server. Ohne diesen Lauf gibt es keine Design-Runde: Vorschläge sind nur vergleichbar, wenn sie aus demselben Skript mit denselben Daten kommen.
 3. **Auswahl und Rückmeldung in Worten.** Die Rückmeldung („die Serife ja, aber der Akzent zu laut; Tabellen wie in Variante 2“) geht in eine kurze Seite `docs/explanation/webui-design.md`: gewählte Tokens, gewählte Schriften, die Regeln, die Begründung, und was verworfen wurde. Die Seite ist das Design-System; `app.css` hält nur die Werte, wie beim Vorbild.
 4. **Nächste Runde aus der Rückmeldung.** Agenten leiten aus dem Text neue Varianten ab, wieder als Theme-Dateien, bis eine steht. Komponentenregeln (Chips, Karten, Tabellen, Zustände) kommen in einer zweiten Runde auf dieselbe Art.
 
@@ -285,38 +294,40 @@ Grob, in Arbeitstagen, aufbauend auf dem Prototyp:
 | npm-SBOM im Release (zweite Datei, `tools/sbom check` erweitern), `npm audit`-Gate                                                      | 1                            |
 | Session-Detailansicht (Events einer Session, Sprung aus dem Treffer, Tools ein-/ausblenden)                                             | 1 bis 2                      |
 | Aktivität je Tag (Arbeitszeit, Kernzeit, Soll, Feiertage) als Kalender                                                                  | 2                            |
-| Config-Ansicht lesend (Status, Herkunft je Wert); schreibend mit denselben Locks wie die TUI                                            | 1 lesend, 2 bis 3 schreibend |
-| Playwright-Screenshots gegen `serve:demo`, in `docs:screenshots` eingehängt                                                             | 1                            |
-| Umstieg auf SvelteKit, falls die Ansichten das brauchen                                                                                 | 1                            |
+| Setup und Config: Projekte mit Farben und Palette, Pfade, Hooks-Status, Herkunft je Wert; schreibend mit denselben Locks wie die TUI | 3 bis 4 |
+| Browser-Tests mit Playwright gegen `serve:demo` (Task, feste Uhr, Specs je Ansicht, CI-Job); Screenshots aus demselben Lauf | 1 bis 2 |
+| Umstieg auf SvelteKit mit `adapter-static` beim Übernehmen, Messwerte nachtragen | 1 |
 | Gestaltung: Token-Rollen, Schriftpaar, Themes, `user.css`, Screenshot-Skript je Variante, Design-Seite; zwei bis drei Runden Vorschläge | 2 bis 3                      |
 | Tastaturbedienung, Kopieren von IDs/Snippets                                                                                            | 1                            |
 
-Bis zur Parität mit der TUI (Suche, Session, Statistik, Aktivität, Config) also etwa 10 bis 14 Tage; der abgespeckte Umfang unten mit Gestaltung etwa 6 bis 8.
+Zusammen etwa 14 bis 18 Tage bis zum Stand unter [Empfehlung](#empfehlung); die ersten drei Zeilen plus Browser-Tests und Gestaltung (etwa 7 bis 9) ergeben eine erste brauchbare Fassung mit Suche, Statistik und Config.
 
 ## Empfehlung
 
-**Weiterverfolgen, abgespeckt.** Die Technik hat keine offene Frage mehr: Einbettung, Sicherheit, Build, Release und Live-Aktualisierung funktionieren und sind getestet; die Kosten sind 66 KiB UI, 3,9 MiB HTTP-Stack und eine Node-Toolchain, die nur beim Bauen läuft. Was die Web-UI der TUI voraushat, ist konkret: echte Charts mit Hover und Farben in jedem Terminal, Markieren und Kopieren mit der Maus, Tabs für mehrere Suchen, Links auf Sessions, die man weitergeben kann (lokal), Lesbarkeit langer Antworten mit Umbruch und Schrift nach Wahl. Was sie nicht hat: die Nähe zum Terminal, in dem die Sessions laufen.
+**Weiterverfolgen.** Die Technik hat keine offene Frage mehr: Einbettung, Sicherheit, Build, Release und Live-Aktualisierung funktionieren und sind getestet; die Kosten sind 66 KiB UI, 3,9 MiB HTTP-Stack und eine Node-Toolchain, die nur beim Bauen läuft. Was die Web-UI der TUI voraushat, ist konkret: echte Charts mit Hover und Farben in jedem Terminal, Markieren und Kopieren mit der Maus, Tabs für mehrere Suchen, Links auf Sessions, die man weitergeben kann (lokal), Lesbarkeit langer Antworten mit Umbruch und Schrift nach Wahl. Was sie nicht hat: die Nähe zum Terminal, in dem die Sessions laufen.
 
-Abgespeckt heißt: **nicht die TUI nachbauen.** Drei Ansichten, in denen der Browser besser ist: Suche mit Session-Detail (lange Texte lesen, kopieren, verlinken), Statistik mit Charts (Perioden, Projekte, Heatmap), Aktivität als Kalender. Keine Config-Pflege, keine Wartungsaktionen, nichts Schreibendes: dafür bleibt die TUI, und `serve` bleibt read-only, was die Sicherheitsfragen einfach hält. Kein SvelteKit, bis die Session-Detailseite kommt.
+Bedingung für die Übernahme: **Browser-Tests gegen `serve:demo`**, also gegen das Demo-Archiv, das alle Tests und Screenshots teilen; aus demselben Lauf kommen die Bilder für Doku und Design-Runden. Ohne sie bleibt die UI ungeprüft, sobald sie mehr als zwei Ansichten hat, und ohne vergleichbare Bilder gibt es keine Grundlage für Designentscheidungen.
 
-Lassen wäre richtig, wenn die TUI in der Praxis alles abdeckt und die Charts dort reichen. Das lässt sich in einem Monat Gebrauch des Prototyps gegen das echte Archiv entscheiden (`total-recall serve` gegen die Live-DB ist lesend und gefahrlos). Die [Entfernungsanleitung](#entfernungsanleitung) bleibt gültig.
+Umfang: die Ansichten werden wachsen, deshalb von Anfang an SvelteKit als statische SPA und Routen mit Parametern. Zuerst die Ansichten, in denen der Browser besser ist: Suche mit Session-Detail (lange Texte lesen, kopieren, verlinken), Statistik mit Charts (Perioden, Projekte, Heatmap), Aktivität als Kalender, und **Setup und Config**, weil Farben, Palette, Pfade und Hooks-Status im Browser deutlich besser darstellbar und bedienbar sind als im Terminal. Config macht `serve` schreibend: die Guards (Origin, `Sec-Fetch-Site`, Token) sind dafür da und getestet, dazu kommen dieselben Datei-Locks wie in der TUI-Config-Ansicht und `PUT`/`POST` nur unter `/api/config`. Wartungsaktionen (Migration, Vacuum) bleiben in CLI und TUI. **Die TUI bleibt**; die Web-UI ersetzt sie nicht, sie ergänzt sie dort, wo Pixel und Farben zählen.
 
-Für `docs/explanation/design.md` fehlt bei Übernahme ein Absatz unter „Technik“ (Web-UI, `web/`, `internal/web`, Node beim Bauen) und eine Zeile in der Architektur-Liste; die Tasks-Zeile bekommt `web:install|build|check|dev` und `serve:demo`. Das Design ist sonst nicht betroffen: kein Schema, keine Config, kein neuer Schreibpfad.
+Der Prototyp lässt sich schon jetzt lesend gegen das echte Archiv benutzen (`total-recall serve` schreibt nichts). Die [Entfernungsanleitung](#entfernungsanleitung) bleibt gültig, falls die Entscheidung doch anders ausfällt.
+
+Für `docs/explanation/design.md` fehlt bei Übernahme ein Absatz unter „Technik“ (Web-UI, `web/`, `internal/web`, Node beim Bauen) und eine Zeile in der Architektur-Liste; die Tasks-Zeile bekommt `web:install|build|check|dev` und `serve:demo`. Mit der Config-Ansicht kommt ein neuer Schreibpfad auf die Konfigurationsdatei; der gehört in `design.md` unter Konfiguration neben der TUI-Ansicht, mit denselben Regeln (Locks, Backup, Herkunft je Wert). Schema und Hooks bleiben unberührt.
 
 ## Vorschlag: Sub-Issues des Epics
 
 Nicht angelegt, nur gelistet; Reihenfolge ist Abhängigkeit:
 
-1. **Prototyp übernehmen:** `serve` als Befehl dokumentieren (Referenz, Design), JSON-Typen von `internal/cli` nach `internal/output` (oder `internal/apijson`) heben, damit `internal/web` typisierte Handler bekommt; Changelog.
+1. **Prototyp übernehmen:** `serve` als Befehl dokumentieren (Referenz, Design), JSON-Typen von `internal/cli` nach `internal/output` (oder `internal/apijson`) heben, damit `internal/web` typisierte Handler bekommt; Umstieg auf SvelteKit mit `adapter-static` (Paketzahl und Bundle messen und hier nachtragen); Changelog.
 2. **npm-SBOM im Release:** `@cyclonedx/cyclonedx-npm` als gepinntes Werkzeug, zweite SBOM `total-recall-<tag>-web.cdx.json` in `checksums-<tag>.txt`, `tools/sbom check` kennt sie; `npm audit --audit-level=high` als CI-Gate; Renovate-Gruppe für `web/`.
 3. **Session-Detail:** Route `/session/<id>`, `GET /api/sessions/<id>/events` über `store.Events` wie `show --json`, Sprung aus dem Treffer mit Hervorhebung, Tool-Events ein-/ausblenden, ID kopieren.
 4. **Statistik ausbauen:** Zeitfenster verschieben und zoomen (`since`/`until` in der UI), Heatmap Wochentag × Stunde aus `store.Stats`, Kennzahl Tokens prüfen.
 5. **Aktivität je Tag:** Kalenderansicht aus `store.Workday`/`ProjectDays` (wie `stats --workday`), Feiertage und Soll aus `[work]`.
-6. **Screenshots reproduzierbar:** Playwright-Skript gegen `mise run serve:demo` mit fester Uhr, Ausgabe nach `docs/assets/webui/`, Prüfung in `docs:screenshots:check` (oder eigener Task `docs:webui:check`), Chromium nur für diesen Task.
-7. **Config `[serve]`:** Port, Poll-Intervall, `open`; Flags gehen vor. Erst wenn jemand sie braucht.
-8. **Gestaltung:** Token-Rollen und Schriftpaar festlegen, Themes als Dateien, `user.css` aus dem Config-Verzeichnis und `[serve] theme`, Screenshot-Skript je Variante, `docs/explanation/webui-design.md` als Design-System; Ablauf wie unter [Gestaltung](#gestaltung): Agenten liefern Varianten als Bilder, die Wahl fällt visuell, die Begründung steht in der Seite. Kann parallel zu Punkt 3 laufen, sobald Punkt 1 durch ist.
-9. **Build-Tag `noweb`** nur, wenn die 3,9 MiB stören; dann CI für beide Varianten.
-10. **SvelteKit-Umstieg** als Entscheidung nach Punkt 3, nicht vorher.
+6. **Browser-Tests und Screenshots (Pflicht, direkt nach Punkt 1):** Playwright gegen `mise run serve:demo` mit fester Uhr, Specs je Ansicht gegen die bekannten Werte des Demo-Archivs, CI-Job mit Chromium; derselbe Lauf schreibt die Bilder nach `docs/assets/webui/` (`docs:webui`, `docs:webui:check`). Grundlage der Design-Runden.
+7. **Setup und Config in der Web-UI:** `GET /api/config` mit Herkunft je Wert, `PUT /api/config/<key>` und Projekt-Definitionen mit Farbe und Palette über dieselben Locks wie die TUI-Config-Ansicht, Hooks-Status je Harness, Theme-Wahl; Config `[serve]` (Port, Poll, `open`, `theme`) im selben Zug.
+8. **Gestaltung:** Token-Rollen und Schriftpaar festlegen, Themes als Dateien, `user.css` aus dem Config-Verzeichnis und `[serve] theme`, Screenshot-Skript je Variante, `docs/explanation/webui-design.md` als Design-System; Ablauf wie unter [Gestaltung](#gestaltung): Agenten liefern Varianten als Bilder, die Wahl fällt visuell, die Begründung steht in der Seite. Setzt Punkt 6 voraus, läuft dann parallel zu Punkt 3 und 7.
+9. **Wartung aus dem Browser** (Migration, Vacuum, Backup) bewusst nicht; bleibt in CLI und TUI.
+10. **Build-Tag `noweb`** nur, wenn die 3,9 MiB stören; dann CI für beide Varianten.
 
 ## Entfernungsanleitung
 
