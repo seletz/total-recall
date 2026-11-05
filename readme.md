@@ -9,8 +9,8 @@ Dokumentation: <https://seletz.github.io/total-recall/>. Die Quellen liegen unte
 ## Was es kann
 
 - **Einlesen über Hooks**, inkrementell und ohne Daemon; beim Session-Start wird alles nachgelesen, was fehlt.
-- **Befehle:** `sessions`, `show`, `search` (Volltext über FTS5), `stats` (je Tag, Repo und Wochentag × Stunde; Zeitreihen mit `--period`/`--by`; Arbeitszeit je Tag mit `--workday`; Arbeitszeit je Projekt für Stundenzettel mit `--worktime`), `sql` (nur lesend), `backup`/`restore`, `doctor` für Format-Drift. Alle lesenden Befehle haben `--json`.
-- **TUI** (`total-recall tui`): Suche mit Vorschau beim Tippen und Sprung in die Session, Statistik als Chart (Text oder Kitty Graphics), Tabelle und Heatmap, erste und letzte Aktivität je Tag mit Kernzeit, Soll und Feiertagen. Mausbedienung, Theme nach Terminalhintergrund, Tasten umbelegbar.
+- **Befehle:** `sessions`, `show`, `search` (Volltext über FTS5), `stats` (je Tag, Repo und Wochentag × Stunde; Zeitreihen mit `--period`/`--by`; Arbeitszeit je Tag mit `--workday`; Arbeitszeit je Projekt für Stundenzettel mit `--worktime`), `chart` (Grafiken für einen Monatsbericht als SVG oder PNG), `sql` (nur lesend), `backup`/`restore`, `migrate` und `maintenance` für Schema und Datei, `doctor` für Format-Drift. Alle lesenden Befehle haben `--json`.
+- **TUI** (`total-recall tui`): Suche mit Vorschau beim Tippen und Sprung in die Session, Statistik als Chart (Text oder Kitty Graphics), Tabelle und Heatmap, erste und letzte Aktivität je Tag mit Kernzeit, Soll und Feiertagen, dazu eine Config-Ansicht mit Status, Einstellungen, Projektdefinitionen, Wartungsaktionen und Setup-Prüfung. Mausbedienung, Theme nach Terminalhintergrund, Tasten umbelegbar.
 - **Für Agenten:** `total-recall llm --skill` gibt eine Anleitung mit Schema und Beispiel-SQL aus.
 
 ## Installation
@@ -20,7 +20,7 @@ Unterstützt werden macOS und Linux (amd64, arm64). Das Binary ist statisch geba
 **Release-Archiv.** Jedes [Release](https://github.com/seletz/total-recall/releases) trägt je Plattform ein Archiv `total-recall-<tag>-<os>-<arch>.tar.gz` mit dem Binary und den Shell-Vervollständigungen, dazu eine SBOM (CycloneDX) und die Datei `checksums-<tag>.txt` mit den SHA-256-Summen. Beispiel für macOS auf Apple Silicon:
 
 ```sh
-tag=v1.0.0
+tag=v1.2.0
 curl -LO https://github.com/seletz/total-recall/releases/download/$tag/total-recall-$tag-darwin-arm64.tar.gz
 curl -LO https://github.com/seletz/total-recall/releases/download/$tag/checksums-$tag.txt
 shasum -a 256 --ignore-missing -c checksums-$tag.txt

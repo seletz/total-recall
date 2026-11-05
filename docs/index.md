@@ -8,7 +8,7 @@ icon: lucide/archive
 
 ![Die TUI: Volltextsuche mit Vorschau](assets/screenshots/search.png)
 
-*Die [TUI](reference/30-tui.md): Volltextsuche mit Vorschau, dazu Statistik und Aktivität je Tag*
+*Die [TUI](reference/30-tui.md): Volltextsuche mit Vorschau, dazu Statistik, Aktivität je Tag und die Einstellungen*
 
 ## Warum
 
@@ -52,7 +52,7 @@ Schritt für Schritt von der Installation zur ersten Suche. [Erste Schritte](tut
 <div markdown>
 :lucide-wrench:{ .lg .middle } **How-To-Guides**
 
-Rezepte für konkrete Aufgaben: [Installieren](how-to/10-installieren.md), [Hooks einrichten](how-to/20-hooks-einrichten.md), das [Archiv auswerten](how-to/30-auswerten.md), die [Arbeitszeit nachvollziehen](how-to/40-arbeitszeit.md), den [Stundenzettel füllen](how-to/45-stundenzettel.md), [Grafiken für einen Monatsbericht](how-to/47-monatsbericht.md) zeichnen und [Agenten anbinden](how-to/50-agenten-anbinden.md).
+Rezepte für konkrete Aufgaben: [Installieren](how-to/10-installieren.md) und aktualisieren, [Hooks einrichten](how-to/20-hooks-einrichten.md), das [Archiv auswerten](how-to/30-auswerten.md), die [Arbeitszeit nachvollziehen](how-to/40-arbeitszeit.md), den [Stundenzettel füllen](how-to/45-stundenzettel.md), [Grafiken für einen Monatsbericht](how-to/47-monatsbericht.md) zeichnen, [Agenten anbinden](how-to/50-agenten-anbinden.md), das [Archiv warten](how-to/60-wartung.md), [Einstellungen in der TUI ändern](how-to/65-einstellungen-tui.md) und [Projekte definieren](how-to/67-projekte-definieren.md).
 
 [:octicons-arrow-right-24: Alle How-To-Guides](how-to/index.md)
 
@@ -61,7 +61,7 @@ Rezepte für konkrete Aufgaben: [Installieren](how-to/10-installieren.md), [Hook
 <div markdown>
 :lucide-library:{ .lg .middle } **Referenz**
 
-Nachschlagen: alle [Befehle](reference/10-befehle.md) mit Optionen und Ausgaben, die [Konfiguration](reference/20-konfiguration.md), die [TUI](reference/30-tui.md) mit Tasten und Grafikmodi, das [Schema](reference/40-schema.md) für eigene SQL-Abfragen und die [Änderungen](reference/90-aenderungen.md) je Version.
+Nachschlagen: alle [Befehle](reference/10-befehle.md) mit Optionen und Ausgaben, die [Konfiguration](reference/20-konfiguration.md), die [TUI](reference/30-tui.md) mit Ansichten, Tasten und Grafikmodi, das [Schema](reference/40-schema.md) für eigene SQL-Abfragen, die [Release-Assets](reference/50-release.md) und die [Änderungen](reference/90-aenderungen.md) je Version.
 
 [:octicons-arrow-right-24: Referenz](reference/index.md)
 
@@ -80,8 +80,8 @@ Hintergrund und Entscheidungen: die Spezifikation [Design](explanation/design.md
 
 ## Stand
 
-!!! note "Version 1.0"
-    Alle Befehle auf der Seite [Befehle](reference/10-befehle.md) sind umgesetzt, dazu die Terminal-Oberfläche [`total-recall tui`](reference/30-tui.md). Unterstützt wird bisher nur Claude Code. Der Quellcode steht unter MIT-Lizenz auf [GitHub](https://github.com/seletz/total-recall); Installation über das Release-Archiv, Homebrew oder den Quellcode: [Installieren](how-to/10-installieren.md). Was sich je Version geändert hat, steht unter [Änderungen](reference/90-aenderungen.md).
+!!! note "Version 1.2"
+    Alle Befehle auf der Seite [Befehle](reference/10-befehle.md) sind umgesetzt, dazu die Terminal-Oberfläche [`total-recall tui`](reference/30-tui.md) mit vier Ansichten. Unterstützt wird bisher nur Claude Code. Der Quellcode steht unter MIT-Lizenz auf [GitHub](https://github.com/seletz/total-recall); Installation über das Release-Archiv, Homebrew oder den Quellcode: [Installieren](how-to/10-installieren.md). Ein Update auf eine Version mit neuem Datenbankschema migriert nichts von selbst; die Schritte stehen unter [Aktualisieren](how-to/10-installieren.md#aktualisieren). Was sich je Version geändert hat, steht unter [Änderungen](reference/90-aenderungen.md).
 
 Die verbindliche Spezifikation steht in [Design (Spezifikation)](explanation/design.md).
 

@@ -64,6 +64,8 @@ total-recall tui activity
 - Die Kernzeit liegt als Band auf der Zeitachse jedes Werktags. Der Balken ist innerhalb der Kernzeit blau, davor und danach orange, nach Mitternacht rot.
 - Die Kopfzeile von Woche und Monat nennt Arbeitszeit, Soll, Saldo und Feiertage; `s` blendet Median, Mittelwert, Minimum und Maximum ein und aus.
 - `h` zählt für diesen Lauf auch Agent-Events mit, wie `--all-events`.
+- `p` färbt die Balken nach Projekt statt nach Kernzeit, mit einer Legende der Projekte der Woche; die Farben sind die aus [`[[project]]`](67-projekte-definieren.md).
+- ++up++ und ++down++ (`k`/`j`, auch das Mausrad) blättern tageweise durch die Zeit; Woche und Monat werden so zu einem gleitenden Fenster, `c` richtet wieder am Kalender aus.
 
 Alle Tasten, Farben und Kennzahlen: [Aktivität](../reference/30-tui.md#aktivitat).
 

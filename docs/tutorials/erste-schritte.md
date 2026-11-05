@@ -50,14 +50,20 @@ total-recall status
 ```text
 database              /Users/me/Library/Application Support/total-recall/archive.db
 size                  612.4 MiB
-schema                v3 (binary supports v3)
+page size             16384
+schema                v5 (binary supports v5)
 sessions              274
 events                158203
 sources               291
+raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
 last ingest (claude)  2026-11-02 09:14  (1m ago)
-last backup           -
+last backup           none in /Users/me/Documents/total-recall
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
+
+recent errors (last 24h, since 2026-11-01 09:15): none
 ```
+
+Die Zeile `schema` nennt die Version der Datenbank und die des Programms; steht dort nach einem späteren Update `MIGRATION PENDING`, sagt [Aktualisieren](../how-to/10-installieren.md#aktualisieren), was zu tun ist.
 
 Die neuesten Sessions:
 
@@ -116,7 +122,7 @@ Dasselbe geht interaktiv:
 total-recall tui
 ```
 
-Tippe `goreleaser`. Die Trefferliste füllt sich beim Tippen, rechts steht der Austausch um den markierten Treffer. ++tab++ wechselt in die Liste, ++up++ und ++down++ bewegen die Markierung, ++enter++ öffnet die Session, ++esc++ führt zurück. `2` zeigt die Statistik der Aktivität, `3` die erste und letzte Aktivität je Tag, `?` alle Tasten, `q` beendet.
+Tippe `goreleaser`. Die Trefferliste füllt sich beim Tippen, rechts steht der Austausch um den markierten Treffer. ++tab++ wechselt in die Liste, ++up++ und ++down++ bewegen die Markierung, ++enter++ öffnet die Session, ++esc++ führt zurück. `2` zeigt die Statistik der Aktivität, `3` die erste und letzte Aktivität je Tag, `4` den Zustand des Archivs und die Einstellungen, `?` alle Tasten, `q` beendet.
 
 Damit hast du das Archiv einmal von vorn bis hinten gesehen: Es füllt sich ab jetzt von selbst.
 
@@ -125,5 +131,7 @@ Damit hast du das Archiv einmal von vorn bis hinten gesehen: Es füllt sich ab j
 - Kennzahlen, Suche und eigene SQL-Abfragen: [Archiv auswerten](../how-to/30-auswerten.md).
 - Erste und letzte Aktivität je Tag mit Soll und Saldo: [Arbeitszeit nachvollziehen](../how-to/40-arbeitszeit.md).
 - Agenten das Archiv selbst auswerten lassen: [Agenten anbinden](../how-to/50-agenten-anbinden.md).
-- Die Defaults passen meist. Wenn nicht, schreibt `total-recall config init` eine kommentierte Vorlage; alle Schlüssel stehen in der [Konfiguration](../reference/20-konfiguration.md).
+- Die Defaults passen meist. Wenn nicht, schreibt `total-recall config init` eine kommentierte Vorlage; alle Schlüssel stehen in der [Konfiguration](../reference/20-konfiguration.md), einzelne Werte lassen sich auch in der TUI ändern: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md).
+- Sessions aus mehreren Repositories unter einem Namen mit fester Farbe: [Projekte definieren](../how-to/67-projekte-definieren.md).
+- Grafiken für den Monatsbericht: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md).
 - Nach einem Update von Claude Code prüft `total-recall doctor`, ob das Transkript-Format noch bekannt ist: [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).

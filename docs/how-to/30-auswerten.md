@@ -10,6 +10,8 @@ Drei Wege führen zu Antworten:
 2. `search` für die Volltextsuche.
 3. `sql` für alles andere.
 
+Dasselbe interaktiv zeigt die [TUI](../reference/30-tui.md); Grafiken für einen Bericht zeichnet [`chart`](47-monatsbericht.md).
+
 ## Kennzahlen mit `stats`
 
 Ein Monat im Überblick:
