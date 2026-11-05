@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.3.0 (unveröffentlicht)
+
+### Behoben
+
+- **Geheimnisse in JSON-Arrays wurden in `raw` nicht erkannt.** Ein String in einem Array hat keinen eigenen Schlüssel und bekam deshalb nur die Textregeln, nicht die Prüfung auf ein ganzes hochentropisches Token; ein Geheimnis ohne bekanntes Format hinter `"--api-key"` in einer Argumentliste blieb stehen. Jetzt gilt für Array-Elemente dieselbe Prüfung wie für Objektwerte, mit dem Schlüssel des Arrays: unter `"passwords": [...]` wird jedes Element maskiert, ein einzelnes hochentropisches Token ≥ 32 Zeichen wird `«redacted:high_entropy»` (nicht unter Bezeichner-Schlüsseln wie `messageIds`), und steht davor eine Option mit sensiblem Namen (`--token`, `--api-key`, `--password`, …), wird das Element auch dann `«redacted:secret»`, wenn es kurz ist. Prosa, Befehle, Pfade, Diffs, SHAs, UUIDs und Werkzeugnamen wie `mcp__server__tool` in Arrays bleiben erhalten; auf den Rohzeilen echter Transkripte änderte sich ein winziger Bruchteil der Array-Elemente, im gespeicherten Auszug praktisch keines. `text` war nie betroffen. Bestehende Archive ziehen die Rohzeilen einmalig nach: `total-recall backup`, dann `total-recall ingest --all --reread --rewrite-raw` (schreibt seit v1.2 den Auszug neu, siehe [`ingest`](10-befehle.md#ingest)); Transkripte, die inzwischen gelöscht sind, behalten ihre alte Rohzeile ([#162](https://github.com/seletz/total-recall/issues/162), [Design](../explanation/design.md#redaction)).
+
 ## v1.2.1
 
 ### Behoben

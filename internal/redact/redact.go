@@ -15,7 +15,11 @@
 //   - prose like "the password is X" / "das Passwort lautet X" when X
 //     contains a digit or symbol,
 //   - high-entropy values ≥ 32 characters assigned to any key; the value is
-//     one bare token (no whitespace), never a whole sentence or command.
+//     one bare token (no whitespace), never a whole sentence or command,
+//   - in JSON: string values under secret-looking keys (also elements of an
+//     array stored under one), bare high-entropy tokens as whole values or
+//     array elements, and the value after a --password/--token/--api-key
+//     flag in an argument array.
 //
 // Not masked on purpose: op:// references, $VAR/${VAR} and template
 // references, git SHAs and other hex digests, UUIDs, paths, code
@@ -147,12 +151,16 @@ var (
 	keyAllow = []string{"password", "passwort", "passwd", "kennwort", "passphrase", "secret", "token",
 		"apikey", "accesskey", "privatekey", "authkey", "credential", "authorization"}
 	// identifierKey marks keys whose values are identifiers, signatures or
-	// locations (tool_use_id, signature, displayPath): a single random-looking
-	// token there is not a secret, the whole-value high_entropy rule skips it.
+	// locations (tool_use_id, messageIds, signature, displayPath): a single
+	// random-looking token there is not a secret, the whole-value
+	// high_entropy rule skips it.
 	identifierKey = []string{"signature", "path", "file", "name", "url", "uri", "hash", "digest"}
 	// reToken matches a value that is one bare token, the only shape the
 	// high_entropy rule masks as a whole (same character class as in Text).
 	reToken = regexp.MustCompile(`^[A-Za-z0-9+/=_.-]{32,}$`)
+	// reOptionName matches the name of a command-line option without its
+	// dashes (api-key, token, passwd); anything else is not a flag.
+	reOptionName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 )
 
 // sensitiveKey reports whether a key name likely holds a secret.
@@ -178,7 +186,7 @@ func sensitiveKey(k string) bool {
 // identifierValue reports whether key names an identifier-like field.
 func identifierValue(key string) bool {
 	n := strings.ToLower(key)
-	if strings.HasSuffix(n, "id") {
+	if strings.HasSuffix(n, "id") || strings.HasSuffix(n, "ids") {
 		return true
 	}
 	for _, d := range identifierKey {
@@ -230,9 +238,10 @@ func entropy(s string) float64 {
 }
 
 // highEntropy reports whether v looks like a random secret: ≥ 32 chars,
-// mixed case and digits, not hex/UUID, not a path, high Shannon entropy.
+// mixed case and digits, not hex/UUID, not a path, not a dunder identifier
+// (mcp__server__tool), high Shannon entropy.
 func highEntropy(v string) bool {
-	if len(v) < 32 || strings.HasPrefix(v, "/") || strings.HasPrefix(v, "«") {
+	if len(v) < 32 || strings.HasPrefix(v, "/") || strings.HasPrefix(v, "«") || strings.Contains(v, "__") {
 		return false
 	}
 	if reHex.MatchString(strings.ReplaceAll(v, "-", "")) {
@@ -403,8 +412,11 @@ func (r *Redactor) applyRule(ru rule, s string) string {
 // (key order, whitespace, numbers) is preserved byte for byte. A string value
 // whose key looks secret is masked entirely, so is a value that is one bare
 // high-entropy token; every other string (prose, commands, tool output) is
-// masked with Text, token by token, and otherwise kept (#130). If line is
-// not valid JSON, Text(line) is returned with an error.
+// masked with Text, token by token, and otherwise kept (#130). An array
+// element has no key: it gets the same checks as a value under a harmless
+// key, and the element before it stands in for the key when it is a flag
+// such as --api-key or --token (#162). If line is not valid JSON, Text(line)
+// is returned with an error.
 func (r *Redactor) JSON(line string) (string, error) {
 	if !json.Valid([]byte(line)) {
 		return r.Text(line), fmt.Errorf("redact: invalid JSON")
@@ -412,15 +424,36 @@ func (r *Redactor) JSON(line string) (string, error) {
 	var b strings.Builder
 	last := 0
 	lastKey := ""
-	afterColon := false
+	// frames mirrors the open containers; the top frame tells whether a
+	// string is an object value or an array element and remembers the
+	// previous element of the array.
+	var frames []jsonFrame
 	for i := 0; i < len(line); i++ {
 		c := line[i]
 		switch c {
-		case ':':
-			afterColon = true
+		case '[':
+			f := jsonFrame{array: true}
+			if n := len(frames); n > 0 {
+				// the array's own key, inherited through nested arrays
+				f.key = lastKey
+				if frames[n-1].array {
+					f.key = frames[n-1].key
+				}
+			}
+			frames = append(frames, f)
 			continue
-		case ',', '[', '{', '}', ']':
-			afterColon = false
+		case '{':
+			frames = append(frames, jsonFrame{})
+			continue
+		case ']', '}':
+			if len(frames) > 0 {
+				frames = frames[:len(frames)-1]
+			}
+			continue
+		case ',':
+			if n := len(frames); n > 0 && frames[n-1].array {
+				frames[n-1].prev, frames[n-1].cur = frames[n-1].cur, ""
+			}
 			continue
 		case '"':
 		default:
@@ -439,20 +472,30 @@ func (r *Redactor) JSON(line string) (string, error) {
 		if err := json.Unmarshal([]byte(lit), &str); err != nil {
 			return r.Text(line), fmt.Errorf("redact: %w", err)
 		}
-		if isKey(line, j+1) {
+		top := len(frames) - 1
+		switch {
+		case top >= 0 && !frames[top].array && isKey(line, j+1):
 			lastKey = str
-		} else {
+			i = j
+			continue
+		case top >= 0 && frames[top].array:
+			frames[top].cur = str
+			if red := r.jsonValue(frames[top].key, frames[top].prev, str); red != str {
+				b.WriteString(line[last:i])
+				b.WriteString(encodeString(red))
+				last = j + 1
+			}
+		default:
 			key := ""
-			if afterColon {
+			if top >= 0 {
 				key = lastKey
 			}
-			if red := r.jsonValue(key, str); red != str {
+			if red := r.jsonValue(key, "", str); red != str {
 				b.WriteString(line[last:i])
 				b.WriteString(encodeString(red))
 				last = j + 1
 			}
 		}
-		afterColon = false
 		i = j
 	}
 	if last == 0 {
@@ -462,15 +505,30 @@ func (r *Redactor) JSON(line string) (string, error) {
 	return b.String(), nil
 }
 
-// jsonValue masks one string value stored under key ("" for array
-// elements). Order as in Text: the specific rules first (sensitive key,
-// known token formats, assignments inside the value), the generic
-// high-entropy rule last and only for a value that is one bare token.
-func (r *Redactor) jsonValue(key, v string) string {
-	if key == "" || r.allowed(v) {
+// jsonFrame is one open JSON container while JSON scans a line. For an
+// array, key is the object key the array (or its enclosing array) is stored
+// under, cur the string element being read (empty if the current element is
+// not a string) and prev the one before it.
+type jsonFrame struct {
+	array bool
+	key   string
+	prev  string
+	cur   string
+}
+
+// jsonValue masks one string value stored under key: the object key of the
+// value or of the array that holds it ("" at the top level). For an array
+// element prev is the preceding element ("" if none or not a string); a flag
+// like --token or --api-key there counts as a sensitive key too. Order as in
+// Text: the specific rules first (sensitive key, known token formats,
+// assignments inside the value), the generic high-entropy rule last and
+// only for a value that is one bare token under a key that does not name
+// identifiers.
+func (r *Redactor) jsonValue(key, prev, v string) string {
+	if r.allowed(v) {
 		return r.Text(v)
 	}
-	if sensitiveKey(key) && plausibleSecret(v, true) {
+	if (sensitiveKey(key) || flagKey(prev)) && plausibleSecret(v, true) {
 		return Marker("secret")
 	}
 	if t := r.Text(v); t != v {
@@ -480,6 +538,19 @@ func (r *Redactor) jsonValue(key, v string) string {
 		return Marker("high_entropy")
 	}
 	return v
+}
+
+// flagKey reports whether an array element names a secret-taking option:
+// a command-line flag (-passwd, --api-key, --token) whose name is a sensitive
+// key. A bare word without the dash is not enough ("token" in a word list
+// is prose, "--token" in an argument list takes a value), neither is a word
+// that merely contains one (-- followed by a sentence fragment).
+func flagKey(s string) bool {
+	if len(s) > 64 || !strings.HasPrefix(s, "-") {
+		return false
+	}
+	name := strings.TrimLeft(s, "-")
+	return reOptionName.MatchString(name) && sensitiveKey(name)
 }
 
 // isKey reports whether the string literal ending before pos is an object key.
