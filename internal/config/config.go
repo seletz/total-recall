@@ -227,6 +227,9 @@ type TUI struct {
 	// ActivityWindow is the window the activity view starts with: day,
 	// week or month.
 	ActivityWindow string `toml:"activity_window"`
+	// ActivityProjects starts the activity view with the bars coloured by
+	// project (the key p switches).
+	ActivityProjects bool `toml:"activity_projects"`
 	// Reload is how often the TUI checks the archive for changes and
 	// reloads the visible view when there are any (--reload); 0 switches
 	// the reload off, anything else is at least MinReload.
@@ -427,6 +430,7 @@ var fields = []struct {
 	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
+	{"tui.activity_projects", func(c *Config) string { return strconv.FormatBool(c.TUI.ActivityProjects) }},
 	{"tui.reload", func(c *Config) string { return c.TUI.Reload.String() }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
 	{"project", func(c *Config) string { return formatProjects(c.Projects) }},

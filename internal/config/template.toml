@@ -178,6 +178,9 @@ stats_period = "day"
 stats_dimension = "project"
 # Window the activity view starts with: day, week or month.
 activity_window = "week"
+# Colour the bars of the activity view by project from the start (the key
+# p switches between the working hours and the projects).
+activity_projects = false
 # How often the TUI checks the archive for changes and reloads the visible
 # view when there are any (--reload); 0 switches it off, at least 1s.
 reload = "5s"

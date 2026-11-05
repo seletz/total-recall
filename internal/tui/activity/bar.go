@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -120,18 +122,32 @@ func (l layout) caption(cells []cellKind, d store.Workday) caption {
 // renderBar draws the cells, one styled run per stretch of equal kind,
 // with the caption in the holiday colour over the cells it covers.
 func (l layout) renderBar(cells []cellKind, c caption) string {
+	return l.renderCells(len(cells), func(i int) (int, rune, lipgloss.Style) {
+		return int(cells[i]), glyphs[cells[i]], l.styles.cell(cells[i])
+	}, c)
+}
+
+// renderCells draws n cells, one styled run per stretch of cells with the
+// same id, with the caption in the holiday colour over the cells it
+// covers. cell returns the id, the glyph and the style of a cell; cells
+// with the same id have the same glyph and style.
+func (l layout) renderCells(n int, cell func(i int) (int, rune, lipgloss.Style), c caption) string {
 	var b strings.Builder
-	for i := 0; i < len(cells); {
+	for i := 0; i < n; {
 		if i >= c.at && i < c.at+len(c.text) {
 			b.WriteString(l.styles.holidayName.Render(string(c.text[i-c.at:])))
 			i = c.at + len(c.text)
 			continue
 		}
-		j := i
-		for j < len(cells) && cells[j] == cells[i] && (j < c.at || j >= c.at+len(c.text)) {
+		id, glyph, style := cell(i)
+		j := i + 1
+		for j < n && (j < c.at || j >= c.at+len(c.text)) {
+			if jd, _, _ := cell(j); jd != id {
+				break
+			}
 			j++
 		}
-		b.WriteString(l.styles.cell(cells[i]).Render(strings.Repeat(string(glyphs[cells[i]]), j-i)))
+		b.WriteString(style.Render(strings.Repeat(string(glyph), j-i)))
 		i = j
 	}
 	return b.String()

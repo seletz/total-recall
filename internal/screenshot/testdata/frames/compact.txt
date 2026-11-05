@@ -1,6 +1,6 @@
  total-recall        updated 12:00:00          1 search   2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────
- period: day [week] month  count: all [human] this week · 2026-W23 · 2026-06-01…
+ period: day [week] month  count: all [human]  bars: [hours] projects  2026-W23
  week: 39h13m in 6 days · target 32h00m (4 workdays × 8h00m) · balance +7h13m ·…
  day             first  last          span     diff  04  08  12   16  20  00
  Mon 2026-06-01  08:52  17:35        8h43m   +0h43m  ·····█████████▓···········

@@ -580,13 +580,14 @@ mouse = false
 stats_period = "week"
 stats_dimension = "agent"
 activity_window = "month"
+activity_projects = true
 reload = "10s"
 `)
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", Reload: Duration{10 * time.Second}}); c.TUI != want {
+	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityProjects: true, Reload: Duration{10 * time.Second}}); c.TUI != want {
 		t.Errorf("TUI = %+v, want %+v", c.TUI, want)
 	}
 	entries := map[string]Entry{}
@@ -594,7 +595,7 @@ reload = "10s"
 		entries[e.Key] = e
 	}
 	for k, want := range map[string]string{"tui.view": "stats", "tui.graphics": "text", "tui.mouse": "false",
-		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month", "tui.reload": "10s"} {
+		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month", "tui.activity_projects": "true", "tui.reload": "10s"} {
 		if e := entries[k]; e.Value != want || e.Origin != OriginFile {
 			t.Errorf("%s = %+v, want %q from file", k, e, want)
 		}

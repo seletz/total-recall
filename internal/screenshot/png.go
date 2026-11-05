@@ -172,6 +172,14 @@ func shape(img *image.RGBA, r image.Rectangle, ch rune, fg color.Color) bool {
 		fill(img, image.Rect(r.Min.X, r.Min.Y, r.Min.X+w*k/8, r.Max.Y), fg)
 	case '▐':
 		fill(img, image.Rect(cx, r.Min.Y, r.Max.X, r.Max.Y), fg)
+	case '▞':
+		fill(img, image.Rect(cx, r.Min.Y, r.Max.X, cy), fg)
+		fill(img, image.Rect(r.Min.X, cy, cx, r.Max.Y), fg)
+	case '▚':
+		fill(img, image.Rect(r.Min.X, r.Min.Y, cx, cy), fg)
+		fill(img, image.Rect(cx, cy, r.Max.X, r.Max.Y), fg)
+	case '▪':
+		fill(img, image.Rect(cx-w/4, cy-w/4, cx+w/4, cy+w/4), fg)
 	case '─':
 		hline(r.Min.X, r.Max.X)
 	case '│':

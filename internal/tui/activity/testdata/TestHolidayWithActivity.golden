@@ -1,4 +1,4 @@
- period: day [week] month  count: [all] human        this week · 2026-W02 · 2026-01-05 – 2026-01-11
+ period: day [week] month  count: [all] human  bars: [hours] projects       2026-01-05 – 2026-01-11
  week: 25m in 3 days · target 24h00m (3 workdays × 8h00m) · balance -23h34m · Mon 05 Testtag, Thu 0…
  day             first  last     span     diff  04      08       12      16       20      00
  Mon 2026-01-05  08:45  08:45      5s   +0h00m  ·Testtag··█········································

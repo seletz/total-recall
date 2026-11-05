@@ -136,3 +136,42 @@ func TestImageHalfLines(t *testing.T) {
 		})
 	}
 }
+
+// TestImageQuadrants: the quadrant blocks and the small square of the
+// project bars are drawn as shapes: a quadrant block fills two opposite
+// corners of its cell and leaves the other two, the small square fills the
+// centre and leaves the corners.
+func TestImageQuadrants(t *testing.T) {
+	f := Frame{Shot: Shot{Width: 3, Height: 1}, Content: "\x1b[38;2;255;255;255m▞▚▪\x1b[0m"}
+	img, err := Image(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	white := color.RGBA{255, 255, 255, 255}
+	at := func(col int, dx, dy int) color.RGBA {
+		return img.RGBAAt(padX+col*cellW+dx, titleBar+dy)
+	}
+	q := cellW / 4
+	tests := []struct {
+		name   string
+		col    int
+		dx, dy int
+		lit    bool
+	}{
+		{"▞ upper right", 0, 3 * q, q, true},
+		{"▞ lower left", 0, q, cellH - q, true},
+		{"▞ upper left", 0, q, q, false},
+		{"▞ lower right", 0, 3 * q, cellH - q, false},
+		{"▚ upper left", 1, q, q, true},
+		{"▚ lower right", 1, 3 * q, cellH - q, true},
+		{"▚ upper right", 1, 3 * q, q, false},
+		{"▪ centre", 2, cellW / 2, cellH / 2, true},
+		{"▪ corner", 2, 1, 1, false},
+	}
+	for _, tt := range tests {
+		c := at(tt.col, tt.dx, tt.dy)
+		if lit := near(c, white); lit != tt.lit {
+			t.Errorf("%s = %v, lit %v, want %v", tt.name, c, lit, tt.lit)
+		}
+	}
+}

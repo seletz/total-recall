@@ -90,17 +90,18 @@ const (
 	StatsHeatmap   = "stats_heatmap"
 	StatsGraphics  = "stats_graphics"
 
-	ActivityDay     = "activity_day"
-	ActivityWeek    = "activity_week"
-	ActivityMonth   = "activity_month"
-	ActivityEarlier = "activity_earlier"
-	ActivityLater   = "activity_later"
-	ActivityCurrent = "activity_current"
-	ActivityLast    = "activity_last"
-	ActivityHuman   = "activity_human"
-	ActivityFigures = "activity_figures"
-	ActivityUp      = "activity_up"
-	ActivityDown    = "activity_down"
+	ActivityDay      = "activity_day"
+	ActivityWeek     = "activity_week"
+	ActivityMonth    = "activity_month"
+	ActivityEarlier  = "activity_earlier"
+	ActivityLater    = "activity_later"
+	ActivityCurrent  = "activity_current"
+	ActivityLast     = "activity_last"
+	ActivityHuman    = "activity_human"
+	ActivityFigures  = "activity_figures"
+	ActivityProjects = "activity_projects"
+	ActivityUp       = "activity_up"
+	ActivityDown     = "activity_down"
 )
 
 // Actions is the catalogue, in the order of the docs and of `config show`.
@@ -158,6 +159,7 @@ var Actions = []Action{
 	{ActivityLast, Activity, []string{"l"}, "last day/week/month"},
 	{ActivityHuman, Activity, []string{"h"}, "human/all events"},
 	{ActivityFigures, Activity, []string{"s"}, "summary figures"},
+	{ActivityProjects, Activity, []string{"p"}, "by project"},
 	{ActivityUp, Activity, []string{"up", "k"}, "day back (scroll)"},
 	{ActivityDown, Activity, []string{"down", "j"}, "day forward (scroll)"},
 }

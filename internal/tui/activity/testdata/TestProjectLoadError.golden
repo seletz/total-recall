@@ -1,0 +1,26 @@
+ period: day [week] month  count: all [human]  bars: [hours] projects       2026-01-05 – 2026-01-11
+ week: 25m in 3 days · target 32h00m (4 workdays × 8h00m) · balance -31h35m · Tue 06 Epiphanias
+ The query failed; see the status line.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ first  median 17:30  mean 15:05  min 08:45  max 19:00
+ last   median 17:55  mean 15:13  min 08:45  max 19:00
+ span   median 0s     mean 8m     min 0s     max 25m
+ error: boom
