@@ -93,6 +93,8 @@ total-recall status          # 4. prüfen: schema ohne Hinweis
 
 Die Kopie neben der Datenbank ist die Rückfalloption: Läuft nach der Migration alles, kann sie weg. Wer zurück will, kopiert sie über die Datenbank und installiert das alte Binary.
 
+Dasselbe geht in der TUI: Die Ansicht [Config](../reference/30-tui.md#config) (`4`) zeigt auf der Seite **status** `migration pending`, die Seite **actions** führt `backup`, `migrate` (mit demselben Plan vor der Bestätigung) und `maintenance` aus, und die Seite **setup** prüft nach dem Einspielen eines neuen Binarys, ob das im `PATH` liegende dieselbe Version ist wie das laufende und ob die Hooks noch vollständig sind. Rezept: [Die Datenbank migrieren](65-einstellungen-tui.md#die-datenbank-migrieren).
+
 ## Nächste Schritte
 
 1. [Hooks einrichten](20-hooks-einrichten.md) und einmal alles nachlesen: `total-recall ingest --all`.

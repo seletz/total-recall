@@ -15,10 +15,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
-	"github.com/seletz/total-recall/internal/harness"
-	"github.com/seletz/total-recall/internal/harness/claude"
 	"github.com/seletz/total-recall/internal/ingest"
-	"github.com/seletz/total-recall/internal/redact"
+	"github.com/seletz/total-recall/internal/logfile"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -93,79 +92,20 @@ func (e *env) ingestCmd() *cobra.Command {
 	return c
 }
 
-// deps builds the ingest dependencies from the configuration.
-func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error) {
-	d := ingest.Deps{
-		Store:       st,
-		StoreRaw:    cfg.Ingest.StoreRaw,
-		RawMaxBytes: cfg.Ingest.RawMaxBytes,
-		ResolveGit:  cfg.Git.Resolve,
-		LockDir:     lockDir(cfg),
-		Logf:        func(f string, a ...any) { log.Infof(f, a...) },
-	}
-	if cfg.Redact.Enabled {
-		r, err := redact.New(redact.Options{ExtraPatterns: cfg.Redact.ExtraPatterns, Allow: cfg.Redact.Allow})
-		if err != nil {
-			return d, err
-		}
-		d.Redactor = r
-	}
-	d.Adapters = adapters(cfg)
-	return d, nil
-}
-
-// adapters returns the enabled harness adapters configured from cfg.
-func adapters(cfg *config.Config) []harness.Adapter {
-	var out []harness.Adapter
-	if c := cfg.Harness.Claude; c.Enabled {
-		out = append(out, claude.New(c.ProjectsDir,
-			claude.WithToolResultMaxBytes(cfg.Ingest.ToolResultMaxBytes),
-			claude.WithPeerPrefixes(c.Actors.PeerPrefixes...),
-			claude.WithPeerPasteHeaders(c.Actors.PeerPasteHeaders...),
-			claude.WithAutomationPrefixes(c.Actors.AutomationPrefixes...),
-			claude.WithSkipRecordTypes(c.SkipRecordTypes...),
-		))
-	}
-	return out
-}
-
-// openWrite opens the archive read-write and holds the shared maintenance
-// lock until Close: while `maintenance` or `migrate` holds the archive, it
-// fails with store.ErrMaintenance. It never migrates: an archive with an
-// older schema is store.ErrSchemaOutdated unless extra has
-// store.AllowOutdated (backup).
-func openWrite(cfg *config.Config, log *logger, extra ...store.Option) (*store.Store, error) {
-	opts := append([]store.Option{store.WithLocation(cfg.Location()),
-		store.WithLockDir(lockDir(cfg)),
-		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) })}, extra...)
-	return store.Open(cfg.DB, opts...)
-}
-
 // warnOutdatedOnce logs, at WARN, that the hook wrote nothing because the
 // archive needs a migration: once per schema pair and local day, remembered
 // in a marker file in the lock dir, so the log does not fill up with one
 // line per hook while the user has not migrated yet.
-func warnOutdatedOnce(cfg *config.Config, log *logger, now time.Time, event string, err error) {
+func warnOutdatedOnce(cfg *config.Config, log *logfile.Logger, now time.Time, event string, err error) {
 	stamp := err.Error() + " " + now.In(cfg.Location()).Format("2006-01-02")
-	marker := filepath.Join(lockDir(cfg), "schema-warned")
+	marker := filepath.Join(ops.LockDir(cfg), "schema-warned")
 	if b, rerr := os.ReadFile(marker); rerr == nil && strings.TrimSpace(string(b)) == stamp {
 		return
 	}
-	if merr := os.MkdirAll(lockDir(cfg), 0o755); merr == nil {
+	if merr := os.MkdirAll(ops.LockDir(cfg), 0o755); merr == nil {
 		_ = os.WriteFile(marker, []byte(stamp+"\n"), 0o644)
 	}
 	log.Warnf("hook %s: nothing written, the archive needs a migration (%v); hooks catch up afterwards", event, err)
-}
-
-// rawTrimmers collects the raw trimmers of the adapters by harness name.
-func rawTrimmers(as []harness.Adapter) map[string]store.RawTrimFunc {
-	m := map[string]store.RawTrimFunc{}
-	for _, a := range as {
-		if t, ok := a.(harness.RawTrimmer); ok {
-			m[a.Name()] = t.TrimRaw
-		}
-	}
-	return m
 }
 
 // ingestFlags are the mode flags of `ingest`.
@@ -181,13 +121,13 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	if fl.rewriteRaw && !cfg.Ingest.StoreRaw {
 		return fmt.Errorf("ingest --rewrite-raw: ingest.store_raw is disabled in the configuration, it would drop raw instead")
 	}
-	log := newLogger(cfg.LogPath(), e.app.Now)
-	st, err := openWrite(cfg, log)
+	log := logfile.New(cfg.LogPath(), e.app.Now)
+	st, err := ops.OpenWrite(cfg, log)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = st.Close() }()
-	d, err := deps(cfg, st, log)
+	d, err := ops.Deps(cfg, st, log)
 	if err != nil {
 		return err
 	}
@@ -210,12 +150,7 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	}
 	out := e.out(cfg)
 	if len(paths) > 0 || all {
-		rewritten := ""
-		if fl.rewriteRaw {
-			rewritten = fmt.Sprintf(", %d raw rewritten", total.RawRewritten)
-		}
-		_, _ = fmt.Fprintf(out, "scanned %d files: %d changed, %d unchanged, %d locked; %d new events%s, %d sessions touched (%s)\n",
-			total.Scanned, total.Changed, total.Unchanged, total.Locked, total.Events, rewritten, total.Sessions, total.Duration.Round(time.Millisecond))
+		_, _ = fmt.Fprintln(out, ops.FormatIngest(total, fl.rewriteRaw))
 	}
 	if regit {
 		rs, err := ingest.Regit(ctx, d)
@@ -227,7 +162,7 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	if len(total.Errors) > 0 {
 		w := e.app.Stderr
 		if e.g.detachedChild {
-			w = &logWriter{l: log, level: "ERROR"}
+			w = log.Writer("ERROR")
 		}
 		for _, fe := range total.Errors {
 			_, _ = fmt.Fprintf(w, "error: %s: %v\n", fe.Path, fe.Err)
@@ -259,7 +194,7 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		_, _ = fmt.Fprintln(e.app.Stderr, "total-recall: hook:", err)
 		return nil
 	}
-	log := newLogger(cfg.LogPath(), e.app.Now)
+	log := logfile.New(cfg.LogPath(), e.app.Now)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("hook: panic: %v", r)
@@ -315,7 +250,7 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		return nil
 	}
 
-	st, err := openWrite(cfg, log)
+	st, err := ops.OpenWrite(cfg, log)
 	if errors.Is(err, store.ErrMaintenance) {
 		// Nothing is lost: the next hook of the session (or SessionStart
 		// with --all) reads on from the stored offset.
@@ -333,7 +268,7 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		return nil
 	}
 	defer func() { _ = st.Close() }()
-	d, err := deps(cfg, st, log)
+	d, err := ops.Deps(cfg, st, log)
 	if err != nil {
 		log.Errorf("hook %s: %v", p.HookEventName, err)
 		return nil

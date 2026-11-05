@@ -14,6 +14,7 @@ type KeyMap struct {
 	Search   key.Binding
 	Stats    key.Binding
 	Activity key.Binding
+	Config   key.Binding
 	Help     key.Binding
 	Back     key.Binding
 	Quit     key.Binding
@@ -30,6 +31,7 @@ func newKeyMap(m keys.Map) KeyMap {
 		Search:    m.Binding(keys.GlobalSearch),
 		Stats:     m.Binding(keys.GlobalStats),
 		Activity:  m.Binding(keys.GlobalActivity),
+		Config:    m.Binding(keys.GlobalConfig),
 		Help:      m.Binding(keys.GlobalHelp),
 		Back:      m.Binding(keys.GlobalBack),
 		Quit:      m.Binding(keys.GlobalQuit),
@@ -38,12 +40,14 @@ func newKeyMap(m keys.Map) KeyMap {
 	}
 }
 
-// ShortHelp returns the bindings shown in the footer.
+// ShortHelp returns the bindings shown in the footer. The config tab is
+// left out so the line still fits beside a view's own hints in 100
+// columns; its tab in the header is clickable and the help lists the key.
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Search, k.Stats, k.Activity, k.Help, k.Quit}
 }
 
 // FullHelp returns the bindings shown in the help overlay, as two columns.
 func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Search, k.Stats, k.Activity, k.Reload}, {k.Help, k.Back, k.Quit, k.ForceQuit}}
+	return [][]key.Binding{{k.Search, k.Stats, k.Activity, k.Config, k.Reload}, {k.Help, k.Back, k.Quit, k.ForceQuit}}
 }

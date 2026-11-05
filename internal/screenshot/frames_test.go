@@ -21,11 +21,23 @@ func TestMain(m *testing.M) {
 	os.Exit(fixturedb.DemoMain(m))
 }
 
+// env is the demo archive with a synthetic home below a temporary
+// directory.
+func env(t *testing.T) *Env {
+	t.Helper()
+	_, path := fixturedb.Demo(t)
+	e, err := NewEnv(path, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = e.Close() })
+	return e
+}
+
 // frames renders every shot against the demo archive.
 func frames(t *testing.T) []Frame {
 	t.Helper()
-	st, _ := fixturedb.Demo(t)
-	out, err := RenderAll(st)
+	out, err := RenderAll(env(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,6 +50,7 @@ func frames(t *testing.T) []Frame {
 // TestRenderAll renders every shot: the frame has the shot's size and shows
 // the markers of its view, and no frame holds a path of the machine.
 func TestRenderAll(t *testing.T) {
+	latest := store.LatestSchemaVersion()
 	markers := map[string][]string{
 		"search":            {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
 		"session":           {"› session", "Release v0.3.0", "· tools", "tool_use Read", "tool_use Bash", "tool (tool_result)", "goreleaser", "mara/kompass"},
@@ -50,6 +63,12 @@ func TestRenderAll(t *testing.T) {
 		"compact":           {"[3 activity]", "week:"},
 		"help":              {"[2 stats]", "keys: stats", "closes this help", "esc back"},
 		"heatmap-compact":   {"[2 stats]", "░▒▓█", "heatmap"},
+		"config-status":     {"4 config]", "[status] settings projects actions setup", "~/.config/total-recall/config.toml", "~/.local/share/total-recall/archive.db", "schema", "sessions", "last backup", "~/Documents/total-recall/archive-2026-11-02.db.gz", "problems              none"},
+		"config-settings":   {"4 config]", "status [settings]", "KEY", "VALUE", "ORIGIN", "[backup]", "enter saves, esc cancels"},
+		"config-actions":    {"4 config]", "[actions] setup", "▸ backup", "maintenance (dry run)", "migrate", "y confirms, esc cancels"},
+		"config-projects":   {"4 config]", "settings [projects] actions", "NAME", "DESCRIPTION", "MATCH", "■ kompass", "Wanderkarten, alle Repositories", "https://git.invalid/mara/kompass*, ~/src/kompass*", "· notizen", "kompass  #4e79a7"},
+		"config-migrate":    {"4 config]", "[actions] setup", "▸ migrate", "· migrate first", fmt.Sprintf("migrate: migrate from schema v%d to v%d after a copy (archive.db.pre-v%d.bak)", latest-1, latest, latest-1), "y confirms, esc cancels", fmt.Sprintf("schema    v%d -> v%d, 1 pending migration:", latest-1, latest), fmt.Sprintf("backup    ~/.local/share/total-recall/archive.db.pre-v%d.bak", latest-1), "space     about"},
+		"config-setup":      {"4 config]", "actions [setup]", "config      √", "hooks       √ ~/.claude/settings.json: SessionStart, Stop, SubagentStop, SessionEnd", "binary      √ ~/.local/bin/total-recall on PATH, this version (1.2.0)", "backups     √", "transcripts √ ~/.claude/projects", "archive     √ ~/.local/share/total-recall/archive.db", `"command": "total-recall ingest --hook --detach"`},
 	}
 	for _, f := range frames(t) {
 		t.Run(f.Shot.Name, func(t *testing.T) {
@@ -85,13 +104,13 @@ func TestRenderAll(t *testing.T) {
 // TestRenderDeterministic: the same shot renders the same frame twice; the
 // fixed clock keeps the durations in the status lines at zero.
 func TestRenderDeterministic(t *testing.T) {
-	st, _ := fixturedb.Demo(t)
+	e := env(t)
 	for _, s := range Shots {
-		f1, err := Render(s, st)
+		f1, err := Render(s, e)
 		if err != nil {
 			t.Fatal(err)
 		}
-		f2, err := Render(s, st)
+		f2, err := Render(s, e)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,6 +125,9 @@ func TestRenderDeterministic(t *testing.T) {
 func TestRenderNeedsArchive(t *testing.T) {
 	for _, s := range Shots {
 		if _, err := Render(s, nil); err == nil {
+			t.Errorf("shot %s renders without an archive", s.Name)
+		}
+		if _, err := Render(s, &Env{}); err == nil {
 			t.Errorf("shot %s renders without an archive", s.Name)
 		}
 	}

@@ -129,6 +129,14 @@ type Config struct {
 	origins  map[string]Origin
 	loc      *time.Location
 	dayStart time.Duration
+	// opts are the options the configuration was loaded with; SetValue
+	// loads the edited file with the same ones.
+	opts Options
+	// defaultValues are the built-in values of every key as Entries
+	// formats them (Default); fileKeys are the keys the file sets, even
+	// those an environment variable or a flag overrides (Reset).
+	defaultValues map[string]string
+	fileKeys      map[string]struct{}
 }
 
 // StringList is a TOML value that is a string or a list of strings.
@@ -622,7 +630,11 @@ func DefaultPath(home string, getenv func(string) string) string {
 // Load builds the effective configuration.
 // A missing default config file is not an error; a missing file named by
 // --config or TOTAL_RECALL_CONFIG is.
-func Load(opts Options) (*Config, error) {
+func Load(opts Options) (*Config, error) { return load(opts, nil) }
+
+// load builds the configuration; text, when not nil, stands in for the
+// content of the config file (SetValue validates an edit with it).
+func load(opts Options, text []byte) (*Config, error) {
 	if opts.GOOS == "" {
 		opts.GOOS = runtime.GOOS
 	}
@@ -640,7 +652,13 @@ func Load(opts Options) (*Config, error) {
 
 	c := defaults(opts.GOOS, opts.Home, opts.Getenv)
 	c.Home = opts.Home
+	c.opts = opts
 	c.origins = map[string]Origin{}
+	c.fileKeys = map[string]struct{}{}
+	c.defaultValues = map[string]string{}
+	for _, e := range c.Entries() {
+		c.defaultValues[e.Key] = e.Value
+	}
 
 	switch {
 	case opts.ConfigFile != "":
@@ -651,7 +669,7 @@ func Load(opts Options) (*Config, error) {
 		c.Path, c.PathOrigin = DefaultPath(opts.Home, opts.Getenv), OriginDefault
 	}
 
-	if err := c.readFile(expand); err != nil {
+	if err := c.readFile(expand, text); err != nil {
 		return nil, err
 	}
 
@@ -682,13 +700,18 @@ func (c *Config) set(key string, dst *string, v string, o Origin) {
 	c.origins[key] = o
 }
 
-func (c *Config) readFile(expand func(string) string) error {
-	b, err := os.ReadFile(c.Path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) && c.PathOrigin == OriginDefault {
-			return nil
+// readFile decodes the config file, or text when it is not nil.
+func (c *Config) readFile(expand func(string) string, text []byte) error {
+	b := text
+	if b == nil {
+		var err error
+		b, err = os.ReadFile(c.Path)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) && c.PathOrigin == OriginDefault {
+				return nil
+			}
+			return fmt.Errorf("config: %w", err)
 		}
-		return fmt.Errorf("config: %w", err)
 	}
 	md, err := toml.Decode(string(b), c)
 	if err != nil {
@@ -705,10 +728,15 @@ func (c *Config) readFile(expand func(string) string) error {
 	for _, k := range fields {
 		if md.IsDefined(strings.Split(k.key, ".")...) {
 			c.origins[k.key] = OriginFile
+			c.fileKeys[k.key] = struct{}{}
 		}
 	}
 	for name := range c.Keys {
 		c.origins["keys."+name] = OriginFile
+		c.fileKeys["keys."+name] = struct{}{}
+	}
+	for id := range c.Accounts {
+		c.fileKeys["accounts."+id] = struct{}{}
 	}
 	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Harness.Claude.ProjectsDir} {
 		*p = expand(*p)

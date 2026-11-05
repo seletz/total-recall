@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                        1 search   2 stats   3 activity  [4 config]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status settings projects actions [setup]                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ CHECK        STATE
+▸ config      √ ~/.config/total-recall/config.toml loaded
+  hooks       √ ~/.claude/settings.json: SessionStart, Stop, SubagentStop, SessionEnd
+  binary      √ ~/.local/bin/total-recall on PATH, this version (1.2.0)
+  backups     √ ~/Documents/total-recall exists, last backup 7h00m ago
+  transcripts √ ~/.claude/projects
+  archive     √ ~/.local/share/total-recall/archive.db
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ hook block for ~/.claude/settings.json; c copies it, enter offers a fix where there is one
+   {
+     "hooks": {
+       "SessionEnd": [
+         {
+           "hooks": [
+             {
+               "type": "command",
+               "command": "total-recall ingest --hook --detach"
+             },
+             {
+               "type": "command",
+               "command": "total-recall backup --if-older 24h --detach"
+             }
+           ]
+         }
+       ],
+       "SessionStart": [
+         {
+           "hooks": [
+             {
+               "type": "command",
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab page • ↑/↓ move • enter edit / run • c copy hook block • 1 search • 2 stats • 3 activity • ? help • q quit

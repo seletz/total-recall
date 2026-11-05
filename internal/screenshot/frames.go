@@ -34,6 +34,9 @@ type Shot struct {
 	Now           time.Time
 	// Keys are pressed in order: single characters, "enter", "tab", "esc".
 	Keys []string
+	// Outdated renders against the home with the outdated archive
+	// (Env.Outdated) instead of the demo archive.
+	Outdated bool
 	// Projects applies the project definitions of the demo config
 	// (Projects), so configured names and colours show.
 	Projects bool
@@ -122,6 +125,18 @@ var Shots = []Shot{
 		Caption: "Hilfe-Overlay mit den Tasten der Statistik und den globalen Tasten"},
 	{Name: "heatmap-compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewStats, Now: statsNow, Keys: []string{"h"},
 		Caption: "Statistik mit Heatmap bei 80×24: kompaktes Layout, Tabelle ausgeblendet"},
+	{Name: "config-status", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow,
+		Caption: "Config, Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs"},
+	{Name: "config-settings", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "enter"},
+		Caption: "Config, Seite Settings: das Backup-Verzeichnis wird in der Eingabezeile bearbeitet"},
+	{Name: "config-actions", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "shift+tab", "enter"},
+		Caption: "Config, Seite Actions: Backup wartet auf die Bestätigung"},
+	{Name: "config-projects", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "tab"},
+		Caption: "Config, Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern"},
+	{Name: "config-migrate", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "shift+tab", "j", "j", "j", "enter"}, Outdated: true,
+		Caption: "Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung"},
+	{Name: "config-setup", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab"},
+		Caption: "Config, Seite Setup: Prüfungen der Installation und der Hook-Block"},
 }
 
 // workHours mirrors the defaults of the [work] config table.
@@ -132,17 +147,26 @@ var workHours = store.WorkHours{
 
 // options builds the app options of a shot: the config defaults (time zone
 // Europe/Berlin, day start 04:00, working time, holidays of
-// Baden-Württemberg, own messages only), the demo's home directory, text
+// Baden-Württemberg, own messages only), the synthetic home directory, text
 // charts and the shot's clock.
-func options(s Shot, st *store.Store) (tui.Options, error) {
-	if st == nil {
+func options(s Shot, env *Env) (tui.Options, error) {
+	if s.Outdated && env != nil {
+		env = env.Outdated
+	}
+	if env == nil || env.Store == nil {
 		return tui.Options{}, fmt.Errorf("shot %s: no archive", s.Name)
 	}
 	now := s.Now
+	cv := env.View
+	cv.Now = func() time.Time { return now }
 	opts := tui.Options{
-		Store: st, Location: berlin, Now: func() time.Time { return now },
+		Store: env.Store, Location: berlin, Now: func() time.Time { return now },
 		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, NoMouse: true,
-		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: demo.Home,
+		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: env.Home,
+		Config: env.Config, ConfigView: cv,
+		// A shot never waits for a reload tick: the renderer runs commands
+		// synchronously, and a tick would block it.
+		Tick: func(time.Duration, func(time.Time) tea.Msg) tea.Cmd { return nil },
 	}
 	if s.Projects {
 		opts.Projects = Projects
@@ -154,8 +178,8 @@ func options(s Shot, st *store.Store) (tui.Options, error) {
 // demo archive, see package demo) and returns its final frame. Commands
 // run synchronously as they are returned, so every load has landed when
 // the frame is taken.
-func Render(s Shot, st *store.Store) (Frame, error) {
-	opts, err := options(s, st)
+func Render(s Shot, env *Env) (Frame, error) {
+	opts, err := options(s, env)
 	if err != nil {
 		return Frame{}, err
 	}
@@ -173,10 +197,10 @@ func Render(s Shot, st *store.Store) (Frame, error) {
 }
 
 // RenderAll renders every one of Shots.
-func RenderAll(st *store.Store) ([]Frame, error) {
+func RenderAll(env *Env) ([]Frame, error) {
 	out := make([]Frame, 0, len(Shots))
 	for _, s := range Shots {
-		f, err := Render(s, st)
+		f, err := Render(s, env)
 		if err != nil {
 			return nil, err
 		}
@@ -186,13 +210,15 @@ func RenderAll(st *store.Store) ([]Frame, error) {
 }
 
 // keyPress builds the key press for a name: a single character or one of
-// enter, tab, esc.
+// enter, tab, shift+tab, esc.
 func keyPress(name string) tea.KeyPressMsg {
 	switch name {
 	case "enter":
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
 	case "tab":
 		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "shift+tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
 	}

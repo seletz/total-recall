@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                        1 search   2 stats   3 activity  [4 config]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status settings [projects] actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   NAME         DESCRIPTION                       MATCH
+▸ ■ kompass      Wanderkarten, alle Repositories   https://git.invalid/mara/kompass*, ~/src/kompass*
+  ■ wetterwarte  Messstation und Auswertung        https://git.invalid/mara/wetterwarte
+  ■ fahrtenbuch                                    https://git.invalid/mara/fahrtenbuch
+  · notizen      Markdown-Notizen ohne Repository  ~/notizen
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ kompass  #4e79a7  https://git.invalid/mara/kompass*  ~/src/kompass*
+ first matching definition wins; edit them in the file, E opens $EDITOR
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab page • ↑/↓ move • E open config in $EDITOR • 1 search • 2 stats • 3 activity • ? help • q quit

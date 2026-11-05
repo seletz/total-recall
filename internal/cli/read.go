@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
@@ -192,11 +193,11 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			out.ErrorsWindow = statusErrorWindowLabel
 			out.ErrorsSince = NullString(isoTime(since))
 		}
-		all, err := readErrors(cfg.LogPath())
+		all, err := logfile.ReadErrors(cfg.LogPath())
 		if err != nil {
 			return err
 		}
-		recent, older := splitErrors(all, since)
+		recent, older := logfile.SplitErrors(all, since)
 		out.RecentErrorsTotal, out.OlderErrors = len(recent), older
 		if cap > 0 && len(recent) > cap {
 			recent = recent[len(recent)-cap:]

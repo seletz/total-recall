@@ -17,6 +17,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/harness"
+	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
 	tf "github.com/seletz/total-recall/internal/testfixture"
@@ -595,10 +596,10 @@ func TestStatus(t *testing.T) {
 	// Three days ago: an old error and a missing-transcript error, which
 	// never counts. Three hours ago: a fresh error.
 	at := func(d time.Duration) func() time.Time { return func() time.Time { return e.now.Add(d) } }
-	newLogger(e.log, at(-72*time.Hour)).Errorf("hook Stop: /p/a.jsonl: permission denied")
-	newLogger(e.log, at(-71*time.Hour)).Errorf("hook SubagentStop: /p/b.jsonl: stat /p/b.jsonl: no such file or directory")
-	newLogger(e.log, at(-3*time.Hour)).Infof("hook SubagentStop: transcript not present, skipped: /p/c.jsonl")
-	newLogger(e.log, at(-3*time.Hour)).Errorf("hook Stop: boom")
+	logfile.New(e.log, at(-72*time.Hour)).Errorf("hook Stop: /p/a.jsonl: permission denied")
+	logfile.New(e.log, at(-71*time.Hour)).Errorf("hook SubagentStop: /p/b.jsonl: stat /p/b.jsonl: no such file or directory")
+	logfile.New(e.log, at(-3*time.Hour)).Infof("hook SubagentStop: transcript not present, skipped: /p/c.jsonl")
+	logfile.New(e.log, at(-3*time.Hour)).Errorf("hook Stop: boom")
 	s := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
 	if s.Sessions != 3 || s.Events != 9 || s.Sources != 4 || s.DB != e.db || s.DBSizeBytes == 0 {
 		t.Errorf("status = %+v", s)
@@ -648,7 +649,7 @@ func TestStatus(t *testing.T) {
 	if err := os.Remove(e.log); err != nil {
 		t.Fatal(err)
 	}
-	newLogger(e.log, at(-72*time.Hour)).Errorf("hook Stop: old")
+	logfile.New(e.log, at(-72*time.Hour)).Errorf("hook Stop: old")
 	s = decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
 	if len(s.RecentErrors) != 0 || s.RecentErrorsTotal != 0 || s.OlderErrors != 1 {
 		t.Errorf("only old = %+v", s)

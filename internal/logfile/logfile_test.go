@@ -1,4 +1,4 @@
-package cli
+package logfile
 
 import (
 	"os"
@@ -10,11 +10,11 @@ import (
 
 func TestLogRotation(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "total-recall.log")
-	l := newLogger(p, func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) })
-	if l.maxSize != defaultLogMaxSize || defaultLogMaxSize != 5<<20 {
+	l := New(p, func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) })
+	if l.maxSize != DefaultMaxSize || DefaultMaxSize != 5<<20 {
 		t.Fatalf("default max size = %d", l.maxSize)
 	}
-	l.maxSize = 200
+	l.SetMaxSize(200)
 	for i := 0; i < 20; i++ {
 		l.Errorf("line %02d %s", i, strings.Repeat("x", 20))
 	}
@@ -38,10 +38,10 @@ func TestLogRotation(t *testing.T) {
 	if m, _ := filepath.Glob(p + ".2"); len(m) > 0 {
 		t.Errorf("second generation exists: %v", m)
 	}
-	// readErrors still reads the current file.
-	errs, err := readErrors(p)
+	// ReadErrors still reads the current file.
+	errs, err := ReadErrors(p)
 	if err != nil || len(errs) == 0 || !strings.Contains(errs[len(errs)-1].Message, "line 19") {
-		t.Errorf("readErrors = %v %v", errs, err)
+		t.Errorf("ReadErrors = %v %v", errs, err)
 	}
 }
 
@@ -79,11 +79,11 @@ func TestReadErrors(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			all, err := readErrors(p)
+			all, err := ReadErrors(p)
 			if err != nil {
 				t.Fatal(err)
 			}
-			recent, older := splitErrors(all, since)
+			recent, older := SplitErrors(all, since)
 			var msgs []string
 			for _, e := range recent {
 				msgs = append(msgs, e.Message)
@@ -101,8 +101,8 @@ func TestReadErrors(t *testing.T) {
 	if err := os.WriteFile(p, []byte(fresh), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	all, err := readErrors(p)
+	all, err := ReadErrors(p)
 	if err != nil || len(all) != 1 || !all[0].At.Equal(time.Date(2026, 11, 2, 17, 0, 0, 0, time.UTC)) {
-		t.Errorf("readErrors = %+v, %v", all, err)
+		t.Errorf("ReadErrors = %+v, %v", all, err)
 	}
 }

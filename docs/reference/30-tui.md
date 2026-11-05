@@ -4,7 +4,7 @@ icon: lucide/keyboard
 ---
 # TUI
 
-`total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap und die erste und letzte Aktivität je Tag. Die Datenbank wird nur lesend geöffnet.
+`total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap, die erste und letzte Aktivität je Tag und eine Ansicht [Config](#config) mit Status, Einstellungen, Wartungsaktionen und Prüfung der Installation. Die Datenbank wird nur lesend geöffnet; allein die Aktionen der Ansicht Config schreiben, nach Bestätigung und wie die gleichnamigen Befehle.
 
 !!! note "Herkunft"
     Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](../explanation/spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe. Die Textbeispiele auf dieser Seite sind erfunden, ebenso die Bilder: Sie zeigen das synthetische Demo-Archiv (`mise run demo:db`), eine erfundene Entwicklerin mit erfundenen Projekten und Sessions von Mai bis Oktober 2026. Erzeugt werden sie mit `mise run docs:screenshots`; wer die TUI ändert, erzeugt sie neu, und `mise run docs:screenshots:check` prüft, ob sie noch stimmen, siehe [Design](../explanation/design.md#technik).
@@ -15,13 +15,14 @@ icon: lucide/keyboard
 total-recall tui                          # startet in der Suche
 total-recall tui stats                    # startet in der Statistik
 total-recall tui activity                 # startet in der Aktivität je Tag
+total-recall tui config                   # startet in Status, Einstellungen, Aktionen, Setup
 total-recall tui --query "goreleaser"     # Suche mit vorbelegtem Suchtext
 total-recall tui stats --graphics text    # Chart als Text, kein Bild
 ```
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` \| `activity` | Ansicht beim Start, Default `view` aus `[tui]`, sonst `search` |
+| `search` \| `stats` \| `activity` \| `config` | Ansicht beim Start, Default `view` aus `[tui]`, sonst `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort beim Start |
 | `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `graphics` aus `[tui]`, sonst `auto`; siehe [Grafikmodi](#grafikmodi) |
 | `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus). Default `mouse` aus `[tui]`; `--no-mouse=false` schaltet die Maus für einen Aufruf wieder ein |
@@ -42,8 +43,8 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Bilder auf dieser Seite z
 
 Alle Ansichten teilen denselben Rahmen:
 
-- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs.
-- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
+- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity  4 config`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs.
+- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`; `4 config` steht nur in der Hilfe, damit die Zeile bei 100 Spalten passt), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt, in einem abgerundeten Rahmen in der Akzentfarbe. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
 - **Farben:** alle Ansichten teilen ein Theme, siehe [Farben](#farben).
 - **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
@@ -108,6 +109,8 @@ In den Ansichten:
 | Klick auf `day`, `week`, `month` oder `project`, `agent`, `directory` in der Statistik | wählt die Periode wie `d`/`w`/`m` bzw. die Dimension wie `p`/`a`/`v` |
 | Klick auf `day`, `week`, `month` oder `all`, `human` in der Aktivität | wählt das Fenster wie `d`/`w`/`m` bzw. die Zählweise wie `h` |
 | Klick auf die Kennzahlen der Aktivität | blendet sie aus wie `s`; `s` oder der Hinweis `s summary figures` in der Fußzeile blendet sie wieder ein |
+| Klick auf einen Seitennamen in der Config | wechselt die Seite wie ++tab++ / ++shift+tab++ |
+| Klick auf eine Zeile in der Config | markiert den Schlüssel, die Definition, die Aktion oder die Prüfung wie ++up++/++down++; ändert und startet nichts |
 
 Klicks anderswo (Chart, Tabelle und Heatmap der Statistik, die Tage der Aktivität, der Verlauf einer Session, Linien und Statuszeilen) tun nichts. Früher/später und Zoom der Statistik und der Aktivität, Kennzahl, Heatmap und Grafikmodus der Statistik, die Treffer in einer Session und alles Weitere erreicht die Maus über die Hinweise in der Fußzeile; was dort nicht steht (`e`, `h`, `g` der Statistik), nur über die Taste. Das Mausrad in der Vorschau verschiebt den Austausch zeilenweise; mit dem nächsten Treffer springt die Vorschau wieder an die automatische Position mit dem Treffer im oberen Drittel.
 
@@ -240,6 +243,86 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 
 Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er (und mit ihm der Feiertagsname auf der Achse), die Uhrzeiten, Spanne und Differenz bleiben. Die Kopfzeile wird bei schmalen Fenstern rechts abgeschnitten (`…`); die Feiertage stehen dann noch in den Zeilen.
 
+## Config { #config }
+
+Die vierte Ansicht (`4`, `total-recall tui config`) bündelt, was sonst `status`, `doctor`, `config show`, `backup`, `maintenance`, `reindex` und `hooks print` erledigen, auf fünf Seiten: **status**, **settings**, **projects**, **actions** und **setup**. Die Seiten wechseln mit ++tab++ / ++shift+tab++ (ebenso ++right++ / ++left++) oder einem Klick auf den Namen in der Umschaltzeile; rechts in dieser Zeile steht die Config-Datei. Auf jeder Seite bewegen ++up++/++down++ (`k`/`j`) und das Mausrad die Markierung, ein Klick auf eine Zeile markiert sie. Die Fußzeile zeigt die Tasten der aktiven Seite.
+
+Es ist die einzige Ansicht, die schreibt: in die Config-Datei (Settings, Setup) und über die Aktionen in das Archiv. Jede schreibende Aktion fragt vorher nach (`y` bestätigt, ++esc++ bricht ab) und nimmt dieselben Sperren wie der gleichnamige Befehl; außer der eigenen Config-Datei und dem Backup-Verzeichnis schreibt die Ansicht in keine Datei, insbesondere nie in `~/.claude/settings.json`.
+
+### Status
+
+![Config, Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs](../assets/screenshots/config-status.png)
+
+*Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs*
+
+Was [`status`](10-befehle.md#status) ausgibt, als Tabelle: Pfad und Größe des Archivs mit Seitenzahl, Seitengröße (mit Hinweis, solange sie unter 16384 liegt), Schema der Datenbank und der Binary (`v4, binary v5` mit `migration pending: back up, then run migrate (actions)`, wenn die Datenbank hinter der Binary liegt), `raw` (die komprimierte Größe aller Rohzeilen und die Zahl der Events mit und ohne `raw`, siehe [Schema](40-schema.md#raw); bis zur Migration `unknown until the migration ran`; das Kompressionsverhältnis, das `status` aus einer Stichprobe schätzt, fehlt hier), Sessions, Events, Quellen, letztes Einlesen je Harness, letztes Backup, Log- und Config-Datei. Darunter die Probleme der Konfiguration, die nur die TUI und `stats` betreffen (siehe [Prüfung](20-konfiguration.md#pruefung)), und die `ERROR`-Zeilen des Logs der letzten 24 Stunden, neueste zuerst; ältere nur als Zahl (`status --all-errors` zeigt sie). Die Seite lädt mit dem [Neuladen](#neuladen) der TUI nach, nach jeder Aktion sofort.
+
+### Settings
+
+![Config, Seite Settings: das Backup-Verzeichnis wird in der Eingabezeile bearbeitet](../assets/screenshots/config-settings.png)
+
+*Seite Settings: das Backup-Verzeichnis wird in der Eingabezeile bearbeitet*
+
+Jeder Schlüssel der Konfiguration mit Wert und Herkunft (`default`, `file`, `env`, `flag`), nach Tabellen gruppiert wie [`config show`](10-befehle.md#config). Unter der Linie stehen zum markierten Schlüssel der Hilfetext, bei Aufzählungen die erlaubten Werte, und der Default. ++up++/++down++ (`k`/`j`), das Mausrad und ein Klick bewegen die Markierung.
+
+++enter++ (`config_select`) ändert den markierten Wert: Ein Wahrheitswert kippt, eine Aufzählung (`view`, `rounding`, `count`, …) nimmt den nächsten Wert, alles andere öffnet eine Eingabezeile mit dem aktuellen Wert; ++enter++ übernimmt, ++esc++ verwirft. Der Text wird wie in der Datei gelesen: Zahlen (auch Dezimalzahlen wie `chart.scale`), Dauern (`20m`, `1h30m`, `0`), Uhrzeiten (`04:00`), Pfade, Listen als TOML-Array (`["a", "b"]`) oder durch Kommas getrennte Wörter (die Farbskala `chart.heatmap`). `d` (`config_default`) setzt den Schlüssel auf den Default zurück: die Zeile wird in der Datei auskommentiert.
+
+Geschrieben wird nur, was die Prüfung besteht: Der neue Wert muss zum Typ passen und darf keinen neuen Fehler erzeugen, den `config show` melden würde; die Datei wird dazu so geladen wie beim Start. Ein abgelehnter Wert lässt die Datei unverändert, die Meldung steht in der Eingabezeile. Beim Schreiben bleiben alle Kommentare und die übrigen Zeilen erhalten, nur die eine Zeile ändert sich; ein in der Vorlage auskommentierter Schlüssel (`# reload = "5s"`) wird an seiner Stelle aktiviert, ein fehlender Schlüssel ans Ende seiner Tabelle gesetzt, eine fehlende Tabelle angelegt, eine fehlende Datei aus der Vorlage geschrieben. Vor jedem Schreiben entsteht `config.toml.bak`, geschrieben wird atomar (temporäre Datei, dann umbenannt). Wirkung: `reload` und `mouse` gelten sofort, alles andere beim nächsten Start der TUI bzw. des nächsten Befehls; die Meldung sagt es.
+
+Nicht in der Ansicht änderbar: Werte, die eine Umgebungsvariable oder ein Flag setzt (die Datei wäre wirkungslos; die Meldung nennt die Quelle) und die Tabellen `[accounts]`, `[[worktime.category]]` (die Zeile zeigt je Kategorie Name, Muster und Farbe) und `[[project]]`. Dafür öffnet `E` (`config_editor`) die Datei in `$EDITOR`; nach dem Schließen liest die TUI die Konfiguration neu.
+
+### Projects
+
+![Config, Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern](../assets/screenshots/config-projects.png)
+
+*Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern*
+
+Die Projektdefinitionen der Konfiguration ([`[[project]]`](20-konfiguration.md#project)) in Dateireihenfolge, je Zeile ein Farbfeld in der konfigurierten Farbe (`·` ohne Farbe: das Projekt nimmt die nächste freie der Palette), Name, Beschreibung und die Muster. Unter der Linie steht die markierte Definition ganz, mit dem Farbwert (`#4e79a7`) und jedem Muster. Die Seite liest nur: Angelegt und geändert werden die Definitionen in der Datei, `E` (`config_editor`) öffnet sie in `$EDITOR`, danach liest die TUI die Konfiguration neu, und die Liste wie die Statistik zeigen den neuen Stand. Hat die Liste einen Fehler (doppelter Name, unbekannte Farbe, Muster fehlt), steht er hier an Stelle der Tabelle, rot; `stats` und die Statistik der TUI arbeiten dann mit den abgeleiteten Namen. Ohne Definitionen erklärt die Seite, wie Sessions sonst heißen. Die Pflege in der Ansicht selbst folgt ([#4](https://github.com/seletz/total-recall/issues/4)).
+
+### Actions
+
+![Config, Seite Actions: Backup wartet auf die Bestätigung](../assets/screenshots/config-actions.png)
+
+*Seite Actions: Backup wartet auf die Bestätigung*
+
+Die Wartungsbefehle, im Prozess der TUI mit denselben Funktionen, Sperren und Logs wie in der CLI:
+
+| Aktion | Entspricht | Schreibt |
+|---|---|---|
+| `backup` | [`backup`](10-befehle.md#backup) | ja: eine komprimierte Kopie in `dir` aus `[backup]`, ältere nach `keep_daily`/`keep_monthly` entfernt |
+| `maintenance (dry run)` | [`maintenance --dry-run`](10-befehle.md#maintenance) | nein: misst den Neuaufbau |
+| `maintenance` | [`maintenance`](10-befehle.md#maintenance) | ja: Backup, Neuaufbau mit 16-KiB-Seiten, Austausch; Hooks überspringen ihren Lauf |
+| `migrate` | [`migrate`](10-befehle.md#migrate) | ja: nur anwählbar, solange der Status `migration pending` zeigt; legt `archive.db.pre-v<N>.bak` neben die Datenbank und migriert; Hooks überspringen ihren Lauf |
+| `reindex actors (dry run)` | [`reindex --actors --dry-run`](10-befehle.md#reindex) | nein |
+| `reindex actors` | [`reindex --actors`](10-befehle.md#reindex) | ja |
+| `ingest all` | [`ingest --all`](10-befehle.md#ingest) | ja |
+| `doctor` | [`doctor`](10-befehle.md#doctor) | nein: Formatprüfung der Transkripte |
+
+++enter++ startet die markierte Aktion. Eine schreibende Aktion zeigt erst, was sie tun wird (`backup: write archive-2026-11-02.db.gz to ~/Documents/total-recall and prune older copies`), und wartet auf `y` (`config_confirm`); ++esc++ bricht ab. Während eine Aktion läuft, stehen ihre Fortschrittszeilen unter der Liste (die Schritte von `maintenance`, die Fehler von `ingest`, der Bericht von `doctor`), ++esc++ bricht sie ab, und das automatische Neuladen der TUI pausiert, damit kein Leser die Wartung stört. Am Ende steht die Zusammenfassung des Befehls mit der Dauer, der Status lädt neu, und ein ausgetauschtes Archiv wird neu geöffnet. Fehlt das Archiv noch, sind nur `ingest all` und `doctor` anwählbar.
+
+![Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung](../assets/screenshots/config-migrate.png)
+
+*Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung*
+
+**Anstehende Migration.** Liegt die Datenbank hinter dem Schema der Binary (Status: `migration pending`), schreibt außer `backup` nichts ins Archiv: `maintenance`, `reindex actors`, `ingest all` und die Probeläufe stehen mit `migrate first` da, wie die Befehle in der CLI. `migrate` ist dann anwählbar und zeigt vor der Bestätigung denselben Plan wie [`migrate`](10-befehle.md#migrate): die Versionen (`schema v4 -> v5, 1 pending migration`), je ausstehender Migration ihre Beschreibung, den Pfad der Kopie `archive.db.pre-v<N>.bak` und wie viel Platz neben der Datenbank frei sein muss (`space about 2.1 GiB …`). Gibt es noch kein Backup, sagt die Zeile `no backup yet, run backup first`. Nach `y` legt die Aktion die Kopie an, prüft den Platz, sperrt das Archiv wie `maintenance` und migriert; eine lange Migration meldet alle paar Sekunden ihren Fortschritt (`migration v5: 120000/233000 (51 %)`), ++esc++ bricht ab, die Datenbank bleibt dann, wie sie war. Danach lädt der Status neu, die Kopfzeile verliert ihren Hinweis, und der nächste Hook liest nach. Wie in der CLI ist die Datei direkt nach der Migration größer als vorher; `maintenance` baut sie neu auf, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
+
+### Setup
+
+![Config, Seite Setup: Prüfungen der Installation und der Hook-Block](../assets/screenshots/config-setup.png)
+
+*Seite Setup: Prüfungen der Installation und der Hook-Block*
+
+Sechs Prüfungen der Installation, je Zeile `√`, `!` (in Ordnung, mit Hinweis) oder `×`:
+
+- **config:** Die Config-Datei ist geladen; Anzahl der Probleme, falls welche. Fehlt sie, bietet ++enter++ an, die kommentierte Vorlage zu schreiben (wie `config init`).
+- **hooks:** `~/.claude/settings.json` (bzw. `$CLAUDE_CONFIG_DIR/settings.json`) hat für `SessionStart`, `Stop`, `SubagentStop` und `SessionEnd` einen Hook mit `total-recall ingest --hook`, `SessionEnd` zusätzlich das Backup; fehlende Ereignisse werden genannt. Die Datei wird nur gelesen.
+- **binary:** `total-recall` liegt im `PATH`; ist es eine andere Datei als die laufende, wird ihre Version verglichen (`is 1.1.0, this is 1.2.0`).
+- **backups:** Das Backup-Verzeichnis existiert und wann das letzte Backup war. Fehlt es, legt ++enter++ es nach Bestätigung an.
+- **transcripts:** Das Transkript-Verzeichnis der Harness (`projects_dir`) existiert.
+- **archive:** Die Datenbank existiert.
+
+Unter den Prüfungen steht der Hook-Block für Claude Code, wie ihn [`hooks print`](10-befehle.md#hooks-print) ausgibt; `c` (`config_copy`) kopiert ihn in die Zwischenablage (über das Terminal, OSC 52). Eintragen muss man ihn selbst, siehe [Hooks einrichten](../how-to/20-hooks-einrichten.md); die TUI schreibt nicht in die Einstellungen von Claude Code.
+
 ## Tasten
 
 Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion hängt an einer Taste, die dort nur mit ++option++ erreichbar ist (`[ ] { } | \ ~ @`). Wo `[` und `]` naheliegen, sind sie Zweitbelegung hinter ++left++/++right++ und `,`/`.`. Die Fußzeile und die Hilfe (`?`) zeigen immer die tatsächlich wirksamen Tasten. Jede Aktion lässt sich umbelegen, siehe [Tastenbelegung anpassen](#tastenbelegung-anpassen); die Aktionsnamen stehen in den Tabellen.
@@ -248,7 +331,7 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 
 | Taste | Aktion | Wirkung |
 |---|---|---|
-| `1` / `2` / `3` | `global_search` / `global_stats` / `global_activity` | Suche / Statistik / Aktivität; schließt eine offene Session |
+| `1` / `2` / `3` / `4` | `global_search` / `global_stats` / `global_activity` / `global_config` | Suche / Statistik / Aktivität / Config; schließt eine offene Session |
 | ++tab++ / ++shift+tab++ | `search_focus` | Fokus innerhalb der Ansicht wechseln: in der Suche Eingabe ↔ Liste. Wechselt nie die Ansicht |
 | `?` | `global_help` | Hilfe ein/aus |
 | ++esc++ | `global_back` | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
@@ -308,9 +391,22 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `p` | `activity_projects` | Balken nach Projekt statt nach Kernzeit färben, mit Legende |
 | ++up++ / `k`, ++down++ / `j` | `activity_up`, `activity_down` | einen Tag zurück / vor; passen nicht alle Tage auf den Bildschirm, erst durch die Zeilen scrollen |
 
+### Config
+
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| ++tab++ / ++right++, ++shift+tab++ / ++left++ | `config_next`, `config_prev` | nächste / vorige Seite |
+| ++up++ / `k`, ++down++ / `j` | `config_up`, `config_down` | Markierung bewegen |
+| ++enter++ | `config_select` | Wert ändern (Settings), Aktion starten (Actions), Korrektur anbieten (Setup); in der Eingabezeile übernehmen |
+| `d` | `config_default` | markierten Schlüssel auf den Default zurücksetzen (Settings) |
+| `y` | `config_confirm` | schreibende Aktion oder Korrektur bestätigen |
+| `c` | `config_copy` | Hook-Block in die Zwischenablage (Setup) |
+| `E` | `config_editor` | Config-Datei in `$EDITOR` öffnen, danach neu laden (Settings, Projects) |
+| ++esc++ | `global_back` | Eingabe verwerfen, Bestätigung abbrechen, laufende Aktion abbrechen, Meldung löschen |
+
 ### Tastenbelegung anpassen { #tastenbelegung-anpassen }
 
-Im Abschnitt `[keys]` der [Konfiguration](20-konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `stats_`, `activity_`).
+Im Abschnitt `[keys]` der [Konfiguration](20-konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `stats_`, `activity_`, `config_`).
 
 ```toml
 [keys]

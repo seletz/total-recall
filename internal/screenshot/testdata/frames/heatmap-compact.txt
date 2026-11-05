@@ -1,4 +1,4 @@
- total-recall        updated 12:00:00          1 search  [2 stats]  3 activity
+ total-recall   updated 12:00:00    1 search  [2 stats]  3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────
  period: [day] week month  by: [project] agent directory 2026-10-05 – 2026-11-01
  events
@@ -8,7 +8,7 @@
      │█ █ █ ▃ ▇     █ ▂ ▆ ▃ █     █ █ █ █ █ ▁   █ █ █   █ █
    0 ┼──────────────────────────────────────────────────────────────────────────
       05  07  09  11  13  15  17  19  21  23  25  27  29  31
- ██ kompass  ██ wetterwarte  ██ fahrtenbuch  ██ ~/notizen  ██ dotfiles
+ ██ kompass  ██ wetterwarte  ██ fahrtenbuch  ██ /home/mara/notizen  ██ dotfiles
  events by weekday × hour · ░▒▓█ · max 81
  Mon│                            ▓▓▓███████▓▓▓███▒▒▒▓▓▓███▓▓▓░░░
  Tue│                         ▒▒▒▓▓▓███▓▓▓▓███▒▒▒▓▓▓▓▓▓▒▒▒▒▒▒░░░    ░░░░░░░░░

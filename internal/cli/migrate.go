@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -93,12 +94,13 @@ completed; the copy stays.
 				return errors.New("migration cancelled, the archive is unchanged")
 			}
 		}
-		opts := store.MigrateOptions{LockDir: lockDir(cfg), Wait: wait, RawTrimmers: rawTrimmers(adapters(cfg))}
+		var logf func(string, ...any)
+		var progress func(store.Progress)
 		if text {
-			opts.Logf = func(f string, a ...any) { _, _ = fmt.Fprintf(o.w, f+"\n", a...) }
-			opts.Progress = progressPrinter(o, e.app.Now)
+			logf = func(f string, a ...any) { _, _ = fmt.Fprintf(o.w, f+"\n", a...) }
+			progress = progressPrinter(o, e.app.Now)
 		}
-		res, err := store.Migrate(ctx, cfg.DB, opts)
+		res, err := ops.Migrate(ctx, cfg, wait, logf, progress)
 		if err != nil {
 			return maintenanceError(err)
 		}
@@ -127,20 +129,9 @@ func migrateJSON(plan store.MigratePlan, dryRun bool) MigrateJSON {
 func printPlan(o *output, plan store.MigratePlan) {
 	p := func(f string, a ...any) { _, _ = fmt.Fprintf(o.w, f, a...) }
 	p("database  %s  (%.1f MiB)\n", plan.DB, float64(plan.SizeBytes)/(1<<20))
-	if !plan.Pending() {
-		p("schema    v%d is current, nothing to migrate\n", plan.From)
-		return
+	for _, l := range ops.PlanLines(plan) {
+		p("%s\n", l)
 	}
-	noun := "migrations"
-	if len(plan.Steps) == 1 {
-		noun = "migration"
-	}
-	p("schema    v%d -> v%d, %d pending %s:\n", plan.From, plan.To, len(plan.Steps), noun)
-	for _, s := range plan.Steps {
-		p("  v%-4d %s\n", s.Version, s.Summary)
-	}
-	p("backup    %s\n", plan.Backup)
-	p("space     about %.1f MiB free needed next to the database (copy and migration)\n", float64(plan.NeedBytes)/(1<<20))
 }
 
 // confirm asks the question on the command's output and reads one line from

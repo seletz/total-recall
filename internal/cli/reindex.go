@@ -2,13 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"sort"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/ingest"
+	"github.com/seletz/total-recall/internal/logfile"
+	"github.com/seletz/total-recall/internal/ops"
 )
 
 func (e *env) reindexCmd() *cobra.Command {
@@ -32,13 +31,13 @@ reading the transcripts again.
 			if err != nil {
 				return err
 			}
-			log := newLogger(cfg.LogPath(), e.app.Now)
-			st, err := openWrite(cfg, log)
+			log := logfile.New(cfg.LogPath(), e.app.Now)
+			st, err := ops.OpenWrite(cfg, log)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = st.Close() }()
-			d, err := deps(cfg, st, log)
+			d, err := ops.Deps(cfg, st, log)
 			if err != nil {
 				return err
 			}
@@ -46,7 +45,7 @@ reading the transcripts again.
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(e.out(cfg), formatReclassify(sum))
+			_, _ = fmt.Fprintln(e.out(cfg), ops.FormatReclassify(sum))
 			return nil
 		},
 	}
@@ -54,36 +53,4 @@ reading the transcripts again.
 	f.BoolVar(&actors, "actors", false, "reclassify the actor of every stored user message with the current rules")
 	f.BoolVar(&dryRun, "dry-run", false, "only count what would change, write nothing")
 	return c
-}
-
-// formatReclassify renders one summary line, e.g.
-// "reindex --actors: 1234 user messages, 17 changed (human -> peer: 17), 3 undecided (0.4s)".
-func formatReclassify(s ingest.ReclassifySummary) string {
-	var b strings.Builder
-	b.WriteString("reindex --actors")
-	if s.DryRun {
-		b.WriteString(" (dry run)")
-	}
-	verb := "changed"
-	if s.DryRun {
-		verb = "would change"
-	}
-	fmt.Fprintf(&b, ": %d user messages, %d %s", s.Examined, s.Changed, verb)
-	if len(s.Transitions) > 0 {
-		keys := make([]string, 0, len(s.Transitions))
-		for k := range s.Transitions {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		parts := make([]string, 0, len(keys))
-		for _, k := range keys {
-			parts = append(parts, fmt.Sprintf("%s: %d", k, s.Transitions[k]))
-		}
-		fmt.Fprintf(&b, " (%s)", strings.Join(parts, ", "))
-	}
-	if s.Undecided > 0 {
-		fmt.Fprintf(&b, ", %d undecided (no raw record)", s.Undecided)
-	}
-	fmt.Fprintf(&b, " (%s)", s.Duration.Round(time.Millisecond))
-	return b.String()
 }

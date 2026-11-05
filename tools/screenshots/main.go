@@ -23,7 +23,6 @@ import (
 
 	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/screenshot"
-	"github.com/seletz/total-recall/internal/store"
 )
 
 func main() {
@@ -55,14 +54,18 @@ func run() error {
 		}
 		fmt.Fprintf(os.Stderr, "  %d sessions, %d events\n", sum.Sessions, sum.Events)
 	}
-	st, err := store.OpenReadOnly(*db)
+	homeDir := filepath.Join(*work, "env")
+	if err := os.RemoveAll(homeDir); err != nil {
+		return err
+	}
+	env, err := screenshot.NewEnv(*db, homeDir)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = st.Close() }()
+	defer func() { _ = env.Close() }()
 
 	fmt.Fprintln(os.Stderr, "rendering frames …")
-	frames, err := screenshot.RenderAll(st)
+	frames, err := screenshot.RenderAll(env)
 	if err != nil {
 		return err
 	}

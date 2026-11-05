@@ -10,6 +10,8 @@ import (
 
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/tui"
+	"github.com/seletz/total-recall/internal/tui/configview"
+	"github.com/seletz/total-recall/internal/version"
 )
 
 // tuiFlags are the command-line overrides of the [tui] config table. The
@@ -29,7 +31,7 @@ type tuiFlags struct {
 func (e *env) tuiCmd() *cobra.Command {
 	var f tuiFlags
 	c := &cobra.Command{
-		Use:   "tui [search|stats|activity]",
+		Use:   "tui [search|stats|activity|config]",
 		Short: "Interactive search, activity charts and first/last activity per day",
 		Long: `tui opens the archive read-only in a full-screen terminal UI with a live
 search view, an activity statistics view and a view of the first and the
@@ -65,6 +67,8 @@ input. --reload 0 switches that off; R reloads on demand either way.`,
 			}
 			defer func() { _ = st.Close() }()
 			opts.Store, opts.Now = st, e.app.Now
+			opts.Config = cfg
+			opts.ConfigView = configview.Options{Version: version.Version, Getenv: e.app.Getenv}
 			return tui.Run(cmd.Context(), opts, e.app.Stdin, e.app.Stdout)
 		},
 	}

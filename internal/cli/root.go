@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/version"
 )
 
@@ -184,7 +185,7 @@ func (e *env) loadConfig() (*config.Config, error) {
 // out returns where normal output goes: stdout, or the log in a detached child.
 func (e *env) out(cfg *config.Config) io.Writer {
 	if e.g.detachedChild && cfg != nil {
-		return &logWriter{l: newLogger(cfg.LogPath(), e.app.Now), level: "INFO"}
+		return logfile.New(cfg.LogPath(), e.app.Now).Writer("INFO")
 	}
 	return e.app.Stdout
 }

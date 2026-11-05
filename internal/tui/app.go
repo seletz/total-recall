@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
@@ -61,6 +62,10 @@ type App struct {
 	stale     []bool
 	updated   time.Time
 	reloadErr error
+	// busy is set while an action of the config view writes to the
+	// archive: the checks pause, so a maintenance run is not disturbed by
+	// a reader, and everything reloads when the action is done.
+	busy bool
 }
 
 // Init starts every view, asks the terminal for its background colour (the
@@ -198,7 +203,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.opts.Store == nil {
 			return a, nil
 		}
+		if a.busy {
+			return a, a.tick()
+		}
 		return a, a.poll()
+	case configview.Busy:
+		return a.setBusy(msg.On)
+	case configview.Changed:
+		return a.configChanged(msg)
 	case pollMsg:
 		return a.polled(msg)
 	case reopenMsg:
@@ -241,6 +253,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, a.show(1)
 	case key.Matches(msg, a.keys.Activity):
 		return a, a.show(2)
+	case key.Matches(msg, a.keys.Config):
+		return a, a.show(3)
 	case key.Matches(msg, a.keys.Reload):
 		if a.opts.Store == nil {
 			return a, nil
@@ -249,6 +263,39 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, a.reload()
 	}
 	return a.forward(msg)
+}
+
+// setBusy pauses the reload while an action writes and reloads everything
+// once it is done; the view gets the message too.
+func (a App) setBusy(on bool) (tea.Model, tea.Cmd) {
+	a.busy = on
+	_, cmd := a.broadcastModel(configview.Busy{On: on})
+	if on || a.opts.Store == nil {
+		return a, cmd
+	}
+	// The file may have been swapped (maintenance): let the next check
+	// decide between a reload and a reopen, right away.
+	return a, tea.Batch(cmd, a.poll())
+}
+
+// configChanged applies what the app takes from the configuration: the
+// reload interval (a reload that was off starts) and the mouse.
+func (a App) configChanged(msg configview.Changed) (tea.Model, tea.Cmd) {
+	cfg := msg.Config
+	wasOff := a.opts.Reload <= 0
+	a.opts.Reload = cfg.TUI.Reload.Duration
+	a.opts.NoMouse = !cfg.TUI.Mouse
+	_, cmd := a.broadcastModel(msg)
+	if wasOff && a.opts.Reload > 0 {
+		return a, tea.Batch(cmd, a.tick())
+	}
+	return a, cmd
+}
+
+// broadcastModel is broadcast on a value receiver.
+func (a *App) broadcastModel(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd := a.broadcast(msg)
+	return a, cmd
 }
 
 // mouse routes a click or wheel turn. A left click on a key hint in the
@@ -378,7 +425,16 @@ func (a App) header() string {
 	left := " " + a.th.Gradient("total-recall")
 	right := strings.Join(a.tabs(), " ") + " "
 	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	if status := a.reloadStatus(); status != "" && lipgloss.Width(status)+4 <= gap {
+	status, important := a.reloadStatus()
+	if status != "" && lipgloss.Width(status)+2 > gap {
+		// The time gives way to the tabs; an error or a pending migration
+		// is cut instead, as long as a few cells remain.
+		status = ""
+		if important && gap >= 10 {
+			status = a.th.Error.Render(ansi.Truncate(a.statusText(), gap-2, "…"))
+		}
+	}
+	if status != "" {
 		pad := (gap - lipgloss.Width(status)) / 2
 		return left + strings.Repeat(" ", pad) + status + strings.Repeat(" ", gap-pad-lipgloss.Width(status)) + right
 	}
@@ -386,18 +442,28 @@ func (a App) header() string {
 }
 
 // reloadStatus is the middle of the header: "updated 14:03:12" in the
-// time zone of the views, or the last reload error; empty without a
-// store.
-func (a App) reloadStatus() string {
-	switch {
-	case a.opts.Store == nil:
-		return ""
-	case a.reloadErr != nil:
-		return a.th.Error.Render(ansi.Truncate("reload: "+a.reloadErr.Error(), max(a.width/2, 1), "…"))
-	case a.opts.Store.MigrationPending():
-		return a.th.Error.Render(ansi.Truncate("migration pending: total-recall migrate", max(a.width/2, 1), "…"))
+// time zone of the views, or the last reload error or a pending migration
+// (important: shown even in a narrow window); empty without a store.
+func (a App) reloadStatus() (status string, important bool) {
+	if a.opts.Store == nil {
+		return "", false
 	}
-	return a.th.Muted.Render("updated " + a.updated.In(a.opts.Location).Format("15:04:05"))
+	if t := a.statusText(); t != "" {
+		return a.th.Error.Render(ansi.Truncate(t, max(a.width/2, 1), "…")), true
+	}
+	return a.th.Muted.Render("updated " + a.updated.In(a.opts.Location).Format("15:04:05")), false
+}
+
+// statusText is the important part of reloadStatus, plain: the last
+// reload error or the pending migration; "" when all is well.
+func (a App) statusText() string {
+	switch {
+	case a.reloadErr != nil:
+		return "reload: " + a.reloadErr.Error()
+	case a.opts.Store.MigrationPending():
+		return "migration pending: total-recall migrate"
+	}
+	return ""
 }
 
 // tabs renders the view tabs of the header: the number of an inactive tab

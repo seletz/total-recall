@@ -31,6 +31,7 @@ const (
 	Session  Context = "session"
 	Stats    Context = "stats"
 	Activity Context = "activity"
+	Config   Context = "config"
 )
 
 // Action is one key-bound action.
@@ -53,6 +54,7 @@ const (
 	GlobalBack     = "global_back"
 	GlobalQuit     = "global_quit"
 	GlobalReload   = "global_reload"
+	GlobalConfig   = "global_config"
 
 	SearchFocus = "search_focus"
 	SearchOpen  = "search_open"
@@ -102,6 +104,16 @@ const (
 	ActivityProjects = "activity_projects"
 	ActivityUp       = "activity_up"
 	ActivityDown     = "activity_down"
+
+	ConfigNext    = "config_next"
+	ConfigPrev    = "config_prev"
+	ConfigUp      = "config_up"
+	ConfigDown    = "config_down"
+	ConfigSelect  = "config_select"
+	ConfigDefault = "config_default"
+	ConfigConfirm = "config_confirm"
+	ConfigCopy    = "config_copy"
+	ConfigEditor  = "config_editor"
 )
 
 // Actions is the catalogue, in the order of the docs and of `config show`.
@@ -113,6 +125,7 @@ var Actions = []Action{
 	{GlobalBack, Global, []string{"esc"}, "back"},
 	{GlobalQuit, Global, []string{"q"}, "quit"},
 	{GlobalReload, Global, []string{"R"}, "reload"},
+	{GlobalConfig, Global, []string{"4"}, "config"},
 
 	{SearchFocus, Search, []string{"tab", "shift+tab"}, "input ↔ list"},
 	{SearchOpen, Search, []string{"enter"}, "open"},
@@ -162,6 +175,16 @@ var Actions = []Action{
 	{ActivityProjects, Activity, []string{"p"}, "by project"},
 	{ActivityUp, Activity, []string{"up", "k"}, "day back (scroll)"},
 	{ActivityDown, Activity, []string{"down", "j"}, "day forward (scroll)"},
+
+	{ConfigNext, Config, []string{"tab", "right"}, "next page"},
+	{ConfigPrev, Config, []string{"shift+tab", "left"}, "previous page"},
+	{ConfigUp, Config, []string{"up", "k"}, "up"},
+	{ConfigDown, Config, []string{"down", "j"}, "down"},
+	{ConfigSelect, Config, []string{"enter"}, "edit / run"},
+	{ConfigDefault, Config, []string{"d"}, "reset to default"},
+	{ConfigConfirm, Config, []string{"y"}, "confirm"},
+	{ConfigCopy, Config, []string{"c"}, "copy hook block"},
+	{ConfigEditor, Config, []string{"E"}, "open config in $EDITOR"},
 }
 
 // ForceQuit is the fixed binding that quits in every state, even while a
@@ -169,7 +192,7 @@ var Actions = []Action{
 var ForceQuit = key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp(Display("ctrl+c"), "quit"))
 
 // Contexts lists the contexts in catalogue order.
-var Contexts = []Context{Global, Search, Session, Stats, Activity}
+var Contexts = []Context{Global, Search, Session, Stats, Activity, Config}
 
 // ByContext groups the catalogue by context, keeping the order.
 func ByContext() map[Context][]Action {

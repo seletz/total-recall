@@ -29,6 +29,8 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 `total-recall config init` schreibt eine kommentierte Vorlage. Eine bestehende Datei wird nie überschrieben.
 
+Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und ändert einzelne Schlüssel in der Datei: Kommentare und alle anderen Zeilen bleiben erhalten, ein auskommentierter Schlüssel der Vorlage wird an seiner Stelle aktiviert, vorher entsteht `config.toml.bak`, geschrieben wird atomar und nur, was die Prüfung besteht. Die Tabellen `[accounts]`, `[[worktime.category]]` und `[[project]]` ändert man weiter im Editor (`E` in der TUI); die Seite **Projects** zeigt die Projektdefinitionen mit Farbe und Mustern. Rezept: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md).
+
 ## Regeln
 
 - `~` und Umgebungsvariablen (`$HOME`, `${VAR}`) werden in Pfaden aufgelöst.
@@ -319,7 +321,7 @@ match = "~/notes"
 :   Pflicht und eindeutig; der Name, den `stats --by project`, `stats --worktime` und die TUI zeigen und den die Kategorie-Regeln in [`[[worktime.category]]`](#worktime) sehen. In JSON-Ausgaben ist er zugleich der Schlüssel (`key`) des Projekts.
 
 `description`
-:   Optionaler Freitext, für die Pflege in der TUI gedacht.
+:   Optionaler Freitext; die Seite [Projects](30-tui.md#projects) der TUI zeigt ihn neben dem Namen.
 
 `color`
 :   Optional: ein Name aus der Palette der Charts (`blue`, `orange`, `green`, `red`, `purple`, `teal`) oder ein Wert `#rrggbb`. Statistik und Legende zeigen das Projekt in dieser Farbe; die automatisch vergebenen Farben der übrigen Projekte lassen sie aus, solange eine andere frei ist. Ohne Angabe bekommt das Projekt wie bisher die nächste freie Farbe der Palette.
@@ -329,14 +331,14 @@ match = "~/notes"
 
 **Zuordnung.** Die erste passende Definition in Dateireihenfolge gewinnt. Die Zuordnung wird bei jeder Abfrage berechnet und nicht gespeichert: Eine geänderte Definition wirkt sofort und rückwirkend auf das ganze Archiv, in [`stats --by project`](10-befehle.md#stats-period) (auch bei `--top`: zusammengefasst wird vor dem Falten in `other`), in [`stats --worktime`](10-befehle.md#stats-worktime) und in der Statistik der [TUI](30-tui.md#statistik). Ein abgeleiteter Name, der mit dem Namen einer Definition zusammenfällt, erscheint als Pfad, damit zwei Projekte nie gleich heißen.
 
-**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, `doctor` die Fehler. Default: keine Definitionen.
+**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, die Seite [Projects](30-tui.md#projects) der TUI als Tabelle mit Farbfeld, `doctor` die Fehler. Default: keine Definitionen.
 
 ### `[tui]` { #tui }
 
 Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansicht gehen vor: **Flag > Config > Default**.
 
 `view`
-:   Ansicht beim Start: `search`, `stats` oder `activity`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
+:   Ansicht beim Start: `search`, `stats`, `activity` oder `config`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
 
 `graphics`
 :   Darstellung des Charts in der Statistik: `auto`, `text` oder `kitty`, siehe [Grafikmodi](30-tui.md#grafikmodi). Override: `--graphics`. Default: `auto`.

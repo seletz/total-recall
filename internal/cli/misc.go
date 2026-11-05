@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/logfile"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -33,7 +35,7 @@ Restore a copy with "total-recall restore".`,
 			if err != nil {
 				return err
 			}
-			log := newLogger(cfg.LogPath(), e.app.Now)
+			log := logfile.New(cfg.LogPath(), e.app.Now)
 			if detach {
 				if err := e.app.StartDetached(childArgs(e.app.Args), cfg.LogPath()); err != nil {
 					log.Errorf("backup: detach: %v", err)
@@ -53,7 +55,7 @@ Restore a copy with "total-recall restore".`,
 	return c
 }
 
-func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, log *logger) error {
+func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, log *logfile.Logger) error {
 	out := e.out(cfg)
 	now := e.app.Now()
 	if ifOlder != "" {
@@ -74,7 +76,7 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 		return fmt.Errorf("no archive at %s", cfg.DB)
 	}
 	// backup is the step before a migration, so it accepts an older schema.
-	st, err := openWrite(cfg, log, store.AllowOutdated())
+	st, err := ops.OpenWrite(cfg, log, store.AllowOutdated())
 	if err != nil {
 		return err
 	}
@@ -123,31 +125,6 @@ The restored data is checked before the target is touched.`,
 
 // ---- hooks ----
 
-// HookCommand is one hook handler in Claude Code's settings.json.
-type HookCommand struct {
-	Type    string `json:"type"`
-	Command string `json:"command"`
-}
-
-// HookMatcher is one entry of an event's hook list.
-type HookMatcher struct {
-	Matcher string        `json:"matcher,omitempty"`
-	Hooks   []HookCommand `json:"hooks"`
-}
-
-// ClaudeHooks returns the settings.json "hooks" block for binary.
-func ClaudeHooks(binary string) map[string]any {
-	ingest := HookCommand{Type: "command", Command: binary + " ingest --hook --detach"}
-	backup := HookCommand{Type: "command", Command: binary + " backup --if-older 24h --detach"}
-	one := func(h ...HookCommand) []HookMatcher { return []HookMatcher{{Hooks: h}} }
-	return map[string]any{"hooks": map[string][]HookMatcher{
-		"SessionStart": one(ingest),
-		"Stop":         one(ingest),
-		"SubagentStop": one(ingest),
-		"SessionEnd":   one(ingest, backup),
-	}}
-}
-
 func (e *env) hooksCmd() *cobra.Command {
 	c := &cobra.Command{Use: "hooks", Short: "Hook configuration for harnesses"}
 	var h, binary string
@@ -161,7 +138,7 @@ into ~/.claude/settings.json (do not replace existing hooks).`,
 			if h != "claude" {
 				return fmt.Errorf("unknown harness %q (supported: claude)", h)
 			}
-			return writeJSON(cmd.OutOrStdout(), ClaudeHooks(binary))
+			return writeJSON(cmd.OutOrStdout(), ops.ClaudeHooks(binary))
 		},
 	}
 	p.Flags().StringVar(&h, "harness", "claude", "harness: claude")
