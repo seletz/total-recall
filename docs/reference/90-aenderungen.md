@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.3.0 (unveröffentlicht)
 
+### Archiv
+
+- **Meta-Records (Schema v6).** Records der Harness, die keine Nachricht sind, aber zur Session gehören, landen in der neuen Tabelle `session_meta`: bei Claude Code der eingefügte Kontext (`attachment`: die geladenen `CLAUDE.md`-Dateien, @-erwähnte Dateien, Ausgaben der Hooks, …), während der Arbeit getippter Text (`queue-operation`, auch entfernter), Modus und Pull Request (`pr-link`), Kosten je Modell (`cost-state`), der Index der Datei-Historie, das Workflow-Journal, und jeder Typ, den der Adapter nicht kennt. Je Record die ganze Zeile, maskiert und komprimiert wie `raw`; gleicher Inhalt je Session einmal; kein Event, nicht in Suche und Statistik. Draußen bleiben der API-Request-Cache (`api-request*`, 1,3 GB auf einem lokalen Archiv), `last-prompt` und acht Attachment-Subtypen (System-Prompt, Kataloge, Erinnerungen); `skip_record_types` nimmt jetzt auch `attachment/<subtyp>`. Nach `migrate` einmal `ingest --all --reread`, dann sind die Records der noch vorhandenen Transkripte da; `status` zeigt Zahl und Größe (`meta records`). Messung und Entscheidung je Typ im [Design](../explanation/design.md#session_meta), was neu gespeichert wird unter [Datenschutz](../explanation/datenschutz.md) ([#182](https://github.com/seletz/total-recall/issues/182)).
+
 ### Neu in der CLI
 
 - **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).

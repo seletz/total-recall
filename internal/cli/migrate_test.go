@@ -296,8 +296,8 @@ func TestOutdatedReadCommands(t *testing.T) {
 	if !strings.Contains(r.stdout, "v1 (binary supports v"+itoa(latest)+")  MIGRATION PENDING: run `total-recall backup`, then `total-recall migrate`") {
 		t.Errorf("status lacks the pending hint:\n%s", r.stdout)
 	}
-	if !strings.Contains(r.stdout, "raw          unknown until the migration ran") {
-		t.Errorf("status raw line on an outdated archive:\n%s", r.stdout)
+	if !strings.Contains(r.stdout, "raw           unknown until the migration ran") || !strings.Contains(r.stdout, "meta records  unknown until the migration ran") {
+		t.Errorf("status raw and meta lines on an outdated archive:\n%s", r.stdout)
 	}
 	if !strings.Contains(r.stderr, "warning: database schema v1 is older") {
 		t.Errorf("status stderr: %s", r.stderr)

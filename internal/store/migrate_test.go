@@ -189,6 +189,9 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name IN ('events_session_ts', 'events_ts')":                   2,
 				"SELECT count(*) FROM sqlite_master WHERE type = 'view'":                                                                   2,
 				"SELECT count(*) FROM sqlite_master WHERE name IN ('events_v5', 'sources_v5')":                                             0,
+				// Migration 6: the meta table exists, empty, with its index.
+				"SELECT count(*) FROM session_meta": 0,
+				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'session_meta_session'": 1,
 			}
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
@@ -218,11 +221,25 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			if n := countRows(t, s, "SELECT count(*) FROM events_fts WHERE events_fts MATCH 'after'"); n != 1 {
 				t.Errorf("FTS after migration = %d", n)
 			}
-			// Migration 5 reports its progress per batch and at the end.
+			// Migration 6: meta records are written and read on the migrated archive.
+			if _, err := s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{
+				{ID: "claude:m1", SessionID: "claude:s1", Type: "pr-link", SourcePath: "/p/a.jsonl", Raw: `{"type":"pr-link","prNumber":1}`}}}); err != nil {
+				t.Fatalf("meta after migration: %v", err)
+			}
+			if n := countRows(t, s, "SELECT count(*) FROM session_meta m JOIN sources src ON src.id = m.source_id WHERE m.type = 'pr-link' AND raw_text(m.raw) LIKE '%prNumber%' AND src.path = '/p/a.jsonl'"); n != 1 {
+				t.Errorf("meta rows after migration = %d", n)
+			}
+			// Migration 5 reports its progress per batch and at the end
+			// (later migrations only report their start).
 			if k < 5 {
-				last := progress[len(progress)-1]
+				var last Progress
+				for _, pr := range progress {
+					if pr.Version == 5 {
+						last = pr
+					}
+				}
 				if last != (Progress{Version: 5, Done: 4, Total: 4}) {
-					t.Errorf("last progress = %+v, want migration 5 done 4/4", last)
+					t.Errorf("last progress of v5 = %+v, want done 4/4", last)
 				}
 			}
 			// Migration 4: the link and account columns are usable and indexed,

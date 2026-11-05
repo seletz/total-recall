@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,12 +126,18 @@ func TestAllSmallTree(t *testing.T) {
 	if got := e.count(t, "SELECT count(*) FROM events"); got != sum.Events || got != 9 {
 		t.Errorf("events = %d, summary %d, want 9", got, sum.Events)
 	}
-	if sum.Sessions != 3 {
-		t.Errorf("sessions touched = %d, want 3", sum.Sessions)
+	// Three sessions with events plus the workflow agent named by its journal.
+	if sum.Sessions != 4 || sum.Meta != 1 {
+		t.Errorf("sessions touched = %d, meta records = %d, want 4 and 1", sum.Sessions, sum.Meta)
 	}
-	// The workflow journal yields no session but its offset is recorded.
+	// The workflow journal yields a meta record on the agent's session (no
+	// events, no times) and its offset is recorded.
 	if got := e.count(t, `SELECT count(*) FROM sources WHERE path LIKE '%journal.jsonl' AND "offset" > 0`); got != 1 {
 		t.Errorf("journal source rows = %d", got)
+	}
+	if got := e.count(t, `SELECT count(*) FROM session_meta m JOIN sessions s ON s.id = m.session_id
+		WHERE m.type = 'started' AND s.id = 'claude:agent-a02' AND s.parent_id = 'claude:`+sid+`' AND s.started_at IS NULL`); got != 1 {
+		t.Errorf("journal meta rows = %d", got)
 	}
 	if got := e.str(t, "SELECT display_name FROM sessions WHERE native_id = '"+sid+"'"); got != "List files" {
 		t.Errorf("display name = %q", got)
@@ -593,8 +600,8 @@ func TestRereadRewriteRaw(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.Events != 0 || sum.RawRewritten != first.Events || sum.Changed != 4 {
-		t.Errorf("summary = %+v, want 0 new events, %d raw rewritten, 4 changed", sum, first.Events)
+	if sum.Events != 0 || sum.Meta != 0 || sum.RawRewritten != first.Events+first.Meta || sum.Changed != 4 {
+		t.Errorf("summary = %+v, want 0 new events, %d raw rewritten, 4 changed", sum, first.Events+first.Meta)
 	}
 	if got := counts(); got != before {
 		t.Errorf("counts = %v, want %v", got, before)
@@ -637,4 +644,111 @@ func TestHistorySuppressionIsNotStored(t *testing.T) {
 	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
 		t.Errorf("sessions = %d, want 1", n)
 	}
+}
+
+// TestMetaRecords: meta records (attachments, modes, pull-request links)
+// land in session_meta redacted and compressed, the same content once per
+// session, no event and no full-text hit; store_raw = false keeps none,
+// raw_max_bytes drops an oversized one, and a reread or a second
+// incremental run adds nothing.
+func TestMetaRecords(t *testing.T) {
+	secret := "ghp_" + strings.Repeat("aB3", 12)
+	s := tf.SmallSession1
+	lines := tf.Join(
+		tf.PermissionMode(s, "auto"),
+		tf.User(s, "u1", "2026-10-01T10:00:00Z", "/w/x", "hello"),
+		tf.Attachment(s, "att-1", "2026-10-01T10:00:01Z", "/w/x", "instructions", "token: "+secret),
+		tf.Attachment(s, "att-2", "2026-10-01T10:00:01Z", "/w/x", "prompt_snapshot", "skipped subtype"),
+		tf.PRLink(s, "2026-10-01T10:00:02Z", 7),
+		tf.Assistant(s, "u2", "2026-10-01T10:00:03Z", "/w/x", "hi"),
+		tf.PermissionMode(s, "auto"),
+		tf.PRLink(s, "2026-10-01T10:00:04Z", 7),
+	)
+	t.Run("stored once per content", func(t *testing.T) {
+		e := newEnv(t)
+		r, err := redact.New(redact.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.deps.Redactor = r
+		p := tf.WriteFile(t, e.projects, "-w-x/"+s+".jsonl", lines)
+		sum := run(t, e, p)
+		if sum.Events != 2 || sum.Meta != 3 {
+			t.Errorf("summary = %+v, want 2 events, 3 meta records", sum)
+		}
+		checks := map[string]int{
+			"SELECT count(*) FROM session_meta": 3,
+			"SELECT count(*) FROM session_meta WHERE type = 'permission-mode' AND ts = '2026-10-01T10:00:03.000Z'": 0,
+			"SELECT count(*) FROM session_meta WHERE type = 'permission-mode' AND ts IS NULL":                      1,
+			"SELECT count(*) FROM session_meta WHERE type = 'pr-link' AND ts = '2026-10-01T10:00:02.000Z'":         1,
+			"SELECT count(*) FROM session_meta WHERE id = 'claude:att-1' AND raw_text(raw) LIKE '%«redacted:%'":    1,
+			"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%" + secret + "%'":                        0,
+			"SELECT count(*) FROM session_meta WHERE raw_text(raw) LIKE '%prompt_snapshot%'":                       0,
+			"SELECT count(*) FROM events":                                                                           2,
+			"SELECT count(*) FROM events_fts WHERE events_fts MATCH 'instructions'":                                 0,
+			"SELECT count(*) FROM sessions WHERE id = 'claude:" + s + "' AND ended_at = '2026-10-01T10:00:03.000Z'": 1,
+		}
+		for q, want := range checks {
+			if got := e.count(t, q); got != want {
+				t.Errorf("%s = %d, want %d", q, got, want)
+			}
+		}
+		// The same lines again, incrementally: the mode is seen again but
+		// not stored again; a new pull request is.
+		tf.AppendFile(t, p, tf.Join(tf.PermissionMode(s, "auto"), tf.PRLink(s, "2026-10-01T11:00:00Z", 8)))
+		if sum := run(t, e, p); sum.Meta != 1 || sum.Events != 0 {
+			t.Errorf("incremental summary = %+v, want 1 meta record", sum)
+		}
+		e.deps.Reread = true
+		if sum := run(t, e, p); sum.Meta != 0 || sum.Events != 0 {
+			t.Errorf("reread summary = %+v, want nothing new", sum)
+		}
+		if got := e.count(t, "SELECT count(*) FROM session_meta"); got != 4 {
+			t.Errorf("meta rows = %d, want 4", got)
+		}
+	})
+	t.Run("store_raw off keeps none", func(t *testing.T) {
+		e := newEnv(t)
+		e.deps.StoreRaw = false
+		p := tf.WriteFile(t, e.projects, "-w-x/"+s+".jsonl", lines)
+		if sum := run(t, e, p); sum.Meta != 0 || sum.Events != 2 {
+			t.Errorf("summary = %+v", sum)
+		}
+		if got := e.count(t, "SELECT count(*) FROM session_meta"); got != 0 {
+			t.Errorf("meta rows = %d", got)
+		}
+	})
+	t.Run("raw_max_bytes drops an oversized record", func(t *testing.T) {
+		e := newEnv(t)
+		e.deps.RawMaxBytes = 300
+		var logged []string
+		e.deps.Logf = func(f string, a ...any) { logged = append(logged, fmt.Sprintf(f, a...)) }
+		p := tf.WriteFile(t, e.projects, "-w-x/"+s+".jsonl", tf.Join(
+			tf.Attachment(s, "att-big", "2026-10-01T10:00:01Z", "/w/x", "file", strings.Repeat("x", 400)),
+			tf.PRLink(s, "2026-10-01T10:00:02Z", 7),
+		))
+		if sum := run(t, e, p); sum.Meta != 1 {
+			t.Errorf("summary = %+v, want 1 meta record", sum)
+		}
+		if got := e.count(t, "SELECT count(*) FROM session_meta WHERE type = 'pr-link'"); got != 1 {
+			t.Errorf("pr-link rows = %d", got)
+		}
+		if len(logged) != 1 || !strings.Contains(logged[0], "att-big") || !strings.Contains(logged[0], "raw_max_bytes") {
+			t.Errorf("log = %q", logged)
+		}
+	})
+	t.Run("batches flush before a meta record too", func(t *testing.T) {
+		e := newEnv(t)
+		e.deps.BatchSize = 2
+		p := tf.WriteFile(t, e.projects, "-w-x/"+s+".jsonl", tf.Join(
+			tf.PRLink(s, "2026-10-01T10:00:00Z", 1), tf.PRLink(s, "2026-10-01T10:00:00Z", 2), tf.PRLink(s, "2026-10-01T10:00:00Z", 3),
+			tf.User(s, "u1", "2026-10-01T10:00:00Z", "/w/x", "hello"), tf.PRLink(s, "2026-10-01T10:00:00Z", 4),
+		))
+		if sum := run(t, e, p); sum.Meta != 4 || sum.Events != 1 {
+			t.Errorf("summary = %+v", sum)
+		}
+		if got := e.count(t, `SELECT "offset" FROM sources`); got == 0 {
+			t.Error("offset not recorded")
+		}
+	})
 }

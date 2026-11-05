@@ -250,7 +250,7 @@ func TestJSONL(t *testing.T) {
 		args  []string
 		lines int
 	}{
-		{"sql", []string{"sql", "--format", "jsonl", "select id from sessions order by id"}, 3},
+		{"sql", []string{"sql", "--format", "jsonl", "select id from sessions order by id"}, 4},
 		{"sessions", []string{"sessions", "--format", "jsonl"}, 2},
 		{"search", []string{"search", "release", "--format", "jsonl"}, 2},
 		{"search by-session", []string{"search", "release", "--format", "jsonl", "--by-session"}, 1},

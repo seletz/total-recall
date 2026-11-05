@@ -100,7 +100,7 @@ LIMIT 50"
 ## Cost notes
 
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
-- `events.text` of tool results is truncated to 4 KiB. `events.raw` is a compressed extract of the original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); read it with `raw_text(raw)`, and never select it in a list query.
+- `events.text` of tool results is truncated to 4 KiB. `events.raw` is a compressed extract of the original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); read it with `raw_text(raw)`, and never select it in a list query. The same goes for `session_meta.raw`: filter by `type` and `session_id` first, then `raw_text(raw)` on a few rows.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
 - `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
@@ -225,6 +225,23 @@ View: per local day (configured zone) and session.
 | `repo` | `git_remote_url`, else `git_root`, else `cwd` |
 | `human_events` | count of `actor = 'human'` |
 | `agent_events` | count of `actor = 'agent'` |
+
+#### `session_meta`
+
+Harness records that are no message but belong to a session (since schema v6): context the harness injected (Claude Code: `attachment` records such as the instructions files, @-mentioned files, hook output), text queued while the agent worked (`queue-operation`), the session's modes, pull request (`pr-link`), cost (`cost-state`), file-history snapshots, the workflow journal, and record types the adapter does not know. One row per record, the same content once per session; no event, not in `events_fts`, in no statistic.
+
+| column | meaning |
+|---|---|
+| `seq` | PK, insertion order |
+| `id` | `<harness>:<record id>`, or `<harness>:<hash>` for a record without an ID |
+| `session_id` | FK `sessions.id` |
+| `ts` | UTC, NULL for records without a time stamp |
+| `type` | record type of the harness, e.g. `attachment`, `pr-link` |
+| `source_id` | `sources.id` of the transcript file the record came from |
+| `source_offset` | byte offset of the line in that file |
+| `raw` | the whole JSON line as a zstd-compressed BLOB, redacted; `raw_text(raw)` gives the text. Never select it in a list query |
+
+Example, the pull requests a session worked on: `SELECT DISTINCT json_extract(raw_text(raw), '$.prUrl') FROM session_meta WHERE type = 'pr-link' AND session_id = 'claude:…'`.
 
 #### Housekeeping tables
 
@@ -367,6 +384,8 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `raw_bytes` | compressed size of all `raw` lines |
 | `raw_truncated` | events whose `raw` line was dropped for its size |
 | `raw_ratio` | uncompressed over compressed size of `raw`, estimated from a sample of rows; 0 if unknown |
+| `meta_rows` | stored meta records (table `session_meta`) |
+| `meta_bytes` | compressed size of all meta records |
 | `last_ingest` | object harness → time (UTC) |
 | `backup_dir` | |
 | `last_backup` | path of the last backup, `null` if none |

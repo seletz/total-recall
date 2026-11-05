@@ -3,9 +3,9 @@
  [status] settings projects actions setup                                            ~/.config/total-recall/config.toml
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  archive               ~/.local/share/total-recall/archive.db
- size                  10.2 MiB  2600 pages, 0 free
+ size                  10.2 MiB  2603 pages, 0 free
  page size             4096  maintenance rebuilds with 16384 and saves space
- schema                v5, binary v5
+ schema                v6, binary v6
  raw                   1.4 MiB in 21896 events
  sessions              929
  events                21896

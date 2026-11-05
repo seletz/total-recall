@@ -520,9 +520,10 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 		}
 	}
 	// Every SQL string of the package: only the writer, the one reader that
-	// needs it (UserMessages), the raw codec (raw.go: RawStats, raw_text)
-	// and the migrations may name the column.
-	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true}
+	// needs it (UserMessages), the raw codec (raw.go: RawStats, raw_text),
+	// the migrations and the meta records (meta.go: writer, MetaStats and
+	// the single-row reader for tests) may name the column.
+	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true, "meta.go": true}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

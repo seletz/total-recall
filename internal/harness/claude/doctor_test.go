@@ -178,6 +178,31 @@ func TestKnownBlockTypesMatchParser(t *testing.T) {
 			t.Errorf("type %q is both ingested and skipped", typ)
 		}
 	}
+	for _, typ := range MetaRecordTypes() {
+		if ingested[typ] || skipped[typ] {
+			t.Errorf("type %q is a meta type and in another list", typ)
+		}
+	}
+}
+
+// TestCheckFormatKnowsMetaTypes: the types kept as meta records are known
+// to the format check, and a skipped attachment subtype is not drift.
+func TestCheckFormatKnowsMetaTypes(t *testing.T) {
+	var lines string
+	for _, typ := range MetaRecordTypes() {
+		lines += `{"type":"` + typ + `","sessionId":"s"}` + "\n"
+	}
+	for _, sub := range SkippedAttachmentTypes() {
+		lines += `{"type":"attachment","sessionId":"s","attachment":{"type":"` + sub + `"}}` + "\n"
+	}
+	dir := writeTree(t, map[string]string{"-w/s.jsonl": lines})
+	r, err := New(dir).CheckFormat(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Clean() {
+		t.Errorf("meta types reported as drift: %+v", r)
+	}
 }
 
 // TestCheckFormatSessionOwner: Claude Code 2.1.317 writes session-owner

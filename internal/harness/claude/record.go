@@ -21,18 +21,55 @@ const truncMark = " …[truncated]"
 // Known record and content block types. The parser and the format check
 // (CheckFormat, `total-recall doctor`) share these lists; when Claude Code
 // adds a type, add it here (and handle it in the parser if it carries data).
+//
+// Every record type falls into one of three groups: ingestedTypes become
+// events or session fields; skippedTypes are dropped on purpose (the lists
+// say why); everything else, metaTypes and types the adapter has never
+// seen, is kept as a meta record (model.Meta: the whole line, redacted and
+// compressed, no event). doctor still reports the unknown ones.
 var (
 	ingestedTypes = []string{
 		"user", "assistant", "system", "custom-title", "ai-title", "agent-name", "summary",
 		"session-owner", // account and organization of the session (2.1.317+), no timestamp
 		"continued-in",  // session this one was continued in (2.1.318+), once at the end
 	}
+	// metaTypes are kept as meta records. Measured on a local archive
+	// (#182): together about 40 MiB compressed; the same content is stored
+	// once per session, which collapses the per-turn state records (mode,
+	// permission-mode, atis-latch, pr-link, bridge-session) to a few rows
+	// per session.
+	metaTypes = []string{
+		"attachment",            // context the harness injected: instructions, files, hook output, queued commands, ... (subtypes below)
+		"queue-operation",       // text typed while the agent worked: enqueue, dequeue, remove; a removed command is nowhere else
+		"file-history-snapshot", // index of the file history (tracked file backups), no timestamp of its own
+		"file-history-delta",    // one backup of one file
+		"pr-link",               // pull request of the session, repeated every turn
+		"bridge-session",        // remote bridge of the session, no timestamp
+		"permission-mode",       // permission mode of the session, no timestamp
+		"mode",                  // mode of the session, no timestamp
+		"atis-latch",            // no timestamp
+		"cost-state",            // cost, duration and lines per model and session
+		"tools-used",            // tools used so far, no timestamp
+		"history-suppression",   // cause and account a history suppression was vetoed against; ts, no timestamp
+		"started", "result",     // workflow journal.jsonl: start and result of a workflow agent
+	}
+	// skippedTypes carry nothing the archive needs: the API request cache
+	// (hashes of prompt blocks, message content and tool definitions that
+	// repeat what events and the harness carry; 1.3 GiB of 1.7 GiB skipped
+	// lines locally) and the last prompt, which repeats the latest user
+	// message. skip_record_types in the config adds to the list.
 	skippedTypes = []string{
-		"attachment", "api-request", "api-request-blob", "api-request-shape", "last-prompt", "mode",
-		"permission-mode", "atis-latch", "pr-link", "queue-operation", "bridge-session",
-		"file-history-snapshot", "file-history-delta", "cost-state", "tools-used",
-		"history-suppression", // cause and account a history suppression was vetoed against; ts, no timestamp
-		"started", "result",   // workflow journal.jsonl
+		"api-request", "api-request-blob", "api-request-shape", "last-prompt",
+	}
+	// skippedAttachmentTypes are the attachment subtypes dropped on
+	// purpose: the harness's own system prompt, its catalogs of tools,
+	// skills, agents and MCP instructions, and the reminders it sends
+	// itself. Locally they were two thirds of the attachment bytes. A
+	// subtype not in this list is kept, whether known or new;
+	// skip_record_types takes "attachment/<subtype>" entries.
+	skippedAttachmentTypes = []string{
+		"prompt_snapshot", "total_tokens_reminder", "bash_output_audience_note",
+		"deferred_tools_record", "deferred_tools_delta", "agent_listing_delta", "skill_listing", "mcp_instructions_delta",
 	}
 	handledUserBlocks      = []string{"text", "tool_result"}
 	ignoredUserBlocks      = []string{"image", "document"}
@@ -58,9 +95,20 @@ var (
 // IngestedRecordTypes returns the record types the adapter reads.
 func IngestedRecordTypes() []string { return slices.Clone(ingestedTypes) }
 
+// MetaRecordTypes returns the record types the adapter keeps as meta
+// records (model.Meta). Types in no list are kept as well.
+func MetaRecordTypes() []string { return slices.Clone(metaTypes) }
+
 // SkippedRecordTypes returns record types known to carry nothing worth
 // archiving; they are skipped on purpose.
 func SkippedRecordTypes() []string { return slices.Clone(skippedTypes) }
+
+// SkippedAttachmentTypes returns the attachment subtypes skipped on
+// purpose; every other subtype is kept as a meta record.
+func SkippedAttachmentTypes() []string { return slices.Clone(skippedAttachmentTypes) }
+
+// AttachmentSkipKey is the skip_record_types entry for an attachment subtype.
+func AttachmentSkipKey(subtype string) string { return "attachment/" + subtype }
 
 // HandledUserBlockTypes returns user content block types that become events.
 func HandledUserBlockTypes() []string { return slices.Clone(handledUserBlocks) }
@@ -81,8 +129,25 @@ func ToolResultBlockTypes() []string { return slices.Clone(toolResultBlocks) }
 // should have (nil if none are required).
 func ExpectedFields(typ string) []string { return slices.Clone(expectedFields[typ]) }
 
-// ingested is the lookup set of ingestedTypes.
-var ingested = setOf(ingestedTypes)
+// ingested and skipped are the lookup sets of ingestedTypes and
+// skippedTypes; skippedAttachments holds the AttachmentSkipKey of every
+// skippedAttachmentTypes entry.
+var (
+	ingested           = setOf(ingestedTypes)
+	skipped            = setOf(skippedTypes)
+	skippedAttachments = map[string]bool{}
+)
+
+func init() {
+	for _, t := range skippedAttachmentTypes {
+		skippedAttachments[AttachmentSkipKey(t)] = true
+	}
+}
+
+// metaVolatileFields are the fields left out when a meta record without a
+// uuid is hashed for its ID: the same content written again in another
+// turn gets the same ID and is stored once per session.
+var metaVolatileFields = []string{"uuid", "timestamp", "parentUuid"}
 
 func setOf(l ...[]string) map[string]bool {
 	m := map[string]bool{}
@@ -118,6 +183,9 @@ type rawRecord struct {
 	AccountUUID      string          `json:"accountUuid"`          // session-owner
 	OrganizationUUID string          `json:"organizationUuid"`     // session-owner
 	ContinuedIn      string          `json:"continuedInSessionId"` // continued-in
+	Attachment       *struct {
+		Type string `json:"type"`
+	} `json:"attachment"` // attachment
 }
 
 type rawMessage struct {
@@ -168,6 +236,7 @@ type parser struct {
 	pathHash string
 	file     fileInfo
 	seenMsg  map[string]bool // assistant message ids whose usage was already attributed
+	lastTS   time.Time       // time stamp of the last record that had one (meta records without one borrow it)
 }
 
 func newParser(a *Adapter, path string) *parser {
@@ -182,10 +251,16 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 	if err := json.Unmarshal(line, &r); err != nil {
 		return nil, "", false
 	}
-	if !ingested[r.Type] || p.a.skip[r.Type] {
+	if p.skips(&r) {
 		return nil, r.Type, true
 	}
 	ts := parseTime(r.Timestamp)
+	if !ts.IsZero() {
+		p.lastTS = ts
+	}
+	if !ingested[r.Type] {
+		return p.metaRecord(&r, line, offset), r.Type, true
+	}
 	if r.Type == "continued-in" {
 		// Written when the session is resumed, possibly days later: it must
 		// not stretch the session's end.
@@ -241,6 +316,64 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 		}
 	}
 	return rec, r.Type, true
+}
+
+// skips reports whether the record is dropped on purpose: its type is in
+// skippedTypes or configured in skip_record_types, or it is an attachment
+// whose subtype is in skippedAttachmentTypes or configured as
+// "attachment/<subtype>".
+func (p *parser) skips(r *rawRecord) bool {
+	if skipped[r.Type] || p.a.skip[r.Type] {
+		return true
+	}
+	if r.Type == "attachment" && r.Attachment != nil {
+		k := AttachmentSkipKey(r.Attachment.Type)
+		return skippedAttachments[k] || p.a.skip[k]
+	}
+	return false
+}
+
+// metaRecord builds the record for a line that is kept as a meta record:
+// the session it belongs to (without time stamps, a meta record never
+// widens a session) and one model.Meta with the whole line. The ID is the
+// record's uuid; a record without one is identified by a hash of session,
+// type and content without metaVolatileFields, so the same content is
+// stored once per session.
+func (p *parser) metaRecord(r *rawRecord, line []byte, offset int64) *model.Record {
+	sess := p.session(r, time.Time{})
+	m := model.Meta{SessionID: sess.ID, TS: parseTime(r.Timestamp), Type: r.Type, SourcePath: p.path, SourceOffset: offset, Raw: string(line)}
+	if m.TS.IsZero() {
+		m.TS = p.lastTS
+	}
+	if r.UUID != "" {
+		m.ID = HarnessName + ":" + r.UUID
+	} else {
+		m.ID = HarnessName + ":" + metaHash(sess.NativeID, r.Type, line)
+	}
+	return &model.Record{Session: sess, Meta: []model.Meta{m}}
+}
+
+// metaHash hashes a meta record's content for its ID: sha1 over session,
+// type and the line as compact JSON with sorted keys, without
+// metaVolatileFields. A line that is not an object is hashed as it is.
+func metaHash(session, typ string, line []byte) string {
+	content := line
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(line, &obj); err == nil && obj != nil {
+		for _, k := range metaVolatileFields {
+			delete(obj, k)
+		}
+		if b, err := json.Marshal(obj); err == nil {
+			content = b
+		}
+	}
+	h := sha1.New()
+	h.Write([]byte(session))
+	h.Write([]byte{0})
+	h.Write([]byte(typ))
+	h.Write([]byte{0})
+	h.Write(content)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (p *parser) session(r *rawRecord, ts time.Time) model.Session {

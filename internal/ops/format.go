@@ -13,15 +13,16 @@ import (
 )
 
 // FormatIngest renders the summary line of an ingest run, e.g.
-// "scanned 3 files: 1 changed, 2 unchanged, 0 locked; 12 new events, 1
-// sessions touched (0.2s)"; rewriteRaw adds the rewritten raw lines.
+// "scanned 3 files: 1 changed, 2 unchanged, 0 locked; 12 new events, 4
+// meta records, 1 sessions touched (0.2s)"; rewriteRaw adds the
+// rewritten raw lines.
 func FormatIngest(s ingest.Summary, rewriteRaw bool) string {
 	rewritten := ""
 	if rewriteRaw {
 		rewritten = fmt.Sprintf(", %d raw rewritten", s.RawRewritten)
 	}
-	return fmt.Sprintf("scanned %d files: %d changed, %d unchanged, %d locked; %d new events%s, %d sessions touched (%s)",
-		s.Scanned, s.Changed, s.Unchanged, s.Locked, s.Events, rewritten, s.Sessions, s.Duration.Round(time.Millisecond))
+	return fmt.Sprintf("scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d meta records%s, %d sessions touched (%s)",
+		s.Scanned, s.Changed, s.Unchanged, s.Locked, s.Events, s.Meta, rewritten, s.Sessions, s.Duration.Round(time.Millisecond))
 }
 
 // FormatReclassify renders one summary line, e.g.

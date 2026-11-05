@@ -1,0 +1,105 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/seletz/total-recall/internal/model"
+)
+
+// Meta records (table session_meta, schema v6): harness records that are
+// no message but belong to a session, kept as their whole line like
+// events.raw (redacted by ingest, compressed here with rawBlob). They are
+// no events: no text, no full-text index, no statistic reads them. This
+// file writes them (writeMeta, from WriteBatchOpts), counts them for
+// status (MetaStats) and reads single ones for tests and tools (metaOf).
+
+// writeMeta inserts the meta records of a batch (existing IDs are
+// skipped) and, with rewrite, replaces raw of the ones that exist.
+func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, rewrite bool, res *WriteResult) error {
+	ins, err := tx.PrepareContext(ctx, `INSERT INTO session_meta (id, session_id, ts, type, source_id, source_offset, raw)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("store: prepare: %w", err)
+	}
+	defer func() { _ = ins.Close() }()
+	var upd *sql.Stmt
+	if rewrite {
+		upd, err = tx.PrepareContext(ctx, `UPDATE session_meta SET raw = ? WHERE id = ?`)
+		if err != nil {
+			return fmt.Errorf("store: prepare: %w", err)
+		}
+		defer func() { _ = upd.Close() }()
+	}
+	sources := map[string]int64{}
+	for _, m := range metas {
+		blob := rawBlob(m.Raw)
+		if upd != nil {
+			r, err := upd.ExecContext(ctx, blob, m.ID)
+			if err != nil {
+				return fmt.Errorf("store: rewrite raw of meta record %s: %w", m.ID, err)
+			}
+			if n, _ := r.RowsAffected(); n > 0 {
+				res.RawRewritten += int(n)
+				continue
+			}
+		}
+		var srcID any
+		if m.SourcePath != "" {
+			id, ok := sources[m.SourcePath]
+			if !ok {
+				h, _ := splitID(m.SessionID)
+				if id, err = sourceID(ctx, tx, m.SourcePath, h); err != nil {
+					return err
+				}
+				sources[m.SourcePath] = id
+			}
+			srcID = id
+		}
+		r, err := ins.ExecContext(ctx, m.ID, m.SessionID, formatTime(m.TS), m.Type, srcID, m.SourceOffset, blob)
+		if err != nil {
+			return fmt.Errorf("store: insert meta record %s: %w", m.ID, err)
+		}
+		if n, err := r.RowsAffected(); err == nil {
+			res.MetaInserted += int(n)
+		}
+	}
+	return nil
+}
+
+// MetaStats describes the stored meta records.
+type MetaStats struct {
+	// Rows is the number of meta records, Bytes the size of their
+	// compressed lines.
+	Rows, Bytes int64
+}
+
+// MetaStats counts the meta records and their compressed size.
+func (s *Store) MetaStats(ctx context.Context) (MetaStats, error) {
+	var st MetaStats
+	if err := s.db().QueryRowContext(ctx, `SELECT count(*), COALESCE(sum(length(raw)), 0) FROM session_meta`).Scan(&st.Rows, &st.Bytes); err != nil {
+		return st, fmt.Errorf("store: meta stats: %w", err)
+	}
+	return st, nil
+}
+
+// metaOf returns one meta record by ID (tests and tools); ok is false for
+// an unknown ID. Raw is the decompressed line.
+func (s *Store) metaOf(ctx context.Context, id string) (m model.Meta, ok bool, err error) {
+	var b []byte
+	var tsv, srcPath sql.NullString
+	err = s.db().QueryRowContext(ctx, `SELECT m.id, m.session_id, m.ts, m.type, s.path, m.source_offset, m.raw
+		FROM session_meta m LEFT JOIN sources s ON s.id = m.source_id WHERE m.id = ?`, id).
+		Scan(&m.ID, &m.SessionID, &tsv, &m.Type, &srcPath, &m.SourceOffset, &b)
+	if errors.Is(err, sql.ErrNoRows) {
+		return m, false, nil
+	}
+	if err != nil {
+		return m, false, err
+	}
+	m.TS, m.SourcePath = parseTime(tsv), srcPath.String
+	m.Raw, err = rawText(b)
+	return m, true, err
+}

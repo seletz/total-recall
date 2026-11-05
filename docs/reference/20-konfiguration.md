@@ -93,7 +93,7 @@ store_raw = true
 [harness.claude]
 enabled = true
 projects_dir = "~/.claude/projects"   # Default: $CLAUDE_CONFIG_DIR/projects bzw. ~/.claude/projects
-skip_record_types = []                # zusätzlich zu den Standard-Ausschlüssen
+skip_record_types = []                # zusätzlich zu den Standard-Ausschlüssen; "attachment/<subtyp>" für einen Attachment-Subtyp
 
 [harness.claude.actors]
 # zusätzliche Präfixe für die Actor-Klassifikation
@@ -186,10 +186,10 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
 
 `raw_max_bytes`
-:   Obergrenze für den Auszug der Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression). Ist er größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. `0` heißt: keine Grenze. Default: 16384 Bytes.
+:   Obergrenze für den Auszug der Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression). Ist er größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. Gilt auch für [Meta-Records](40-schema.md): eine größere Zeile wird nicht gespeichert (eine Zeile im Log). `0` heißt: keine Grenze. Default: 16384 Bytes.
 
 `store_raw`
-:   Einen Auszug der Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`). Default: `true`.
+:   Einen Auszug der Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`). Mit `false` werden auch keine [Meta-Records](40-schema.md) gespeichert, denn die bestehen nur aus ihrer Zeile. Default: `true`.
 
 ### `[harness.claude]`
 
@@ -200,7 +200,7 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Wo die Transkripte liegen. Default: `$CLAUDE_CONFIG_DIR/projects`, sonst `~/.claude/projects`.
 
 `skip_record_types`
-:   Weitere Record-Typen, die übersprungen werden. Die Standard-Ausschlüsse (`attachment`, `api-request*`, `file-history-*` usw.) gelten immer.
+:   Weitere Record-Typen, die übersprungen werden. Die Standard-Ausschlüsse gelten immer: `api-request`, `api-request-blob`, `api-request-shape`, `last-prompt` und acht Attachment-Subtypen (System-Prompt, Kataloge, Erinnerungen der Harness; Liste im [Design](../explanation/design.md#session_meta)). Alle anderen Typen, auch unbekannte, landen als [Meta-Records](40-schema.md) im Archiv. Ein Eintrag `attachment/<subtyp>` schließt einen einzelnen Attachment-Subtyp aus, `attachment` alle.
 
 ### `[harness.claude.actors]`
 

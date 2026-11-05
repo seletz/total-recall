@@ -116,7 +116,8 @@ func splitID(id string) (harness, native string) {
 // are skipped, so re-reading a file is harmless) and records the source
 // offset. Events whose session is not in sessions create/extend a minimal
 // session row; event timestamps always widen the session's start/end.
-// If src.Path is empty, no source row is written.
+// If src.Path is empty, no source row is written. Meta records go through
+// WriteBatchOpts (WriteOptions.Meta).
 func (s *Store) WriteBatch(ctx context.Context, src SourceState, sessions []model.Session, events []model.Event) error {
 	_, err := s.WriteBatchN(ctx, src, sessions, events)
 	return err
@@ -132,18 +133,26 @@ func (s *Store) WriteBatchN(ctx context.Context, src SourceState, sessions []mod
 // WriteOptions tune WriteBatchOpts.
 type WriteOptions struct {
 	// RewriteRaw replaces raw and raw_truncated of events that already exist
-	// with the incoming values. Nothing else of the row changes: text, actor
-	// and the full-text index stay as they are (ingest --reread --rewrite-raw).
+	// with the incoming values, and raw of meta records that already exist.
+	// Nothing else of the row changes: text, actor and the full-text index
+	// stay as they are (ingest --reread --rewrite-raw).
 	RewriteRaw bool
+	// Meta are the meta records of the batch (table session_meta): inserted
+	// like events, existing IDs are skipped. A meta record whose session is
+	// not in sessions creates a bare session row; it never widens a
+	// session's start or end.
+	Meta []model.Meta
 }
 
 // WriteResult counts what WriteBatchOpts changed.
 type WriteResult struct {
 	// Inserted is the number of events newly inserted.
 	Inserted int
-	// RawRewritten is the number of existing events whose raw was replaced
-	// (only with WriteOptions.RewriteRaw).
+	// RawRewritten is the number of existing events and meta records whose
+	// raw was replaced (only with WriteOptions.RewriteRaw).
 	RawRewritten int
+	// MetaInserted is the number of meta records newly inserted.
+	MetaInserted int
 }
 
 // WriteBatchOpts is WriteBatch with options and counts.
@@ -173,6 +182,13 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		}
 		h, n := splitID(e.SessionID)
 		add(model.Session{ID: e.SessionID, Harness: h, NativeID: n, StartedAt: e.TS, EndedAt: e.TS})
+	}
+	for _, m := range opts.Meta {
+		if m.SessionID == "" || m.ID == "" || m.Raw == "" {
+			return res, fmt.Errorf("store: meta record %q without ID, session or content", m.ID)
+		}
+		h, n := splitID(m.SessionID)
+		add(model.Session{ID: m.SessionID, Harness: h, NativeID: n})
 	}
 
 	tx, err := s.db().BeginTx(ctx, nil)
@@ -257,6 +273,12 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			if n, err := r.RowsAffected(); err == nil {
 				res.Inserted += int(n)
 			}
+		}
+	}
+
+	if len(opts.Meta) > 0 {
+		if err := s.writeMeta(ctx, tx, opts.Meta, opts.RewriteRaw, &res); err != nil {
+			return res, err
 		}
 	}
 

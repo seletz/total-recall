@@ -230,6 +230,7 @@ var scrubSQL = []string{
 	   organization_id = (SELECT 'org-' || o.rank FROM orgmap o WHERE o.organization_id = sessions.organization_id)`,
 	`UPDATE events SET text = NULL, raw = NULL, raw_truncated = 0, tool_name = NULL, source_id = NULL`,
 	`INSERT INTO events_fts(events_fts) VALUES ('rebuild')`,
+	`DELETE FROM session_meta`,
 	`DELETE FROM sources`,
 	`DELETE FROM dirs`,
 }

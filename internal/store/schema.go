@@ -214,6 +214,29 @@ CREATE TABLE events_v5 (
 	raw_truncated INTEGER NOT NULL DEFAULT 0
 );
 `,
+	// 6: meta records (#182): harness records that are no message but
+	// belong to a session (Claude: attachments, queued commands, modes,
+	// file-history snapshots, workflow journal, types the adapter does
+	// not know). One row per record with the whole line as a redacted
+	// zstd BLOB like events.raw; no event, no full-text index, no view
+	// reads it. id is the harness's record ID or a hash of session, type
+	// and content, so the same content is stored once per session and a
+	// reread is idempotent. ts may be NULL (records without a time
+	// stamp). The archive gets the records of existing transcripts with
+	// ingest --all --reread.
+	`
+CREATE TABLE session_meta (
+	seq           INTEGER PRIMARY KEY,
+	id            TEXT NOT NULL UNIQUE,
+	session_id    TEXT NOT NULL REFERENCES sessions(id),
+	ts            TEXT,
+	type          TEXT NOT NULL,
+	source_id     INTEGER REFERENCES sources(id),
+	source_offset INTEGER,
+	raw           BLOB NOT NULL
+);
+CREATE INDEX session_meta_session ON session_meta(session_id, type);
+`,
 }
 
 // migrationNotes describe the migrations for `total-recall migrate`, one
@@ -229,6 +252,8 @@ var migrationNotes = []migrationNote{
 		// Measured on a 1.1 GiB archive: the WAL grows to 0.36 times the
 		// file (the new events table; dropped pages only join the freelist).
 		Space: 0.5},
+	{Summary: "session_meta: harness records that are no message (attachments, queued commands, modes, file-history snapshots, unknown types) as redacted, compressed lines; " +
+		"existing transcripts are read again with ingest --all --reread"},
 }
 
 // migrationNote is the description of one migration.

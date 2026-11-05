@@ -74,11 +74,14 @@ type Summary struct {
 	Unchanged int // sources without new data
 	Locked    int // sources skipped because another process holds the lock
 	Events    int // events newly inserted
-	// RawRewritten counts existing events whose raw was replaced (Deps.RewriteRaw).
+	// RawRewritten counts existing events and meta records whose raw was
+	// replaced (Deps.RewriteRaw).
 	RawRewritten int
-	Sessions     int // distinct sessions touched by new records
-	Errors       []FileError
-	Duration     time.Duration
+	// Meta counts meta records newly inserted (table session_meta).
+	Meta     int
+	Sessions int // distinct sessions touched by new records
+	Errors   []FileError
+	Duration time.Duration
 }
 
 // runner is the state of one Run/All call.
@@ -228,28 +231,30 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	src := store.SourceState{Path: path, Harness: a.Name(), MTime: fi.ModTime()}
 	var sessions []model.Session
 	var events []model.Event
+	var metas []model.Meta
 	flush := func(off int64) error {
 		src.Offset = off
 		src.Size = max(fi.Size(), off)
-		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw})
+		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw, Meta: metas})
 		if err != nil {
 			return err
 		}
 		r.sum.Events += res.Inserted
 		r.sum.RawRewritten += res.RawRewritten
-		sessions, events = sessions[:0], events[:0]
+		r.sum.Meta += res.MetaInserted
+		sessions, events, metas = sessions[:0], events[:0], metas[:0]
 		return nil
 	}
 
 	end, perr := a.Parse(ctx, path, offset, func(rec model.Record) error {
 		// Flush before a record that starts a new line, so the stored offset
 		// always sits on a line boundary whose predecessors are all written.
-		if len(events) >= r.deps.BatchSize && len(rec.Events) > 0 {
-			if err := flush(rec.Events[0].SourceOffset); err != nil {
+		if off, ok := rec.Offset(); ok && len(events)+len(metas) >= r.deps.BatchSize {
+			if err := flush(off); err != nil {
 				return err
 			}
 		}
-		return r.add(ctx, rec, &sessions, &events)
+		return r.add(ctx, rec, &sessions, &events, &metas)
 	})
 	// Lines before end were fully emitted: persist them even if Parse failed.
 	if err := flush(end); err != nil {
@@ -259,7 +264,10 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 }
 
 // add prepares one record (git info, redaction) and appends it to the batch.
-func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Session, events *[]model.Event) error {
+// Meta records follow StoreRaw and RawMaxBytes like raw: without StoreRaw
+// none is kept, a line above the cap is dropped (logged) because the line
+// is all a meta record has.
+func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Session, events *[]model.Event, metas *[]model.Meta) error {
 	s := rec.Session
 	if s.ID != "" {
 		r.sessions[s.ID] = true
@@ -294,6 +302,20 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 			}
 		}
 		*events = append(*events, e)
+	}
+	for _, m := range rec.Meta {
+		switch {
+		case !r.deps.StoreRaw:
+			continue
+		case r.deps.RawMaxBytes > 0 && len(m.Raw) > r.deps.RawMaxBytes:
+			r.deps.Logf("ingest %s: meta record %s (%s) dropped: %d bytes over raw_max_bytes", m.SourcePath, m.ID, m.Type, len(m.Raw))
+			continue
+		}
+		r.sessions[m.SessionID] = true
+		if rd := r.deps.Redactor; rd != nil {
+			m.Raw, _ = rd.JSON(m.Raw)
+		}
+		*metas = append(*metas, m)
 	}
 	return nil
 }

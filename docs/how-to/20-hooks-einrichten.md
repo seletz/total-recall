@@ -79,6 +79,6 @@ total-recall doctor
 ```
 
 - Exit-Code 0: alles bekannt.
-- Exit-Code 2: Es gibt Unbekanntes. Die Ausgabe nennt Typ, Anzahl und erste Fundstelle. Ein Blick in die genannte Zeile zeigt, ob darin etwas Archivierenswertes steht. Wenn ja, braucht der Adapter ein Update; wenn nein, gehört der Typ in die Liste der bewusst übersprungenen Typen im Adapter (bis dahin hilft `harness.claude.skip_record_types` in der Config).
+- Exit-Code 2: Es gibt Unbekanntes. Die Ausgabe nennt Typ, Anzahl und erste Fundstelle. Verloren geht nichts: Ein unbekannter Record-Typ wird seit v1.3.0 als [Meta-Record](../reference/40-schema.md) aufbewahrt. Ein Blick in die genannte Zeile zeigt, ob darin etwas steht, das Events oder Session-Felder werden sollte (dann braucht der Adapter ein Update) oder ob es Buchhaltung ist, die nicht ins Archiv gehört (dann in die Liste der bewusst übersprungenen Typen im Adapter; bis dahin hilft `harness.claude.skip_record_types` in der Config).
 
 Die Versionsliste zeigt, ab welcher Claude-Code-Version etwas Neues auftaucht. Alle Befunde und Optionen: [`doctor`](../reference/10-befehle.md#doctor).

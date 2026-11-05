@@ -12,12 +12,12 @@
   ingest all                read every transcript of every harness from the stored offset · migrate first
   doctor                    check the transcripts for format drift; reads only
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- migrate: migrate from schema v4 to v5 after a copy (archive.db.pre-v4.bak)
+ migrate: migrate from schema v5 to v6 after a copy (archive.db.pre-v5.bak)
  y confirms, esc cancels
-   schema    v4 -> v5, 1 pending migration:
-     v5    events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of sou…
-   backup    ~/.local/share/total-recall/archive.db.pre-v4.bak
-   space     about 0.2 MiB free needed next to the database (copy and migration)
+   schema    v5 -> v6, 1 pending migration:
+     v6    session_meta: harness records that are no message (attachments, queued commands, modes, file-history snapsho…
+   backup    ~/.local/share/total-recall/archive.db.pre-v5.bak
+   space     about 0.1 MiB free needed next to the database (copy and migration)
 
 
 

@@ -22,7 +22,9 @@ Je **Event** (Nachricht, Tool-Aufruf, Tool-Ergebnis):
 - Tool-Name, Modell, Token-Zahlen,
 - ein Auszug der Original-JSON-Zeile (`raw`: Typ, IDs, Zeitstempel, Klassifikations-Flags, Nachrichteninhalt, Tool-Ergebnis ohne Diffs; Buchhaltung der Harness, `cwd` und Token-Zahlen fehlen), ebenfalls maskiert und komprimiert gespeichert ([Schema](../reference/40-schema.md#raw)). Abschaltbar mit `ingest.store_raw = false`; Auszüge über `ingest.raw_max_bytes` (Default 16 KiB) werden ohnehin nicht als `raw` gespeichert.
 
-Nicht gespeichert werden technische Records wie Anhänge, API-Requests oder Datei-Snapshots.
+Je **Meta-Record** (seit Schema v6, Tabelle [`session_meta`](../reference/40-schema.md)): Records der Harness, die keine Nachricht sind, aber zur Session gehören, als ganze JSON-Zeile, maskiert und komprimiert. Bei Claude Code sind das vor allem: der Kontext, den die Harness in eine Runde eingefügt hat (die geladenen `CLAUDE.md`-Dateien, mit `@` erwähnte Dateien, Ausgaben der Hooks, Hinweise auf außerhalb geänderte Dateien, Umgebung), Text, den du getippt hast, während der Agent arbeitete (auch wieder entfernter), Modus und Pull Request der Session, Kosten und Dauer je Modell, der Index der Datei-Historie und das Workflow-Journal. Dateiinhalte stehen damit so im Archiv, wie der Agent sie gesehen hat. Abschaltbar mit `ingest.store_raw = false` (dann gar keine Meta-Records) oder je Typ mit `harness.claude.skip_record_types`.
+
+Nicht gespeichert werden der API-Request-Cache der Harness (`api-request*`, wiederholt nur Nachrichten und Tool-Definitionen), der System-Prompt der Harness und ihre Kataloge und Erinnerungen (acht Attachment-Subtypen, siehe [Design](design.md#session_meta)).
 
 ## Maskierung von Geheimnissen
 

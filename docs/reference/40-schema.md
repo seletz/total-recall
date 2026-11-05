@@ -15,6 +15,7 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `events_fts` | Volltextindex über `events.text` |
 | `exchanges` | je menschlicher Nachricht: die Anfrage und die letzte Antwort des Agenten |
 | `daily_activity` | je Tag (lokale Zeit) und Session: Repo, Anzahl human-/agent-Events |
+| `session_meta` | Harness-Records, die keine Nachricht sind, aber zur Session gehören (seit Schema v6): von der Harness eingefügter Kontext (Claude Code: `attachment` mit den `CLAUDE.md`-Dateien, @-erwähnten Dateien, Hook-Ausgaben, …), während der Arbeit des Agenten getippter Text (`queue-operation`), Modus, Pull Request (`pr-link`), Kosten (`cost-state`), Datei-Historie, Workflow-Journal und unbekannte Typen. Je Record eine Zeile, gleicher Inhalt je Session einmal; kein Event, nicht im Volltextindex, in keiner Statistik. Spalten: `seq`, `id`, `session_id`, `ts` (NULL ohne Zeitstempel), `type` (Typname der Harness), `source_id`, `source_offset`, `raw` (ganze Zeile, maskiert, komprimiert; `raw_text(raw)` entpackt) |
 | `sources` | eingelesene Dateien und Lesestand; `events.source_id` verweist auf `id` (seit Schema v5) |
 | `dirs` | Cache: Verzeichnis → Git-Root und Remote |
 
@@ -31,6 +32,14 @@ total-recall sql "SELECT id, raw_text(raw) FROM events WHERE id = 'claude:…' L
 ```
 
 `raw` ist `NULL`, wenn der Auszug größer als `ingest.raw_max_bytes` war (`raw_truncated = 1`) oder `ingest.store_raw = false` gilt. In Listenabfragen `raw` nie mitselektieren; [`status`](10-befehle.md#status) zeigt die Größe aller Rohzeilen und das Kompressionsverhältnis. Details: [Design](../explanation/design.md#raw).
+
+`session_meta.raw` ist dagegen die **ganze** Zeile des Records, ebenso maskiert und komprimiert. Erst nach `type` und `session_id` filtern, dann wenige Zeilen entpacken, zum Beispiel die Pull Requests einer Session:
+
+```sh
+total-recall sql "SELECT DISTINCT json_extract(raw_text(raw), '$.prUrl') FROM session_meta WHERE type = 'pr-link' AND session_id = 'claude:…'"
+```
+
+Welche Record-Typen von Claude Code als Meta-Record landen und welche bewusst draußen bleiben, steht im [Design](../explanation/design.md#session_meta).
 
 Die Schema-Version steht in `schema_version` und bei [`status`](10-befehle.md#status). Ein Programm-Update migriert nie von selbst; das macht [`migrate`](10-befehle.md#migrate) nach einem Backup, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 
