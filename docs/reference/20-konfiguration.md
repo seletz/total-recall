@@ -29,7 +29,7 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 `total-recall config init` schreibt eine kommentierte Vorlage. Eine bestehende Datei wird nie überschrieben.
 
-Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und ändert einzelne Schlüssel in der Datei: Kommentare und alle anderen Zeilen bleiben erhalten, ein auskommentierter Schlüssel der Vorlage wird an seiner Stelle aktiviert, vorher entsteht `config.toml.bak`, geschrieben wird atomar und nur, was die Prüfung besteht. Die Tabellen `[accounts]` und `[[worktime.category]]` ändert man weiter im Editor (`E` in der TUI). Rezept: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md).
+Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und ändert einzelne Schlüssel in der Datei: Kommentare und alle anderen Zeilen bleiben erhalten, ein auskommentierter Schlüssel der Vorlage wird an seiner Stelle aktiviert, vorher entsteht `config.toml.bak`, geschrieben wird atomar und nur, was die Prüfung besteht. Die Tabellen `[accounts]`, `[[worktime.category]]` und `[[project]]` ändert man weiter im Editor (`E` in der TUI); die Seite **Projects** zeigt die Projektdefinitionen mit Farbe und Mustern. Rezept: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md).
 
 ## Regeln
 
@@ -173,10 +173,10 @@ reload = "5s"                    # Archiv auf Änderungen prüfen und neu laden;
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
 
 `raw_max_bytes`
-:   Obergrenze für die Original-JSON-Zeile. Ist eine Zeile größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. `0` heißt: keine Grenze. Default: 16384 Bytes.
+:   Obergrenze für den Auszug der Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression). Ist er größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. `0` heißt: keine Grenze. Default: 16384 Bytes.
 
 `store_raw`
-:   Die Original-JSON-Zeile jedes Events (maskiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung. Default: `true`.
+:   Einen Auszug der Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`). Default: `true`.
 
 ### `[harness.claude]`
 
@@ -309,7 +309,7 @@ match = "~/notes"
 :   Pflicht und eindeutig; der Name, den `stats --by project`, `stats --worktime` und die TUI zeigen und den die Kategorie-Regeln in [`[[worktime.category]]`](#worktime) sehen. In JSON-Ausgaben ist er zugleich der Schlüssel (`key`) des Projekts.
 
 `description`
-:   Optionaler Freitext, für die Pflege in der TUI gedacht.
+:   Optionaler Freitext; die Seite [Projects](30-tui.md#projects) der TUI zeigt ihn neben dem Namen.
 
 `color`
 :   Optional: ein Name aus der Palette der Charts (`blue`, `orange`, `green`, `red`, `purple`, `teal`) oder ein Wert `#rrggbb`. Statistik und Legende zeigen das Projekt in dieser Farbe; die automatisch vergebenen Farben der übrigen Projekte lassen sie aus, solange eine andere frei ist. Ohne Angabe bekommt das Projekt wie bisher die nächste freie Farbe der Palette.
@@ -319,7 +319,7 @@ match = "~/notes"
 
 **Zuordnung.** Die erste passende Definition in Dateireihenfolge gewinnt. Die Zuordnung wird bei jeder Abfrage berechnet und nicht gespeichert: Eine geänderte Definition wirkt sofort und rückwirkend auf das ganze Archiv, in [`stats --by project`](10-befehle.md#stats-period) (auch bei `--top`: zusammengefasst wird vor dem Falten in `other`), in [`stats --worktime`](10-befehle.md#stats-worktime) und in der Statistik der [TUI](30-tui.md#statistik). Ein abgeleiteter Name, der mit dem Namen einer Definition zusammenfällt, erscheint als Pfad, damit zwei Projekte nie gleich heißen.
 
-**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, `doctor` die Fehler. Default: keine Definitionen.
+**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, die Seite [Projects](30-tui.md#projects) der TUI als Tabelle mit Farbfeld, `doctor` die Fehler. Default: keine Definitionen.
 
 ### `[tui]` { #tui }
 

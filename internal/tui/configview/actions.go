@@ -128,8 +128,10 @@ func (m Model) actions() []action {
 	case !s.pending():
 		migrate.summary, migrate.disabled = fmt.Sprintf("schema v%d is current", s.schema), "nothing pending"
 	default:
-		migrate.confirm = fmt.Sprintf("migrate %s from schema v%d to v%d; the copy %s stays next to it", m.tilde(cfg.DB), s.plan.From, s.plan.To, filepath.Base(s.plan.Backup))
-		migrate.details = ops.PlanLines(s.plan)
+		migrate.confirm = fmt.Sprintf("migrate from schema v%d to v%d after a copy (%s)", s.plan.From, s.plan.To, filepath.Base(s.plan.Backup))
+		plan := s.plan
+		plan.Backup = m.tilde(plan.Backup)
+		migrate.details = ops.PlanLines(plan)
 		if s.backup == "" {
 			migrate.summary = "apply the pending schema migrations; no backup yet, run backup first"
 		}

@@ -28,6 +28,10 @@ type Env struct {
 	// View are the options of the config view: the installation the setup
 	// page finds.
 	View configview.Options
+	// Outdated is the same home with an empty archive of the previous
+	// schema version in place of the demo archive; the shot of a pending
+	// migration renders against it. nil in Outdated itself.
+	Outdated *Env
 }
 
 // Version is what the setup page shows as the version of the binary.
@@ -39,11 +43,52 @@ var backupAt = time.Date(2026, 11, 2, 3, 0, 0, 0, demo.Location)
 
 // NewEnv opens the demo archive at dbPath read-only and lays out a home
 // directory below dir: a config file written from the template with the
-// archive linked in at the default place, a settings file of Claude Code
-// with the hooks, a backup copy of the night before, a projects directory
-// and the binary on PATH. The caller removes dir.
+// archive linked in at the default place and the project definitions of
+// the demo, a settings file of Claude Code with the hooks, a backup copy
+// of the night before, a projects directory and the binary on PATH. A
+// second home with an outdated archive is Outdated. The caller removes dir.
 func NewEnv(dbPath, dir string) (*Env, error) {
-	home := filepath.Join(dir, "home")
+	e, err := newHome(filepath.Join(dir, "home"), dbPath, 0)
+	if err != nil {
+		return nil, err
+	}
+	if e.Outdated, err = newHome(filepath.Join(dir, "home-outdated"), "", store.LatestSchemaVersion()-1); err != nil {
+		_ = e.Store.Close()
+		return nil, err
+	}
+	return e, nil
+}
+
+// projects are the [[project]] definitions of the synthetic config: the
+// repositories of the demo archive with names, colours and patterns.
+const projects = `
+[[project]]
+name = "kompass"
+description = "Wanderkarten, alle Repositories"
+color = "blue"
+match = ["https://git.invalid/mara/kompass*", "~/src/kompass*"]
+
+[[project]]
+name = "wetterwarte"
+description = "Messstation und Auswertung"
+color = "orange"
+match = "https://git.invalid/mara/wetterwarte"
+
+[[project]]
+name = "fahrtenbuch"
+color = "green"
+match = "https://git.invalid/mara/fahrtenbuch"
+
+[[project]]
+name = "notizen"
+description = "Markdown-Notizen ohne Repository"
+match = "~/notizen"
+`
+
+// newHome lays out one home directory. With dbPath the demo archive is
+// linked in as the archive; without, an empty archive is created with the
+// schema version v.
+func newHome(home, dbPath string, v int) (*Env, error) {
 	paths := map[string]string{
 		"config":   filepath.Join(home, ".config", "total-recall", "config.toml"),
 		"db":       filepath.Join(home, ".local", "share", "total-recall", "archive.db"),
@@ -59,14 +104,18 @@ func NewEnv(dbPath, dir string) (*Env, error) {
 	if err := os.MkdirAll(filepath.Join(home, ".claude", "projects"), 0o755); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
-	abs, err := filepath.Abs(dbPath)
-	if err != nil {
+	if dbPath != "" {
+		abs, err := filepath.Abs(dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("screenshot: %w", err)
+		}
+		if err := os.Symlink(abs, paths["db"]); err != nil && !errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("screenshot: %w", err)
+		}
+	} else if err := store.CreateAtVersion(paths["db"], v); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
-	if err := os.Symlink(abs, paths["db"]); err != nil && !errors.Is(err, os.ErrExist) {
-		return nil, fmt.Errorf("screenshot: %w", err)
-	}
-	if err := config.WriteTemplate(paths["config"]); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := os.WriteFile(paths["config"], []byte(config.Template+projects), 0o644); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
 	if err := os.WriteFile(paths["settings"], settingsJSON(), 0o644); err != nil {
@@ -85,7 +134,7 @@ func NewEnv(dbPath, dir string) (*Env, error) {
 	if err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
-	st, err := store.OpenReadOnly(dbPath)
+	st, err := store.OpenReadOnly(paths["db"])
 	if err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
@@ -102,8 +151,14 @@ func NewEnv(dbPath, dir string) (*Env, error) {
 	}, nil
 }
 
-// Close closes the archive.
-func (e *Env) Close() error { return e.Store.Close() }
+// Close closes the archives.
+func (e *Env) Close() error {
+	err := e.Store.Close()
+	if e.Outdated != nil {
+		return errors.Join(err, e.Outdated.Store.Close())
+	}
+	return err
+}
 
 // settingsJSON is a Claude Code settings file with the hook block.
 func settingsJSON() []byte {

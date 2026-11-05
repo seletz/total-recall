@@ -21,13 +21,25 @@ Oder in einer laufenden TUI `4` drücken. Die Seiten wechseln mit ++tab++ und ++
 
 `d` setzt den markierten Schlüssel auf den Default zurück: Die Zeile wird in der Datei auskommentiert, nicht gelöscht. Ein Wert mit Herkunft `env` oder `flag` lässt sich hier nicht ändern, weil die Datei dagegen wirkungslos wäre; die Meldung nennt die Quelle.
 
-Für `[accounts]` und `[[worktime.category]]` öffnet `E` die Datei in `$EDITOR`; nach dem Schließen liest die TUI die Konfiguration neu. Fehlt die Datei noch, legt die TUI sie beim ersten Schreiben aus der Vorlage an.
+Für `[accounts]`, `[[worktime.category]]` und `[[project]]` öffnet `E` die Datei in `$EDITOR`; nach dem Schließen liest die TUI die Konfiguration neu. Fehlt die Datei noch, legt die TUI sie beim ersten Schreiben aus der Vorlage an.
+
+## Die Projekte ansehen
+
+Seite **projects** (++tab++ zweimal): die Definitionen aus [`[[project]]`](../reference/20-konfiguration.md#project) mit Farbfeld, Name, Beschreibung und Mustern; die markierte steht unter der Linie ganz, mit dem Farbwert. Ändern lassen sie sich hier noch nicht: `E` öffnet die Datei an der richtigen Stelle zum Bearbeiten, nach dem Schließen zeigt die Seite den neuen Stand, und die Statistik (`2`) trägt sofort die neuen Namen und Farben. Steht statt der Tabelle ein roter Fehler (`[[project]] has a problem: …`), hat eine Definition keinen Namen, kein Muster, eine unbekannte Farbe oder einen doppelten Namen; bis zur Korrektur zeigt die Statistik die abgeleiteten Namen.
 
 ## Eine Aktion ausführen
 
 Seite **actions**: ++down++ zur Aktion, ++enter++. Was liest (`maintenance (dry run)`, `reindex actors (dry run)`, `doctor`), läuft sofort. Was schreibt (`backup`, `maintenance`, `reindex actors`, `ingest all`), zeigt zuerst, was es tun wird, und wartet auf `y`; ++esc++ bricht ab. Die Fortschrittszeilen stehen unter der Liste, ++esc++ bricht eine laufende Aktion ab, am Ende steht die Zusammenfassung mit Dauer. Solange eine Aktion läuft, lädt die TUI nichts nach; danach lädt sie den Status neu und öffnet ein von `maintenance` ausgetauschtes Archiv von selbst.
 
-Zeigt der Status `migration pending`, liegt die Datenbank hinter dem Schema der Binary. Erst `backup`, dann `migrate`; die Aktion `migrate` ist nur dann anwählbar und in dieser Version noch nicht verfügbar.
+## Die Datenbank migrieren
+
+Zeigt der Status nach einem Update `migration pending`, liegt die Datenbank hinter dem Schema der Binary; die Hooks schreiben bis zur Migration nichts, und auf der Seite **actions** stehen `maintenance`, `reindex actors` und `ingest all` mit `migrate first`. Dann, in dieser Reihenfolge:
+
+1. `backup`, ++enter++, `y`: die Sicherung vor allem anderen. Sie geht auch mit altem Schema.
+2. `migrate`, ++enter++: Unter der Liste steht der Plan, wie ihn [`total-recall migrate`](../reference/10-befehle.md#migrate) ausgibt: die Versionen, jede ausstehende Migration mit einer Zeile Beschreibung, der Pfad der Kopie `archive.db.pre-v<N>.bak` und wie viel Platz neben der Datenbank frei sein muss. `y` startet; eine lange Migration meldet ihren Fortschritt (`migration v5: 120000/233000 (51 %)`), ++esc++ bricht sie ab, die Datenbank bleibt dann unverändert. Am Ende: `migrated v4 -> v5; the copy archive.db.pre-v4.bak can be removed once everything works`, der Status lädt neu, und der nächste Hook liest nach, was in der Zwischenzeit anfiel.
+3. `maintenance`, ++enter++, `y`: Direkt nach der Migration ist die Datei größer als vorher; der Neuaufbau macht sie klein. Hintergrund und Messwerte: [Aktualisieren](10-installieren.md#aktualisieren).
+
+Die Kopie neben der Datenbank ist die Rückfalloption. Läuft alles, kann sie weg.
 
 ## Die Installation prüfen
 

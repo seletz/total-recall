@@ -108,6 +108,9 @@ type MigrateOptions struct {
 	Logf func(format string, args ...any)
 	// Progress receives the progress of the running migration; default none.
 	Progress func(Progress)
+	// RawTrimmers are the harnesses' raw trimmers (WithRawTrimmers) for
+	// migration 5; raw lines of a harness without one are only compressed.
+	RawTrimmers map[string]RawTrimFunc
 }
 
 // MigrateResult reports what Migrate did. Plan is the plan it executed;
@@ -152,7 +155,7 @@ func Migrate(ctx context.Context, path string, o MigrateOptions) (MigrateResult,
 		return res, err
 	}
 	defer release()
-	st, err := Open(path, AllowOutdated(), WithLogf(o.Logf), WithProgress(o.Progress))
+	st, err := Open(path, AllowOutdated(), WithLogf(o.Logf), WithProgress(o.Progress), WithRawTrimmers(o.RawTrimmers))
 	if err != nil {
 		return res, err
 	}

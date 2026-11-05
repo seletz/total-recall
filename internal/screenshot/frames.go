@@ -33,6 +33,9 @@ type Shot struct {
 	Now           time.Time
 	// Keys are pressed in order: single characters, "enter", "tab", "esc".
 	Keys []string
+	// Outdated renders against the home with the outdated archive
+	// (Env.Outdated) instead of the demo archive.
+	Outdated bool
 	// Caption describes the shot for the docs.
 	Caption string
 }
@@ -103,6 +106,10 @@ var Shots = []Shot{
 		Caption: "Config, Seite Settings: das Backup-Verzeichnis wird in der Eingabezeile bearbeitet"},
 	{Name: "config-actions", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "shift+tab", "enter"},
 		Caption: "Config, Seite Actions: Backup wartet auf die Bestätigung"},
+	{Name: "config-projects", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "tab"},
+		Caption: "Config, Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern"},
+	{Name: "config-migrate", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "shift+tab", "j", "j", "j", "enter"}, Outdated: true,
+		Caption: "Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung"},
 	{Name: "config-setup", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab"},
 		Caption: "Config, Seite Setup: Prüfungen der Installation und der Hook-Block"},
 }
@@ -118,6 +125,9 @@ var workHours = store.WorkHours{
 // Baden-Württemberg, own messages only), the synthetic home directory, text
 // charts and the shot's clock.
 func options(s Shot, env *Env) (tui.Options, error) {
+	if s.Outdated && env != nil {
+		env = env.Outdated
+	}
 	if env == nil || env.Store == nil {
 		return tui.Options{}, fmt.Errorf("shot %s: no archive", s.Name)
 	}

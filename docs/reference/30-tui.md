@@ -106,6 +106,8 @@ In den Ansichten:
 | Klick auf `day`, `week`, `month` oder `project`, `agent`, `directory` in der Statistik | wählt die Periode wie `d`/`w`/`m` bzw. die Dimension wie `p`/`a`/`v` |
 | Klick auf `day`, `week`, `month` oder `all`, `human` in der Aktivität | wählt das Fenster wie `d`/`w`/`m` bzw. die Zählweise wie `h` |
 | Klick auf die Kennzahlen der Aktivität | blendet sie aus wie `s`; `s` oder der Hinweis `s summary figures` in der Fußzeile blendet sie wieder ein |
+| Klick auf einen Seitennamen in der Config | wechselt die Seite wie ++tab++ / ++shift+tab++ |
+| Klick auf eine Zeile in der Config | markiert den Schlüssel, die Definition, die Aktion oder die Prüfung wie ++up++/++down++; ändert und startet nichts |
 
 Klicks anderswo (Chart, Tabelle und Heatmap der Statistik, die Tage der Aktivität, der Verlauf einer Session, Linien und Statuszeilen) tun nichts. Früher/später und Zoom der Statistik und der Aktivität, Kennzahl, Heatmap und Grafikmodus der Statistik, die Treffer in einer Session und alles Weitere erreicht die Maus über die Hinweise in der Fußzeile; was dort nicht steht (`e`, `h`, `g` der Statistik), nur über die Taste. Das Mausrad in der Vorschau verschiebt den Austausch zeilenweise; mit dem nächsten Treffer springt die Vorschau wieder an die automatische Position mit dem Treffer im oberen Drittel.
 
@@ -235,7 +237,7 @@ Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikm
 
 ## Config { #config }
 
-Die vierte Ansicht (`4`, `total-recall tui config`) bündelt, was sonst `status`, `doctor`, `config show`, `backup`, `maintenance`, `reindex` und `hooks print` erledigen, auf fünf Seiten: **status**, **settings**, **projects**, **actions** und **setup**. Die Seiten wechseln mit ++tab++ / ++shift+tab++ (ebenso ++right++ / ++left++) oder einem Klick auf den Namen in der Umschaltzeile; rechts in dieser Zeile steht die Config-Datei. Die Fußzeile zeigt die Tasten der aktiven Seite.
+Die vierte Ansicht (`4`, `total-recall tui config`) bündelt, was sonst `status`, `doctor`, `config show`, `backup`, `maintenance`, `reindex` und `hooks print` erledigen, auf fünf Seiten: **status**, **settings**, **projects**, **actions** und **setup**. Die Seiten wechseln mit ++tab++ / ++shift+tab++ (ebenso ++right++ / ++left++) oder einem Klick auf den Namen in der Umschaltzeile; rechts in dieser Zeile steht die Config-Datei. Auf jeder Seite bewegen ++up++/++down++ (`k`/`j`) und das Mausrad die Markierung, ein Klick auf eine Zeile markiert sie. Die Fußzeile zeigt die Tasten der aktiven Seite.
 
 Es ist die einzige Ansicht, die schreibt: in die Config-Datei (Settings, Setup) und über die Aktionen in das Archiv. Jede schreibende Aktion fragt vorher nach (`y` bestätigt, ++esc++ bricht ab) und nimmt dieselben Sperren wie der gleichnamige Befehl; außer der eigenen Config-Datei und dem Backup-Verzeichnis schreibt die Ansicht in keine Datei, insbesondere nie in `~/.claude/settings.json`.
 
@@ -245,7 +247,7 @@ Es ist die einzige Ansicht, die schreibt: in die Config-Datei (Settings, Setup) 
 
 *Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs*
 
-Was [`status`](10-befehle.md#status) ausgibt, als Tabelle: Pfad und Größe des Archivs mit Seitenzahl, Seitengröße (mit Hinweis, solange sie unter 16384 liegt), Schema der Datenbank und der Binary (`v4, binary v5` mit `migration pending: back up, then run migrate (actions)`, wenn die Datenbank hinter der Binary liegt), Sessions, Events, Quellen, letztes Einlesen je Harness, letztes Backup, Log- und Config-Datei. Darunter die Probleme der Konfiguration, die nur die TUI und `stats` betreffen (siehe [Prüfung](20-konfiguration.md#pruefung)), und die `ERROR`-Zeilen des Logs der letzten 24 Stunden, neueste zuerst; ältere nur als Zahl (`status --all-errors` zeigt sie). Die Seite lädt mit dem [Neuladen](#neuladen) der TUI nach, nach jeder Aktion sofort.
+Was [`status`](10-befehle.md#status) ausgibt, als Tabelle: Pfad und Größe des Archivs mit Seitenzahl, Seitengröße (mit Hinweis, solange sie unter 16384 liegt), Schema der Datenbank und der Binary (`v4, binary v5` mit `migration pending: back up, then run migrate (actions)`, wenn die Datenbank hinter der Binary liegt), `raw` (die komprimierte Größe aller Rohzeilen und die Zahl der Events mit und ohne `raw`, siehe [Schema](40-schema.md#raw); bis zur Migration `unknown until the migration ran`; das Kompressionsverhältnis, das `status` aus einer Stichprobe schätzt, fehlt hier), Sessions, Events, Quellen, letztes Einlesen je Harness, letztes Backup, Log- und Config-Datei. Darunter die Probleme der Konfiguration, die nur die TUI und `stats` betreffen (siehe [Prüfung](20-konfiguration.md#pruefung)), und die `ERROR`-Zeilen des Logs der letzten 24 Stunden, neueste zuerst; ältere nur als Zahl (`status --all-errors` zeigt sie). Die Seite lädt mit dem [Neuladen](#neuladen) der TUI nach, nach jeder Aktion sofort.
 
 ### Settings
 
@@ -263,7 +265,11 @@ Nicht in der Ansicht änderbar: Werte, die eine Umgebungsvariable oder ein Flag 
 
 ### Projects
 
-Platz für die Projektdefinitionen (`[[project]]`: Name, Farbe, Muster), die eine spätere Version bringt. Bis dahin steht dort nur ein Hinweis.
+![Config, Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern](../assets/screenshots/config-projects.png)
+
+*Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern*
+
+Die Projektdefinitionen der Konfiguration ([`[[project]]`](20-konfiguration.md#project)) in Dateireihenfolge, je Zeile ein Farbfeld in der konfigurierten Farbe (`·` ohne Farbe: das Projekt nimmt die nächste freie der Palette), Name, Beschreibung und die Muster. Unter der Linie steht die markierte Definition ganz, mit dem Farbwert (`#4e79a7`) und jedem Muster. Die Seite liest nur: Angelegt und geändert werden die Definitionen in der Datei, `E` (`config_editor`) öffnet sie in `$EDITOR`, danach liest die TUI die Konfiguration neu, und die Liste wie die Statistik zeigen den neuen Stand. Hat die Liste einen Fehler (doppelter Name, unbekannte Farbe, Muster fehlt), steht er hier an Stelle der Tabelle, rot; `stats` und die Statistik der TUI arbeiten dann mit den abgeleiteten Namen. Ohne Definitionen erklärt die Seite, wie Sessions sonst heißen. Die Pflege in der Ansicht selbst folgt ([#4](https://github.com/seletz/total-recall/issues/4)).
 
 ### Actions
 
@@ -278,13 +284,19 @@ Die Wartungsbefehle, im Prozess der TUI mit denselben Funktionen, Sperren und Lo
 | `backup` | [`backup`](10-befehle.md#backup) | ja: eine komprimierte Kopie in `dir` aus `[backup]`, ältere nach `keep_daily`/`keep_monthly` entfernt |
 | `maintenance (dry run)` | [`maintenance --dry-run`](10-befehle.md#maintenance) | nein: misst den Neuaufbau |
 | `maintenance` | [`maintenance`](10-befehle.md#maintenance) | ja: Backup, Neuaufbau mit 16-KiB-Seiten, Austausch; Hooks überspringen ihren Lauf |
-| `migrate` | `migrate` | ja: nur anwählbar, solange der Status `migration pending` zeigt; in dieser Version noch nicht verfügbar |
+| `migrate` | [`migrate`](10-befehle.md#migrate) | ja: nur anwählbar, solange der Status `migration pending` zeigt; legt `archive.db.pre-v<N>.bak` neben die Datenbank und migriert; Hooks überspringen ihren Lauf |
 | `reindex actors (dry run)` | [`reindex --actors --dry-run`](10-befehle.md#reindex) | nein |
 | `reindex actors` | [`reindex --actors`](10-befehle.md#reindex) | ja |
 | `ingest all` | [`ingest --all`](10-befehle.md#ingest) | ja |
 | `doctor` | [`doctor`](10-befehle.md#doctor) | nein: Formatprüfung der Transkripte |
 
 ++enter++ startet die markierte Aktion. Eine schreibende Aktion zeigt erst, was sie tun wird (`backup: write archive-2026-11-02.db.gz to ~/Documents/total-recall and prune older copies`), und wartet auf `y` (`config_confirm`); ++esc++ bricht ab. Während eine Aktion läuft, stehen ihre Fortschrittszeilen unter der Liste (die Schritte von `maintenance`, die Fehler von `ingest`, der Bericht von `doctor`), ++esc++ bricht sie ab, und das automatische Neuladen der TUI pausiert, damit kein Leser die Wartung stört. Am Ende steht die Zusammenfassung des Befehls mit der Dauer, der Status lädt neu, und ein ausgetauschtes Archiv wird neu geöffnet. Fehlt das Archiv noch, sind nur `ingest all` und `doctor` anwählbar.
+
+![Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung](../assets/screenshots/config-migrate.png)
+
+*Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung*
+
+**Anstehende Migration.** Liegt die Datenbank hinter dem Schema der Binary (Status: `migration pending`), schreibt außer `backup` nichts ins Archiv: `maintenance`, `reindex actors`, `ingest all` und die Probeläufe stehen mit `migrate first` da, wie die Befehle in der CLI. `migrate` ist dann anwählbar und zeigt vor der Bestätigung denselben Plan wie [`migrate`](10-befehle.md#migrate): die Versionen (`schema v4 -> v5, 1 pending migration`), je ausstehender Migration ihre Beschreibung, den Pfad der Kopie `archive.db.pre-v<N>.bak` und wie viel Platz neben der Datenbank frei sein muss (`space about 2.1 GiB …`). Gibt es noch kein Backup, sagt die Zeile `no backup yet, run backup first`. Nach `y` legt die Aktion die Kopie an, prüft den Platz, sperrt das Archiv wie `maintenance` und migriert; eine lange Migration meldet alle paar Sekunden ihren Fortschritt (`migration v5: 120000/233000 (51 %)`), ++esc++ bricht ab, die Datenbank bleibt dann, wie sie war. Danach lädt der Status neu, die Kopfzeile verliert ihren Hinweis, und der nächste Hook liest nach. Wie in der CLI ist die Datei direkt nach der Migration größer als vorher; `maintenance` baut sie neu auf, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 
 ### Setup
 
@@ -380,7 +392,7 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `d` | `config_default` | markierten Schlüssel auf den Default zurücksetzen (Settings) |
 | `y` | `config_confirm` | schreibende Aktion oder Korrektur bestätigen |
 | `c` | `config_copy` | Hook-Block in die Zwischenablage (Setup) |
-| `E` | `config_editor` | Config-Datei in `$EDITOR` öffnen, danach neu laden (Settings) |
+| `E` | `config_editor` | Config-Datei in `$EDITOR` öffnen, danach neu laden (Settings, Projects) |
 | ++esc++ | `global_back` | Eingabe verwerfen, Bestätigung abbrechen, laufende Aktion abbrechen, Meldung löschen |
 
 ### Tastenbelegung anpassen { #tastenbelegung-anpassen }

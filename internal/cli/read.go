@@ -32,25 +32,33 @@ import (
 // OlderErrors the count before it. With --all-errors the window is null and
 // OlderErrors 0. Lines that only report a missing transcript never count.
 type StatusJSON struct {
-	DB                  string            `json:"db"`
-	DBSizeBytes         int64             `json:"db_size_bytes"`
-	PageSize            int               `json:"page_size"`
-	SchemaVersion       int               `json:"schema_version"`
-	BinarySchemaVersion int               `json:"binary_schema_version"`
-	MigrationPending    bool              `json:"migration_pending"`
-	Sessions            int               `json:"sessions"`
-	Events              int               `json:"events"`
-	Sources             int               `json:"sources"`
-	LastIngest          map[string]string `json:"last_ingest"`
-	BackupDir           string            `json:"backup_dir"`
-	LastBackup          NullString        `json:"last_backup"`
-	LastBackupAt        NullString        `json:"last_backup_at"`
-	Log                 string            `json:"log"`
-	ErrorsWindow        NullString        `json:"errors_window"`
-	ErrorsSince         NullString        `json:"errors_since"`
-	RecentErrors        []StatusError     `json:"recent_errors"`
-	RecentErrorsTotal   int               `json:"recent_errors_total"`
-	OlderErrors         int               `json:"older_errors"`
+	DB                  string `json:"db"`
+	DBSizeBytes         int64  `json:"db_size_bytes"`
+	PageSize            int    `json:"page_size"`
+	SchemaVersion       int    `json:"schema_version"`
+	BinarySchemaVersion int    `json:"binary_schema_version"`
+	MigrationPending    bool   `json:"migration_pending"`
+	Sessions            int    `json:"sessions"`
+	Events              int    `json:"events"`
+	Sources             int    `json:"sources"`
+	// RawRows is the number of events with a stored raw line, RawBytes
+	// their compressed size, RawTruncated the number of events whose raw
+	// line was dropped for its size, RawRatio the uncompressed over the
+	// compressed size estimated from a sample of rows (0 if unknown).
+	RawRows           int64             `json:"raw_rows"`
+	RawBytes          int64             `json:"raw_bytes"`
+	RawTruncated      int64             `json:"raw_truncated"`
+	RawRatio          float64           `json:"raw_ratio"`
+	LastIngest        map[string]string `json:"last_ingest"`
+	BackupDir         string            `json:"backup_dir"`
+	LastBackup        NullString        `json:"last_backup"`
+	LastBackupAt      NullString        `json:"last_backup_at"`
+	Log               string            `json:"log"`
+	ErrorsWindow      NullString        `json:"errors_window"`
+	ErrorsSince       NullString        `json:"errors_since"`
+	RecentErrors      []StatusError     `json:"recent_errors"`
+	RecentErrorsTotal int               `json:"recent_errors_total"`
+	OlderErrors       int               `json:"older_errors"`
 }
 
 // pageSizeCell renders the page size with a hint when a rebuild with the
@@ -77,6 +85,29 @@ func schemaCell(db, binary int) string {
 type StatusError struct {
 	At      NullString `json:"at"`
 	Message string     `json:"message"`
+}
+
+// rawCell renders the raw line of status: compressed size, rows and ratio;
+// "unknown" while the archive still waits for its migration.
+func rawCell(rs store.RawStats, pending bool) string {
+	if pending {
+		return "unknown until the migration ran"
+	}
+	if rs.Rows == 0 {
+		cell := "none"
+		if rs.Truncated > 0 {
+			cell += fmt.Sprintf(" (%d events without raw: line too long)", rs.Truncated)
+		}
+		return cell
+	}
+	cell := fmt.Sprintf("%.1f MiB in %d events", float64(rs.Bytes)/(1<<20), rs.Rows)
+	if rs.Ratio > 0 {
+		cell += fmt.Sprintf(", compressed %.1fx (estimated from %d rows)", rs.Ratio, rs.SampleRows)
+	}
+	if rs.Truncated > 0 {
+		cell += fmt.Sprintf("; %d events without raw: line too long", rs.Truncated)
+	}
+	return cell
 }
 
 // statusErrorWindow is the age up to which status lists log errors. A
@@ -124,9 +155,18 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		if err != nil {
 			return err
 		}
+		// The raw statistics need the columns of v5; on an older archive
+		// the line says so instead of failing the whole status.
+		var rs store.RawStats
+		if !st.MigrationPending() {
+			if rs, err = st.RawStats(ctx); err != nil {
+				return err
+			}
+		}
 		now, loc := e.app.Now(), cfg.Location()
 		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
+			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
 			if fi, err := os.Stat(cfg.DB + suffix); err == nil {
@@ -177,6 +217,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			{"sessions", strconv.Itoa(s.Sessions)},
 			{"events", strconv.Itoa(s.Events)},
 			{"sources", strconv.Itoa(s.Sources)},
+			{"raw", rawCell(rs, st.MigrationPending())},
 		}
 		harnesses := make([]string, 0, len(s.LastIngest))
 		for h := range s.LastIngest {

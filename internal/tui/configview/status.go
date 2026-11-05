@@ -56,6 +56,7 @@ func (m Model) statusView(width, height int) string {
 			schema += "  " + warn("migration pending: back up, then run migrate (actions)")
 		}
 		add("schema", schema)
+		add("raw", rawCell(s, m.th.Muted.Render))
 		add("sessions", strconv.Itoa(s.status.Sessions))
 		add("events", strconv.Itoa(s.status.Events))
 		add("sources", strconv.Itoa(s.status.Sources))
@@ -135,6 +136,24 @@ func (m Model) statusView(width, height int) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// rawCell is the raw row: the compressed size of the stored raw lines
+// and their count, the events without one; "unknown" while the migration
+// is pending. The compression ratio of `status` is estimated from a random
+// sample and left out here, so the row reads the same on every load.
+func rawCell(s state, muted func(...string) string) string {
+	if s.pending() {
+		return muted("unknown until the migration ran")
+	}
+	cell := "none"
+	if s.raw.Rows > 0 {
+		cell = fmt.Sprintf("%s in %d events", mib(s.raw.Bytes), s.raw.Rows)
+	}
+	if s.raw.Truncated > 0 {
+		cell += "  " + muted(fmt.Sprintf("%d without raw: line too long", s.raw.Truncated))
+	}
+	return cell
 }
 
 // sortStrings sorts in place (a tiny wrapper, so the page reads without

@@ -29,7 +29,10 @@ type state struct {
 	schema    int
 	latest    int
 	// plan is what migrate would do, loaded when a migration is pending.
-	plan   store.MigratePlan
+	plan store.MigratePlan
+	// raw counts the stored raw lines and their size; not read while a
+	// migration is pending (the columns may not exist yet).
+	raw    store.RawStats
 	status store.Status
 	// backup is the newest backup copy and its time; empty without one.
 	backup   string
@@ -115,6 +118,10 @@ func load(opts Options, now time.Time) state {
 		if s.plan, err = store.PlanMigration(ctx, cfg.DB); err != nil {
 			s.err = err
 		}
+		return s
+	}
+	if s.raw, err = opts.Store.RawStats(ctx); err != nil {
+		s.err = err
 	}
 	return s
 }

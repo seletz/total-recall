@@ -515,13 +515,14 @@ func TestSearchBySession(t *testing.T) {
 // paths that need it (UserMessages, backup).
 func TestReadPathsDoNotLoadRaw(t *testing.T) {
 	for _, c := range strings.Split(eventCols, ",") {
-		if strings.TrimSpace(c) == "raw" {
+		if strings.TrimSuffix(strings.TrimSpace(c), ".raw") != strings.TrimSpace(c) || strings.TrimSpace(c) == "raw" {
 			t.Fatalf("eventCols contains raw: %q", eventCols)
 		}
 	}
-	// Every SQL string of the package: only the writer and the one reader
-	// that needs it (UserMessages) may name the column.
-	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true}
+	// Every SQL string of the package: only the writer, the one reader that
+	// needs it (UserMessages), the raw codec (raw.go: RawStats, raw_text)
+	// and the migrations may name the column.
+	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
