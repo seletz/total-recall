@@ -551,6 +551,41 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
 
 `--worktime` lässt sich nicht mit `--workday`, `--all-events`, `--period`, `--by` oder `--top` kombinieren; `--sessions` und `--summary` brauchen `--worktime`. Ein Fehler in `[worktime]` bricht nur diesen Befehl ab (`kind` `config`).
 
+## `chart` { #chart }
+
+Zeichnet die Grafiken eines Monatsberichts als SVG (Default) oder PNG: eine Grafik nach stdout oder mit `--out DIR` als Dateien, `all` alle vier. Rezept mit Beispielbildern: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md).
+
+```sh
+total-recall chart <calendar|projects|punchcard|worktime|all> [--month YYYY-MM | --since/--until | --range NAME]
+                   [--format svg|png] [--scale N | --width PX | --height PX] [--out DIR]
+                   [--no-title] [--no-legend] [--transparent] [--top N]
+```
+
+| Grafik | Inhalt | Richtwert |
+|---|---|---|
+| `calendar` | Monatsraster, ISO-Wochen als Spalten, Mo–So als Zeilen; Zellfarbe = eigene Nachrichten je Tag in vier Stufen relativ zum Maximum, Tageszahl in der Zelle, Legende mit Maximum und Summe | 360 × 290 |
+| `projects` | je Projekt zwei horizontale Balken: Anteil an den Agenten-Events und Anteil an den eigenen Nachrichten, in Prozent des Zeitraums; die `--top` größten Projekte (Default 12 aus `[chart]`), der Rest als `other` | 610 × 370 |
+| `punchcard` | Wochentag × Stunde (7 × 24): großer heller Kreis = Agenten-Events, kleiner dunkler = eigene Nachrichten, Radius nach Wurzel des Anteils am jeweiligen Maximum | 760 × 290 |
+| `worktime` | gestapelte Balken je ISO-Woche und Kategorie aus [`--worktime`](#stats-worktime) (gerundete Zeit), Strich je Woche beim Soll: Tagessoll aus [`[work]`](20-konfiguration.md#work) × Arbeitstage der Woche im Zeitraum (Mo–Fr ohne Feiertag, bis heute) | 560 × 260 |
+
+Der Zeitraum ist der laufende Monat, `--month YYYY-MM`, `--since`/`--until` (ein Datum schließt den Tag ein) oder `--range today|this-week|last-week|this-month|last-month`. Gezählt wird wie bei [`stats`](#stats): eigene Nachrichten sind Events mit `actor = human`, Aufträge anderer Agenten (`peer`) und Automatisches zählen nicht; `calendar`, `projects` und `punchcard` nehmen Kalendertage ab Mitternacht, `worktime` die Tagesgrenze `day_start` wie `stats --worktime`.
+
+Dateien heißen `<YYYY-MM>-<grafik>.<format>` für einen ganzen Monat, sonst `<von>_<bis>-<grafik>.<format>` mit dem ersten und letzten Tag (`2026-10-05_2026-10-11-calendar.svg`); die Pfade werden ausgegeben. `all` braucht `--out`.
+
+`--format svg|png`
+:   SVG wird selbst erzeugt (Schrift: System-Sans des Betrachters, Tooltips auf Zellen, Balken und Kreisen), PNG in reinem Go gerastert (Go Sans). Default aus [`[chart]`](20-konfiguration.md#chart): `svg`.
+
+`--scale N`, `--width PX`, `--height PX`
+:   `--scale` multipliziert die natürliche Größe (Default aus `[chart]`: 1). `--width` oder `--height` setzen die Größe in Pixeln, die andere Seite folgt; beide zusammen bilden einen Rahmen, in dem die Grafik zentriert sitzt. Ein SVG trägt die Größe als `width`/`height`, die `viewBox` bleibt die natürliche Größe.
+
+`--no-title`, `--no-legend`, `--transparent`
+:   Überschrift (`<Grafik> · Oktober 2026`), Legende und weißer Hintergrund weg. Defaults aus `[chart]`: `title`, `legend`, `transparent`.
+
+`--top N`
+:   `projects`: die N größten Projekte, der Rest als `other`; `0` = alle. Default aus `[chart]`: 12.
+
+Farben: ein Projekt mit `color` in [`[[project]]`](20-konfiguration.md#project) behält sie, die anderen bekommen die Reihenfarben in der Reihenfolge des Volumens, `other` grau; eine Kategorie mit `color` in [`[[worktime.category]]`](20-konfiguration.md#worktime) ebenso, die anderen die freien Reihenfarben in der Reihenfolge der Regeln, Projekte ohne Regel danach alphabetisch; die Stufen des Kalenders stehen in `heatmap` von `[chart]`. Ein Fehler in `[chart]` oder in einer Farbe bricht `chart` ab, keinen anderen Befehl ([Prüfung](20-konfiguration.md#pruefung)).
+
 ## `tui` { #tui }
 
 Öffnet das Archiv in einer Terminal-Oberfläche: Volltextsuche mit Vorschau beim Tippen, Detailansicht je Session, Aktivität als Chart, Tabelle und Heatmap, erste und letzte Aktivität je Tag, dazu die Ansicht [Config](30-tui.md#config) mit Status, Einstellungen, Wartungsaktionen und Prüfung der Installation. Lesend, bis auf die Aktionen und das Ändern von Einstellungen in Config, die nach Bestätigung schreiben wie die gleichnamigen Befehle. Bedienung, Tasten und Grafikmodi: [TUI](30-tui.md).

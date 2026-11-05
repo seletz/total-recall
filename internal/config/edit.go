@@ -131,6 +131,12 @@ func parseValue(k Key, text string) (any, error) {
 			return nil, fmt.Errorf("%q: want an integer", text)
 		}
 		return n, nil
+	case KindFloat:
+		f, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%q: want a number such as 1.5", text)
+		}
+		return f, nil
 	case KindDuration:
 		d, err := time.ParseDuration(text)
 		if err != nil {

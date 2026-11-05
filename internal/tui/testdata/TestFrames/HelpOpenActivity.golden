@@ -15,11 +15,11 @@
 │
 │ d one day             ←/,/[ earlier                s   summary figures         1 search      ?
 help │
-│ w one week            →/./] later                  ↑/k day back (scroll)       2 stats       esc
+│ w one week            →/./] later                  p   by project              2 stats       esc
 back │
-│ m one month           c     this day/week/month    ↓/j day forward (scroll)    3 activity    q
+│ m one month           c     this day/week/month    ↑/k day back (scroll)       3 activity    q
 quit │
-│ h human/all events    l     last day/week/month                                4 config      ^c
+│ h human/all events    l     last day/week/month    ↓/j day forward (scroll)    4 config      ^c
 quit │
 │                                                                                R reload
 │

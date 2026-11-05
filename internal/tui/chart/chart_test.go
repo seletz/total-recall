@@ -519,3 +519,35 @@ func TestPaletteMatchesProject(t *testing.T) {
 		}
 	}
 }
+
+// TestColorsColor checks the shared colour function: a key keeps its
+// colour across calls, a pinned colour wins and the automatic ones skip
+// it, other is always grey, and Assign agrees with Color.
+func TestColorsColor(t *testing.T) {
+	var c Colors
+	c.Fix("/w/fixed", lipgloss.Color("#123456"))
+	c.Fix("kompass", Palette[0])
+	tests := []struct {
+		key  string
+		want color.Color
+	}{
+		{"/w/alpha", Palette[1]},
+		{"/w/fixed", lipgloss.Color("#123456")},
+		{"/w/beta", Palette[2]},
+		{"/w/alpha", Palette[1]},
+		{store.OtherKey, OtherColor},
+		{"kompass", Palette[0]},
+	}
+	for _, tt := range tests {
+		if got := c.Color(tt.key); !sameColor(got, tt.want) {
+			t.Errorf("Color(%q) = %v, want %v", tt.key, got, tt.want)
+		}
+	}
+	spec := Spec{Series: []Series{{Key: "/w/fixed"}, {Key: "/w/beta"}, {Key: store.OtherKey}, {Key: "/w/gamma"}}}
+	got := c.Assign(spec)
+	for i, want := range []color.Color{lipgloss.Color("#123456"), Palette[2], OtherColor, Palette[3]} {
+		if !sameColor(got.Series[i].Color, want) {
+			t.Errorf("Assign series %d = %v, want %v", i, got.Series[i].Color, want)
+		}
+	}
+}

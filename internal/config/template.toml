@@ -124,9 +124,13 @@ summary_max_chars = 200
 # with the home directory as "~") and the remote URL; "*" matches anything,
 # also "/", "?" one character. A project no rule matches is its own
 # category, named like the project; a last rule with "*" collects the rest.
+# color is the colour of the category in the charts (`total-recall chart
+# worktime`): blue, orange, green, red, purple, teal or "#rrggbb"; without
+# one the charts pick the next free colour.
 # [[worktime.category]]
 # name = "kunde-a"
 # match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
+# color = "blue"
 # [[worktime.category]]
 # name = "sonstiges"
 # match = "*"
@@ -178,9 +182,32 @@ stats_period = "day"
 stats_dimension = "project"
 # Window the activity view starts with: day, week or month.
 activity_window = "week"
+# Colour the bars of the activity view by project from the start (the key
+# p switches between the working hours and the projects).
+activity_projects = false
 # How often the TUI checks the archive for changes and reloads the visible
 # view when there are any (--reload); 0 switches it off, at least 1s.
 reload = "5s"
+
+[chart]
+# Defaults of `total-recall chart` (figures for monthly reports); flags
+# override them.
+# Output format: svg or png (--format).
+format = "svg"
+# Size factor of the PNG and of the width/height of the SVG (--scale);
+# --width or --height set the size instead.
+scale = 1.0
+# Heading and legend (--no-title, --no-legend switch them off for one run).
+title = true
+legend = true
+# Leave the white background out (--transparent).
+transparent = false
+# Projects in the project chart; the rest is folded into "other" (--top,
+# 0 = all).
+top = 12
+# Colour scale of the calendar, light to dark, one colour per level:
+# blue, orange, green, red, purple, teal or "#rrggbb".
+heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]
 
 [keys]
 # Key bindings of the TUI: action = key or list of keys. Only listed

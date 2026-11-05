@@ -30,6 +30,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/seletz/total-recall/internal/figure"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/worktime"
@@ -100,6 +101,8 @@ type Config struct {
 	Worktime Worktime `toml:"worktime"`
 	// TUI holds the start-up defaults of `total-recall tui`.
 	TUI TUI `toml:"tui"`
+	// Chart holds the defaults of `total-recall chart`.
+	Chart Chart `toml:"chart"`
 	// Keys overrides key bindings of the TUI: action name → keys; see
 	// package keys for the names. Only listed actions change.
 	Keys map[string]KeyList `toml:"keys"`
@@ -187,12 +190,14 @@ type Worktime struct {
 	Categories []Category `toml:"category"`
 }
 
-// Category is one [[worktime.category]] rule: the category name and the
+// Category is one [[worktime.category]] rule: the category name, the
 // glob patterns matched against the project name, its git root (as a
-// path and with "~") and its remote URL.
+// path and with "~") and its remote URL, and an optional colour for the
+// charts (a name of project.Palette or #rrggbb; validated by ChartSettings).
 type Category struct {
 	Name  string     `toml:"name"`
 	Match StringList `toml:"match"`
+	Color string     `toml:"color"`
 }
 
 // Project is one [[project]] definition: the name (required, unique), an
@@ -235,6 +240,9 @@ type TUI struct {
 	// ActivityWindow is the window the activity view starts with: day,
 	// week or month.
 	ActivityWindow string `toml:"activity_window"`
+	// ActivityProjects starts the activity view with the bars coloured by
+	// project (the key p switches).
+	ActivityProjects bool `toml:"activity_projects"`
 	// Reload is how often the TUI checks the archive for changes and
 	// reloads the visible view when there are any (--reload); 0 switches
 	// the reload off, anything else is at least MinReload.
@@ -246,6 +254,53 @@ const (
 	DefaultReload = 5 * time.Second
 	MinReload     = time.Second
 )
+
+// Chart configures `total-recall chart`; flags override every value.
+type Chart struct {
+	// Format is the output format: svg or png (--format).
+	Format string `toml:"format"`
+	// Scale multiplies the natural size of a figure (--scale); --width
+	// and --height set the size instead.
+	Scale float64 `toml:"scale"`
+	// Title and Legend draw the heading and the legend (--no-title,
+	// --no-legend switch them off for one run).
+	Title  bool `toml:"title"`
+	Legend bool `toml:"legend"`
+	// Transparent leaves the white background out (--transparent).
+	Transparent bool `toml:"transparent"`
+	// Top is how many projects the project chart shows; the rest is
+	// folded into "other" (--top, 0 = all).
+	Top int `toml:"top"`
+	// Heatmap is the colour scale of the calendar, light to dark: names
+	// of project.Palette or #rrggbb values, one per level.
+	Heatmap []string `toml:"heatmap"`
+}
+
+// Defaults of [chart].
+const (
+	DefaultChartFormat = "svg"
+	DefaultChartScale  = 1.0
+	DefaultChartTop    = 12
+)
+
+// ChartFormats are the allowed values of [chart] format.
+var ChartFormats = []string{"svg", "png"}
+
+// ChartSettings is the validated [chart] table with the category colours
+// of [[worktime.category]], as `total-recall chart` uses them.
+type ChartSettings struct {
+	Format      string
+	Scale       float64
+	Title       bool
+	Legend      bool
+	Transparent bool
+	Top         int
+	// Heatmap holds the colours of the calendar scale as #rrggbb.
+	Heatmap []string
+	// CategoryColors maps a category name to its colour as #rrggbb;
+	// categories without a colour are absent.
+	CategoryColors map[string]string
+}
 
 // ValidReload checks a reload interval of the TUI: 0 (off) or at least
 // MinReload. The CLI applies it to --reload as well.
@@ -435,7 +490,15 @@ var fields = []struct {
 	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
+	{"tui.activity_projects", func(c *Config) string { return strconv.FormatBool(c.TUI.ActivityProjects) }},
 	{"tui.reload", func(c *Config) string { return c.TUI.Reload.String() }},
+	{"chart.format", func(c *Config) string { return c.Chart.Format }},
+	{"chart.scale", func(c *Config) string { return strconv.FormatFloat(c.Chart.Scale, 'f', -1, 64) }},
+	{"chart.title", func(c *Config) string { return strconv.FormatBool(c.Chart.Title) }},
+	{"chart.legend", func(c *Config) string { return strconv.FormatBool(c.Chart.Legend) }},
+	{"chart.transparent", func(c *Config) string { return strconv.FormatBool(c.Chart.Transparent) }},
+	{"chart.top", func(c *Config) string { return strconv.Itoa(c.Chart.Top) }},
+	{"chart.heatmap", func(c *Config) string { return formatList(c.Chart.Heatmap) }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
 	{"project", func(c *Config) string { return formatProjects(c.Projects) }},
 }
@@ -470,11 +533,15 @@ func formatAccounts(m map[string]string) string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-// formatCategories formats the category rules as `[name = ["glob", …], …]`.
+// formatCategories formats the category rules as `[name = ["glob", …], …]`,
+// a rule with a colour as `name = ["glob"] (blue)`.
 func formatCategories(cs []Category) string {
 	parts := make([]string, len(cs))
 	for i, c := range cs {
 		parts[i] = c.Name + " = " + formatList(c.Match)
+		if c.Color != "" {
+			parts[i] += " (" + c.Color + ")"
+		}
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -524,6 +591,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: Duration{DefaultReload}}
+	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Heatmap: slices.Clone(figure.DefaultHeatmap)}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
 	c.Projects = []Project{}
@@ -841,6 +909,52 @@ func (c *Config) ValidateTUI() error {
 	return nil
 }
 
+// ChartSettings validates the [chart] table and the colours of the
+// [[worktime.category]] rules and returns them as `total-recall chart`
+// uses them; colours are normalized to #rrggbb. The error names the first
+// bad value; commands that draw no charts never see it.
+func (c *Config) ChartSettings() (ChartSettings, error) {
+	ch := c.Chart
+	s := ChartSettings{Format: ch.Format, Scale: ch.Scale, Title: ch.Title, Legend: ch.Legend, Transparent: ch.Transparent, Top: ch.Top, CategoryColors: map[string]string{}}
+	if !slices.Contains(ChartFormats, ch.Format) {
+		return s, fmt.Errorf("config: chart.format %q: use %s", ch.Format, orList(ChartFormats))
+	}
+	if ch.Scale <= 0 || ch.Scale > 16 {
+		return s, fmt.Errorf("config: chart.scale %g: want between 0 and 16", ch.Scale)
+	}
+	if ch.Top < 0 {
+		return s, fmt.Errorf("config: chart.top %d: want 0 (all projects) or more", ch.Top)
+	}
+	if len(ch.Heatmap) == 0 {
+		return s, fmt.Errorf("config: chart.heatmap: want at least one colour")
+	}
+	for i, h := range ch.Heatmap {
+		p, err := project.ParseColor(h)
+		if err != nil || p == "" {
+			return s, fmt.Errorf("config: chart.heatmap[%d]: %s", i, colorError(h, err))
+		}
+		s.Heatmap = append(s.Heatmap, p)
+	}
+	for i, cat := range c.Worktime.Categories {
+		p, err := project.ParseColor(cat.Color)
+		if err != nil {
+			return s, fmt.Errorf("config: worktime.category[%d]: %w", i, err)
+		}
+		if p != "" {
+			s.CategoryColors[cat.Name] = p
+		}
+	}
+	return s, nil
+}
+
+// colorError words the error of an empty or bad colour.
+func colorError(s string, err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("color %q: want a colour", s)
+}
+
 // KeyMap resolves the [keys] table against the defaults and validates it:
 // unknown actions, bad key names and conflicts are errors (see package
 // keys). Commands that do not use the key bindings never see them.
@@ -857,8 +971,8 @@ func (c *Config) KeyMap() (keys.Map, error) {
 }
 
 // Problems returns the errors of the tables that Load does not validate
-// ([work], [worktime], [tui], [keys], [[project]]), in that order; nil when
-// they are all fine.
+// ([work], [worktime], [tui], [chart] with the category colours, [keys],
+// [[project]]), in that order; nil when they are all fine.
 func (c *Config) Problems() []error {
 	var out []error
 	if _, _, err := c.WorkHours(); err != nil {
@@ -868,6 +982,9 @@ func (c *Config) Problems() []error {
 		out = append(out, err)
 	}
 	if err := c.ValidateTUI(); err != nil {
+		out = append(out, err)
+	}
+	if _, err := c.ChartSettings(); err != nil {
 		out = append(out, err)
 	}
 	if _, err := c.KeyMap(); err != nil {

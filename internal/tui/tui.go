@@ -37,6 +37,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
+	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
@@ -128,6 +129,9 @@ type Options struct {
 	// ActivityWindow is the window the activity view starts with (day,
 	// week, month); empty means week.
 	ActivityWindow string
+	// ActivityProjects starts the activity view with the bars coloured
+	// by project.
+	ActivityProjects bool
 	// Keys are the effective key bindings; nil means the defaults.
 	Keys keys.Map
 	// Reload is how often the archive is checked for changes; 0 never
@@ -188,11 +192,14 @@ type Focused interface {
 // New builds the app for opts.
 func New(opts Options) (App, error) {
 	opts.defaults()
-	so, err := statsOptions(opts)
+	// One colour assignment for the stats and the activity view, so a
+	// project looks alike in both.
+	colors := &chart.Colors{}
+	so, err := statsOptions(opts, colors)
 	if err != nil {
 		return App{}, err
 	}
-	ao, err := activityOptions(opts)
+	ao, err := activityOptions(opts, colors)
 	if err != nil {
 		return App{}, err
 	}
@@ -250,7 +257,7 @@ func searchOptions(opts Options) search.Options {
 
 // statsOptions is what the stats view gets from the app options; a nil store
 // stays a nil Loader. The period and dimension names are parsed here.
-func statsOptions(opts Options) (stats.Options, error) {
+func statsOptions(opts Options, colors *chart.Colors) (stats.Options, error) {
 	p, err := store.ParsePeriod(opts.StatsPeriod)
 	if err != nil {
 		return stats.Options{}, fmt.Errorf("stats period: %w", err)
@@ -259,7 +266,7 @@ func statsOptions(opts Options) (stats.Options, error) {
 	if err != nil {
 		return stats.Options{}, fmt.Errorf("stats dimension: %w", err)
 	}
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays, Projects: opts.Projects}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays, Projects: opts.Projects, Colors: colors}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}
@@ -268,11 +275,11 @@ func statsOptions(opts Options) (stats.Options, error) {
 
 // activityOptions is what the activity view gets from the app options; a
 // nil store stays a nil Loader. The window name is parsed here.
-func activityOptions(opts Options) (activity.Options, error) {
+func activityOptions(opts Options, colors *chart.Colors) (activity.Options, error) {
 	if _, err := store.ParsePeriod(opts.ActivityWindow); err != nil {
 		return activity.Options{}, fmt.Errorf("activity window: %w", err)
 	}
-	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly}
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly, ByProject: opts.ActivityProjects, Home: opts.Home, Projects: opts.Projects, Colors: colors}
 	if opts.Store != nil {
 		ao.Loader = opts.Store
 	}

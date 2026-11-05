@@ -80,6 +80,16 @@ description = "Check that the committed TUI screenshots and goldens match a fres
 depends = ["demo:db"]
 run = "scripts/screenshots-check.sh -db build/demo.db"
 
+[tasks."docs:charts"]
+description = "Render the figures of `total-recall chart` for the docs from the demo archive (docs/assets/charts)"
+depends = ["demo:db"]
+run = "go run ./tools/charts -db build/demo.db -out docs/assets/charts"
+
+[tasks."docs:charts:check"]
+description = "Check that the committed figures of the docs match a fresh render; fails with a hint otherwise (CI runs it)"
+depends = ["demo:db"]
+run = "scripts/charts-check.sh -db build/demo.db"
+
 [tasks."docs:build"]
 description = "Build documentation site (strict)"
 depends = ["uv:sync"]

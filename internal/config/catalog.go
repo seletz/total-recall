@@ -24,6 +24,8 @@ const (
 	KindBool Kind = "bool"
 	// KindInt is a non-negative integer.
 	KindInt Kind = "int"
+	// KindFloat is a decimal number such as "1.5".
+	KindFloat Kind = "float"
 	// KindDuration is a duration such as "20m" or "24h"; "0" is allowed.
 	KindDuration Kind = "duration"
 	// KindEnum is one of Key.Enum.
@@ -85,14 +87,22 @@ var Catalog = []Key{
 	{"worktime.rounding", KindEnum, worktime.Roundings, "Rounding direction"},
 	{"worktime.scope", KindEnum, worktime.Scopes, "What is rounded: the category per day or every project per day"},
 	{"worktime.summary_max_chars", KindInt, nil, "Length of the booking text per category and day; 0 = no limit"},
-	{"worktime.category", KindTable, nil, "Category rules [[worktime.category]], first match wins; edit them in the file"},
+	{"worktime.category", KindTable, nil, "Category rules [[worktime.category]] with name, patterns and colour, first match wins; edit them in the file"},
 	{"tui.view", KindEnum, TUIViews, "View shown first"},
 	{"tui.graphics", KindEnum, TUIGraphics, "Chart rendering in the stats view"},
 	{"tui.mouse", KindBool, nil, "Wheel scrolling and clicks; false leaves the mouse to the terminal"},
 	{"tui.stats_period", KindEnum, TUIPeriods, "Period the stats view starts with"},
 	{"tui.stats_dimension", KindEnum, TUIDimensions, "Dimension the stats view starts with"},
 	{"tui.activity_window", KindEnum, TUIPeriods, "Window the activity view starts with"},
+	{"tui.activity_projects", KindBool, nil, "Activity view starts with the bars in project colours"},
 	{"tui.reload", KindDuration, nil, "How often the TUI checks the archive for changes; 0 = off, at least 1s"},
+	{"chart.format", KindEnum, ChartFormats, "Output format of chart"},
+	{"chart.scale", KindFloat, nil, "Multiplier of the natural size of a figure"},
+	{"chart.title", KindBool, nil, "Draw the heading of a figure"},
+	{"chart.legend", KindBool, nil, "Draw the legend of a figure"},
+	{"chart.transparent", KindBool, nil, "Leave the white background out"},
+	{"chart.top", KindInt, nil, "Projects the project chart shows, the rest is other; 0 = all"},
+	{"chart.heatmap", KindList, nil, "Colour scale of the calendar, light to dark: palette names or #rrggbb"},
 	{"accounts", KindTable, nil, "Names for account and organization IDs; edit them in the file"},
 	{"project", KindTable, nil, "Project definitions [[project]]: name, colour, patterns; see the projects page, edit them in the file"},
 }

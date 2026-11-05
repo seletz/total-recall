@@ -12,6 +12,8 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/seletz/total-recall/internal/demo"
+	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 	"github.com/seletz/total-recall/internal/tui/keys"
@@ -178,10 +180,10 @@ func TestActivityWiring(t *testing.T) {
 	tm := tuitest.New(t, app)
 	tuitest.WaitFor(t, tm, "week:")
 	tuitest.Press(tm, "l")
-	tuitest.WaitFor(t, tm, "last week")
+	tuitest.WaitFor(t, tm, "23:40")
 	final := tuitest.Final(t, tm).(App)
 	frame := tuitest.Frame(final)
-	for _, want := range []string{"[3 activity]", "last week", "23:40  00:05 (+1)", "week: 25m in 2 days", "human only"} {
+	for _, want := range []string{"[3 activity]", "2025-12-29 – 2026-01-04", "23:40  00:05 (+1)", "week: 25m in 2 days", "human only"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}
@@ -515,6 +517,38 @@ func TestNoColor(t *testing.T) {
 	for _, want := range []string{"[1 search]", "▸", "◄", "release"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("colourless output lacks %q", want)
+		}
+	}
+}
+
+// TestActivityProjects runs the activity view against the demo archive in
+// a test program: p colours the bars by project once the project data has
+// arrived, the legend names the projects of the hand-laid week of the
+// archive with their counted events, the switch on the top line shows the
+// mode, and p again goes back to the working hours.
+func TestActivityProjects(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, demo.Location)
+	app, err := New(Options{Store: st, Start: ViewActivity, Location: demo.Location, Now: func() time.Time { return now },
+		DayStart: 4 * time.Hour, HumanOnly: true, Home: demo.Home, Holidays: holiday.New("Baden-Württemberg")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm := tuitest.New(t, app)
+	tuitest.WaitFor(t, tm, "week:")
+	// The renderer repaints changed cells only, so the waits are for
+	// words that appear whole: the project names are new to the screen.
+	tuitest.Press(tm, "p")
+	tuitest.WaitFor(t, tm, "dotfiles")
+	tuitest.Press(tm, "p")
+	tuitest.WaitFor(t, tm, "[hours]")
+	tuitest.Press(tm, "p")
+	tuitest.WaitFor(t, tm, "[projects]")
+	final := tuitest.Final(t, tm).(App)
+	frame := tuitest.Frame(final)
+	for _, want := range []string{"[3 activity]", "bars: hours [projects]", "projects: █ fahrtenbuch 70  ▓ wetterwarte 19  ▒ kompass 17  ▞ dotfiles 6", "Fronleichnam"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("frame lacks %q:\n%s", want, frame)
 		}
 	}
 }

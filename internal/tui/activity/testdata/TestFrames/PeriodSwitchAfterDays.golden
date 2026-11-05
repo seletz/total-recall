@@ -1,4 +1,4 @@
- period: [day] week month  count: all [human]                                        Fri 2026-01-09
+ period: [day] week month  count: all [human]  bars: [hours] projects                Fri 2026-01-09
  day             first  last     span     diff  04      08       12      16       20      00
  Fri 2026-01-09  -      -           -        -  ··········│────────────────│·······················
 
