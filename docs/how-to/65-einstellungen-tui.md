@@ -21,11 +21,11 @@ Oder in einer laufenden TUI `4` drücken. Die Seiten wechseln mit ++tab++ und ++
 
 `d` setzt den markierten Schlüssel auf den Default zurück: Die Zeile wird in der Datei auskommentiert, nicht gelöscht. Ein Wert mit Herkunft `env` oder `flag` lässt sich hier nicht ändern, weil die Datei dagegen wirkungslos wäre; die Meldung nennt die Quelle.
 
-Für `[accounts]`, `[[worktime.category]]` und `[[project]]` öffnet `E` die Datei in `$EDITOR`; nach dem Schließen liest die TUI die Konfiguration neu. Fehlt die Datei noch, legt die TUI sie beim ersten Schreiben aus der Vorlage an.
+Für `[accounts]` und `[[worktime.category]]` öffnet `E` die Datei in `$EDITOR`; nach dem Schließen liest die TUI die Konfiguration neu. Fehlt die Datei noch, legt die TUI sie beim ersten Schreiben aus der Vorlage an.
 
-## Die Projekte ansehen
+## Die Projekte pflegen
 
-Seite **projects** (++tab++ zweimal): die Definitionen aus [`[[project]]`](../reference/20-konfiguration.md#project) mit Farbfeld, Name, Beschreibung und Mustern; die markierte steht unter der Linie ganz, mit dem Farbwert. Ändern lassen sie sich hier noch nicht: `E` öffnet die Datei an der richtigen Stelle zum Bearbeiten, nach dem Schließen zeigt die Seite den neuen Stand, und die Statistik (`2`) trägt sofort die neuen Namen und Farben. Steht statt der Tabelle ein roter Fehler (`[[project]] has a problem: …`), hat eine Definition keinen Namen, kein Muster, eine unbekannte Farbe oder einen doppelten Namen; bis zur Korrektur zeigt die Statistik die abgeleiteten Namen.
+Seite **projects** (++tab++ zweimal): die Definitionen aus [`[[project]]`](../reference/20-konfiguration.md#project) mit Farbfeld, Name, Beschreibung, Sessions und Mustern, darunter die Pfade des Archivs ohne Definition. ++enter++ öffnet das Formular, `a` legt ein Projekt aus dem markierten Pfad an, `m` macht ihn zum Muster einer Definition, `x` löscht nach Rückfrage, `K`/`J` sortieren; geschrieben wird mit `y`, und Statistik und Aktivität zeigen die Änderung sofort. Rezept mit Beispielen: [Projekte definieren](67-projekte-definieren.md).
 
 ## Eine Aktion ausführen
 

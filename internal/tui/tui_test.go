@@ -343,7 +343,7 @@ func TestDetailQuit(t *testing.T) {
 // them, and the old defaults of overridden actions are gone.
 func TestConfiguredKeys(t *testing.T) {
 	km, err := keys.Resolve(map[string][]string{
-		keys.GlobalStats: {"S"}, keys.GlobalQuit: {"x", "ctrl+q"}, keys.StatsWeeks: {"W"}, keys.StatsEarlier: {"<"},
+		keys.GlobalStats: {"S"}, keys.GlobalQuit: {"X", "ctrl+q"}, keys.StatsWeeks: {"W"}, keys.StatsEarlier: {"<"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -354,10 +354,10 @@ func TestConfiguredKeys(t *testing.T) {
 		wantActive int
 		wantFrame  []string
 	}{
-		{"configured key switches the view", []string{"tab", "S"}, 1, []string{"S stats", "x/^q quit", "d/W/m period", "</→/-/+ range"}},
+		{"configured key switches the view", []string{"tab", "S"}, 1, []string{"S stats", "X/^q quit", "d/W/m period", "</→/-/+ range"}},
 		{"old key is plain text in the input", []string{"2"}, 0, []string{"> 2"}},
 		{"old key does nothing in the list", []string{"tab", "2"}, 0, []string{"tab/esc input"}},
-		{"help shows the configured keys", []string{"tab", "S", "?"}, 1, []string{"W weeks", "earlier", "S stats", "x/^q quit", "^c   quit"}},
+		{"help shows the configured keys", []string{"tab", "S", "?"}, 1, []string{"W weeks", "earlier", "S stats", "X/^q quit", "^c   quit"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -385,11 +385,11 @@ func TestConfiguredKeys(t *testing.T) {
 // TestConfiguredQuit: the configured quit key quits from the list, with
 // ctrl also from the input; ctrl+c always; the old key no longer does.
 func TestConfiguredQuit(t *testing.T) {
-	km, err := keys.Resolve(map[string][]string{keys.GlobalQuit: {"x", "ctrl+q"}})
+	km, err := keys.Resolve(map[string][]string{keys.GlobalQuit: {"X", "ctrl+q"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, keys := range [][]string{{"tab", "x"}, {"ctrl+q"}, {"a", "b", "ctrl+q"}, {"ctrl+c"}} {
+	for _, keys := range [][]string{{"tab", "X"}, {"ctrl+q"}, {"a", "b", "ctrl+q"}, {"ctrl+c"}} {
 		app, err := New(Options{Now: tuitest.Clock, Keys: km})
 		if err != nil {
 			t.Fatal(err)

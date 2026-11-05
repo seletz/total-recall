@@ -2,6 +2,7 @@ package project
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -264,5 +265,54 @@ func TestResolverLookup(t *testing.T) {
 	var zero Resolver
 	if !zero.Empty() {
 		t.Error("zero resolver is not Empty")
+	}
+}
+
+func TestTargets(t *testing.T) {
+	tests := []struct {
+		key    string
+		dir    bool
+		remote string
+		want   []string
+	}{
+		{"/home/u/src/kompass", false, "https://git.invalid/mara/kompass", []string{"/home/u/src/kompass", "~/src/kompass", "kompass", "https://git.invalid/mara/kompass"}},
+		{"/home/u/notes", true, "", []string{"/home/u/notes", "~/notes", "~/notes"}},
+		{"other", false, "", nil},
+	}
+	for _, tt := range tests {
+		got := Targets(tt.key, tt.dir, tt.remote, "/home/u")
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("Targets(%q, %v, %q) = %v, want %v", tt.key, tt.dir, tt.remote, got, tt.want)
+		}
+	}
+}
+
+func TestResolverEqual(t *testing.T) {
+	resolver := func(home string, defs ...Definition) Resolver {
+		r, err := NewResolver(defs, home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	a := resolver("/home/u", mustDef(t, "kompass", "blue", "~/src/kompass"))
+	tests := []struct {
+		name string
+		o    Resolver
+		want bool
+	}{
+		{"same", resolver("/home/u", mustDef(t, "kompass", "blue", "~/src/kompass")), true},
+		{"zero", Resolver{}, false},
+		{"colour", resolver("/home/u", mustDef(t, "kompass", "green", "~/src/kompass")), false},
+		{"pattern", resolver("/home/u", mustDef(t, "kompass", "blue", "~/src/kompass*")), false},
+		{"home", resolver("/home/v", mustDef(t, "kompass", "blue", "~/src/kompass")), false},
+	}
+	for _, tt := range tests {
+		if got := a.Equal(tt.o); got != tt.want {
+			t.Errorf("%s: Equal = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	if !(Resolver{}).Equal(Resolver{}) {
+		t.Error("two zero resolvers differ")
 	}
 }

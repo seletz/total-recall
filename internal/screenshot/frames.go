@@ -11,7 +11,6 @@ import (
 
 	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/holiday"
-	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui"
 )
@@ -37,30 +36,8 @@ type Shot struct {
 	// Outdated renders against the home with the outdated archive
 	// (Env.Outdated) instead of the demo archive.
 	Outdated bool
-	// Projects applies the project definitions of the demo config
-	// (Projects), so configured names and colours show.
-	Projects bool
 	// Caption describes the shot for the docs.
 	Caption string
-}
-
-// Projects are the [[project]] definitions of the demo config: two of the
-// demo's projects with a configured colour, so a shot with Shot.Projects
-// shows configured colours next to the automatic ones.
-var Projects = must2(project.NewResolver([]project.Definition{
-	mustDefinition("fahrtenbuch", "Fahrtenbuch mit PDF-Export", "green", "~/src/fahrtenbuch"),
-	mustDefinition("wetterwarte", "Dashboard der Wetterstation", "purple", "https://git.invalid/mara/wetterwarte"),
-}, demo.Home))
-
-func mustDefinition(name, description, color string, match ...string) project.Definition {
-	return must2(project.NewDefinition(name, description, color, match))
-}
-
-func must2[T any](v T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return v
 }
 
 // Frame is the rendered final frame of a Shot, with colours.
@@ -108,7 +85,7 @@ var Shots = []Shot{
 	{Name: "session", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Keys: []string{"enter", "T"}, Caption: "Session-Detail mit Treffer, Tool-Aufrufe eingeblendet"},
 	{Name: "stats", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow,
-		Caption: "Statistik: gestapeltes Chart je Tag und Projekt mit Tabelle"},
+		Caption: "Statistik: gestapeltes Chart je Tag und Projekt mit Tabelle; kompass (blau), wetterwarte (violett) und fahrtenbuch (türkis) in den Farben aus [[project]]"},
 	{Name: "heatmap", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"h"},
 		Caption: "Heatmap Wochentag × Stunde unter dem Chart"},
 	{Name: "activity-week", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow,
@@ -117,8 +94,8 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, ein Monat mit Monatsarbeitszeit"},
 	{Name: "activity-days", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"k", "k", "k"},
 		Caption: "Aktivität je Tag, mit ↑ drei Tage zurück: ein gleitendes Fenster von sieben Tagen"},
-	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"}, Projects: true,
-		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende; fahrtenbuch und wetterwarte mit Farben aus [[project]]"},
+	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"},
+		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende; kompass (blau), wetterwarte (violett) und fahrtenbuch (türkis) mit Farben aus [[project]]"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
 	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},
@@ -132,7 +109,11 @@ var Shots = []Shot{
 	{Name: "config-actions", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "shift+tab", "enter"},
 		Caption: "Config, Seite Actions: Backup wartet auf die Bestätigung"},
 	{Name: "config-projects", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "tab"},
-		Caption: "Config, Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung und Mustern"},
+		Caption: "Config, Seite Projects: die Projektdefinitionen der Datei mit Farbe, Beschreibung, Sessions und Mustern, darunter die Pfade des Archivs ohne Definition"},
+	{Name: "config-projects-edit", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "tab", "enter", "j", "j", "enter"},
+		Caption: "Config, Seite Projects: das Formular von kompass mit offener Farbwahl und der Vorschau, was die Definition im Archiv trifft"},
+	{Name: "config-projects-pattern", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "tab", "j", "j", "j", "j", "enter", "j", "j", "j", "enter"},
+		Caption: "Config, Seite Projects: ein neues Projekt aus dem Repository dotfiles der Liste; das Muster (die Remote-URL) wird bearbeitet, die Vorschau zeigt, was es trifft"},
 	{Name: "config-migrate", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "shift+tab", "j", "j", "j", "enter"}, Outdated: true,
 		Caption: "Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung"},
 	{Name: "config-setup", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab"},
@@ -147,8 +128,9 @@ var workHours = store.WorkHours{
 
 // options builds the app options of a shot: the config defaults (time zone
 // Europe/Berlin, day start 04:00, working time, holidays of
-// Baden-Württemberg, own messages only), the synthetic home directory, text
-// charts and the shot's clock.
+// Baden-Württemberg, own messages only), the project definitions of the
+// synthetic config, the synthetic home directory, text charts and the
+// shot's clock.
 func options(s Shot, env *Env) (tui.Options, error) {
 	if s.Outdated && env != nil {
 		env = env.Outdated
@@ -159,17 +141,18 @@ func options(s Shot, env *Env) (tui.Options, error) {
 	now := s.Now
 	cv := env.View
 	cv.Now = func() time.Time { return now }
+	projects, err := env.Config.ProjectResolver()
+	if err != nil {
+		return tui.Options{}, fmt.Errorf("shot %s: %w", s.Name, err)
+	}
 	opts := tui.Options{
 		Store: env.Store, Location: berlin, Now: func() time.Time { return now },
 		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, NoMouse: true,
 		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: env.Home,
-		Config: env.Config, ConfigView: cv,
+		Config: env.Config, ConfigView: cv, Projects: projects,
 		// A shot never waits for a reload tick: the renderer runs commands
 		// synchronously, and a tick would block it.
 		Tick: func(time.Duration, func(time.Time) tea.Msg) tea.Cmd { return nil },
-	}
-	if s.Projects {
-		opts.Projects = Projects
 	}
 	return opts, nil
 }

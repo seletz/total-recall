@@ -363,3 +363,102 @@ func TestParseRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+const withProjects = `timezone = "UTC"
+
+# the projects
+[[project]]
+name = "kompass"
+description = "Wanderkarten"
+color = "blue"
+match = ["~/src/kompass*"]
+
+[[project]]
+name = "wetterwarte"
+match = "https://git.invalid/mara/wetterwarte"
+
+[[project]]
+name = "fahrtenbuch"
+color = "green"
+match = "~/src/fahrtenbuch"
+[tui]
+view = "stats"
+`
+
+func TestUnsetAt(t *testing.T) {
+	d := Parse(withProjects)
+	if err := d.UnsetAt("project", 0, "description"); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.String(); !strings.Contains(got, "name = \"kompass\"\n# description = \"Wanderkarten\"\ncolor = \"blue\"\n") {
+		t.Errorf("description not commented out:\n%s", got)
+	}
+	// A commented-out key is activated again by SetAt.
+	if err := d.SetAt("project", 0, "description", "Karten"); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.String(); !strings.Contains(got, "name = \"kompass\"\ndescription = \"Karten\"\ncolor = \"blue\"\n") {
+		t.Errorf("description not activated:\n%s", got)
+	}
+	// A key the table does not set is fine.
+	if err := d.UnsetAt("project", 1, "color"); err != nil {
+		t.Errorf("UnsetAt of a missing key: %v", err)
+	}
+	if err := d.UnsetAt("project", 7, "color"); err == nil {
+		t.Error("UnsetAt out of range succeeded")
+	}
+	if d.Count("project") != 3 {
+		t.Errorf("Count = %d", d.Count("project"))
+	}
+}
+
+func TestMoveTable(t *testing.T) {
+	tests := []struct {
+		name     string
+		from, to int
+		order    []string
+	}{
+		{"down one", 0, 1, []string{"wetterwarte", "kompass", "fahrtenbuch"}},
+		{"up one", 2, 1, []string{"kompass", "fahrtenbuch", "wetterwarte"}},
+		{"to the end", 0, 2, []string{"wetterwarte", "fahrtenbuch", "kompass"}},
+		{"to the front", 2, 0, []string{"fahrtenbuch", "kompass", "wetterwarte"}},
+		{"same place", 1, 1, []string{"kompass", "wetterwarte", "fahrtenbuch"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := Parse(withProjects)
+			if err := d.MoveTable("project", tt.from, tt.to); err != nil {
+				t.Fatal(err)
+			}
+			got := d.String()
+			var names []string
+			for _, l := range strings.Split(got, "\n") {
+				if strings.HasPrefix(l, "name = ") {
+					names = append(names, strings.Trim(strings.TrimPrefix(l, "name = "), `"`))
+				}
+			}
+			if strings.Join(names, ",") != strings.Join(tt.order, ",") {
+				t.Errorf("order = %v, want %v:\n%s", names, tt.order, got)
+			}
+			// Each table keeps its entries, the rest of the file stays.
+			for _, w := range []string{"# the projects\n", "name = \"kompass\"\ndescription = \"Wanderkarten\"\ncolor = \"blue\"\nmatch = [\"~/src/kompass*\"]\n", "name = \"fahrtenbuch\"\ncolor = \"green\"\nmatch = \"~/src/fahrtenbuch\"\n", "\n[tui]\nview = \"stats\"\n", "timezone = \"UTC\"\n"} {
+				if !strings.Contains(got, w) {
+					t.Errorf("output lacks %q:\n%s", w, got)
+				}
+			}
+			if _, err := Diff(withProjects, got); err != nil {
+				t.Errorf("invalid TOML after move: %v\n%s", err, got)
+			}
+			if strings.Contains(got, "\n\n\n") {
+				t.Errorf("double blank line:\n%s", got)
+			}
+			if d.Count("project") != 3 {
+				t.Errorf("Count = %d", d.Count("project"))
+			}
+		})
+	}
+	d := Parse(withProjects)
+	if err := d.MoveTable("project", 0, 3); err == nil {
+		t.Error("MoveTable out of range succeeded")
+	}
+}

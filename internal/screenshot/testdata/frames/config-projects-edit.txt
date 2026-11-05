@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                        1 search   2 stats   3 activity  [4 config]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status settings [projects] actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ project kompass  1 of 3 · first match wins
+  name          kompass
+  description   Wanderkarten, alle Repositories
+▸ color         ■ blue #4e79a7
+  match         https://git.invalid/mara/kompass*
+  match         ~/src/kompass*
+                + pattern
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ preview  matches 1 path · 319 sessions: kompass
+ color: · automatic  ■ [blue] ■ orange  ■ green  ■ red  ■ purple  ■ teal    custom #rrggbb
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ enter edit / run • esc back • ^c quit

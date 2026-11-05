@@ -10,7 +10,7 @@
 // is full of those), or inserts the key after the last entry of its table;
 // a missing table is created, a commented-out header "# [table]" is
 // activated. Arrays of tables ("[[project]]") are addressed by index and
-// can be appended and removed as a whole.
+// can be appended, removed as a whole and moved within the array.
 //
 // The scanner is deliberately small; it understands what a configuration
 // file contains, not every corner of TOML. Diff decodes two documents with
@@ -655,6 +655,76 @@ func (d *Document) AppendTable(path string, pairs []Pair) error {
 	}
 	s := d.scan()
 	d.insert(d.tableInsertPos(s, segs), lines...)
+	return nil
+}
+
+// UnsetAt comments the entry of key in the index-th table of the array
+// path out, like Unset; a key the table does not set is left alone (no
+// error), so a caller can clear an optional key without looking first.
+func (d *Document) UnsetAt(path string, index int, key string) error {
+	segs, err := splitKey(path)
+	if err != nil {
+		return err
+	}
+	name, err := splitKey(key)
+	if err != nil {
+		return err
+	}
+	s := d.scan()
+	tables := s.arrayTables(segs)
+	if index < 0 || index >= len(tables) {
+		return fmt.Errorf("tomledit: [[%s]] has %d tables, no index %d", path, len(tables), index)
+	}
+	for _, e := range s.entries {
+		if e.table == tables[index] && samePath(e.key, name) {
+			for i := e.start; i <= e.end; i++ {
+				d.lines[i] = "# " + d.lines[i]
+			}
+			d.eol = true
+			return nil
+		}
+	}
+	return nil
+}
+
+// MoveTable moves the from-th table of the array path (its header and
+// entries, without the blank lines after it) so that it becomes the to-th
+// table of the array: before the table that holds that place when moving
+// up, after it when moving down. Comments above a header stay where they
+// are, as do the other tables.
+func (d *Document) MoveTable(path string, from, to int) error {
+	segs, err := splitKey(path)
+	if err != nil {
+		return err
+	}
+	s := d.scan()
+	tables := s.arrayTables(segs)
+	if from < 0 || from >= len(tables) || to < 0 || to >= len(tables) {
+		return fmt.Errorf("tomledit: [[%s]] has %d tables, no move %d -> %d", path, len(tables), from, to)
+	}
+	if from == to {
+		return nil
+	}
+	h := tables[from]
+	start, end := s.headers[h].line, d.regionEnd(s, h)
+	block := append([]string{}, d.lines[start:end]...)
+	for len(block) > 0 && strings.TrimSpace(block[len(block)-1]) == "" {
+		block = block[:len(block)-1]
+	}
+	d.lines = append(d.lines[:start], d.lines[end:]...)
+	s = d.scan()
+	tables = s.arrayTables(segs)
+	var pos int
+	if to < from {
+		pos = s.headers[tables[to]].line
+	} else {
+		t := tables[to-1]
+		pos = s.headers[t].line + 1
+		if e := s.lastEntry(t); e >= 0 {
+			pos = s.entries[e].end + 1
+		}
+	}
+	d.insert(pos, block...)
 	return nil
 }
 

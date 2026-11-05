@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                        1 search   2 stats   3 activity  [4 config]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status settings [projects] actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ new project
+  name          dotfiles
+  description   none
+  color         · automatic
+▸ match         https://git.invalid/mara/dotfiles
+                + pattern
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ pattern https://git.invalid/mara/dotfiles  matches 1 path · 51 sessions: dotfiles
+ * matches any text (also across /), ? one character · against the path, the path with ~, the name and the remote URL
+ > https://git.invalid/mara/dotfiles   enter takes it, esc cancels
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ enter edit / run • esc back • ^c quit

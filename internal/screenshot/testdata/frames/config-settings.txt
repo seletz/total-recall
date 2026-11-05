@@ -33,4 +33,4 @@
  default: ~/Documents/total-recall
  > ~/Documents/total-recall   enter saves, esc cancels
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- tab page • enter edit / run • esc back • ^c quit
+ enter edit / run • esc back • ^c quit

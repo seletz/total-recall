@@ -29,7 +29,7 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 `total-recall config init` schreibt eine kommentierte Vorlage. Eine bestehende Datei wird nie überschrieben.
 
-Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und ändert einzelne Schlüssel in der Datei: Kommentare und alle anderen Zeilen bleiben erhalten, ein auskommentierter Schlüssel der Vorlage wird an seiner Stelle aktiviert, vorher entsteht `config.toml.bak`, geschrieben wird atomar und nur, was die Prüfung besteht. Die Tabellen `[accounts]`, `[[worktime.category]]` und `[[project]]` ändert man weiter im Editor (`E` in der TUI); die Seite **Projects** zeigt die Projektdefinitionen mit Farbe und Mustern. Rezept: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md).
+Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und ändert einzelne Schlüssel in der Datei: Kommentare und alle anderen Zeilen bleiben erhalten, ein auskommentierter Schlüssel der Vorlage wird an seiner Stelle aktiviert, vorher entsteht `config.toml.bak`, geschrieben wird atomar und nur, was die Prüfung besteht. Die Tabellen `[accounts]` und `[[worktime.category]]` ändert man weiter im Editor (`E` in der TUI); die Liste `[[project]]` pflegt die Seite [**Projects**](30-tui.md#projects) mit Formular, Farbwahl und einer Vorschau, was ein Muster im Archiv trifft. Rezepte: [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md), [Projekte definieren](../how-to/67-projekte-definieren.md).
 
 ## Regeln
 
@@ -323,6 +323,8 @@ match = "~/notes"
 `description`
 :   Optionaler Freitext; die Seite [Projects](30-tui.md#projects) der TUI zeigt ihn neben dem Namen.
 
+Die Seite [Projects](30-tui.md#projects) der TUI legt Definitionen an, ändert, löscht und sortiert sie in dieser Datei, bietet die Pfade des Archivs ohne Definition an und zeigt, was ein Muster trifft; Rezept mit Beispielen zu Worktrees und Überschneidungen: [Projekte definieren](../how-to/67-projekte-definieren.md).
+
 `color`
 :   Optional: ein Name aus der Palette der Charts (`blue`, `orange`, `green`, `red`, `purple`, `teal`) oder ein Wert `#rrggbb`. Statistik und Legende zeigen das Projekt in dieser Farbe; die automatisch vergebenen Farben der übrigen Projekte lassen sie aus, solange eine andere frei ist. Ohne Angabe bekommt das Projekt wie bisher die nächste freie Farbe der Palette.
 
@@ -331,7 +333,7 @@ match = "~/notes"
 
 **Zuordnung.** Die erste passende Definition in Dateireihenfolge gewinnt. Die Zuordnung wird bei jeder Abfrage berechnet und nicht gespeichert: Eine geänderte Definition wirkt sofort und rückwirkend auf das ganze Archiv, in [`stats --by project`](10-befehle.md#stats-period) (auch bei `--top`: zusammengefasst wird vor dem Falten in `other`), in [`stats --worktime`](10-befehle.md#stats-worktime) und in der Statistik der [TUI](30-tui.md#statistik). Ein abgeleiteter Name, der mit dem Namen einer Definition zusammenfällt, erscheint als Pfad, damit zwei Projekte nie gleich heißen.
 
-**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, die Seite [Projects](30-tui.md#projects) der TUI als Tabelle mit Farbfeld, `doctor` die Fehler. Default: keine Definitionen.
+**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, die Seite [Projects](30-tui.md#projects) der TUI als Tabelle mit Farbfeld und dem Fehler darunter, `doctor` die Fehler. Default: keine Definitionen.
 
 ### `[tui]` { #tui }
 

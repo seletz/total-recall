@@ -463,6 +463,15 @@ func (m Model) load() (Model, tea.Cmd) {
 // keeping the rows and the scroll position on screen until the answer
 // arrives; an answer from before is dropped. Without a database there is
 // nothing to do.
+// SetProjects replaces the project definitions, forgets the colours of
+// the shared Colors and loads the window again, so a changed definition
+// shows without a restart.
+func (m Model) SetProjects(r project.Resolver) (tea.Model, tea.Cmd) {
+	m.opts.Projects = r
+	m.opts.Colors.Reset()
+	return m.Reload()
+}
+
 func (m Model) Reload() (tea.Model, tea.Cmd) {
 	if m.opts.Loader == nil {
 		return m, nil

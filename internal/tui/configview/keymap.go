@@ -17,6 +17,10 @@ type KeyMap struct {
 	Confirm     key.Binding
 	Copy        key.Binding
 	Editor      key.Binding
+	Add, Remove key.Binding
+	MoveUp      key.Binding
+	MoveDn      key.Binding
+	Pattern     key.Binding
 	Back        key.Binding
 	ForceQuit   key.Binding
 	Pages, Move key.Binding
@@ -33,6 +37,11 @@ func newKeyMap(m keys.Map) KeyMap {
 		Confirm:   m.Binding(keys.ConfigConfirm),
 		Copy:      m.Binding(keys.ConfigCopy),
 		Editor:    m.Binding(keys.ConfigEditor),
+		Add:       m.Binding(keys.ConfigAdd),
+		Remove:    m.Binding(keys.ConfigRemove),
+		MoveUp:    m.Binding(keys.ConfigMoveUp),
+		MoveDn:    m.Binding(keys.ConfigMoveDn),
+		Pattern:   m.Binding(keys.ConfigPattern),
 		Back:      m.Binding(keys.GlobalBack),
 		ForceQuit: keys.ForceQuit,
 		// The footer names tab only; the help lists shift+tab as well.
