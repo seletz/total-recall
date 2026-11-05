@@ -52,7 +52,7 @@ Schritt für Schritt von der Installation zur ersten Suche. [Erste Schritte](tut
 <div markdown>
 :lucide-wrench:{ .lg .middle } **How-To-Guides**
 
-Rezepte für konkrete Aufgaben: [Installieren](how-to/10-installieren.md), [Hooks einrichten](how-to/20-hooks-einrichten.md), das [Archiv auswerten](how-to/30-auswerten.md), die [Arbeitszeit nachvollziehen](how-to/40-arbeitszeit.md), den [Stundenzettel füllen](how-to/45-stundenzettel.md) und [Agenten anbinden](how-to/50-agenten-anbinden.md).
+Rezepte für konkrete Aufgaben: [Installieren](how-to/10-installieren.md), [Hooks einrichten](how-to/20-hooks-einrichten.md), das [Archiv auswerten](how-to/30-auswerten.md), die [Arbeitszeit nachvollziehen](how-to/40-arbeitszeit.md), den [Stundenzettel füllen](how-to/45-stundenzettel.md), [Grafiken für einen Monatsbericht](how-to/47-monatsbericht.md) zeichnen und [Agenten anbinden](how-to/50-agenten-anbinden.md).
 
 [:octicons-arrow-right-24: Alle How-To-Guides](how-to/index.md)
 

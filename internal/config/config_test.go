@@ -792,6 +792,107 @@ func TestWorktimeErrors(t *testing.T) {
 	}
 }
 
+// TestChart checks the defaults, the parsing and the validation of [chart]
+// and of the category colours.
+func TestChart(t *testing.T) {
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := c.ChartSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Format != "svg" || s.Scale != 1 || !s.Title || !s.Legend || s.Transparent || s.Top != 12 || len(s.Heatmap) != 4 || len(s.CategoryColors) != 0 {
+		t.Errorf("defaults = %+v", s)
+	}
+	content := `[chart]
+format = "png"
+scale = 2.5
+title = false
+legend = false
+transparent = true
+top = 0
+heatmap = ["blue", "#ABCDEF"]
+
+[[worktime.category]]
+name = "kunde"
+match = "*kunde*"
+color = "Orange"
+
+[[worktime.category]]
+name = "sonstiges"
+match = "*"
+`
+	c, err = Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", content)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err = c.ChartSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Format != "png" || s.Scale != 2.5 || s.Title || s.Legend || !s.Transparent || s.Top != 0 {
+		t.Errorf("file = %+v", s)
+	}
+	if want := []string{"#4e79a7", "#abcdef"}; !slices.Equal(s.Heatmap, want) {
+		t.Errorf("heatmap = %v, want %v", s.Heatmap, want)
+	}
+	if len(s.CategoryColors) != 1 || s.CategoryColors["kunde"] != "#f28e2b" {
+		t.Errorf("category colours = %v", s.CategoryColors)
+	}
+	if _, err := c.WorktimeSettings(); err != nil {
+		t.Errorf("WorktimeSettings: %v", err)
+	}
+	entries := map[string]Entry{}
+	for _, e := range c.Entries() {
+		entries[e.Key] = e
+	}
+	if e := entries["chart.heatmap"]; e.Value != `["blue", "#ABCDEF"]` || e.Origin != OriginFile {
+		t.Errorf("heatmap entry = %+v", e)
+	}
+	if e := entries["chart.scale"]; e.Value != "2.5" || e.Origin != OriginFile {
+		t.Errorf("scale entry = %+v", e)
+	}
+	if e := entries["worktime.category"]; e.Value != `[kunde = ["*kunde*"] (Orange), sonstiges = ["*"]]` {
+		t.Errorf("category entry = %+v", e)
+	}
+}
+
+// TestChartErrors: a bad [chart] table or category colour loads, but
+// ChartSettings and Problems report it.
+func TestChartErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"format unknown", "[chart]\nformat = \"jpg\"\n", "chart.format"},
+		{"scale zero", "[chart]\nscale = 0\n", "chart.scale"},
+		{"scale huge", "[chart]\nscale = 17\n", "chart.scale"},
+		{"top negative", "[chart]\ntop = -1\n", "chart.top"},
+		{"heatmap empty", "[chart]\nheatmap = []\n", "chart.heatmap"},
+		{"heatmap bad colour", "[chart]\nheatmap = [\"blue\", \"pink\"]\n", "chart.heatmap[1]"},
+		{"heatmap empty colour", "[chart]\nheatmap = [\"\"]\n", "chart.heatmap[0]"},
+		{"category colour", "[[worktime.category]]\nname = \"a\"\nmatch = [\"x\"]\ncolor = \"#12345\"\n", "worktime.category[0]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.content)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err != nil {
+				t.Fatalf("Load must not fail on [chart]: %v", err)
+			}
+			if _, err := c.ChartSettings(); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("ChartSettings error = %v, want containing %q", err, tt.wantErr)
+			}
+			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.wantErr) {
+				t.Errorf("Problems = %v, want one containing %q", ps, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestProjects(t *testing.T) {
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil)})
 	if err != nil {

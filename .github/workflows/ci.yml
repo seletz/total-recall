@@ -40,6 +40,12 @@ jobs:
         # differently on amd64 than on the arm64 Macs that render them.
         run: scripts/screenshots-check.sh -db build/demo.db --goldens-only
 
+      - name: Check the figures of the docs
+        # Same command as `mise run docs:charts:check`: renders the SVG
+        # figures of `total-recall chart` into a temporary directory and
+        # fails when the committed files in docs/assets/charts/ are stale.
+        run: scripts/charts-check.sh -db build/demo.db
+
       - name: go test
         # The race detector needs cgo on linux; the build stays static.
         env:

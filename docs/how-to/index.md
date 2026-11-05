@@ -14,5 +14,6 @@ Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 - [Archiv auswerten](30-auswerten.md): Kennzahlen mit `stats`, Volltextsuche mit `search`, eigene Abfragen mit `sql`.
 - [Arbeitszeit nachvollziehen](40-arbeitszeit.md): erste und letzte Aktivität je Tag mit Soll und Saldo, in CLI und TUI.
 - [Stundenzettel füllen](45-stundenzettel.md): Arbeitszeit je Tag und Kategorie aus den Lücken zwischen den eigenen Nachrichten, Buchungstexte aus den Session-Titeln.
+- [Grafiken für einen Monatsbericht](47-monatsbericht.md): Kalender, Anteil je Projekt, Uhrzeiten und Arbeitszeit je Woche als SVG oder PNG mit `chart`.
 - [Agenten anbinden](50-agenten-anbinden.md): den eingebetteten Skill für Claude Code ablegen.
 - [Archiv warten](60-wartung.md): die Datenbankdatei mit größeren Seiten kompakter neu aufbauen, wann und wie.
