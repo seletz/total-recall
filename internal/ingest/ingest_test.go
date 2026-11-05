@@ -615,3 +615,26 @@ func TestRereadRewriteRaw(t *testing.T) {
 		t.Errorf("without reread: %+v, %v", sum, err)
 	}
 }
+
+// TestHistorySuppressionIsNotStored: history-suppression records are
+// skipped by the adapter, so neither an event nor a raw line reaches the
+// store; the session itself ingests as before.
+func TestHistorySuppressionIsNotStored(t *testing.T) {
+	e := newEnv(t)
+	s := "77777777-7777-4777-8777-777777777777"
+	p := tf.WriteFile(t, e.projects, "-w-zeta/"+s+".jsonl", tf.Join(
+		tf.User(s, "z1", "2026-10-10T10:00:00.000Z", "/w/zeta", "hello"),
+		tf.HistorySuppression(s, "2026-10-10T10:00:02.000Z"),
+		tf.Assistant(s, "z2", "2026-10-10T10:00:05.000Z", "/w/zeta", "hi"),
+	))
+	sum := run(t, e, p)
+	if sum.Events != 2 {
+		t.Errorf("events ingested = %d, want 2: %+v", sum.Events, sum)
+	}
+	if n := e.count(t, `SELECT count(*) FROM events WHERE raw_text(raw) LIKE '%history-suppression%' OR raw_text(raw) LIKE '%chokepoint%'`); n != 0 {
+		t.Errorf("%d events carry history-suppression data in raw", n)
+	}
+	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
+		t.Errorf("sessions = %d, want 1", n)
+	}
+}

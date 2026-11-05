@@ -83,6 +83,14 @@ func ContinuedIn(session, ts, continuedIn string) Line {
 	return Line{"type": "continued-in", "timestamp": ts, "sessionId": session, "continuedInSessionId": continuedIn}
 }
 
+// HistorySuppression returns a history-suppression record: a cause and the
+// account the suppression was vetoed against, with ts instead of timestamp.
+// The adapter skips it; nothing of it is stored.
+func HistorySuppression(session, ts string) Line {
+	return Line{"type": "history-suppression", "sessionId": session, "cause": "chokepoint_veto",
+		"vetoedAgainstAccountUuid": Account2, "ts": ts}
+}
+
 // Join concatenates lines as JSONL.
 func Join(lines ...Line) string {
 	var b strings.Builder

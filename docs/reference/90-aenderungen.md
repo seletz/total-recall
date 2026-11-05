@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.2.1 (unveröffentlicht)
+
+### Behoben
+
+- Claude Code schreibt in seltenen Fällen den neuen Record-Typ `history-suppression` (Grund und Account, gegen den die Unterdrückung entschieden wurde; `ts` statt `timestamp`). `doctor` meldete ihn als unbekannt und endete mit Exit 2. Der Adapter kennt ihn jetzt als Meta-Record: `doctor` meldet ihn nicht mehr, Ingest überspringt ihn ohne Meldung. Gespeichert wird nichts davon ([#167](https://github.com/seletz/total-recall/issues/167)).
+
 ## v1.2.0
 
 Ab dieser Version **migriert kein Befehl die Datenbank mehr von selbst**, auch kein Hook. Bringt ein Update ein neues Schema, zeigt `total-recall status` in der Zeile `schema` ein `MIGRATION PENDING`; die Hooks schreiben dann nichts (eine `WARN`-Zeile im Log am Tag), bis du migriert hast, lesende Befehle und die TUI laufen weiter. Es geht nichts verloren.
