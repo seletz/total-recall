@@ -8,6 +8,22 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.2.0 (unveröffentlicht)
 
+Dieses Release hebt die Datenbank auf **Schema v5**: Die Rohzeilen (`events.raw`) werden zu einem entschlackten, komprimierten Auszug, und Events verweisen auf ihre Quelldatei per ID. Das Archiv wird dadurch etwa 60 % kleiner. Die Migration schreibt jedes Event einmal um und läuft nicht mehr von selbst.
+
+**Nach dem Update einmal, in dieser Reihenfolge:**
+
+1. `total-recall backup`: Sicherung vor allem anderen.
+2. `total-recall migrate`: zeigt die ausstehende Migration an und führt sie nach Bestätigung aus; vorher legt sie `archive.db.pre-v4.bak` neben die Datenbank. Dauer: rund eine Minute je 100 000 Events, Platz: etwa das Doppelte der Dateigröße neben der Datenbank (Sicherung und WAL). Bis dahin schreiben die Hooks nichts (eine `WARN`-Zeile im Log) und lesen danach ab dem gespeicherten Lesestand weiter; nichts geht verloren.
+3. `total-recall maintenance`: baut die Datei neu auf. Direkt nach der Migration ist sie **größer** als vorher (die alten Seiten stehen auf der Freiliste); erst der Neuaufbau macht sie klein, auf einer Kopie eines echten Archivs von 1,1 GiB auf 435 MiB.
+
+### Archiv
+
+- **`raw` ist ein Auszug, keine wortgetreue Kopie mehr.** Von der Transkriptzeile bleiben nur die Felder, die das Programm zum erneuten Einlesen und für [`reindex --actors`](10-befehle.md#reindex) braucht: Typ, IDs, Zeitstempel, die Flags der Actor-Klassifikation, `message` mit `content` und `model`, `toolUseResult` ohne die Diffs. Buchhaltung der Harness (`wire*`, `serverClassifier*`, Request-IDs) und alles, was schon in Spalten steht (Token-Zahlen, `cwd`, Session-ID), fehlt. Die Transkripte bleiben die Quelle; [`ingest --reread --rewrite-raw`](10-befehle.md#ingest) schreibt `raw` aus ihnen neu, auch im neuen Format. `ingest.raw_max_bytes` misst jetzt den Auszug. Auf einer Kopie eines echten Archivs halbierte das allein `raw` ([Schema](40-schema.md#raw), [#132](https://github.com/seletz/total-recall/issues/132)).
+- **`raw` ist komprimiert**: ein zstd-BLOB mit einem eingebetteten, aus synthetischen Zeilen trainierten Wörterbuch (Dictionary-ID im Frame, ein späteres Wörterbuch liest alte Zeilen weiter). In eigenen SQL-Abfragen entpackt `raw_text(raw)`; `sql "SELECT raw …"` liefert sonst Binärdaten. Gemessen auf der Kopie: `raw` 645 → 117 MiB, Datei nach `maintenance` 1136 → 435 MiB, Backup 373 → 242 MiB; `show`, `search`, `sessions` und `stats` liefern vorher und nachher dieselbe Ausgabe ([Design](../explanation/design.md#raw)).
+- **`events.source_id` statt `source_path`**: Events verweisen auf `sources.id`, der Pfad steht einmal je Datei. Eigene Abfragen holen ihn mit `JOIN sources s ON s.id = e.source_id`.
+- [`status`](10-befehle.md#status) zeigt in der Zeile `raw` die komprimierte Größe aller Rohzeilen, die Zahl der Events mit und ohne `raw` und das Kompressionsverhältnis (geschätzt aus einer Stichprobe, nichts wird entpackt); JSON: `raw_rows`, `raw_bytes`, `raw_truncated`, `raw_ratio`.
+- Für Entwickler: `mise run dict:train` trainiert das Wörterbuch neu (nur aus dem Demo-Archiv und generierten Zeilen), `go run ./tools/rawdict measure -db …` misst die Kompression eines Archivs in Zahlen.
+
 ### TUI
 
 - **Mausklicks in allen Ansichten.** Klickbar ist, was es per Taste gibt, mit derselben Wirkung: die Tastenhinweise der Fußzeile (bei `d/w/m period` jede Taste einzeln, Abgeschnittenes nicht), Periode und Dimension der Statistik, Fenster, Zählweise und Kennzahlen der Aktivität, die Vorschau der Suche (öffnet die Session wie ++enter++) und ein Klick neben das Hilfe-Fenster (schließt es). Rad, Tabs, Trefferliste und Eingabezeile wie bisher; `--no-mouse` und `mouse = false` unverändert: [Maus](30-tui.md#maus) ([#140](https://github.com/seletz/total-recall/issues/140)).

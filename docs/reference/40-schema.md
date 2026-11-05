@@ -15,10 +15,22 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `events_fts` | Volltextindex über `events.text` |
 | `exchanges` | je menschlicher Nachricht: die Anfrage und die letzte Antwort des Agenten |
 | `daily_activity` | je Tag (lokale Zeit) und Session: Repo, Anzahl human-/agent-Events |
-| `sources` | eingelesene Dateien und Lesestand |
+| `sources` | eingelesene Dateien und Lesestand; `events.source_id` verweist auf `id` (seit Schema v5) |
 | `dirs` | Cache: Verzeichnis → Git-Root und Remote |
 
-Wichtige Spalten in `events`: `session_id`, `ts`, `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`.
+Wichtige Spalten in `events`: `session_id`, `ts`, `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`. Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`.
+
+## `raw` { #raw }
+
+`events.raw` ist seit Schema v5 ein **komprimierter Auszug** der Transkriptzeile, kein wortgetreues Abbild: ein zstd-BLOB mit eingebettetem Wörterbuch, darin nur die Felder, die das Programm zum erneuten Einlesen braucht (Typ, IDs, Zeitstempel, die Flags der Actor-Klassifikation, `message` mit `content` und `model`, `toolUseResult` ohne Diffs). Buchhaltung der Harness und alles, was schon in Spalten steht (Token-Zahlen, `cwd`, Session-ID), fehlt. Die Transkripte bleiben die Quelle; [`ingest --reread --rewrite-raw`](10-befehle.md#ingest) schreibt `raw` aus ihnen neu.
+
+In SQL entpackt `raw_text(raw)`:
+
+```sh
+total-recall sql "SELECT id, raw_text(raw) FROM events WHERE id = 'claude:…' LIMIT 1"
+```
+
+`raw` ist `NULL`, wenn der Auszug größer als `ingest.raw_max_bytes` war (`raw_truncated = 1`) oder `ingest.store_raw = false` gilt. In Listenabfragen `raw` nie mitselektieren; [`status`](10-befehle.md#status) zeigt die Größe aller Rohzeilen und das Kompressionsverhältnis. Details: [Design](../explanation/design.md#raw).
 
 Eine Fortsetzungskette liest sich über `continued_in`; die Gegenrichtung ist eine Abfrage: `SELECT id FROM sessions WHERE continued_in = 'claude:…'`. Sessions aus der Zeit vor Schema v4 haben die drei neuen Spalten erst nach [`ingest --all --reread`](10-befehle.md#ingest).
 

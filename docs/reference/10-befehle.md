@@ -63,7 +63,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
 | `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--reread` | die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an lesen statt ab dem gespeicherten Lesestand. Events sind idempotent (nichts wird doppelt), Sessions werden zusammengeführt; so bekommen Sessions nachträglich, was ältere Versionen noch nicht gespeichert haben, etwa Fortsetzung und Account (Schema v4). Nur mit `PATH…` oder `--all` |
-| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene und neu maskierte ersetzen. `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Repariert Archive, in denen frühere Versionen ganze Werte in `raw` maskiert haben ([#130](https://github.com/seletz/total-recall/issues/130)). Braucht `ingest.store_raw = true`, sonst Fehler |
+| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene, neu maskierte ersetzen (seit Schema v5 als komprimierter [Auszug](40-schema.md#raw)). `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Repariert Archive, in denen frühere Versionen ganze Werte in `raw` maskiert haben ([#130](https://github.com/seletz/total-recall/issues/130)). Braucht `ingest.store_raw = true`, sonst Fehler |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -87,7 +87,7 @@ total-recall backup
 total-recall ingest --all --reread --rewrite-raw
 ```
 
-Danach enthält `raw` wieder die vollständige, nur tokenweise maskierte Zeile und ist etwa doppelt so groß wie vorher. Transkripte, die es nicht mehr gibt, bleiben wie sie sind.
+Danach enthält `raw` wieder die nur tokenweise maskierte Zeile (seit Schema v5 als Auszug, komprimiert). Transkripte, die es nicht mehr gibt, bleiben wie sie sind.
 
 Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
@@ -134,6 +134,7 @@ schema                v2 (binary supports v2)
 sessions              274
 events                158203
 sources               280
+raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
 last ingest (claude)  2026-11-01 14:59  (2m ago)
 last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.gz  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
@@ -145,7 +146,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
