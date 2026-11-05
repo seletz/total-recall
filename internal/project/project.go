@@ -1,11 +1,16 @@
-// Package project derives display names for projects from the raw keys of
-// the activity dimension project: a session's git root, else its working
-// directory. The functions are pure; they never touch the file system.
+// Package project names projects. The raw key of a project is a session's
+// git root, else its working directory (the activity dimension project).
+// Configured definitions ([[project]], Definition) assign keys to named
+// projects by glob patterns; a Resolver applies them, the first match wins,
+// and keys without a match keep their derived name. The functions are
+// pure; they never touch the file system.
 //
-// The heuristic follows docs/explanation/spike-tui.md: the base name of the git root,
-// and when two roots share a base name, as many parent directories as it
-// takes to tell them apart. A working directory without a repository is
-// shown as a path, with the home directory abbreviated to "~".
+// The derived name follows docs/explanation/spike-tui.md: the base name of
+// the git root, and when two roots share a base name, as many parent
+// directories as it takes to tell them apart. A working directory without
+// a repository is shown as a path, with the home directory abbreviated to
+// "~". The package also holds the series Palette the charts and the
+// configured colours share.
 package project
 
 import (
