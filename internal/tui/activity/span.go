@@ -33,6 +33,15 @@ func (s span) period() store.Period { return s.window.Period }
 func (s span) since() time.Time { return s.window.Since().AddDate(0, 0, s.shift) }
 func (s span) until() time.Time { return s.window.Until().AddDate(0, 0, s.shift) }
 
+// len is the number of days the span shows.
+func (s span) len() int {
+	n := 0
+	for day := s.since(); day.Before(s.until()); day = day.AddDate(0, 0, 1) {
+		n++
+	}
+	return n
+}
+
 // days moves the span by n days: later for positive n, earlier for negative.
 func (s span) days(n int) span {
 	s.shift += n

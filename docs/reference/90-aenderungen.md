@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.2.0 (unveröffentlicht)
 
+### Behoben
+
+- **Flackern beim Blättern durch die Zeit in der Aktivität.** Jeder Tagesschritt (++up++/++down++, Mausrad) zeichnete bis zur Antwort seiner Abfrage einen Ladezustand ohne Zeilen, Kopfzeile und Kennzahlen; jetzt bleibt der alte Inhalt stehen, bis das neue Fenster vollständig da ist, die Tage werden einzeln gecacht und mit einer Periode (mindestens sieben Tagen) Vorlauf und Nachlauf abgefragt, Schritte innerhalb der laufenden Abfrage warten auf deren Antwort, und eine Antwort von vor einem Neuladen wird verworfen ([#147](https://github.com/seletz/total-recall/issues/147)).
+
 ### TUI
 
 - **Mausklicks in allen Ansichten.** Klickbar ist, was es per Taste gibt, mit derselben Wirkung: die Tastenhinweise der Fußzeile (bei `d/w/m period` jede Taste einzeln, Abgeschnittenes nicht), Periode und Dimension der Statistik, Fenster, Zählweise und Kennzahlen der Aktivität, die Vorschau der Suche (öffnet die Session wie ++enter++) und ein Klick neben das Hilfe-Fenster (schließt es). Rad, Tabs, Trefferliste und Eingabezeile wie bisher; `--no-mouse` und `mouse = false` unverändert: [Maus](30-tui.md#maus) ([#140](https://github.com/seletz/total-recall/issues/140)).
