@@ -94,6 +94,7 @@ var Catalog = []Key{
 	{"tui.activity_window", KindEnum, TUIPeriods, "Window the activity view starts with"},
 	{"tui.reload", KindDuration, nil, "How often the TUI checks the archive for changes; 0 = off, at least 1s"},
 	{"accounts", KindTable, nil, "Names for account and organization IDs; edit them in the file"},
+	{"project", KindTable, nil, "Project definitions [[project]]: name, colour, patterns; see the projects page, edit them in the file"},
 }
 
 // Lookup returns the description of key: a Catalog entry, a key binding

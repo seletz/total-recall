@@ -97,7 +97,8 @@ size next to the database.
 // maintenanceError tags a Maintain error with its kind.
 func maintenanceError(err error) error {
 	switch {
-	case errors.Is(err, store.ErrWritersActive), errors.Is(err, store.ErrReadersActive), errors.Is(err, store.ErrDiskSpace):
+	case errors.Is(err, store.ErrWritersActive), errors.Is(err, store.ErrReadersActive), errors.Is(err, store.ErrDiskSpace),
+		errors.Is(err, store.ErrMaintenance):
 		return errKind(ErrKindDB, err)
 	}
 	return err

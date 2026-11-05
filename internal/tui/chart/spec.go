@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -47,16 +48,17 @@ func (m Metric) value(a store.Activity) float64 {
 	return float64(a.Human + a.Agent)
 }
 
-// Palette holds the series colours in assignment order. The text and the
-// picture renderer use the same colours, so a series looks alike in both.
-var Palette = []color.Color{
-	lipgloss.Color("#4e79a7"), // blue
-	lipgloss.Color("#f28e2b"), // orange
-	lipgloss.Color("#59a14f"), // green
-	lipgloss.Color("#e15759"), // red
-	lipgloss.Color("#b07aa1"), // purple
-	lipgloss.Color("#76b7b2"), // teal
-}
+// Palette holds the series colours in assignment order: project.Palette
+// (blue, orange, green, red, purple, teal), which the configuration names
+// too. The text and the picture renderer use the same colours, so a series
+// looks alike in both.
+var Palette = func() []color.Color {
+	out := make([]color.Color, len(project.Palette))
+	for i, c := range project.Palette {
+		out[i] = lipgloss.Color(c.Hex)
+	}
+	return out
+}()
 
 // OtherColor is the colour of the folded series store.OtherKey.
 var OtherColor = lipgloss.Color("#8c8c8c")
@@ -160,16 +162,33 @@ func FromSeries(s store.ActivitySeries, period store.Period, metric Metric, name
 
 // Colors remembers which colour each series key received, so a series
 // keeps its colour when the user switches period, dimension or metric and
-// the order of the series changes. The zero value is ready to use; one
-// Colors should live as long as the view.
+// the order of the series changes. Fix pins the configured colour of a
+// project; the automatic colours avoid the pinned ones. The zero value is
+// ready to use; one Colors should live as long as the view.
 type Colors struct {
 	byKey map[string]color.Color
+	fixed map[string]bool // keys pinned by Fix
 	used  int
 }
 
+// Fix pins the colour of a key, replacing an earlier automatic or pinned
+// colour. Automatic colours skip every palette colour that a pinned key
+// uses, as long as that leaves one.
+func (c *Colors) Fix(key string, col color.Color) {
+	if c.byKey == nil {
+		c.byKey = map[string]color.Color{}
+	}
+	if c.fixed == nil {
+		c.fixed = map[string]bool{}
+	}
+	c.byKey[key] = col
+	c.fixed[key] = true
+}
+
 // Assign returns a copy of spec whose series carry their remembered colour;
-// a key seen for the first time takes the next Palette colour, cycling
-// when the palette is exhausted. store.OtherKey is always OtherColor.
+// a key seen for the first time takes the next Palette colour that no
+// pinned key uses, cycling when the palette is exhausted. store.OtherKey is
+// always OtherColor.
 func (c *Colors) Assign(spec Spec) Spec {
 	if c.byKey == nil {
 		c.byKey = map[string]color.Color{}
@@ -185,11 +204,40 @@ func (c *Colors) Assign(spec Spec) Spec {
 		}
 		col, ok := c.byKey[sr.Key]
 		if !ok {
-			col = Palette[c.used%len(Palette)]
-			c.used++
+			col = c.next()
 			c.byKey[sr.Key] = col
 		}
 		sr.Color = col
 	}
 	return out
+}
+
+// next returns the next automatic palette colour, skipping the colours of
+// pinned keys unless they take the whole palette.
+func (c *Colors) next() color.Color {
+	reserved := map[color.RGBA]bool{}
+	for key := range c.fixed {
+		reserved[rgba(c.byKey[key])] = true
+	}
+	free := 0
+	for _, p := range Palette {
+		if !reserved[rgba(p)] {
+			free++
+		}
+	}
+	for {
+		col := Palette[c.used%len(Palette)]
+		c.used++
+		if free == 0 || !reserved[rgba(col)] {
+			return col
+		}
+	}
+}
+
+// rgba converts a colour for comparison; nil is transparent black.
+func rgba(c color.Color) color.RGBA {
+	if c == nil {
+		return color.RGBA{}
+	}
+	return color.RGBAModel.Convert(c).(color.RGBA)
 }

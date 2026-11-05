@@ -128,6 +128,10 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 	if err != nil {
 		return errKind(ErrKindConfig, err)
 	}
+	projects, err := cfg.ProjectResolver()
+	if err != nil {
+		return errKind(ErrKindConfig, err)
+	}
 	since, until, err := workdayRange(rng, month, sinceArg, untilArg, e.app.Now(), loc, cfg.DayStartOffset())
 	if err != nil {
 		return err
@@ -146,7 +150,7 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Title: ev.Title, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL, Text: ev.Text}
 	}
 	cal := holidays(cfg)
-	opts := worktime.Options{Location: loc, DayStart: cfg.DayStartOffset(), Home: cfg.Home, Holidays: cal}
+	opts := worktime.Options{Location: loc, DayStart: cfg.DayStartOffset(), Home: cfg.Home, Holidays: cal, Projects: projects}
 	if !since.IsZero() {
 		opts.From = store.DayOf(since, loc, cfg.DayStartOffset())
 	}

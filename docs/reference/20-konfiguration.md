@@ -40,7 +40,7 @@ Die Seite **Settings** der [TUI](30-tui.md#settings) zeigt dieselbe Tabelle und 
 
 Beim Laden prüft jeder Befehl die Kerneinstellungen streng: Pfade, `timezone`, `day_start`, `[backup]`, `[ingest]`, `[redact]`, unbekannte Schlüssel und falsche Typen. Ein Fehler dort bricht jeden Befehl ab.
 
-Die Abschnitte `[work]`, `[worktime]`, `[tui]` und `[keys]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --workday`, `stats --worktime` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
+Die Abschnitte `[work]`, `[worktime]`, `[tui]`, `[keys]` und die Liste `[[project]]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --by project`, `stats --workday`, `stats --worktime` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
 
 ## Vollständige Vorlage
 
@@ -102,6 +102,12 @@ automation_prefixes = ["Hourly ", "Weekend watch"]
 [git]
 resolve = true
 
+# [[project]]                    # Projekte in Reihenfolge, die erste passende Definition gewinnt
+# name = "kompass"               # Pflicht, eindeutig
+# description = "Wanderkarten"   # optional
+# color = "blue"                 # optional: blue, orange, green, red, purple, teal oder "#rrggbb"
+# match = ["https://github.com/mara/kompass*", "~/src/kompass-*"]   # Glob oder Liste auf Git-Root (auch mit ~), Remote-URL, abgeleiteten Namen
+
 # [accounts]                     # Namen für Account-IDs (sessions --account, stats --by account, show)
 # "aaaaaaaa-0000-4000-8000-000000000001" = "work"
 
@@ -134,7 +140,7 @@ reload = "5s"                    # Archiv auf Änderungen prüfen und neu laden;
 :   Uhrzeit (`HH:MM`, Ortszeit), zu der ein Tag für die erste und letzte Aktivität je Tag beginnt ([`stats --workday`](10-befehle.md#stats-workday), TUI-Ansicht „activity“). Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt. `00:00` ist die Kalendermitternacht. Default: `04:00`. Wirkt nicht auf `stats` ohne `--workday` und nicht auf `daily_activity`.
 
 `log`
-:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
+:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie die `WARN`-Zeile, wenn eine Schema-Migration aussteht und die Hooks deshalb nichts schreiben. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
 
 ### `[backup]`
 
@@ -262,7 +268,7 @@ Arbeitszeit je Projekt und Tag aus deinen eigenen Nachrichten ([`stats --worktim
 :   Länge des Buchungstexts je Kategorie und Tag, den [`stats --worktime --summary`](10-befehle.md#stats-worktime) aus den Session-Titeln und den Issue-/PR-Referenzen deiner Nachrichten baut, in Zeichen; ein längerer Text endet mit `…`. `0` schaltet die Grenze ab, negativ ist ein Fehler. Default: `200`.
 
 `[[worktime.category]]`
-:   Regeln, die Projekte Kategorien zuordnen, in der Reihenfolge der Datei; die erste passende gewinnt. Je Regel `name` (die Kategorie) und `match` (ein Muster oder eine Liste). Ein Muster wird als Ganzes gegen den Projektnamen (wie bei `stats --by project`), den Git-Root bzw. das Arbeitsverzeichnis (als Pfad und mit `~` für das Home-Verzeichnis) und die Remote-URL geprüft; `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Projekt ohne passende Regel ist seine eigene Kategorie und heißt wie das Projekt. Eine letzte Regel mit `match = "*"` sammelt den Rest. Gleiche Namen zweimal, eine Regel ohne Namen oder ohne Muster sind Fehler. Default: keine Regeln.
+:   Regeln, die Projekte Kategorien zuordnen, in der Reihenfolge der Datei; die erste passende gewinnt. Je Regel `name` (die Kategorie) und `match` (ein Muster oder eine Liste). Ein Muster wird als Ganzes gegen den Projektnamen (wie bei `stats --by project`, also den Namen aus [`[[project]]`](#project), wenn eine Definition passt), den Git-Root bzw. das Arbeitsverzeichnis (als Pfad und mit `~` für das Home-Verzeichnis) und die Remote-URL geprüft; `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Projekt ohne passende Regel ist seine eigene Kategorie und heißt wie das Projekt. Eine letzte Regel mit `match = "*"` sammelt den Rest. Gleiche Namen zweimal, eine Regel ohne Namen oder ohne Muster sind Fehler. Default: keine Regeln.
 
 ```toml
 [[worktime.category]]
@@ -282,6 +288,38 @@ match = "*"
 
 `resolve`
 :   Zu jedem Arbeitsverzeichnis Git-Root und Remote-URL ermitteln. Default: `true`. Der Branch kommt aus dem Transkript. Das Ergebnis wird in der Tabelle `dirs` gespeichert, damit es nach dem Löschen eines Worktrees erhalten bleibt. Ein gelöschter Worktree unter `<repo>__worktrees/<name>` wird dem Repo `<repo>` daneben zugeordnet. „Kein Git-Repo“ wird nach 7 Tagen neu geprüft.
+
+### `[[project]]` { #project }
+
+Projekte mit Namen, Beschreibung und Farbe, als geordnete Liste von Definitionen. Ohne Definitionen heißt ein Projekt wie der Basisname seines Git-Roots (bei gleichen Namen mit so vielen übergeordneten Verzeichnissen wie nötig), ein Verzeichnis ohne Repository wie sein Pfad mit `~`; das bleibt der Fallback für jede Session, die keine Definition trifft. Eine Definition fasst zusammen, was zusammengehört, etwa mehrere Repositories eines Kunden oder Checkouts desselben Repos unter verschiedenen Pfaden, und gibt dem Projekt eine feste Farbe.
+
+```toml
+[[project]]
+name = "kompass"
+description = "Wanderkarten, alle Repositories"
+color = "blue"
+match = ["https://github.com/mara/kompass*", "~/src/kompass-*"]
+
+[[project]]
+name = "notizbox"
+match = "~/notes"
+```
+
+`name`
+:   Pflicht und eindeutig; der Name, den `stats --by project`, `stats --worktime` und die TUI zeigen und den die Kategorie-Regeln in [`[[worktime.category]]`](#worktime) sehen. In JSON-Ausgaben ist er zugleich der Schlüssel (`key`) des Projekts.
+
+`description`
+:   Optionaler Freitext, für die Pflege in der TUI gedacht.
+
+`color`
+:   Optional: ein Name aus der Palette der Charts (`blue`, `orange`, `green`, `red`, `purple`, `teal`) oder ein Wert `#rrggbb`. Statistik und Legende zeigen das Projekt in dieser Farbe; die automatisch vergebenen Farben der übrigen Projekte lassen sie aus, solange eine andere frei ist. Ohne Angabe bekommt das Projekt wie bisher die nächste freie Farbe der Palette.
+
+`match`
+:   Ein Muster oder eine Liste, dieselbe Syntax wie in `[[worktime.category]]`: `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Muster wird als Ganzes gegen den Git-Root bzw. das Arbeitsverzeichnis der Session (als Pfad und mit `~` für das Home-Verzeichnis), die Remote-URL und den Namen geprüft, den die Session ohne Definitionen bekäme (Basisname des Git-Roots). Subagenten zählen zur Eltern-Session.
+
+**Zuordnung.** Die erste passende Definition in Dateireihenfolge gewinnt. Die Zuordnung wird bei jeder Abfrage berechnet und nicht gespeichert: Eine geänderte Definition wirkt sofort und rückwirkend auf das ganze Archiv, in [`stats --by project`](10-befehle.md#stats-period) (auch bei `--top`: zusammengefasst wird vor dem Falten in `other`), in [`stats --worktime`](10-befehle.md#stats-worktime) und in der Statistik der [TUI](30-tui.md#statistik). Ein abgeleiteter Name, der mit dem Namen einer Definition zusammenfällt, erscheint als Pfad, damit zwei Projekte nie gleich heißen.
+
+**Prüfung.** Eine Definition ohne Namen oder ohne Muster, ein leeres Muster, eine unbekannte Farbe oder zwei Definitionen mit gleichem Namen sind Fehler; sie stoppen nur die Befehle, die Projekte benennen, nie die Hooks. `total-recall config show` zeigt die wirksamen Definitionen unter `project`, `doctor` die Fehler. Default: keine Definitionen.
 
 ### `[tui]` { #tui }
 

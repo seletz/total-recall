@@ -425,7 +425,16 @@ func (a App) header() string {
 	left := " " + a.th.Gradient("total-recall")
 	right := strings.Join(a.tabs(), " ") + " "
 	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	if status := a.reloadStatus(); status != "" && lipgloss.Width(status)+4 <= gap {
+	status, important := a.reloadStatus()
+	if status != "" && lipgloss.Width(status)+2 > gap {
+		// The time gives way to the tabs; an error or a pending migration
+		// is cut instead, as long as a few cells remain.
+		status = ""
+		if important && gap >= 10 {
+			status = a.th.Error.Render(ansi.Truncate(a.statusText(), gap-2, "…"))
+		}
+	}
+	if status != "" {
 		pad := (gap - lipgloss.Width(status)) / 2
 		return left + strings.Repeat(" ", pad) + status + strings.Repeat(" ", gap-pad-lipgloss.Width(status)) + right
 	}
@@ -433,16 +442,28 @@ func (a App) header() string {
 }
 
 // reloadStatus is the middle of the header: "updated 14:03:12" in the
-// time zone of the views, or the last reload error; empty without a
-// store.
-func (a App) reloadStatus() string {
-	switch {
-	case a.opts.Store == nil:
-		return ""
-	case a.reloadErr != nil:
-		return a.th.Error.Render(ansi.Truncate("reload: "+a.reloadErr.Error(), max(a.width/2, 1), "…"))
+// time zone of the views, or the last reload error or a pending migration
+// (important: shown even in a narrow window); empty without a store.
+func (a App) reloadStatus() (status string, important bool) {
+	if a.opts.Store == nil {
+		return "", false
 	}
-	return a.th.Muted.Render("updated " + a.updated.In(a.opts.Location).Format("15:04:05"))
+	if t := a.statusText(); t != "" {
+		return a.th.Error.Render(ansi.Truncate(t, max(a.width/2, 1), "…")), true
+	}
+	return a.th.Muted.Render("updated " + a.updated.In(a.opts.Location).Format("15:04:05")), false
+}
+
+// statusText is the important part of reloadStatus, plain: the last
+// reload error or the pending migration; "" when all is well.
+func (a App) statusText() string {
+	switch {
+	case a.reloadErr != nil:
+		return "reload: " + a.reloadErr.Error()
+	case a.opts.Store.MigrationPending():
+		return "migration pending: total-recall migrate"
+	}
+	return ""
 }
 
 // tabs renders the view tabs of the header: the number of an inactive tab

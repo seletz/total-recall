@@ -15,7 +15,6 @@ package worktime
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -93,61 +92,28 @@ func ParseScope(s string) (Scope, error) {
 type Rule struct {
 	Name     string
 	Patterns []string
-	res      []*regexp.Regexp
+	compiled project.Patterns
 }
 
-// NewRule compiles the patterns of a category. A pattern is a glob where
-// `*` matches any text, also across `/`, and `?` one character; every
-// other character is literal. It is matched whole against the project
-// name, the git root (or working directory) as a path and with the home
-// directory as `~`, and the remote URL. The name and at least one
+// NewRule compiles the patterns of a category: globs as project.CompilePatterns
+// describes them (`*` matches any text, also across `/`, `?` one
+// character, everything else is literal). They are matched whole against
+// the project name, the git root (or working directory) as a path and with
+// the home directory as `~`, and the remote URL. The name and at least one
 // non-empty pattern are required.
 func NewRule(name string, patterns []string) (Rule, error) {
 	if strings.TrimSpace(name) == "" {
 		return Rule{}, fmt.Errorf("category without a name")
 	}
-	if len(patterns) == 0 {
-		return Rule{}, fmt.Errorf("category %q: no match patterns", name)
+	p, err := project.CompilePatterns(patterns)
+	if err != nil {
+		return Rule{}, fmt.Errorf("category %q: %w", name, err)
 	}
-	r := Rule{Name: name, Patterns: patterns}
-	for _, p := range patterns {
-		if p == "" {
-			return Rule{}, fmt.Errorf("category %q: empty match pattern", name)
-		}
-		r.res = append(r.res, globRegexp(p))
-	}
-	return r, nil
-}
-
-// globRegexp translates a glob into an anchored regular expression.
-func globRegexp(glob string) *regexp.Regexp {
-	var b strings.Builder
-	b.WriteString("^")
-	for _, c := range glob {
-		switch c {
-		case '*':
-			b.WriteString(".*")
-		case '?':
-			b.WriteString(".")
-		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
-		}
-	}
-	b.WriteString("$")
-	return regexp.MustCompile(b.String())
+	return Rule{Name: name, Patterns: patterns, compiled: p}, nil
 }
 
 // Matches reports whether any pattern matches any of the targets.
-func (r Rule) Matches(targets ...string) bool {
-	for _, re := range r.res {
-		for _, t := range targets {
-			if re.MatchString(t) {
-				return true
-			}
-		}
-	}
-	return false
-}
+func (r Rule) Matches(targets ...string) bool { return r.compiled.Matches(targets...) }
 
 // ValidateRules checks that the category names are distinct.
 func ValidateRules(rules []Rule) error {
@@ -226,6 +192,12 @@ type Options struct {
 	DayStart time.Duration
 	// Home abbreviates working directories without a repository to "~".
 	Home string
+	// Projects assigns the events to the configured projects ([[project]])
+	// before anything else: an event whose key a definition matches counts
+	// under the project's name, so several repositories can be one project
+	// and the category rules see the configured name. The zero value
+	// leaves every key as it is.
+	Projects project.Resolver
 	// From and To are the first and last day (local midnights) of the
 	// report; zero means the first or last day with events.
 	From, To time.Time
@@ -313,6 +285,11 @@ func Compute(events []Event, s Settings, opts Options) Report {
 	}
 	sorted := make([]Event, len(events))
 	copy(sorted, events)
+	for i := range sorted {
+		if key := opts.Projects.Key(sorted[i].Project, sorted[i].Dir, sorted[i].Remote); key != sorted[i].Project {
+			sorted[i].Project, sorted[i].Dir = key, false
+		}
+	}
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Time.Before(sorted[j].Time) })
 
 	type sessAcc struct {
@@ -330,7 +307,7 @@ func Compute(events []Event, s Settings, opts Options) Report {
 		projects map[string]*projAcc
 		sessions map[string]*sessAcc
 	}
-	names := projectNames(sorted, opts.Home)
+	names := projectNames(sorted, opts.Home, opts.Projects)
 	category := categories(names, sorted, s.Rules, opts.Home)
 	days := map[time.Time]map[string]*catAcc{}
 	var prev time.Time
@@ -465,8 +442,10 @@ func Compute(events []Event, s Settings, opts Options) Report {
 	return out
 }
 
-// projectNames maps every project key of the events to its display name.
-func projectNames(events []Event, home string) map[string]string {
+// projectNames maps every project key of the events to its display name:
+// configured names (as Options.Projects assigned them) stay, the rest get
+// the derived names (project.Names).
+func projectNames(events []Event, home string, r project.Resolver) map[string]string {
 	var keys, dirs []string
 	seen := map[string]bool{}
 	for _, e := range events {
@@ -479,7 +458,7 @@ func projectNames(events []Event, home string) map[string]string {
 			dirs = append(dirs, e.Project)
 		}
 	}
-	return project.Names(keys, dirs, home)
+	return r.Names(keys, dirs, home)
 }
 
 // categories maps every project key to its category: the name of the

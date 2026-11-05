@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -88,6 +90,22 @@ func (e *env) ingestCmd() *cobra.Command {
 	f.StringVar(&payloadFile, "hook-payload", "", "internal: read the hook payload from this file and delete it")
 	_ = f.MarkHidden("hook-payload")
 	return c
+}
+
+// warnOutdatedOnce logs, at WARN, that the hook wrote nothing because the
+// archive needs a migration: once per schema pair and local day, remembered
+// in a marker file in the lock dir, so the log does not fill up with one
+// line per hook while the user has not migrated yet.
+func warnOutdatedOnce(cfg *config.Config, log *logfile.Logger, now time.Time, event string, err error) {
+	stamp := err.Error() + " " + now.In(cfg.Location()).Format("2006-01-02")
+	marker := filepath.Join(ops.LockDir(cfg), "schema-warned")
+	if b, rerr := os.ReadFile(marker); rerr == nil && strings.TrimSpace(string(b)) == stamp {
+		return
+	}
+	if merr := os.MkdirAll(ops.LockDir(cfg), 0o755); merr == nil {
+		_ = os.WriteFile(marker, []byte(stamp+"\n"), 0o644)
+	}
+	log.Warnf("hook %s: nothing written, the archive needs a migration (%v); hooks catch up afterwards", event, err)
 }
 
 // ingestFlags are the mode flags of `ingest`.
@@ -237,6 +255,12 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		// Nothing is lost: the next hook of the session (or SessionStart
 		// with --all) reads on from the stored offset.
 		log.Infof("hook %s: maintenance in progress, skipped; the next hook catches up", p.HookEventName)
+		return nil
+	}
+	if errors.Is(err, store.ErrSchemaOutdated) {
+		// Same here: the stored offsets are untouched, the first hook after
+		// `total-recall migrate` reads everything that was skipped.
+		warnOutdatedOnce(cfg, log, e.app.Now(), p.HookEventName, err)
 		return nil
 	}
 	if err != nil {

@@ -72,6 +72,9 @@ func (l *Logger) Errorf(format string, args ...any) { l.Printf("ERROR", format, 
 // Infof logs at level INFO.
 func (l *Logger) Infof(format string, args ...any) { l.Printf("INFO", format, args...) }
 
+// Warnf logs at level WARN.
+func (l *Logger) Warnf(format string, args ...any) { l.Printf("WARN", format, args...) }
+
 // Writer returns an io.Writer that logs every written line at level.
 func (l *Logger) Writer(level string) io.Writer { return &writer{l: l, level: level} }
 

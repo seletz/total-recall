@@ -28,7 +28,9 @@ type state struct {
 	pages     store.PageStats
 	schema    int
 	latest    int
-	status    store.Status
+	// plan is what migrate would do, loaded when a migration is pending.
+	plan   store.MigratePlan
+	status store.Status
 	// backup is the newest backup copy and its time; empty without one.
 	backup   string
 	backupAt time.Time
@@ -109,5 +111,10 @@ func load(opts Options, now time.Time) state {
 		return s
 	}
 	s.size = s.pages.SizeBytes
+	if s.pending() {
+		if s.plan, err = store.PlanMigration(ctx, cfg.DB); err != nil {
+			s.err = err
+		}
+	}
 	return s
 }

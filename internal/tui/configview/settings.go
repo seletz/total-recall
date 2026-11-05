@@ -137,17 +137,9 @@ func (p settingsPage) update(m *Model, msg tea.Msg) (page, tea.Cmd) {
 	case Changed:
 		return p.reload(m)
 	case editedMsg:
-		if msg.err != nil {
-			p.notice, p.bad = "editor: "+msg.err.Error(), true
-			return p, nil
-		}
-		cfg, err := m.opts.Config.Reload()
-		if err != nil {
-			p.notice, p.bad = err.Error(), true
-			return p, nil
-		}
-		p.notice, p.bad = "reloaded "+m.tilde(cfg.Path), false
-		return p, func() tea.Msg { return Changed{Config: cfg} }
+		var cmd tea.Cmd
+		p.notice, p.bad, cmd = m.reloadFile(msg)
+		return p, cmd
 	case tea.KeyPressMsg:
 		if p.editing {
 			return p.editKey(m, msg)
@@ -175,7 +167,11 @@ func (p settingsPage) key(m *Model, msg tea.KeyPressMsg) (page, tea.Cmd) {
 	case key.Matches(msg, m.keys.Default):
 		return p.reset(m)
 	case key.Matches(msg, m.keys.Editor):
-		return p.editor(m)
+		notice, cmd := m.editor()
+		if cmd == nil {
+			p.notice, p.bad = notice, true
+		}
+		return p, cmd
 	case key.Matches(msg, m.keys.Back):
 		p.notice = ""
 	}
@@ -328,21 +324,33 @@ func (p settingsPage) reset(m *Model) (page, tea.Cmd) {
 }
 
 // editor opens the config file in $EDITOR (written from the template
-// first when it does not exist) and reloads it afterwards.
-func (p settingsPage) editor(m *Model) (page, tea.Cmd) {
+// first when it does not exist); the editedMsg of the returned command
+// reloads it. Without an editor it returns the reason and no command.
+func (m *Model) editor() (string, tea.Cmd) {
 	ed := m.opts.Getenv("EDITOR")
 	if ed == "" {
-		p.notice, p.bad = "set $EDITOR to edit the file from here", true
-		return p, nil
+		return "set $EDITOR to edit the file from here", nil
 	}
 	path := m.opts.Config.Path
 	if err := config.WriteTemplate(path); err != nil && !errors.Is(err, fs.ErrExist) {
-		p.notice, p.bad = err.Error(), true
-		return p, nil
+		return err.Error(), nil
 	}
 	args := strings.Fields(ed)
 	c := exec.Command(args[0], append(args[1:], path)...) //nolint:gosec // the user's own $EDITOR
-	return p, tea.ExecProcess(c, func(err error) tea.Msg { return editedMsg{err: err} })
+	return "", tea.ExecProcess(c, func(err error) tea.Msg { return editedMsg{err: err} })
+}
+
+// reloadFile loads the configuration file again after the editor closed
+// and hands the result on as Changed.
+func (m *Model) reloadFile(msg editedMsg) (string, bool, tea.Cmd) {
+	if msg.err != nil {
+		return "editor: " + msg.err.Error(), true, nil
+	}
+	cfg, err := m.opts.Config.Reload()
+	if err != nil {
+		return err.Error(), true, nil
+	}
+	return "reloaded " + m.tilde(cfg.Path), false, func() tea.Msg { return Changed{Config: cfg} }
 }
 
 // cursor is the position of the text cursor in the page while editing.

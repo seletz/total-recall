@@ -20,10 +20,6 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 )
 
-// ErrNotAvailable says an action exists in the list but not in this
-// version (migrate before the migrate command).
-var ErrNotAvailable = errors.New("not available in this version")
-
 // runEnv is what an action gets: the configuration, the clock and the
 // options, copied before the action's goroutine starts.
 type runEnv struct {
@@ -46,7 +42,10 @@ type action struct {
 	confirm string
 	// disabled says why the action cannot run right now; empty runs.
 	disabled string
-	run      func(ctx context.Context, env runEnv, log logf) (string, error)
+	// details are shown under the list while the action waits for its
+	// confirmation (the plan of a migration).
+	details []string
+	run     func(ctx context.Context, env runEnv, log logf) (string, error)
 }
 
 // Messages of a run: one progress line, then the result.
@@ -113,10 +112,14 @@ func (m Model) actions() []action {
 	if s.loaded && s.noArchive {
 		noArchive = "no archive yet"
 	}
+	// Until the migration ran, nothing but backup writes to the archive.
+	outdated := noArchive
+	if outdated == "" && s.pending() {
+		outdated = "migrate first"
+	}
 	migrate := action{name: "migrate", writes: true,
-		summary: "apply the pending schema migrations after a backup",
-		confirm: fmt.Sprintf("migrate the archive from schema v%d to v%d; back up first", s.schema, s.latest),
-		run:     func(context.Context, runEnv, logf) (string, error) { return "", ErrNotAvailable }}
+		summary: "apply the pending schema migrations after a backup; hooks skip meanwhile",
+		run:     runMigrate}
 	switch {
 	case !s.loaded:
 		migrate.disabled = "loading"
@@ -125,29 +128,33 @@ func (m Model) actions() []action {
 	case !s.pending():
 		migrate.summary, migrate.disabled = fmt.Sprintf("schema v%d is current", s.schema), "nothing pending"
 	default:
-		migrate.disabled = ErrNotAvailable.Error()
+		migrate.confirm = fmt.Sprintf("migrate %s from schema v%d to v%d; the copy %s stays next to it", m.tilde(cfg.DB), s.plan.From, s.plan.To, filepath.Base(s.plan.Backup))
+		migrate.details = ops.PlanLines(s.plan)
+		if s.backup == "" {
+			migrate.summary = "apply the pending schema migrations; no backup yet, run backup first"
+		}
 	}
 	return []action{
 		{name: "backup", writes: true, disabled: noArchive,
 			summary: fmt.Sprintf("write a compressed copy to %s, keep %d daily and %d monthly", dir, cfg.Backup.KeepDaily, cfg.Backup.KeepMonthly),
 			confirm: fmt.Sprintf("write %s to %s and prune older copies", store.BackupFileName(m.now()), dir),
 			run:     runBackup},
-		{name: "maintenance (dry run)", disabled: noArchive,
+		{name: "maintenance (dry run)", disabled: outdated,
 			summary: fmt.Sprintf("measure a rebuild with %d-byte pages; changes nothing", ops.RecommendedPageSize),
 			run:     runMaintain(true)},
-		{name: "maintenance", writes: true, disabled: noArchive,
+		{name: "maintenance", writes: true, disabled: outdated,
 			summary: fmt.Sprintf("rebuild the archive with %d-byte pages after a backup; hooks skip meanwhile", ops.RecommendedPageSize),
 			confirm: fmt.Sprintf("back up to %s, rebuild %s with %d-byte pages and swap it in (needs about twice its size free)", dir, m.tilde(cfg.DB), ops.RecommendedPageSize),
 			run:     runMaintain(false)},
 		migrate,
-		{name: "reindex actors (dry run)", disabled: noArchive,
+		{name: "reindex actors (dry run)", disabled: outdated,
 			summary: "count the stored user messages whose actor the current rules would change",
 			run:     runReindex(true)},
-		{name: "reindex actors", writes: true, disabled: noArchive,
+		{name: "reindex actors", writes: true, disabled: outdated,
 			summary: "apply the current actor rules to every stored user message",
 			confirm: "reclassify the actor of every stored user message with the rules of the configuration",
 			run:     runReindex(false)},
-		{name: "ingest all", writes: true,
+		{name: "ingest all", writes: true, disabled: outdatedOnly(s, outdated),
 			summary: "read every transcript of every harness from the stored offset",
 			confirm: "read every transcript of every enabled harness into " + m.tilde(cfg.DB),
 			run:     runIngest},
@@ -155,6 +162,15 @@ func (m Model) actions() []action {
 			summary: "check the transcripts for format drift; reads only",
 			run:     runDoctor},
 	}
+}
+
+// outdatedOnly is the reason for an action that works without an archive
+// but not with an outdated one: "" unless the migration is pending.
+func outdatedOnly(s state, reason string) string {
+	if s.pending() {
+		return reason
+	}
+	return ""
 }
 
 func (p actionsPage) update(m *Model, msg tea.Msg) (page, tea.Cmd) {
@@ -209,7 +225,7 @@ func (p actionsPage) key(m *Model, msg tea.KeyPressMsg) (page, tea.Cmd) {
 			return p.start(m, m.actions()[p.row])
 		case key.Matches(msg, m.keys.Back):
 			p.confirm = false
-			p.log = append(p.log, p.current+": cancelled")
+			p.log = []string{p.current + ": cancelled"}
 		}
 		return p, nil
 	case key.Matches(msg, m.keys.Up):
@@ -249,6 +265,7 @@ func (p actionsPage) selectRow(m *Model) (page, tea.Cmd) {
 	}
 	if a.writes {
 		p.confirm = true
+		p.log = a.details
 		return p, nil
 	}
 	return p.start(m, a)
@@ -369,14 +386,15 @@ func (p actionsPage) view(m *Model, width, height int) string {
 
 // openWrite opens the archive for writing as the CLI does, logging to the
 // configured log file.
-func openWrite(env runEnv) (*store.Store, *logfile.Logger, error) {
+func openWrite(env runEnv, extra ...store.Option) (*store.Store, *logfile.Logger, error) {
 	log := logfile.New(env.cfg.LogPath(), env.opts.Now)
-	st, err := ops.OpenWrite(env.cfg, log)
+	st, err := ops.OpenWrite(env.cfg, log, extra...)
 	return st, log, err
 }
 
 func runBackup(ctx context.Context, env runEnv, log logf) (string, error) {
-	st, _, err := openWrite(env)
+	// backup is the step before a migration, so it accepts an older schema.
+	st, _, err := openWrite(env, store.AllowOutdated())
 	if err != nil {
 		return "", err
 	}
@@ -387,6 +405,32 @@ func runBackup(ctx context.Context, env runEnv, log logf) (string, error) {
 		return "", err
 	}
 	return "backup written: " + filepath.Base(p), nil
+}
+
+// progressInterval is how often a running migration reports its progress.
+const progressInterval = 2 * time.Second
+
+func runMigrate(ctx context.Context, env runEnv, log logf) (string, error) {
+	var last time.Time
+	progress := func(p store.Progress) {
+		if p.Total == 0 {
+			return
+		}
+		t := time.Now()
+		if p.Done < p.Total && t.Sub(last) < progressInterval {
+			return
+		}
+		last = t
+		log("migration v%d: %d/%d (%d %%)", p.Version, p.Done, p.Total, p.Done*100/p.Total)
+	}
+	res, err := ops.Migrate(ctx, env.cfg, env.opts.Wait, func(f string, a ...any) { log(f, a...) }, progress)
+	if err != nil {
+		return "", err
+	}
+	if !res.Plan.Pending() {
+		return fmt.Sprintf("schema v%d is current, nothing to migrate", res.Plan.From), nil
+	}
+	return fmt.Sprintf("migrated v%d -> v%d; the copy %s can be removed once everything works", res.Plan.From, res.Plan.To, filepath.Base(res.Plan.Backup)), nil
 }
 
 func runMaintain(dryRun bool) func(context.Context, runEnv, logf) (string, error) {

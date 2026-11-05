@@ -34,6 +34,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/configview"
@@ -113,6 +114,9 @@ type Options struct {
 	// Home is the home directory, shown as "~" in project names of
 	// directories without a repository; empty keeps full paths.
 	Home string
+	// Projects assigns sessions to the configured projects ([[project]])
+	// and supplies their colours; the zero value has none.
+	Projects project.Resolver
 	// NoMouse leaves the mouse to the terminal: no wheel scrolling and no
 	// clicks, but text is selected by plain dragging.
 	NoMouse bool
@@ -255,7 +259,7 @@ func statsOptions(opts Options) (stats.Options, error) {
 	if err != nil {
 		return stats.Options{}, fmt.Errorf("stats dimension: %w", err)
 	}
-	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays}
+	so := stats.Options{Now: opts.Now, Location: opts.Location, Graphics: opts.Graphics, Home: opts.Home, Period: p, Dimension: d, Keys: opts.Keys, Holidays: opts.Holidays, Projects: opts.Projects}
 	if opts.Store != nil {
 		so.Loader = opts.Store
 	}

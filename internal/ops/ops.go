@@ -8,6 +8,8 @@
 package ops
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -29,13 +31,16 @@ const RecommendedPageSize = 16384
 // "locks" next to the database.
 func LockDir(cfg *config.Config) string { return filepath.Join(filepath.Dir(cfg.DB), "locks") }
 
-// OpenWrite opens the archive read-write (migrating it if needed) and holds
-// the shared maintenance lock until Close: while `maintenance` rebuilds the
-// archive, it fails with store.ErrMaintenance.
-func OpenWrite(cfg *config.Config, log *logfile.Logger) (*store.Store, error) {
-	return store.Open(cfg.DB, store.WithLocation(cfg.Location()),
+// OpenWrite opens the archive read-write and holds the shared maintenance
+// lock until Close: while `maintenance` or `migrate` holds the archive, it
+// fails with store.ErrMaintenance. It never migrates: an archive with an
+// older schema is store.ErrSchemaOutdated unless extra has
+// store.AllowOutdated (backup).
+func OpenWrite(cfg *config.Config, log *logfile.Logger, extra ...store.Option) (*store.Store, error) {
+	opts := append([]store.Option{store.WithLocation(cfg.Location()),
 		store.WithLockDir(LockDir(cfg)),
-		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
+		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) })}, extra...)
+	return store.Open(cfg.DB, opts...)
 }
 
 // Deps builds the ingest dependencies from the configuration.
@@ -72,6 +77,34 @@ func Adapters(cfg *config.Config) []harness.Adapter {
 		))
 	}
 	return out
+}
+
+// PlanLines renders a migration plan as the lines `migrate` prints after
+// the database line: the schema versions and every pending step, the
+// pre-migration copy and the free space needed.
+func PlanLines(plan store.MigratePlan) []string {
+	if !plan.Pending() {
+		return []string{fmt.Sprintf("schema    v%d is current, nothing to migrate", plan.From)}
+	}
+	noun := "migrations"
+	if len(plan.Steps) == 1 {
+		noun = "migration"
+	}
+	out := []string{fmt.Sprintf("schema    v%d -> v%d, %d pending %s:", plan.From, plan.To, len(plan.Steps), noun)}
+	for _, s := range plan.Steps {
+		out = append(out, fmt.Sprintf("  v%-4d %s", s.Version, s.Summary))
+	}
+	out = append(out, "backup    "+plan.Backup,
+		fmt.Sprintf("space     about %.1f MiB free needed next to the database (copy and migration)", float64(plan.NeedBytes)/(1<<20)))
+	return out
+}
+
+// Migrate brings the archive of cfg to the schema of this binary as the
+// `migrate` command does: with the maintenance lock, waiting up to wait
+// for running hooks, one line per step to logf and the progress of a long
+// step to progress (both optional).
+func Migrate(ctx context.Context, cfg *config.Config, wait time.Duration, logf func(string, ...any), progress func(store.Progress)) (store.MigrateResult, error) {
+	return store.Migrate(ctx, cfg.DB, store.MigrateOptions{LockDir: LockDir(cfg), Wait: wait, Logf: logf, Progress: progress})
 }
 
 // MaintainOptions are the options of store.Maintain for cfg: the
