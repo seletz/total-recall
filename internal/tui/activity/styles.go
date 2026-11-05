@@ -24,8 +24,8 @@ type styles struct {
 	// holidayText for a holiday's row and the holiday names, holidayName
 	// for the name on the axis.
 	under, on, over, weekendText, holidayText, holidayName lipgloss.Style
-	// Chrome.
-	faint, bold, label, active lipgloss.Style
+	// Chrome; mark is the marker of the window's rows.
+	faint, bold, label, active, mark lipgloss.Style
 }
 
 // newStyles returns the styles for th.
@@ -52,7 +52,19 @@ func newStyles(th theme.Theme) styles {
 		bold:        th.Strong,
 		label:       th.Label,
 		active:      th.Active,
+		mark:        lipgloss.NewStyle().Foreground(th.Accent),
 	}
+}
+
+// dim returns the styles of a row of the lead: the text and the bar by
+// working hours in the muted colour, the band of the core hours and its
+// lines as they are, so the rows of the window stand out.
+func (s styles) dim() styles {
+	d := s
+	d.core, d.outside, d.night, d.weekend, d.holiday = s.faint, s.faint, s.faint, s.faint, s.faint
+	d.under, d.on, d.over, d.weekendText, d.holidayText = s.faint, s.faint, s.faint, s.faint, s.faint
+	d.holidayName = s.faint.Italic(true)
+	return d
 }
 
 // cell returns the style of a cell kind.

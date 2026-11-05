@@ -525,6 +525,7 @@ func TestSettingsEffect(t *testing.T) {
 		{"tui.reload", "applied at once"},
 		{"tui.mouse", "applied at once"},
 		{"tui.activity_projects", "applied at once"},
+		{"tui.activity_newest", "applied at once"},
 		{"day_start", "applied at once"},
 		{"work.target", "applied at once"},
 		{"work.bundesland", "applied at once"},

@@ -570,7 +570,7 @@ func TestTUISection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: Duration{5 * time.Second}}); d.TUI != want {
+	if want := (TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{5 * time.Second}}); d.TUI != want {
 		t.Errorf("default TUI = %+v, want %+v", d.TUI, want)
 	}
 	p := writeFile(t, t.TempDir(), "c.toml", `
@@ -582,13 +582,14 @@ stats_period = "week"
 stats_dimension = "agent"
 activity_window = "month"
 activity_projects = true
+activity_newest = "top"
 reload = "10s"
 `)
 	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityProjects: true, Reload: Duration{10 * time.Second}}); c.TUI != want {
+	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityProjects: true, ActivityNewest: "top", Reload: Duration{10 * time.Second}}); c.TUI != want {
 		t.Errorf("TUI = %+v, want %+v", c.TUI, want)
 	}
 	entries := map[string]Entry{}
@@ -596,7 +597,7 @@ reload = "10s"
 		entries[e.Key] = e
 	}
 	for k, want := range map[string]string{"tui.view": "stats", "tui.graphics": "text", "tui.mouse": "false",
-		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month", "tui.activity_projects": "true", "tui.reload": "10s"} {
+		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month", "tui.activity_projects": "true", "tui.activity_newest": "top", "tui.reload": "10s"} {
 		if e := entries[k]; e.Value != want || e.Origin != OriginFile {
 			t.Errorf("%s = %+v, want %q from file", k, e, want)
 		}

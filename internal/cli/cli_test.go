@@ -1027,7 +1027,7 @@ func TestTUIOptions(t *testing.T) {
 	base := func() *config.Config {
 		return &config.Config{Timezone: "UTC",
 			Work: config.Work{Hours: "09:00-17:00", Target: config.Duration{Duration: 8 * time.Hour}, DailyHigh: config.Duration{Duration: 9 * time.Hour}, WeeklyHigh: config.Duration{Duration: 48 * time.Hour}, Count: "human"},
-			TUI:  config.TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: config.Duration{Duration: 5 * time.Second}}}
+			TUI:  config.TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: config.Duration{Duration: 5 * time.Second}}}
 	}
 	tests := []struct {
 		name    string
@@ -1037,19 +1037,19 @@ func TestTUIOptions(t *testing.T) {
 		wantErr string
 	}{
 		{"defaults", nil, tuiFlags{},
-			tui.Options{Start: "search", Graphics: "auto", NoMouse: false, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: 5 * time.Second}, ""},
+			tui.Options{Start: "search", Graphics: "auto", NoMouse: false, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: 5 * time.Second}, ""},
 		{"config", func(c *config.Config) {
-			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", Reload: config.Duration{Duration: 10 * time.Second}}
+			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityNewest: "top", Reload: config.Duration{Duration: 10 * time.Second}}
 		}, tuiFlags{},
-			tui.Options{Start: "stats", Graphics: "text", NoMouse: true, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", Reload: 10 * time.Second}, ""},
+			tui.Options{Start: "stats", Graphics: "text", NoMouse: true, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityNewest: "top", Reload: 10 * time.Second}, ""},
 		{"flags over config", func(c *config.Config) {
-			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", Reload: config.Duration{Duration: 10 * time.Second}}
+			c.TUI = config.TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityNewest: "top", Reload: config.Duration{Duration: 10 * time.Second}}
 		}, tuiFlags{View: "activity", Graphics: "kitty", GraphicsSet: true, NoMouse: false, NoMouseSet: true, Query: "x", Reload: 0, ReloadSet: true},
-			tui.Options{Start: "activity", Graphics: "kitty", NoMouse: false, Query: "x", StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", Reload: 0}, ""},
+			tui.Options{Start: "activity", Graphics: "kitty", NoMouse: false, Query: "x", StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityNewest: "top", Reload: 0}, ""},
 		{"unset bool flag keeps config", func(c *config.Config) { c.TUI.Mouse = false }, tuiFlags{NoMouse: false},
-			tui.Options{Start: "search", Graphics: "auto", NoMouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: 5 * time.Second}, ""},
+			tui.Options{Start: "search", Graphics: "auto", NoMouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: 5 * time.Second}, ""},
 		{"reload flag", nil, tuiFlags{Reload: 2 * time.Second, ReloadSet: true},
-			tui.Options{Start: "search", Graphics: "auto", StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: 2 * time.Second}, ""},
+			tui.Options{Start: "search", Graphics: "auto", StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: 2 * time.Second}, ""},
 		{"reload flag too short", nil, tuiFlags{Reload: 500 * time.Millisecond, ReloadSet: true}, tui.Options{}, "--reload 500ms"},
 		{"bad reload in config", func(c *config.Config) { c.TUI.Reload = config.Duration{Duration: time.Millisecond} }, tuiFlags{}, tui.Options{}, "tui.reload"},
 		{"bad view flag", nil, tuiFlags{View: "bogus"}, tui.Options{}, `unknown view "bogus"`},

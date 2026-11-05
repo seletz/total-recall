@@ -28,6 +28,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).
 
+### TUI
+
+- **Die Aktivität je Tag füllt die Höhe.** Bisher zeigte die Ansicht genau die Tage der Periode, sieben bei einer Woche, und ließ den Rest des Bildschirms leer. Jetzt stehen immer so viele Tageszeilen, wie zwischen Kopf- und Fußzeile passen: vor der Periode die Tage davor, gedämpft, die Tage der Periode mit `▎` markiert. `d`, `w` und `m` bestimmen nur noch, welche Tage Kopfzeile, Soll, Saldo, Kennzahlen und Legende zusammenfassen; nach einer Größenänderung passt sich die Liste sofort an, ist die Periode länger als der Platz, scrollt sie wie bisher. Neu ist `o`: der neueste Tag unten (Default, wie ein Protokoll) oder oben, auch per Klick auf `day` im Spaltenkopf, dessen Pfeil die Richtung zeigt; ++up++ und ++down++ zeigen immer die Zeile darüber bzw. darunter. Start mit `activity_newest` in [`[tui]`](20-konfiguration.md#tui) ([Aktivität](30-tui.md#aktivitat), [#173](https://github.com/seletz/total-recall/issues/173)).
+
 ### Intern
 
 - `scripts/release-notes.sh`, das den Kopf der GitHub-Release-Notes aus dieser Seite baut, hat einen Test gegen einen synthetischen Changelog: Abschnitt finden, relative Links und Anker auf die veröffentlichte Doku umschreiben, fehlende Version abweisen. Neu abgewiesen wird auch ein Abschnitt, der noch „(unveröffentlicht)“ heißt; bisher nahm das Skript ihn als Release Notes an. `mise run release:notes:check`, in der CI über `go test` ([#164](https://github.com/seletz/total-recall/issues/164)).
