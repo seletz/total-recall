@@ -157,10 +157,10 @@ heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]   # Stufen des Kalenders,
 ### `[backup]`
 
 `dir`
-:   Zielordner für Backups. Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
+:   Zielordner für Backups (`archive-YYYY-MM-DD.db.zst`). Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
 
 `keep_daily`
-:   So viele Tageskopien bleiben erhalten. Default: 7.
+:   So viele Tageskopien bleiben erhalten. Default: 7. Kopien älterer Versionen (`.db.gz`, `.db`) zählen mit.
 
 `keep_monthly`
 :   So viele Monatskopien bleiben erhalten. Eine Monatskopie ist die letzte Kopie eines Monats. `0` heißt: alle behalten.
