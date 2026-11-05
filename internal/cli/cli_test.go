@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"database/sql"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/logfile"
@@ -1342,5 +1344,90 @@ func TestIngestRewriteRaw(t *testing.T) {
 	}
 	if n := e.mustRun(t, "sql", "--format", "csv", "SELECT count(*) FROM events WHERE raw_text(raw) LIKE '%high_entropy%' OR raw IS NULL"); !strings.HasSuffix(strings.TrimSpace(n), "0") {
 		t.Errorf("raw still masked: %q", n)
+	}
+}
+
+// imageTranscript writes a session whose user pastes a small synthetic
+// picture twice and returns its event ID prefix.
+func imageTranscript(t *testing.T, e *testEnv, img []byte) string {
+	t.Helper()
+	const sid = "33333333-3333-4333-8333-333333333333"
+	line := func(uuid, ts string) tf.Line {
+		l := tf.User(sid, uuid, ts, "/w/pics", "")
+		l["message"] = map[string]any{"role": "user", "content": []any{
+			map[string]any{"type": "text", "text": "look"},
+			map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": base64.StdEncoding.EncodeToString(img)}},
+		}}
+		return l
+	}
+	tf.WriteFile(t, e.projects, "-w-pics/"+sid+".jsonl", line("p1", "2026-10-03T10:00:00Z").JSON()+line("p2", "2026-10-03T10:01:00Z").JSON())
+	return "claude:" + sid
+}
+
+func TestBlobCommand(t *testing.T) {
+	img := []byte("\x89PNG\r\n\x1a\nsynthetic picture for the blob command")
+	e := newTestEnv(t)
+	sid := imageTranscript(t, e, img)
+	e.mustRun(t, "ingest", "--all")
+	hash := blobref.Hash(img)
+
+	// To a pipe (the test's stdout is not a terminal): the bytes.
+	if out := e.mustRun(t, "blob", hash); out != string(img) {
+		t.Errorf("blob to stdout = %q", out)
+	}
+	// A unique prefix works; to a file with a summary line.
+	file := filepath.Join(e.dir, "pic.png")
+	if out := e.mustRun(t, "blob", hash[:10], "--out", file); !strings.Contains(out, "wrote "+file+" (image/png, 46 B)") {
+		t.Errorf("blob --out = %q", out)
+	}
+	if got, err := os.ReadFile(file); err != nil || string(got) != string(img) {
+		t.Errorf("written file = %q, %v", got, err)
+	}
+	// JSON: metadata and the events, never the data.
+	b := decode[BlobJSON](t, e.mustRun(t, "blob", hash, "--json"))
+	if b.SHA256 != hash || b.MediaType != "image/png" || b.Bytes != int64(len(img)) || b.StoredBytes != int64(len(img)) || b.Out != "" ||
+		strings.Join(b.Events, ",") != "claude:p1#1,claude:p2#1" {
+		t.Errorf("blob --json = %+v", b)
+	}
+	// On a terminal binary data is refused.
+	e.width = 80
+	if r := e.run(t, "", "blob", hash); r.code == 0 || !strings.Contains(r.stderr, "--out") {
+		t.Errorf("blob on a terminal = %+v", r)
+	}
+	e.width = 0
+	// Unknown and ambiguous references.
+	if r := e.run(t, "", "blob", "0000", "--json"); r.code != 1 || !strings.Contains(r.stdout, `"kind":"not_found"`) {
+		t.Errorf("unknown = %+v", r)
+	}
+	if r := e.run(t, "", "blob", "", "--json"); r.code != 1 || !strings.Contains(r.stdout, `"kind":"ambiguous"`) {
+		t.Errorf("empty = %+v", r)
+	}
+	if out := e.mustRun(t, "show", sid, "--json"); !strings.Contains(out, hash) {
+		t.Errorf("show names the hash: %q", out)
+	}
+}
+
+func TestShowAttachments(t *testing.T) {
+	img := []byte("\x89PNG\r\n\x1a\nsynthetic picture for show")
+	e := newTestEnv(t)
+	sid := imageTranscript(t, e, img)
+	if out := e.mustRun(t, "ingest", "--all"); !strings.Contains(out, "1 attachments (0.0 MiB)") {
+		t.Errorf("ingest summary = %q", out)
+	}
+	hash := blobref.Hash(img)
+	out := e.mustRun(t, "show", sid)
+	if !strings.Contains(out, "[image image/png 34 B]") || strings.Count(out, "   attachment "+hash+"  image/png  34 B") != 2 {
+		t.Errorf("show = %q", out)
+	}
+	sh := decode[ShowJSON](t, e.mustRun(t, "show", sid, "--json"))
+	if len(sh.Events) != 4 || len(sh.Events[0].Attachments) != 0 || len(sh.Events[1].Attachments) != 1 ||
+		sh.Events[1].Attachments[0] != (AttachmentJSON{SHA256: hash, MediaType: "image/png", Bytes: 34, Position: 0}) {
+		t.Errorf("show --json = %+v", sh.Events)
+	}
+	if s := decode[StatusJSON](t, e.mustRun(t, "status", "--json")); s.Blobs != 1 || s.BlobBytes != 34 || s.BlobStoredBytes != 34 {
+		t.Errorf("status blobs = %d, %d, %d", s.Blobs, s.BlobBytes, s.BlobStoredBytes)
+	}
+	if out := e.mustRun(t, "status"); !strings.Contains(out, "1 attachments, 34 B (34 B stored)") {
+		t.Errorf("status = %q", out)
 	}
 }

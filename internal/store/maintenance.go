@@ -176,6 +176,8 @@ type PageStats struct {
 	Sessions      int   `json:"sessions"`
 	Events        int   `json:"events"`
 	Sources       int   `json:"sources"`
+	// Blobs is the number of stored attachments (0 before schema v6).
+	Blobs int `json:"blobs"`
 }
 
 // PageStats reads the page size, page and freelist counts and the row
@@ -192,9 +194,17 @@ func (s *Store) PageStats(ctx context.Context) (PageStats, error) {
 		{"SELECT count(*) FROM sessions", &ps.Sessions},
 		{"SELECT count(*) FROM events", &ps.Events},
 		{"SELECT count(*) FROM sources", &ps.Sources},
+		// An archive that still waits for migration 6 has no blobs table
+		// (status reads PageStats on it): count 0 then.
+		{"SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'blobs'", &ps.Blobs},
 	} {
 		if err := s.db().QueryRowContext(ctx, q.sql).Scan(q.dst); err != nil {
 			return ps, fmt.Errorf("store: page stats: %s: %w", q.sql, err)
+		}
+	}
+	if ps.Blobs > 0 {
+		if err := s.db().QueryRowContext(ctx, "SELECT count(*) FROM blobs").Scan(&ps.Blobs); err != nil {
+			return ps, fmt.Errorf("store: page stats: blobs: %w", err)
 		}
 	}
 	ps.SizeBytes = fileSize(s.path)
@@ -279,9 +289,9 @@ var checkCopy = func(ctx context.Context, path string, want PageStats) (PageStat
 	if err != nil {
 		return PageStats{}, err
 	}
-	if got.Sessions != want.Sessions || got.Events != want.Events || got.Sources != want.Sources {
-		return PageStats{}, fmt.Errorf("row counts differ: copy has %d sessions, %d events, %d sources; original %d, %d, %d",
-			got.Sessions, got.Events, got.Sources, want.Sessions, want.Events, want.Sources)
+	if got.Sessions != want.Sessions || got.Events != want.Events || got.Sources != want.Sources || got.Blobs != want.Blobs {
+		return PageStats{}, fmt.Errorf("row counts differ: copy has %d sessions, %d events, %d sources, %d blobs; original %d, %d, %d, %d",
+			got.Sessions, got.Events, got.Sources, got.Blobs, want.Sessions, want.Events, want.Sources, want.Blobs)
 	}
 	return got, nil
 }

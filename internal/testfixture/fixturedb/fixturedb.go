@@ -41,6 +41,7 @@ func Ingest(t testing.TB, projects string, git map[string]gitinfo.Info) (*store.
 		Store:      st,
 		Adapters:   []harness.Adapter{claude.New(projects)},
 		StoreRaw:   true,
+		StoreBlobs: true,
 		ResolveGit: true,
 		GitResolve: func(_ context.Context, cwd string) (gitinfo.Info, error) {
 			if info, ok := git[cwd]; ok {

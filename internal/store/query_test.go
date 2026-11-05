@@ -510,9 +510,10 @@ func TestSearchBySession(t *testing.T) {
 }
 
 // TestReadPathsDoNotLoadRaw: the read queries behind show, search, sessions,
-// stats and the TUI never load events.raw; no read command outputs it and it
-// is the largest column by far (#131). The column stays stored for the
-// paths that need it (UserMessages, backup).
+// stats and the TUI never load events.raw or blobs.data; no read command
+// outputs them and they are the largest columns by far (#131, #135). The
+// columns stay stored for the paths that need them (UserMessages, RawLine,
+// Blob; backup copies the file).
 func TestReadPathsDoNotLoadRaw(t *testing.T) {
 	for _, c := range strings.Split(eventCols, ",") {
 		if strings.TrimSuffix(strings.TrimSpace(c), ".raw") != strings.TrimSpace(c) || strings.TrimSpace(c) == "raw" {
@@ -520,28 +521,34 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 		}
 	}
 	// Every SQL string of the package: only the writer, the one reader that
-	// needs it (UserMessages), the raw codec (raw.go: RawStats, raw_text)
-	// and the migrations may name the column.
-	allowed := map[string]bool{"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true}
+	// needs it (UserMessages), the raw codec (raw.go: RawStats, raw_text),
+	// the blob reader (blob.go: Blob, RawLine) and the migrations may name
+	// the columns.
+	allowed := map[string]map[string]bool{
+		"raw":  {"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true, "blob.go": true},
+		"data": {"write.go": true, "schema.go": true, "blob.go": true},
+	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	word := regexp.MustCompile(`\braw\b`)
-	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") || allowed[f] {
-			continue
-		}
-		src, err := parser.ParseFile(token.NewFileSet(), f, nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		ast.Inspect(src, func(n ast.Node) bool {
-			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
-				t.Errorf("%s: a query names raw: %s", f, lit.Value)
+	for col, ok := range allowed {
+		word := regexp.MustCompile(`\b` + col + `\b`)
+		for _, f := range files {
+			if strings.HasSuffix(f, "_test.go") || ok[f] {
+				continue
 			}
-			return true
-		})
+			src, err := parser.ParseFile(token.NewFileSet(), f, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ast.Inspect(src, func(n ast.Node) bool {
+				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
+					t.Errorf("%s: a query names %s: %s", f, col, lit.Value)
+				}
+				return true
+			})
+		}
 	}
 	s, _ := openTestStore(t)
 	sess, evs := sampleBatch()

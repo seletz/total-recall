@@ -63,7 +63,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
 | `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--reread` | die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an lesen statt ab dem gespeicherten Lesestand. Events sind idempotent (nichts wird doppelt), Sessions werden zusammengeführt; so bekommen Sessions nachträglich, was ältere Versionen noch nicht gespeichert haben, etwa Fortsetzung und Account (Schema v4). Nur mit `PATH…` oder `--all` |
-| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene, neu maskierte ersetzen (seit Schema v5 als komprimierter [Auszug](40-schema.md#raw)). `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Repariert Archive, in denen frühere Versionen ganze Werte in `raw` maskiert ([#130](https://github.com/seletz/total-recall/issues/130)) oder Geheimnisse in Arrays nicht erkannt haben ([#162](https://github.com/seletz/total-recall/issues/162)). Braucht `ingest.store_raw = true`, sonst Fehler |
+| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene, neu maskierte [vollständige Zeile](40-schema.md#raw) ersetzen und ihre Bilder und Dokumente als [Blobs](40-schema.md#blobs) nachtragen; auch Events, die bisher keine Rohzeile hatten (altes Limit), bekommen sie. `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Bringt Archive aus der Zeit vor v1.3.0 (Auszüge, keine Blobs) auf den heutigen Stand und repariert solche, in denen frühere Versionen ganze Werte in `raw` maskiert ([#130](https://github.com/seletz/total-recall/issues/130)) oder Geheimnisse in Arrays nicht erkannt haben ([#162](https://github.com/seletz/total-recall/issues/162)). Braucht `ingest.store_raw = true`, sonst Fehler |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -77,17 +77,19 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions
 - Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
 - Mit `--reread` zählen alle gelesenen Dateien als `changed`, obwohl `new events` 0 bleibt.
 - Mit `--rewrite-raw` steht hinter `new events` zusätzlich `N raw rewritten`: so viele vorhandene Events haben eine neue Rohzeile bekommen.
+- Wurden Bilder oder Dokumente gespeichert, folgt `N attachments (X MiB)`: so viele neue Blobs, mit ihrer Größe, wie geliefert.
 
 **Altbestand nach einem Schema-Update.** Neue Session-Felder (seit Schema v4: `continued_in`, `account_id`, `organization_id`) stammen aus Records, die beim ersten Einlesen übersprungen wurden. Bereits gelesene Transkripte liefern sie erst nach einem einmaligen `total-recall ingest --all --reread`; das dauert so lange wie das erste Einlesen und ändert an den Events nichts.
 
-**Rohzeilen reparieren.** Bis v1.0.2 hat die Maskierung in `raw` ganze Werte ab 32 Zeichen durch `«redacted:high_entropy»` ersetzt (Befehle, Tool-Ausgaben, Nachrichtentexte; `text` war nie betroffen). Einmalig, vorher ein [Backup](#backup):
+**Rohzeilen vervollständigen.** Bis v1.2 war `raw` ein Auszug der Zeile, Zeilen über 16 KiB fehlten ganz, und Bilder wurden nicht gespeichert; bis v1.0.2 hat außerdem die Maskierung in `raw` ganze Werte ab 32 Zeichen durch `«redacted:high_entropy»` ersetzt (Befehle, Tool-Ausgaben, Nachrichtentexte; `text` war nie betroffen). Ein Lauf bringt alles auf den Stand von v1.3.0, einmalig, nach dem [Update](../how-to/10-installieren.md#aktualisieren) und vorher ein [Backup](#backup):
 
 ```sh
 total-recall backup
 total-recall ingest --all --reread --rewrite-raw
+total-recall maintenance
 ```
 
-Danach enthält `raw` wieder die nur tokenweise maskierte Zeile (seit Schema v5 als Auszug, komprimiert). Transkripte, die es nicht mehr gibt, bleiben wie sie sind.
+Danach enthält `raw` die ganze, nur tokenweise maskierte Zeile, Bilder und Dokumente liegen als Blobs im Archiv, und für jedes vom Nutzer eingefügte Bild gibt es ein Event mit Platzhalter (`[image image/png 34.2 KiB]`), das ältere Versionen übersprungen hatten. Der Lauf dauert etwa so lange wie das erste Einlesen, lässt sich mit `Ctrl-C` abbrechen und später wiederholen (jede Charge ist eine Transaktion, ein zweiter Lauf ändert nichts mehr). Transkripte, die es nicht mehr gibt, bleiben wie sie sind: **Nachtragen geht nur, solange Claude Code die Transkripte noch hat** (`cleanupPeriodDays`), deshalb bald nach dem Update. `maintenance` danach gibt den Platz der ersetzten Zeilen frei.
 
 Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
@@ -135,6 +137,7 @@ sessions              274
 events                158203
 sources               280
 raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
+blobs                 1234 attachments, 387.2 MiB (387.2 MiB stored)
 last ingest (claude)  2026-11-01 14:59  (2m ago)
 last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.zst  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
@@ -146,7 +149,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`raw` zeigt die komprimierte Größe der Rohzeilen und die Events ohne; `blobs` die Zahl der gespeicherten Bilder und Dokumente ([Schema](40-schema.md#blobs)) mit ihrer Größe, wie geliefert, und in Klammern, wie sie im Archiv liegen (PDF und Text zstd-komprimiert; JSON `blobs`, `blob_bytes`, `blob_stored_bytes`). `schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
@@ -211,6 +214,10 @@ Bitte richte goreleaser mit einem Homebrew-Cask ein.
 
 ── 2026-10-31 19:41:15  agent
 Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
+
+── 2026-10-31 19:52:40  human
+[image image/png 84.3 KiB]
+   attachment 3b7c2e1f0a9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b  image/png  84.3 KiB
 ```
 
 | Option | Bedeutung |
@@ -225,7 +232,30 @@ Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein ei
 
 Der Kopf nennt, was bekannt ist: bei Subagent-Sessions `parent`, bei Fortsetzungen `continued from` (die Session, die hier fortgesetzt wurde) und `continued in` (die Session, in der es weiterging), dazu `account` und `organization` mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sofern einer konfiguriert ist. Die JSON-Ausgabe hat dieselben Felder wie `sessions --json`.
 
+Bilder und Dokumente, die in der Session eingefügt oder von Tools geliefert wurden, erscheinen als Event mit Platzhalter (`[image image/png 84.3 KiB]`) und darunter je Anhang eine Zeile `attachment` mit Hash, Medientyp und Größe; [`blob HASH --out DATEI`](#blob) schreibt die Datei. Im JSON hat jedes Event `attachments` (immer vorhanden, `[]` ohne) mit `sha256`, `media_type`, `bytes` und `position`. Anhänge in Tool-Ergebnissen sind nur mit `--all` zu sehen.
+
 Die Filter wirken in dieser Reihenfolge: erst `--all`, dann das Zeitfenster und `--from-event`, dann `--offset` und `--limit`. Ohne Grenzen bleibt die Ausgabe vollständig; bei mehr als 2000 Events steht ein Hinweis auf stderr, wie sich die Ausgabe begrenzen lässt. Mit `--from-event` und einem Event, das ohne `--all` nicht sichtbar ist (etwa ein Tool-Ergebnis), beginnt die Ausgabe bei der nächsten Nachricht. Ein leeres Fenster liefert mit `--json` eine leere Liste `"events": []`.
+
+## `blob` { #blob }
+
+Gibt ein Bild oder Dokument aus dem Archiv aus ([Schema](40-schema.md#blobs)). Den Hash nennt [`show`](#show) in der Zeile `attachment` bzw. unter `attachments` im JSON; ein eindeutiges Präfix genügt.
+
+```sh
+total-recall blob 3b7c2e1f --out screenshot.png      # in eine Datei
+total-recall blob 3b7c2e1f | open -f -a Preview      # in eine Pipe
+total-recall blob 3b7c2e1f --json                    # nur Metadaten
+```
+
+```text
+wrote screenshot.png (image/png, 84.3 KiB)
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--out DATEI` | die Daten in diese Datei schreiben (wird überschrieben) statt nach stdout |
+| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); mit `--json` werden nur die Metadaten ausgegeben: `sha256`, `media_type`, `bytes` (wie geliefert), `stored_bytes` (im Archiv), `events` (IDs der Events, deren Zeile den Anhang trägt), `out` (die geschriebene Datei, sonst `null`). Mit `--out` wird die Datei trotzdem geschrieben |
+
+Ohne `--out` gehen die Bytes nach stdout, Binärdaten aber nur in eine Pipe oder Datei: Auf ein Terminal schreibt der Befehl sie nicht (`usage`-Fehler mit Hinweis auf `--out`). Ein unbekannter Hash ist `not_found`, ein Präfix, das auf mehrere Anhänge passt, `ambiguous`. Die Daten kommen so zurück, wie sie im Transkript standen (PDF und Text werden entpackt). Der Hash ist der SHA-256 der Daten; `shasum -a 256 screenshot.png` prüft ihn.
 
 ## `search` { #search }
 
@@ -738,7 +768,7 @@ total-recall migrate --json
 ```text
 database  /Users/me/Library/Application Support/total-recall/archive.db  (1145.6 MiB)
 schema    v4 -> v5, 1 pending migration:
-  v5    events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of source_path; rewrites every event, about a minute per 100,000 events, and needs free disk space of about twice the archive size next to it (copy and WAL)
+  v5    events: raw zstd-compressed (BLOB), source_id instead of source_path; rewrites every event, about a minute per 100,000 events, and needs free disk space of about twice the archive size next to it (copy and WAL)
 backup    /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
 space     about 2004.8 MiB free needed next to the database (copy and migration)
 Migrate now? Hooks that run meanwhile skip and catch up afterwards. [y/N] y
@@ -749,7 +779,9 @@ store: migration v5 applied (25.077s)
 migrated v4 -> v5 (27.15s); the copy /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak can be removed once everything works
 ```
 
-Die Zahlen stammen von einer Kopie eines echten Archivs mit 233 198 Events (1,1 GiB). Die Migration auf v5 schreibt jedes Event neu ([`raw`](40-schema.md#raw) als komprimierter Auszug, `source_id`); danach ist die Datei zunächst **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste), erst [`maintenance`](#maintenance) baut sie klein (438 MiB). Deshalb nach `migrate` einmal `maintenance`, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
+Die Zahlen stammen von einer Kopie eines echten Archivs mit 233 198 Events (1,1 GiB). Die Migration auf v5 schreibt jedes Event neu ([`raw`](40-schema.md#raw) komprimiert, `source_id`); danach ist die Datei zunächst **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste), erst [`maintenance`](#maintenance) baut sie klein (438 MiB). Deshalb nach `migrate` einmal `maintenance`, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
+
+Die Migration auf **v6** (v1.3.0) legt nur die Tabellen für [Bilder und Dokumente](40-schema.md#blobs) an und dauert Sekunden; sie füllt sie nicht. Das macht danach [`ingest --all --reread --rewrite-raw`](#ingest), das die Transkripte neu liest, solange es sie noch gibt.
 
 | Option | Bedeutung |
 |---|---|

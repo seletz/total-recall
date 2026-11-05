@@ -8,6 +8,25 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.3.0 (unveröffentlicht)
 
+Dieses Release bringt ein neues Schema, **v6**, und ändert, was im Archiv liegt: Die Rohzeilen sind wieder vollständig, und Bilder und Dokumente aus den Sessions werden gespeichert. Das Archiv soll ohne die Transkripte auskommen, die Claude Code nach einigen Wochen löscht; „lässt sich aus dem Transkript neu schreiben“ gilt nicht mehr als Sicherheitsnetz.
+
+**Nach dem Update einmal, in dieser Reihenfolge** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+
+```sh
+total-recall backup
+total-recall migrate                              # Sekunden: legt nur zwei Tabellen an
+total-recall ingest --all --reread --rewrite-raw  # Rohzeilen und Bilder aus den Transkripten nachtragen
+total-recall maintenance                          # Platz der ersetzten Zeilen freigeben
+```
+
+Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber nur aus Transkripten, die es noch gibt. Was Claude Code schon gelöscht hat, bleibt beim Auszug von v1.2; deshalb bald nach dem Update. Der Lauf lässt sich abbrechen und wiederholen.
+
+### Archiv
+
+- **Rohzeilen wieder vollständig, ohne Limit** ([#180](https://github.com/seletz/total-recall/issues/180)). `events.raw` ist die ganze Transkriptzeile, nicht mehr der Auszug von v1.2.0 (der Buchhaltung, Token-Zahlen und Diffs wegließ), und `ingest.raw_max_bytes` ist jetzt `0` (keine Grenze; bis v1.2 wurden Zeilen über 16 KiB ganz verworfen). Dafür gibt es ein zweites Kompressions-Wörterbuch, trainiert auf vollständigen Zeilen; Archive mit dem alten bleiben lesbar. Migration 5 beschneidet die Zeilen eines v4-Archivs nicht mehr.
+- **Bilder und Dokumente als Blobs** ([#181](https://github.com/seletz/total-recall/issues/181)). Screenshots, die du in eine Session einfügst, und Bilder oder PDFs, die ein Werkzeug liest, kommen einmal je Inhalt (SHA-256) in die neue Tabelle `blobs`; in der Rohzeile steht an ihrer Stelle ein Verweis mit dem Hash, aus beidem lässt sich die Zeile Byte für Byte wiederherstellen ([Schema](40-schema.md#blobs)). PNG und JPEG liegen wie geliefert, PDF und Text zstd-komprimiert. `ingest.store_blobs = false` schaltet das ab. Bilder werden **nicht maskiert** ([Datenschutz](../explanation/datenschutz.md)).
+- Eingefügte Bilder sind jetzt ein Event mit Platzhalter (`[image image/png 84.3 KiB]`), auch im Text eines Tool-Ergebnisses; frühere Versionen übersprangen diese Blöcke, `--reread` legt die Events nach.
+
 ### Behoben
 
 - **Geheimnisse in JSON-Arrays wurden in `raw` nicht erkannt.** Ein String in einem Array hat keinen eigenen Schlüssel und bekam deshalb nur die Textregeln, nicht die Prüfung auf ein ganzes hochentropisches Token; ein Geheimnis ohne bekanntes Format hinter `"--api-key"` in einer Argumentliste blieb stehen. Jetzt gilt für Array-Elemente dieselbe Prüfung wie für Objektwerte, mit dem Schlüssel des Arrays: unter `"passwords": [...]` wird jedes Element maskiert, ein einzelnes hochentropisches Token ≥ 32 Zeichen wird `«redacted:high_entropy»` (nicht unter Bezeichner-Schlüsseln wie `messageIds`), und steht davor eine Option mit sensiblem Namen (`--token`, `--api-key`, `--password`, …), wird das Element auch dann `«redacted:secret»`, wenn es kurz ist. Prosa, Befehle, Pfade, Diffs, SHAs, UUIDs und Werkzeugnamen wie `mcp__server__tool` in Arrays bleiben erhalten; auf den Rohzeilen echter Transkripte änderte sich ein winziger Bruchteil der Array-Elemente, im gespeicherten Auszug praktisch keines. `text` war nie betroffen. Bestehende Archive bekommen die neu maskierten Rohzeilen mit dem Lauf `ingest --all --reread --rewrite-raw`, der ohnehin zu den Update-Schritten dieser Version gehört ([#179](https://github.com/seletz/total-recall/issues/179), siehe [`ingest`](10-befehle.md#ingest)); Transkripte, die inzwischen gelöscht sind, behalten ihre alte Rohzeile ([#162](https://github.com/seletz/total-recall/issues/162), [Design](../explanation/design.md#redaction)).
@@ -17,6 +36,11 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **Einstellungen wirken sofort.** Die Seite [Settings](30-tui.md#settings) der Ansicht Config übernimmt mehr Werte ohne Neustart: die Tastenbelegung `[keys]` (Tasten, Fußzeile und Hilfe aller Ansichten), `day_start` und die Tabelle `[work]` (Kernzeiten, Ziel und Grenzen zeichnen die Aktivität neu; Tagesgrenze und Bundesland laden das Fenster neu und markieren die Feiertage der Statistik neu; `count` schaltet die Zählweise um) sowie `tui.activity_projects`. Fenster, Markierung, Scrollposition und Eingabe bleiben dabei erhalten, wie schon bei `reload`, `mouse` und den Projektdefinitionen. Die Zeile `default` sagt zu jedem Schlüssel, was eine Änderung tut: `applied at once`, `takes effect at the next start` (`db`, `timezone` und die Startzustände der Ansichten) oder `used by the next command or action` (alles, was die TUI nicht selbst nutzt); die Meldung nach dem Schreiben wiederholt es. Eine im Editor geänderte Tabelle mit einem Fehler lässt die bisherigen Werte in Kraft ([#165](https://github.com/seletz/total-recall/issues/165)).
 
 ### Neu in der CLI
+
+- **`blob HASH [--out DATEI]`** gibt ein Bild oder Dokument aus dem Archiv aus, `--json` nur die Metadaten samt Events; Binärdaten nie auf ein Terminal ([`blob`](10-befehle.md#blob)).
+- **`show`** nennt unter jedem Event seine Anhänge mit Hash, Typ und Größe, im JSON `attachments` je Event. **`status`** zeigt Anzahl und Größe der Blobs (JSON `blobs`, `blob_bytes`, `blob_stored_bytes`), die TUI auf der Seite *status* ebenso. `ingest` meldet neue Anhänge (`N attachments (X MiB)`).
+- **`ingest --all --reread --rewrite-raw`** schreibt jetzt auch Rohzeilen für Events, die bisher keine hatten, und trägt die Blobs nach; abbrechbar, wiederholbar, idempotent.
+- Gemessen auf einer Kopie eines echten Archivs (530 Sessions, 239 000 Events, 451 MiB in Schema v5, 8 330 Events ohne Rohzeile): `migrate` auf v6 0,6 s, Datei unverändert. `ingest --all --reread --rewrite-raw` 3 min 50 s, 239 769 Rohzeilen neu geschrieben, 136 neue Events (eingefügte Bilder), keines mehr ohne Rohzeile; `raw` wächst komprimiert von 121 auf 269 MiB (Verhältnis 3,2), dazu 903 Blobs mit 108 MiB (864 PNG, 39 JPEG; 1 890 Verweise, 883 Blobs stehen mehrmals in den Zeilen, ohne Dedup wären es 229 MiB). Ein zweiter Lauf dauert gleich lang und ändert nichts. Nach `maintenance` (8 s) ist die Datei 740 MiB groß, das Backup (`.db.zst`) 467 MiB.
 
 - **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
 

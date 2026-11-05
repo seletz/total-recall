@@ -22,13 +22,22 @@ import (
 //go:embed dict/raw-v1.zdict
 var dictV1 []byte
 
+//go:embed dict/raw-v2.zdict
+var dictV2 []byte
+
 // Dicts are all dictionaries ever embedded, oldest first. Encode uses the
 // last one; Decode accepts all of them. Append a new dictionary, never
-// remove or replace one that was released.
-var Dicts = [][]byte{dictV1}
+// remove or replace one that was released. v1 was trained on the extracts
+// schema v5 stored, v2 on whole lines (#180).
+var Dicts = [][]byte{dictV1, dictV2}
 
-// DictIDV1 is the dictionary ID of the first dictionary ("TR" 0001).
-const DictIDV1 uint32 = 0x54520001
+// Dictionary IDs ("TR" and a counter).
+const (
+	// DictIDV1 is the dictionary ID of the first dictionary.
+	DictIDV1 uint32 = 0x54520001
+	// DictIDV2 is the dictionary ID of the second dictionary, for whole lines.
+	DictIDV2 uint32 = 0x54520002
+)
 
 // ErrNotZstd is returned by Decode for a blob that is not a zstd frame.
 var ErrNotZstd = errors.New("rawz: not a zstd frame")
@@ -50,7 +59,9 @@ func New(dicts ...[]byte) (*Codec, error) {
 		zstd.WithLowerEncoderMem(true),
 		// Always write the content size (also below 1 KiB): Inspect reads it.
 		zstd.WithSingleSegment(true),
-		// Rows are a few KiB; a small window keeps the decoder's memory small.
+		// Most rows are a few KiB; a 1 MiB window keeps the decoder's
+		// memory small, and a line beyond it (a large Write) still
+		// compresses, only without matches farther back than the window.
 		zstd.WithWindowSize(1 << 20),
 	}
 	if len(dicts) > 0 {

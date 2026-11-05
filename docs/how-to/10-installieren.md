@@ -81,11 +81,14 @@ total-recall status
 Steht in der Zeile `schema` ein `MIGRATION PENDING`, migriert nichts von selbst: Die Hooks schreiben nichts mehr (eine `WARN`-Zeile im Log, einmal am Tag), bis du migriert hast; lesende Befehle und die TUI laufen weiter, soweit sie das alte Schema erlauben, die TUI zeigt `migration pending` in der Kopfzeile. Es geht nichts verloren, der erste Hook nach der Migration liest alles nach. In dieser Reihenfolge:
 
 ```sh
-total-recall backup          # 1. sichern
-total-recall migrate         # 2. Plan ansehen, bestätigen, migrieren
-total-recall maintenance     # 3. Datei neu aufbauen (nach v1.2.0 nötig, siehe unten)
-total-recall status          # 4. prüfen: schema ohne Hinweis
+total-recall backup                               # 1. sichern
+total-recall migrate                              # 2. Plan ansehen, bestätigen, migrieren
+total-recall ingest --all --reread --rewrite-raw  # 3. nach v1.3.0: Rohzeilen und Bilder nachtragen, siehe unten
+total-recall maintenance                          # 4. Datei neu aufbauen (nach v1.2.0 und v1.3.0 nötig, siehe unten)
+total-recall status                               # 5. prüfen: schema ohne Hinweis
 ```
+
+**v1.3.0 (Schema v6)** legt nur zwei Tabellen an, `migrate` dauert Sekunden. Was das Release ändert, steckt im dritten Schritt: `raw` wird wieder die **vollständige** Transkriptzeile ohne Größengrenze, und eingefügte Bilder und Dokumente kommen als Blobs ins Archiv ([Änderungen](../reference/90-aenderungen.md)). Beides holt `ingest --all --reread --rewrite-raw` für den Altbestand aus den Transkripten, und zwar **nur, solange Claude Code die noch hat** (`cleanupPeriodDays`, standardmäßig 30 Tage): Was schon gelöscht ist, bleibt der Auszug von v1.2. Deshalb den Schritt bald nach dem Update ausführen; er dauert etwa so lange wie das erste Einlesen, lässt sich abbrechen und wiederholen. Zahlen von einer Kopie eines echten Archivs stehen in den [Änderungen](../reference/90-aenderungen.md). `maintenance` danach gibt den Platz der ersetzten Zeilen frei.
 
 **v1.2.0 (Schema v5)** schreibt jedes Event neu: `raw` wird ein komprimierter Auszug, Events verweisen per ID auf ihre Quelle ([Änderungen](../reference/90-aenderungen.md)). Auf einer Kopie eines echten Archivs mit 233 000 Events (1,1 GiB) dauerte `migrate` 27 Sekunden und brauchte neben der Datenbank rund 2 GiB frei (Kopie und WAL; `migrate` prüft das vorher). Direkt danach ist die Datei **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste); erst [`maintenance`](60-wartung.md) baut sie neu auf, in dem Beispiel in 11 Sekunden auf 438 MiB. Dafür muss neben der Datenbank noch einmal etwa das Doppelte der Dateigröße frei sein und im Backup-Ordner die Hälfte. Die lesenden Befehle liefern vorher und nachher dieselben Ergebnisse.
 

@@ -46,10 +46,15 @@ type StatusJSON struct {
 	// their compressed size, RawTruncated the number of events whose raw
 	// line was dropped for its size, RawRatio the uncompressed over the
 	// compressed size estimated from a sample of rows (0 if unknown).
-	RawRows           int64             `json:"raw_rows"`
-	RawBytes          int64             `json:"raw_bytes"`
-	RawTruncated      int64             `json:"raw_truncated"`
-	RawRatio          float64           `json:"raw_ratio"`
+	RawRows      int64   `json:"raw_rows"`
+	RawBytes     int64   `json:"raw_bytes"`
+	RawTruncated int64   `json:"raw_truncated"`
+	RawRatio     float64 `json:"raw_ratio"`
+	// Blobs is the number of stored attachments, BlobBytes their size as
+	// delivered, BlobStoredBytes their size in the archive.
+	Blobs             int64             `json:"blobs"`
+	BlobBytes         int64             `json:"blob_bytes"`
+	BlobStoredBytes   int64             `json:"blob_stored_bytes"`
 	LastIngest        map[string]string `json:"last_ingest"`
 	BackupDir         string            `json:"backup_dir"`
 	LastBackup        NullString        `json:"last_backup"`
@@ -111,6 +116,18 @@ func rawCell(rs store.RawStats, pending bool) string {
 	return cell
 }
 
+// blobCell renders the blobs line of status: count and size of the
+// attachments; "unknown" while the archive still waits for its migration.
+func blobCell(bs store.BlobStats, pending bool) string {
+	if pending {
+		return "unknown until the migration ran"
+	}
+	if bs.Count == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d attachments, %s (%s stored)", bs.Count, sizeLabel(bs.Bytes), sizeLabel(bs.StoredBytes))
+}
+
 // statusErrorWindow is the age up to which status lists log errors. A
 // fixed window is predictable and independent of whether hooks ran since;
 // "since the last ingest" would hide an error minutes before a successful
@@ -159,8 +176,12 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		// The raw statistics need the columns of v5; on an older archive
 		// the line says so instead of failing the whole status.
 		var rs store.RawStats
+		var bs store.BlobStats
 		if !st.MigrationPending() {
 			if rs, err = st.RawStats(ctx); err != nil {
+				return err
+			}
+			if bs, err = st.BlobStats(ctx); err != nil {
 				return err
 			}
 		}
@@ -168,6 +189,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
+			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes,
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
 			if fi, err := os.Stat(cfg.DB + suffix); err == nil {
@@ -219,6 +241,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			{"events", strconv.Itoa(s.Events)},
 			{"sources", strconv.Itoa(s.Sources)},
 			{"raw", rawCell(rs, st.MigrationPending())},
+			{"blobs", blobCell(bs, st.MigrationPending())},
 		}
 		harnesses := make([]string, 0, len(s.LastIngest))
 		for h := range s.LastIngest {
@@ -429,24 +452,39 @@ func (e *env) sessionsCmd() *cobra.Command {
 
 // EventJSON is an event in JSON output (without the raw line). Every key
 // is always present; a NullString without a value is null, token counts
-// without a value are 0.
+// without a value are 0, Attachments is [] without any.
 type EventJSON struct {
-	ID        string     `json:"id"`
-	TS        string     `json:"ts"`
-	Kind      string     `json:"kind"`
-	Role      NullString `json:"role"`
-	Actor     string     `json:"actor"`
-	Text      NullString `json:"text"`
-	ToolName  NullString `json:"tool_name"`
-	Model     NullString `json:"model"`
-	TokensIn  int64      `json:"tokens_in"`
-	TokensOut int64      `json:"tokens_out"`
+	ID          string           `json:"id"`
+	TS          string           `json:"ts"`
+	Kind        string           `json:"kind"`
+	Role        NullString       `json:"role"`
+	Actor       string           `json:"actor"`
+	Text        NullString       `json:"text"`
+	ToolName    NullString       `json:"tool_name"`
+	Model       NullString       `json:"model"`
+	TokensIn    int64            `json:"tokens_in"`
+	TokensOut   int64            `json:"tokens_out"`
+	Attachments []AttachmentJSON `json:"attachments"`
 }
 
-func eventJSON(ev model.Event) EventJSON {
-	return EventJSON{ID: ev.ID, TS: isoTime(ev.TS), Kind: string(ev.Kind),
+// AttachmentJSON is one attachment of an event in the output of show:
+// the hash `blob` takes, its type and size as delivered, and its position
+// among the event's attachments.
+type AttachmentJSON struct {
+	SHA256    string `json:"sha256"`
+	MediaType string `json:"media_type"`
+	Bytes     int64  `json:"bytes"`
+	Position  int    `json:"position"`
+}
+
+func eventJSON(ev model.Event, atts []store.EventAttachment) EventJSON {
+	out := EventJSON{ID: ev.ID, TS: isoTime(ev.TS), Kind: string(ev.Kind),
 		Role: NullString(ev.Role), Actor: string(ev.Actor), Text: NullString(ev.Text), ToolName: NullString(ev.ToolName),
-		Model: NullString(ev.Model), TokensIn: ev.TokensIn, TokensOut: ev.TokensOut}
+		Model: NullString(ev.Model), TokensIn: ev.TokensIn, TokensOut: ev.TokensOut, Attachments: []AttachmentJSON{}}
+	for _, a := range atts {
+		out.Attachments = append(out.Attachments, AttachmentJSON{SHA256: a.SHA256, MediaType: a.MediaType, Bytes: a.Bytes, Position: a.Position})
+	}
+	return out
 }
 
 // ShowJSON is the JSON output of show: the session and its events. With
@@ -527,10 +565,18 @@ window.`,
 		if !bounded && len(evs) > showHintEvents {
 			_, _ = fmt.Fprintf(e.app.Stderr, "show: %d events; bound the output with --since/--until, --limit (and --offset) or --from-event EVENT_ID\n", len(evs))
 		}
+		// The attachments of the session: metadata only, one query; an
+		// archive that waits for migration 6 has no blob tables yet.
+		atts := map[string][]store.EventAttachment{}
+		if !st.MigrationPending() {
+			if atts, err = st.SessionAttachments(cmd.Context(), s.ID); err != nil {
+				return err
+			}
+		}
 		if o.format.IsJSON() {
 			out := ShowJSON{Session: sessionJSON(s, cfg.AccountName), Events: make([]EventJSON, 0, len(evs))}
 			for _, ev := range evs {
-				out.Events = append(out.Events, eventJSON(ev))
+				out.Events = append(out.Events, eventJSON(ev, atts[ev.ID]))
 			}
 			if o.format == FormatJSONL {
 				return writeList(o, out.Events)
@@ -575,6 +621,9 @@ window.`,
 				label += " (" + string(ev.Kind) + ")"
 			}
 			_, _ = fmt.Fprintf(w, "\n── %s  %s\n%s\n", ev.TS.In(loc).Format("2006-01-02 15:04:05"), label, strings.TrimRight(ev.Text, "\n"))
+			for _, a := range atts[ev.ID] {
+				_, _ = fmt.Fprintf(w, "   attachment %s  %s  %s\n", a.SHA256, a.MediaType, sizeLabel(a.Bytes))
+			}
 		}
 		return nil
 	})

@@ -87,8 +87,9 @@ summary_max_chars = 200          # Länge der Zusammenfassung je Zelle in --work
 
 [ingest]
 tool_result_max_bytes = 4096
-raw_max_bytes = 16384
+raw_max_bytes = 0
 store_raw = true
+store_blobs = true
 
 [harness.claude]
 enabled = true
@@ -187,10 +188,13 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
 
 `raw_max_bytes`
-:   Obergrenze für den Auszug der Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression). Ist er größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1. Der lesbare Text (`text`) wird trotzdem gespeichert. Große Zeilen sind fast immer Tool-Aufrufe und Tool-Ergebnisse (Dateiinhalte, Befehlsausgaben); sie machen sonst den Großteil der Datenbank aus. `0` heißt: keine Grenze. Default: 16384 Bytes.
+:   Obergrenze für die Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression, ohne die Daten von Bildern und Dokumenten). Ist sie größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1; der lesbare Text (`text`) wird trotzdem gespeichert. Default: `0`, keine Grenze: Das Archiv soll die Zeile vollständig halten, denn die Transkripte verschwinden nach einigen Wochen. Bis v1.2 war der Default 16384; Archive aus der Zeit holen die fehlenden Zeilen mit [`ingest --all --reread --rewrite-raw`](10-befehle.md#ingest) nach.
 
 `store_raw`
-:   Einen Auszug der Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`). Default: `true`.
+:   Die Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`) und macht das Archiv vom Transkript unabhängig. Default: `true`.
+
+`store_blobs`
+:   Bilder und Dokumente aus den Zeilen (eingefügte Screenshots, von Werkzeugen gelesene Bilder) als [Blobs](40-schema.md#blobs) speichern, einmal je Inhalt. Mit `false` werden die Daten verworfen; in `raw` bleibt der Verweis mit dem Hash, im Text der Platzhalter. Bilder werden nicht maskiert, siehe [Datenschutz](../explanation/datenschutz.md). Default: `true`.
 
 ### `[harness.claude]`
 

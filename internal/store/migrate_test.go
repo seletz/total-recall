@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store/rawz"
 )
@@ -26,27 +27,18 @@ func openAtVersion(t *testing.T, path string, k int) {
 }
 
 // sampleRaw is the raw line of event e1 as an archive before v5 stored it:
-// a user record with Claude Code's bookkeeping. Migration 5 trims it with
-// the harness's trimmer (here fakeTrim) and compresses it.
+// a user record with Claude Code's bookkeeping, as text. Migration 5
+// compresses it; since #180 it no longer trims it (the trimmer is gone),
+// so a line migrated today stays whole.
 const sampleRaw = `{"type":"user","uuid":"e1","sessionId":"s1","cwd":"/w","junk":{"big":"bookkeeping"},"message":{"role":"user","content":"hello migration world"}}`
 
-// sampleRawTrimmed is what fakeTrim makes of sampleRaw.
-const sampleRawTrimmed = `{"message":{"role":"user","content":"hello migration world"},"type":"user","uuid":"e1"}`
+// sampleRawV5 is the extract an archive written by v5 (before #180) holds
+// for e1: migration 6 leaves it as it is, ingest --reread --rewrite-raw
+// replaces it from the transcript.
+const sampleRawV5 = `{"message":{"role":"user","content":"hello migration world"},"type":"user","uuid":"e1"}`
 
-// fakeTrim stands in for a harness's RawTrimFunc: it keeps type, uuid and
-// message and drops the rest.
-func fakeTrim(raw []byte) ([]byte, error) {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, err
-	}
-	for k := range m {
-		if k != "type" && k != "uuid" && k != "message" {
-			delete(m, k)
-		}
-	}
-	return json.Marshal(m)
-}
+// sampleBlob is an attachment an archive at v6 or later holds.
+var sampleBlob = []byte("\x89PNG\r\n\x1a\nmigration picture")
 
 // sampleRows inserts rows using only columns that exist since version 1, so
 // they are valid at every historical version.
@@ -71,7 +63,8 @@ var sampleRows = []string{
 // version before 5 (source_path, raw as text) and of version 5 or later
 // (source_id, raw as a compressed blob). e1: the raw line above, source
 // known. e2: a source that has no sources row (migration 5 creates one).
-// e3: raw dropped for size. x1: another harness, raw kept as it is.
+// e3: raw dropped for size. x1: another harness, raw kept as it is. From
+// version 6 on, e3 has an attachment (blobs, event_blobs).
 func sampleEvents(version int) []struct {
 	q    string
 	args []any
@@ -90,13 +83,19 @@ func sampleEvents(version int) []struct {
 		}
 	}
 	q := `INSERT INTO events (id, session_id, ts, kind, role, actor, text, source_id, source_offset, raw) VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT id FROM sources WHERE path = ?), ?, ?)`
-	return []r{
+	rows := []r{
 		{`INSERT INTO sources (path, harness) VALUES ('/p/gone.jsonl', 'claude'), ('/q/x.log', 'other')`, nil},
-		{q, []any{"claude:e1", "claude:s1", "2026-10-01T10:00:00.000Z", "message", "user", "human", "hello migration world", "/p/a.jsonl", 0, rawz.Encode(sampleRawTrimmed)}},
+		{q, []any{"claude:e1", "claude:s1", "2026-10-01T10:00:00.000Z", "message", "user", "human", "hello migration world", "/p/a.jsonl", 0, rawz.Encode(sampleRawV5)}},
 		{q, []any{"claude:e2", "claude:s1", "2026-10-01T10:01:00.000Z", "message", "assistant", "agent", "reply", "/p/gone.jsonl", 10, rawz.Encode(`{"type":"assistant"}`)}},
 		{q, []any{"claude:e3", "claude:s1", "2026-10-01T10:02:00.000Z", "tool_result", "tool", "tool", "big result", "/p/a.jsonl", 20, nil}},
 		{q, []any{"other:x1", "other:x1", "2026-10-02T10:00:00.000Z", "message", "user", "human", "foreign", "/q/x.log", 0, rawz.Encode(`{"foreign":"record","junk":1}`)}},
 	}
+	if version >= 6 {
+		rows = append(rows,
+			r{`INSERT INTO blobs (sha256, media_type, bytes, encoding, data) VALUES (?, 'image/png', ?, '', ?)`, []any{blobref.Hash(sampleBlob), len(sampleBlob), sampleBlob}},
+			r{`INSERT INTO event_blobs (event_id, position, sha256) VALUES ('claude:e3', 0, ?)`, []any{blobref.Hash(sampleBlob)}})
+	}
+	return rows
 }
 
 // TestMigrateFromEveryVersion builds a database at every historical schema
@@ -145,8 +144,7 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			var progress []Progress
 			logf := func(f string, a ...any) { logged = append(logged, fmt.Sprintf(f, a...)) }
 			res, err := Migrate(ctx, p, MigrateOptions{LockDir: filepath.Join(filepath.Dir(p), "locks"), Logf: logf,
-				Progress:    func(pr Progress) { progress = append(progress, pr) },
-				RawTrimmers: map[string]RawTrimFunc{"claude": fakeTrim}})
+				Progress: func(pr Progress) { progress = append(progress, pr) }})
 			if err != nil {
 				t.Fatalf("Migrate: %v", err)
 			}
@@ -164,6 +162,13 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			if s.MigrationPending() {
 				t.Error("MigrationPending after Migrate")
 			}
+			// Before v5 the archive held the whole line as text and
+			// migration 5 only compresses it now; a v5 archive holds the
+			// extract that version wrote.
+			rawE1 := sampleRaw
+			if k >= 5 {
+				rawE1 = sampleRawV5
+			}
 			checks := map[string]int{
 				"SELECT count(*) FROM sources WHERE \"offset\" = 90":                        1,
 				"SELECT count(*) FROM sessions WHERE name = 'Title' AND cwd = '/w'":         1,
@@ -173,8 +178,8 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM dirs WHERE git_root = '/w'":                           1,
 				"SELECT count(*) FROM exchanges WHERE request = 'hello migration world'":    1,
 				"SELECT count(*) FROM daily_activity WHERE repo = 'https://github.com/o/r'": 1,
-				// Migration 5: raw trimmed (claude) or kept (other), compressed, readable through raw_text.
-				"SELECT count(*) FROM events WHERE id = 'claude:e1' AND typeof(raw) = 'blob' AND raw_text(raw) = '" + sampleRawTrimmed + "'":           1,
+				// Migration 5: raw compressed, readable through raw_text.
+				"SELECT count(*) FROM events WHERE id = 'claude:e1' AND typeof(raw) = 'blob' AND raw_text(raw) = '" + rawE1 + "'":                      1,
 				"SELECT count(*) FROM events WHERE id = 'other:x1' AND typeof(raw) = 'blob' AND raw_text(raw) = '{\"foreign\":\"record\",\"junk\":1}'": 1,
 				"SELECT count(*) FROM events WHERE id = 'claude:e3' AND raw IS NULL AND raw_truncated = " + fmt.Sprint(max(min(k, 3)-2, 0)):            1,
 				"SELECT count(*) FROM events WHERE raw IS NOT NULL AND typeof(raw) <> 'blob'":                                                          0,
@@ -189,6 +194,11 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name IN ('events_session_ts', 'events_ts')":                   2,
 				"SELECT count(*) FROM sqlite_master WHERE type = 'view'":                                                                   2,
 				"SELECT count(*) FROM sqlite_master WHERE name IN ('events_v5', 'sources_v5')":                                             0,
+				// Migration 6: the blob tables exist; rows of a v6 archive survive.
+				"SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('blobs', 'event_blobs')": 2,
+				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'event_blobs_sha256'":      1,
+				"SELECT count(*) FROM blobs":                                    min(max(k-5, 0), 1),
+				"SELECT count(*) FROM event_blobs WHERE event_id = 'claude:e3'": min(max(k-5, 0), 1),
 			}
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
@@ -206,8 +216,25 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			// UserMessages decompresses raw for reindex --actors.
 			var raws []string
 			_ = s.UserMessages(ctx, "claude", func(m UserMessage) error { raws = append(raws, m.Raw); return nil })
-			if len(raws) != 1 || raws[0] != sampleRawTrimmed {
+			if len(raws) != 1 || raws[0] != rawE1 {
 				t.Errorf("UserMessages raw = %q", raws)
+			}
+			// Attachments work on the migrated archive: write, read, restore.
+			att := model.Event{ID: "claude:e5", SessionID: "claude:s1", TS: ts("2026-10-01T12:01:00Z"), Kind: model.KindMessage, Role: "user",
+				Actor: model.ActorHuman, Text: "[image image/png 25 B]", SourcePath: "/p/a.jsonl", SourceOffset: 120,
+				Raw:         `{"type":"user","message":{"content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + blobref.Ref{SHA256: blobref.Hash(sampleBlob)}.String() + `"}}]}}`,
+				Attachments: []model.Attachment{{SHA256: blobref.Hash(sampleBlob), MediaType: "image/png", Data: sampleBlob}}}
+			if err := s.WriteBatch(ctx, SourceState{}, nil, []model.Event{att}); err != nil {
+				t.Fatalf("WriteBatch with attachment after migration: %v", err)
+			}
+			if _, data, err := s.Blob(ctx, blobref.Hash(sampleBlob)); err != nil || string(data) != string(sampleBlob) {
+				t.Errorf("Blob after migration: %v", err)
+			}
+			if line, err := s.RawLine(ctx, "claude:e5"); err != nil || !strings.Contains(line, base64.StdEncoding.EncodeToString(sampleBlob)) {
+				t.Errorf("RawLine after migration = %q, %v", line, err)
+			}
+			if n := countRows(t, s, "SELECT count(*) FROM blobs"); n != 1 {
+				t.Errorf("blobs after migration = %d, want 1 (deduplicated)", n)
 			}
 			// New rows and rewrites keep working on the rebuilt table (triggers, FK).
 			if err := s.WriteBatch(ctx, SourceState{Path: "/p/a.jsonl", Harness: "claude", Size: 200, Offset: 200}, nil,
@@ -220,9 +247,14 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			}
 			// Migration 5 reports its progress per batch and at the end.
 			if k < 5 {
-				last := progress[len(progress)-1]
+				var last Progress
+				for _, pr := range progress {
+					if pr.Version == 5 {
+						last = pr
+					}
+				}
 				if last != (Progress{Version: 5, Done: 4, Total: 4}) {
-					t.Errorf("last progress = %+v, want migration 5 done 4/4", last)
+					t.Errorf("last progress of v5 = %+v, want done 4/4", last)
 				}
 			}
 			// Migration 4: the link and account columns are usable and indexed,
