@@ -160,10 +160,10 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 ### `[backup]`
 
 `dir`
-:   Zielordner für Backups (`archive-YYYY-MM-DD.db.zst`). Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
+:   Zielordner für Backups (`archive-YYYY-MM-DD.db.zst`, weitere Kopien eines Tages mit Uhrzeit: `archive-YYYY-MM-DD-HHMM.db.zst`). Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
 
 `keep_daily`
-:   So viele Tageskopien bleiben erhalten. Default: 7. Kopien älterer Versionen (`.db.gz`, `.db`) zählen mit.
+:   Von so vielen Tagen, den neuesten mit einer Kopie, bleiben alle Kopien erhalten. Default: 7. Gezählt werden Tage, nicht Dateien: Mehrere Backups an einem Tag verdrängen keine älteren Tage. Kopien älterer Versionen (`.db.gz`, `.db`) zählen mit.
 
 `keep_monthly`
 :   So viele Monatskopien bleiben erhalten. Eine Monatskopie ist die letzte Kopie eines Monats. `0` heißt: alle behalten.

@@ -25,8 +25,13 @@ func (e *env) backupCmd() *cobra.Command {
 		Use:   "backup",
 		Short: "Write a compressed, consistent copy of the archive and prune old copies",
 		Long: `Write dir/archive-YYYY-MM-DD.db.zst (date in the configured time zone): a
-VACUUM INTO copy, zstd-compressed. Then keep the newest backup.keep_daily copies
-plus the newest copy of each month (backup.keep_monthly months, 0 = all).
+VACUUM INTO copy, zstd-compressed. A new copy never replaces an existing one:
+if the day already has a copy in any format, the name gets the time of day
+(archive-YYYY-MM-DD-HHMM.db.zst), within the same minute also a number
+(archive-YYYY-MM-DD-HHMM-2.db.zst).
+
+Then keep all copies of the newest backup.keep_daily days plus the newest copy
+of each month (backup.keep_monthly months, 0 = all); each deleted copy is logged.
 Copies from older versions (archive-YYYY-MM-DD.db.gz, archive-YYYY-MM-DD.db)
 count alike. Restore a copy with "total-recall restore".`,
 		Args: cobra.NoArgs,

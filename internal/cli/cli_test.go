@@ -7,7 +7,9 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -713,6 +715,82 @@ func TestBackup(t *testing.T) {
 	}
 	if r := e.run(t, "", "backup", "--if-older", "soon"); r.code == 0 {
 		t.Error("invalid duration accepted")
+	}
+}
+
+// TestBackupSameDay: a second copy of a day stays next to the first in any
+// format, --if-older and status see it, and retention logs what it deletes.
+func TestBackupSameDay(t *testing.T) {
+	tests := []struct {
+		name  string
+		first string
+	}{
+		{"same format", "archive-2026-10-20.db.zst"},
+		{"gzip of the day", "archive-2026-10-20.db.gz"},
+		{"plain of the day", "archive-2026-10-20.db"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.mustRun(t, "ingest", "--all")
+			if err := os.MkdirAll(e.backups, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			first := filepath.Join(e.backups, tt.first)
+			if err := os.WriteFile(first, []byte("the copy of the morning"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			// 12:00 UTC is 14:00 in the configured time zone.
+			timed := filepath.Join(e.backups, "archive-2026-10-20-1400.db.zst")
+			if out := e.mustRun(t, "backup"); !strings.Contains(out, timed) {
+				t.Fatalf("second copy of the day = %q", out)
+			}
+			if b, err := os.ReadFile(first); err != nil || string(b) != "the copy of the morning" {
+				t.Errorf("first copy: %q %v", b, err)
+			}
+			e.now = time.Now()
+			if out := e.mustRun(t, "backup", "--if-older", "24h"); !strings.Contains(out, "skipped: "+timed) {
+				t.Errorf("--if-older with a timed copy = %q", out)
+			}
+			if out := e.mustRun(t, "status"); !strings.Contains(out, timed) {
+				t.Errorf("status does not show the timed copy: %q", out)
+			}
+		})
+	}
+}
+
+// TestBackupLogsPruned: the log file names each copy retention deleted.
+func TestBackupLogsPruned(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if err := os.MkdirAll(e.backups, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var old []string
+	for d := 1; d <= 9; d++ {
+		p := filepath.Join(e.backups, fmt.Sprintf("archive-2026-10-%02d.db.gz", d))
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		old = append(old, p)
+	}
+	e.mustRun(t, "backup")
+	log, err := os.ReadFile(e.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// keep_daily 7 keeps the new day and the six days before it; the newest
+	// copy of October is one of them.
+	for _, p := range old[:3] {
+		if !strings.Contains(string(log), "pruned "+p) {
+			t.Errorf("log does not name %s:\n%s", p, log)
+		}
+		if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s not pruned: %v", p, err)
+		}
+	}
+	if strings.Contains(string(log), "pruned "+old[3]) {
+		t.Errorf("log names a kept copy:\n%s", log)
 	}
 }
 

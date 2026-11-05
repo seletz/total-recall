@@ -38,8 +38,10 @@ type action struct {
 	// writes marks an action that changes the archive: it asks for a
 	// confirmation and pauses the reload.
 	writes bool
-	// confirm describes what the action is about to do.
+	// confirm describes what the action is about to do; prompt replaces it
+	// when that depends on the moment of the request.
 	confirm string
+	prompt  func() string
 	// disabled says why the action cannot run right now; empty runs.
 	disabled string
 	// details are shown under the list while the action waits for its
@@ -67,6 +69,7 @@ type (
 type actionsPage struct {
 	row     int
 	confirm bool // waiting for y
+	prompt  string
 	running bool
 	seq     uint64
 	cancel  context.CancelFunc
@@ -139,8 +142,14 @@ func (m Model) actions() []action {
 	return []action{
 		{name: "backup", writes: true, disabled: noArchive,
 			summary: fmt.Sprintf("write a compressed copy to %s, keep %d daily and %d monthly", dir, cfg.Backup.KeepDaily, cfg.Backup.KeepMonthly),
-			confirm: fmt.Sprintf("write %s to %s and prune older copies", store.BackupFileName(m.now()), dir),
-			run:     runBackup},
+			prompt: func() string {
+				name, err := store.NextBackupName(cfg.Backup.Dir, m.opts.Now().In(cfg.Location()))
+				if err != nil {
+					name = "a new copy"
+				}
+				return fmt.Sprintf("write %s to %s and prune older copies", name, dir)
+			},
+			run: runBackup},
 		{name: "maintenance (dry run)", disabled: outdated,
 			summary: fmt.Sprintf("measure a rebuild with %d-byte pages; changes nothing", ops.RecommendedPageSize),
 			run:     runMaintain(true)},
@@ -266,7 +275,10 @@ func (p actionsPage) selectRow(m *Model) (page, tea.Cmd) {
 		return p, nil
 	}
 	if a.writes {
-		p.confirm = true
+		p.confirm, p.prompt = true, a.confirm
+		if a.prompt != nil {
+			p.prompt = a.prompt()
+		}
 		p.log = a.details
 		return p, nil
 	}
@@ -364,7 +376,7 @@ func (p actionsPage) view(m *Model, width, height int) string {
 	case p.running:
 		status = m.th.Spinner.Render("⠿") + " " + p.current + " running… " + m.th.Muted.Render("esc cancels")
 	case p.confirm:
-		status = m.th.Strong.Render(p.current+":") + " " + acts[p.row].confirm
+		status = m.th.Strong.Render(p.current+":") + " " + p.prompt
 		lines = append(lines, m.line(" "+status, width))
 		status = m.th.AccentText.Render("y confirms, esc cancels")
 	case p.err != nil:
@@ -401,8 +413,11 @@ func runBackup(ctx context.Context, env runEnv, log logf) (string, error) {
 		return "", err
 	}
 	defer func() { _ = st.Close() }()
-	log("writing %s …", store.BackupFileName(env.now.In(env.cfg.Location())))
-	p, err := st.Backup(ctx, env.cfg.Backup.Dir, env.now.In(env.cfg.Location()), env.cfg.Backup.KeepDaily, env.cfg.Backup.KeepMonthly)
+	now := env.now.In(env.cfg.Location())
+	if name, err := store.NextBackupName(env.cfg.Backup.Dir, now); err == nil {
+		log("writing %s …", name)
+	}
+	p, err := st.Backup(ctx, env.cfg.Backup.Dir, now, env.cfg.Backup.KeepDaily, env.cfg.Backup.KeepMonthly)
 	if err != nil {
 		return "", err
 	}
@@ -438,7 +453,11 @@ func runMigrate(ctx context.Context, env runEnv, log logf) (string, error) {
 func runMaintain(dryRun bool) func(context.Context, runEnv, logf) (string, error) {
 	return func(ctx context.Context, env runEnv, log logf) (string, error) {
 		o := ops.MaintainOptions(env.cfg, env.now, 0, dryRun, env.opts.Wait)
-		o.Logf = func(format string, args ...any) { log(format, args...) }
+		file := logfile.New(env.cfg.LogPath(), env.opts.Now)
+		o.Logf = func(format string, args ...any) {
+			file.Infof(format, args...)
+			log(format, args...)
+		}
 		res, err := store.Maintain(ctx, env.cfg.DB, o)
 		if err != nil {
 			return "", err
