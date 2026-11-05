@@ -26,7 +26,7 @@ day_start = "04:00"
 log = ""
 
 [backup]
-# Target directory for `total-recall backup` (gzip-compressed archive-YYYY-MM-DD.db.gz).
+# Target directory for `total-recall backup` (zstd-compressed archive-YYYY-MM-DD.db.zst).
 # Override: --backup-dir, TOTAL_RECALL_BACKUP_DIR.
 dir = "~/Documents/total-recall"
 # Number of most recent daily copies to keep.

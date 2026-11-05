@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.3.0 (unveröffentlicht)
+
+### Backup
+
+- **Backups sind zstd-komprimiert** (`archive-YYYY-MM-DD.db.zst` statt `.db.gz`). Seit Schema v5 sind die Rohzeilen schon zstd-Blöcke, an denen gzip nichts mehr spart; auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in 6,3 s, zstd 220 MiB in rund 2 s, und das Entpacken dauert 0,4 statt 2 s. Alte `.db.gz` bleiben lesbar (`restore` erkennt das Format an der Endung) und zählen bei der Aufbewahrung weiter mit; `status`, `backup --if-older` und die Config-Seite der TUI nehmen die neueste Kopie in jedem Format. Rezept: [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen) ([#163](https://github.com/seletz/total-recall/issues/163)).
+
 ## v1.2.1
 
 ### Behoben
