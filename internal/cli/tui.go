@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/tui"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/version"
@@ -90,7 +91,7 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	if err != nil {
 		return tui.Options{}, err
 	}
-	work, err := workHours(cfg)
+	work, err := ops.WorkHours(cfg)
 	if err != nil {
 		return tui.Options{}, err
 	}
@@ -126,7 +127,7 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	}
 	return tui.Options{
 		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse, Reload: reload,
-		DayStart: cfg.DayStartOffset(), Work: work, Holidays: holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home, Projects: projects,
+		DayStart: cfg.DayStartOffset(), Work: work, Holidays: ops.Holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home, Projects: projects,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow, ActivityProjects: cfg.TUI.ActivityProjects, ActivityNewest: cfg.TUI.ActivityNewest,
 		Keys: km,
 	}, nil

@@ -13,6 +13,7 @@ import (
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -330,7 +331,7 @@ func TestActionsConfirm(t *testing.T) {
 	m := drive(t, New(h.options(t)), "tab", "tab", "tab")
 	requireContains(t, frame(m), "▸ backup", "write a compressed copy to ~/Documents/total-recall, keep 7 daily and 0")
 	m = press(t, m, "enter")
-	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.gz to ~/Documents/total-recall and prune older copies", "y confirms, esc cancels")
+	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.zst to ~/Documents/total-recall and prune older copies", "y confirms, esc cancels")
 	m = press(t, m, "esc")
 	requireContains(t, frame(m), "backup: cancelled")
 	if _, err := os.Stat(h.cfg.Backup.Dir); err == nil {
@@ -338,8 +339,8 @@ func TestActionsConfirm(t *testing.T) {
 	}
 	m = press(t, m, "enter", "y")
 	f := frame(m)
-	requireContains(t, f, "backup: backup written: archive-2026-10-20.db.gz", "writing archive-2026-10-20.db.gz")
-	if _, err := os.Stat(filepath.Join(h.cfg.Backup.Dir, "archive-2026-10-20.db.gz")); err != nil {
+	requireContains(t, f, "backup: backup written: archive-2026-10-20.db.zst", "writing archive-2026-10-20.db.zst")
+	if _, err := os.Stat(filepath.Join(h.cfg.Backup.Dir, "archive-2026-10-20.db.zst")); err != nil {
 		t.Errorf("no backup: %v", err)
 	}
 	if m.busy {
@@ -347,7 +348,7 @@ func TestActionsConfirm(t *testing.T) {
 	}
 	// The status knows the backup now.
 	m = press(t, m, "shift+tab", "shift+tab", "shift+tab")
-	requireRow(t, frame(m), "last backup", "~/Documents/total-recall/archive-2026-10-20.db.gz")
+	requireRow(t, frame(m), "last backup", "~/Documents/total-recall/archive-2026-10-20.db.zst")
 	// A dry run needs no confirmation.
 	m = press(t, m, "tab", "tab", "tab", "down", "enter")
 	requireContains(t, frame(m), "maintenance (dry run): would be rebuilt:", "page size 4096 → 16384")
@@ -489,4 +490,70 @@ func TestMigrate(t *testing.T) {
 func TestNoConfig(t *testing.T) {
 	m := drive(t, New(Options{Now: tuitest.Clock}), "tab", "enter", "tab", "tab", "enter", "y", "tab", "enter", "c")
 	requireContains(t, frame(m), "no configuration")
+}
+
+// TestSetKeys: new bindings act at once; the page stays.
+func TestSetKeys(t *testing.T) {
+	h := newTestEnv(t, "")
+	km, err := keys.Resolve(map[string][]string{keys.ConfigNext: {"n"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := drive(t, New(h.options(t)), "tab")
+	m = m.SetKeys(km).(Model)
+	if m.active != pageSettings {
+		t.Fatalf("page = %d after SetKeys", m.active)
+	}
+	if m = press(t, m, "tab"); m.active != pageSettings {
+		t.Error("tab still switches the page")
+	}
+	if m = press(t, m, "n"); m.active != pageProjects {
+		t.Errorf("n does not switch the page: %d", m.active)
+	}
+	if h := m.keys.Pages.Help(); h.Key != "n" {
+		t.Errorf("pages help = %q", h.Key)
+	}
+}
+
+// TestSettingsEffect: the default line of the marked key says what a
+// change does, and the notice after a write says the same.
+func TestSettingsEffect(t *testing.T) {
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{"tui.reload", "applied at once"},
+		{"tui.mouse", "applied at once"},
+		{"tui.activity_projects", "applied at once"},
+		{"day_start", "applied at once"},
+		{"work.target", "applied at once"},
+		{"work.bundesland", "applied at once"},
+		{"keys.global_quit", "applied at once"},
+		{"project", "applied at once"},
+		{"db", "takes effect at the next start"},
+		{"timezone", "takes effect at the next start"},
+		{"tui.view", "takes effect at the next start"},
+		{"tui.stats_period", "takes effect at the next start"},
+		{"tui.activity_window", "takes effect at the next start"},
+		{"backup.dir", "used by the next command or action"},
+		{"redact.enabled", "used by the next command or action"},
+		{"chart.scale", "used by the next command or action"},
+		{"chart.lang", "used by the next command or action"},
+		{"worktime.max_gap", "used by the next command or action"},
+		{"accounts", "used by the next command or action"},
+	}
+	h := newTestEnv(t, "")
+	m := drive(t, New(h.options(t)), "tab")
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			m := goTo(t, m, tt.key)
+			requireContains(t, frame(m), "· change: "+tt.want)
+		})
+	}
+	// The notice after a write and after a reset.
+	m = goTo(t, m, "work.target")
+	m = press(t, m, "enter", "backspace", "backspace", "4", "h", "enter")
+	requireContains(t, frame(m), "work.target written to ~/.config/total-recall/config.toml · applied at once")
+	m = press(t, m, "d")
+	requireContains(t, frame(m), "work.target reset to the default · applied at once")
 }

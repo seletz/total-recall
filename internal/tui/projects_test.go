@@ -16,12 +16,19 @@ import (
 // definitions below a temporary home.
 func loadConfig(t *testing.T, projects string) *config.Config {
 	t.Helper()
+	return loadConfigText(t, config.Template+projects)
+}
+
+// loadConfigText writes text as the configuration file below a temporary
+// home and loads it.
+func loadConfigText(t *testing.T, text string) *config.Config {
+	t.Helper()
 	home := t.TempDir()
 	dir := filepath.Join(home, ".config", "total-recall")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(config.Template+projects), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := config.Load(config.Options{GOOS: "linux", Home: home, Getenv: func(k string) string {

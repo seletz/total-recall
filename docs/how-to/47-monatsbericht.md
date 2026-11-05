@@ -76,6 +76,31 @@ total-recall chart calendar --month 2026-10 --no-title --no-legend --transparent
 
 SVG ist der Default und skaliert ohne Verlust; PNG rastert das Bild in reinem Go, `--scale 2` für scharfe Bilder auf hochauflösenden Displays. `--width` oder `--height` setzen die Größe in Pixeln, beide zusammen einen Rahmen, in dem die Grafik zentriert sitzt. `--no-title` und `--no-legend` lassen Überschrift und Legende weg, wenn der Bericht sie selbst setzt, `--transparent` den weißen Hintergrund. Die Defaults von Format, Faktor, Titel, Legende und Hintergrund stehen in [`[chart]`](../reference/20-konfiguration.md#chart).
 
+## Deutsche Beschriftung, eigener Titel
+
+Die Beschriftungen sind Englisch wie die übrige Ausgabe. Für einen deutschen Bericht schaltet `--lang de` Titel, Legende, Achsen, Wochentage und Monatsnamen auf Deutsch um, dazu das Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`); die Dateinamen bleiben gleich.
+
+```sh
+total-recall chart all --month 2026-10 --lang de --out berichte/2026-10
+```
+
+![Arbeitszeit je Woche und Kategorie, deutsch beschriftet](../assets/charts/de/2026-10-worktime.svg)
+
+![Anteil je Projekt, deutsch beschriftet](../assets/charts/de/2026-10-projects.svg)
+
+Wer immer deutsche Grafiken will, setzt den Default in der Konfiguration; `--lang en` holt für einen Lauf die englische zurück:
+
+```toml
+[chart]
+lang = "de"
+```
+
+`--title TEXT` ersetzt die Überschrift samt Zeitraum durch einen eigenen Text, etwa den Namen des Kunden oder des Projekts:
+
+```sh
+total-recall chart worktime --month 2026-10 --lang de --title "Kompass, Oktober 2026" > arbeitszeit.svg
+```
+
 ## In einer Notiz einbetten
 
 Ein Markdown-Bericht bindet die Dateien wie jedes Bild ein:

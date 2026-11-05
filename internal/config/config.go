@@ -277,6 +277,8 @@ type Chart struct {
 	// Heatmap is the colour scale of the calendar, light to dark: names
 	// of project.Palette or #rrggbb values, one per level.
 	Heatmap []string `toml:"heatmap"`
+	// Lang is the language of the labels: en or de (--lang).
+	Lang string `toml:"lang"`
 }
 
 // Defaults of [chart].
@@ -284,10 +286,14 @@ const (
 	DefaultChartFormat = "svg"
 	DefaultChartScale  = 1.0
 	DefaultChartTop    = 12
+	DefaultChartLang   = string(figure.EN)
 )
 
 // ChartFormats are the allowed values of [chart] format.
 var ChartFormats = []string{"svg", "png"}
+
+// ChartLangs are the allowed values of [chart] lang.
+var ChartLangs = figure.Langs
 
 // ChartSettings is the validated [chart] table with the category colours
 // of [[worktime.category]], as `total-recall chart` uses them.
@@ -298,6 +304,8 @@ type ChartSettings struct {
 	Legend      bool
 	Transparent bool
 	Top         int
+	// Lang is the language of the labels.
+	Lang figure.Lang
 	// Heatmap holds the colours of the calendar scale as #rrggbb.
 	Heatmap []string
 	// CategoryColors maps a category name to its colour as #rrggbb;
@@ -504,6 +512,7 @@ var fields = []struct {
 	{"chart.transparent", func(c *Config) string { return strconv.FormatBool(c.Chart.Transparent) }},
 	{"chart.top", func(c *Config) string { return strconv.Itoa(c.Chart.Top) }},
 	{"chart.heatmap", func(c *Config) string { return formatList(c.Chart.Heatmap) }},
+	{"chart.lang", func(c *Config) string { return c.Chart.Lang }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
 	{"project", func(c *Config) string { return formatProjects(c.Projects) }},
 }
@@ -596,7 +605,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{DefaultReload}}
-	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Heatmap: slices.Clone(figure.DefaultHeatmap)}
+	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Heatmap: slices.Clone(figure.DefaultHeatmap), Lang: DefaultChartLang}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
 	c.Projects = []Project{}
@@ -931,6 +940,11 @@ func (c *Config) ChartSettings() (ChartSettings, error) {
 	if ch.Top < 0 {
 		return s, fmt.Errorf("config: chart.top %d: want 0 (all projects) or more", ch.Top)
 	}
+	lang, err := figure.ParseLang(ch.Lang)
+	if err != nil {
+		return s, fmt.Errorf("config: chart.lang %q: use %s", ch.Lang, orList(ChartLangs))
+	}
+	s.Lang = lang
 	if len(ch.Heatmap) == 0 {
 		return s, fmt.Errorf("config: chart.heatmap: want at least one colour")
 	}

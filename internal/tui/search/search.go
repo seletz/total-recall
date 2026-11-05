@@ -589,3 +589,11 @@ func (m Model) hint() string {
 	}
 	return ""
 }
+
+// SetKeys replaces the key bindings, so a changed [keys] table applies
+// without a restart; the input and the hits stay as they are.
+func (m Model) SetKeys(km keys.Map) tea.Model {
+	m.opts.Keys = km
+	m.keys = newKeyMap(km)
+	return m
+}

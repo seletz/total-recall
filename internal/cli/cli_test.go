@@ -677,7 +677,7 @@ func TestBackup(t *testing.T) {
 	}
 	e.mustRun(t, "ingest", "--all")
 	out := e.mustRun(t, "backup")
-	want := filepath.Join(e.backups, "archive-2026-10-20.db.gz")
+	want := filepath.Join(e.backups, "archive-2026-10-20.db.zst")
 	if !strings.Contains(out, want) {
 		t.Errorf("backup = %q", out)
 	}
@@ -686,7 +686,7 @@ func TestBackup(t *testing.T) {
 	}
 	// The date uses the configured time zone: 23:30 UTC is the next day in Berlin.
 	e.now = time.Date(2026, 10, 21, 23, 30, 0, 0, time.UTC)
-	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db.gz") {
+	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db.zst") {
 		t.Errorf("tz date = %q", out)
 	}
 	// --if-older compares with the newest copy's modification time (real clock).
@@ -710,7 +710,7 @@ func TestRestore(t *testing.T) {
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	e.mustRun(t, "backup")
-	bak := filepath.Join(e.backups, "archive-2026-10-20.db.gz")
+	bak := filepath.Join(e.backups, "archive-2026-10-20.db.zst")
 	events := e.count(t, "SELECT count(*) FROM events")
 
 	// Default target is the configured database, which exists: refused.

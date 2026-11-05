@@ -64,7 +64,7 @@ func TestRenderAll(t *testing.T) {
 		"compact":                 {"[3 activity]", "week:"},
 		"help":                    {"[2 stats]", "keys: stats", "closes this help", "esc back"},
 		"heatmap-compact":         {"[2 stats]", "░▒▓█", "heatmap"},
-		"config-status":           {"4 config]", "[status] settings projects actions setup", "~/.config/total-recall/config.toml", "~/.local/share/total-recall/archive.db", "schema", "sessions", "last backup", "~/Documents/total-recall/archive-2026-11-02.db.gz", "problems              none"},
+		"config-status":           {"4 config]", "[status] settings projects actions setup", "~/.config/total-recall/config.toml", "~/.local/share/total-recall/archive.db", "schema", "sessions", "last backup", "~/Documents/total-recall/archive-2026-11-02.db.zst", "problems              none"},
 		"config-settings":         {"4 config]", "status [settings]", "KEY", "VALUE", "ORIGIN", "[backup]", "enter saves, esc cancels"},
 		"config-actions":          {"4 config]", "[actions] setup", "▸ backup", "maintenance (dry run)", "migrate", "y confirms, esc cancels"},
 		"config-projects":         {"4 config]", "settings [projects] actions", "NAME", "DESCRIPTION", "SESSIONS", "MATCH", "■ kompass", "Wanderkarten, alle Repositories", "https://git.invalid/mara/kompass*, ~/src/kompass*", "■ fahrtenbuch", "UNMATCHED", "LAST", "PATH", "dotfiles", "https://git.invalid/mara/dotfiles", "/home/mara/notizen", "kompass  #4e79a7  matches 1 path ·", "sessions: kompass", "enter edits · a adds · x removes · K/J move (first match wins) · m adds a path as a pattern"},
