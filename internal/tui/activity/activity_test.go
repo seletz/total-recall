@@ -307,11 +307,14 @@ func TestNoStore(t *testing.T) {
 	golden.RequireEqual(t, tuitest.Frame(final))
 }
 
-// countingLoader counts calls and can fail.
+// countingLoader counts calls and can fail; projectCalls counts the
+// project loads apart, projectErr fails them alone.
 type countingLoader struct {
-	st    *store.Store
-	calls atomic.Int32
-	err   error
+	st           *store.Store
+	calls        atomic.Int32
+	projectCalls atomic.Int32
+	err          error
+	projectErr   error
 }
 
 func (l *countingLoader) Workday(ctx context.Context, f store.WorkdayFilter) ([]store.Workday, error) {
@@ -320,6 +323,14 @@ func (l *countingLoader) Workday(ctx context.Context, f store.WorkdayFilter) ([]
 		return nil, l.err
 	}
 	return l.st.Workday(ctx, f)
+}
+
+func (l *countingLoader) ProjectDays(ctx context.Context, f store.WorkdayFilter) (store.ProjectDays, error) {
+	l.projectCalls.Add(1)
+	if l.projectErr != nil {
+		return store.ProjectDays{}, l.projectErr
+	}
+	return l.st.ProjectDays(ctx, f)
 }
 
 func TestLoadError(t *testing.T) {
@@ -376,7 +387,7 @@ func TestStaleResultDropped(t *testing.T) {
 	tm = tuitest.Run(t, tm, cmd)
 	tm, _ = tm.Update(stale)
 	m = tm.(Model)
-	if !strings.Contains(tuitest.Frame(m), "this week") || len(m.cache) != 2 {
+	if !strings.Contains(tuitest.Frame(m), "2026-01-05 – 2026-01-11") || len(m.cache) != 2 {
 		t.Errorf("stale result changed the view or was not cached:\n%s", tuitest.Frame(m))
 	}
 }
@@ -456,7 +467,7 @@ func TestConfiguredKeys(t *testing.T) {
 // switchX returns the column of label on the switches line.
 func switchX(t *testing.T, m Model, label string) int {
 	t.Helper()
-	line, _, _ := m.switches()
+	line, _, _, _ := m.switches()
 	f := ansi.Strip(line)
 	x := strings.Index(f, label)
 	if x < 0 {

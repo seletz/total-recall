@@ -1,6 +1,6 @@
  total-recall                            updated 12:00:00                              1 search   2 stats  [3 activity]
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- period: day week [month]  count: all [human]                            this month · 2026-06 · 2026-06-01 – 2026-06-30
+ period: day week [month]  count: all [human]  bars: [hours] projects    this month · 2026-06 · 2026-06-01 – 2026-06-30
  month: 220h38m in 23 days · target 168h00m (21 workdays × 8h00m) · balance +52h38m · Thu 04 Fronleichnam
  day             first  last          span     diff  04         08         12         16         20         00
  Mon 2026-06-01  08:52  17:35        8h43m   +0h43m  ·············▓██████████████████████▓▓····························
@@ -33,4 +33,4 @@
  span   median 8h24m  mean 9h35m  min 1h10m  max 16h36m
  30 days · 0 ms · human only · 1 holiday · rows 1–24 of 30, ↑↓ scroll
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • ←/→ earlier/later • c/l this/last • h human/all events • s summary figures • 1 search • 2 stats …
+ d/w/m period • ←/→ earlier/later • c/l this/last • h human/all events • s summary figures • p by project • 1 search …

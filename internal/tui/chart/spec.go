@@ -158,38 +158,52 @@ func FromSeries(s store.ActivitySeries, period store.Period, metric Metric, name
 	return spec
 }
 
-// Colors remembers which colour each series key received, so a series
-// keeps its colour when the user switches period, dimension or metric and
-// the order of the series changes. The zero value is ready to use; one
-// Colors should live as long as the view.
+// Colors is the one place that maps a project (or any other series key) to
+// its colour, so a project looks alike in every view: a key seen for the
+// first time takes the next Palette colour, cycling when the palette is
+// exhausted, and keeps it when the user switches period, dimension, metric
+// or view and the order of the series changes. Fixed colours win over the
+// palette and use none of it. store.OtherKey is always OtherColor. The
+// zero value is ready to use; one Colors should live as long as the app and
+// be shared by the views.
 type Colors struct {
+	// Fixed are the configured colours by key; a key listed here never
+	// takes a palette colour.
+	Fixed map[string]color.Color
+
 	byKey map[string]color.Color
 	used  int
 }
 
-// Assign returns a copy of spec whose series carry their remembered colour;
-// a key seen for the first time takes the next Palette colour, cycling
-// when the palette is exhausted. store.OtherKey is always OtherColor.
-func (c *Colors) Assign(spec Spec) Spec {
+// Color returns the colour of a key: its fixed colour, else the palette
+// colour it received or, for a key seen for the first time, the next one.
+func (c *Colors) Color(key string) color.Color {
+	if key == store.OtherKey {
+		return OtherColor
+	}
+	if col, ok := c.Fixed[key]; ok {
+		return col
+	}
 	if c.byKey == nil {
 		c.byKey = map[string]color.Color{}
 	}
+	col, ok := c.byKey[key]
+	if !ok {
+		col = Palette[c.used%len(Palette)]
+		c.used++
+		c.byKey[key] = col
+	}
+	return col
+}
+
+// Assign returns a copy of spec whose series carry the colour of their key
+// (see Color).
+func (c *Colors) Assign(spec Spec) Spec {
 	out := spec
 	out.Series = make([]Series, len(spec.Series))
 	copy(out.Series, spec.Series)
 	for i := range out.Series {
-		sr := &out.Series[i]
-		if sr.Key == store.OtherKey {
-			sr.Color = OtherColor
-			continue
-		}
-		col, ok := c.byKey[sr.Key]
-		if !ok {
-			col = Palette[c.used%len(Palette)]
-			c.used++
-			c.byKey[sr.Key] = col
-		}
-		sr.Color = col
+		out.Series[i].Color = c.Color(out.Series[i].Key)
 	}
 	return out
 }

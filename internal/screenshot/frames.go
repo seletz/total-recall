@@ -91,6 +91,8 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, ein Monat mit Monatsarbeitszeit"},
 	{Name: "activity-days", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"k", "k", "k"},
 		Caption: "Aktivität je Tag, mit ↑ drei Tage zurück: ein gleitendes Fenster von sieben Tagen"},
+	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"},
+		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
 	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},
