@@ -205,3 +205,72 @@ func (c *Config) Reload() (*Config, error) { return load(c.opts, nil) }
 func (c *Config) Default(key string) string {
 	return c.defaultValues[key]
 }
+
+// projectTable is the array of tables that holds the project definitions.
+const projectTable = "project"
+
+// AddProject appends a [[project]] definition to the file. The definition
+// must be valid (see ProjectResolver): a name that no other definition
+// has, at least one non-empty pattern, a known colour. The file is
+// written like SetValue, with the comments kept and a backup; an invalid
+// definition leaves it untouched.
+func (c *Config) AddProject(p Project) (*Config, error) {
+	return c.edit(projectTable, func(d *tomledit.Document) error {
+		return d.AppendTable(projectTable, projectPairs(p))
+	})
+}
+
+// SetProject replaces the index-th [[project]] definition (file order)
+// with p: the name and the patterns are set, an empty description or
+// colour is commented out.
+func (c *Config) SetProject(index int, p Project) (*Config, error) {
+	return c.edit(projectTable, func(d *tomledit.Document) error {
+		for _, pair := range projectPairs(p) {
+			if err := d.SetAt(projectTable, index, pair.Key, pair.Value); err != nil {
+				return err
+			}
+		}
+		if p.Description == "" {
+			if err := d.UnsetAt(projectTable, index, "description"); err != nil {
+				return err
+			}
+		}
+		if p.Color == "" {
+			return d.UnsetAt(projectTable, index, "color")
+		}
+		return nil
+	})
+}
+
+// RemoveProject deletes the index-th [[project]] definition from the file.
+func (c *Config) RemoveProject(index int) (*Config, error) {
+	return c.edit(projectTable, func(d *tomledit.Document) error {
+		return d.RemoveTable(projectTable, index)
+	})
+}
+
+// MoveProject moves the from-th [[project]] definition to position to; the
+// order decides which definition wins when several match.
+func (c *Config) MoveProject(from, to int) (*Config, error) {
+	return c.edit(projectTable, func(d *tomledit.Document) error {
+		return d.MoveTable(projectTable, from, to)
+	})
+}
+
+// projectPairs are the keys of a definition as written: name, then the
+// optional description and colour when set, then the patterns (one
+// pattern as a string, several as a list).
+func projectPairs(p Project) []tomledit.Pair {
+	pairs := []tomledit.Pair{{Key: "name", Value: p.Name}}
+	if p.Description != "" {
+		pairs = append(pairs, tomledit.Pair{Key: "description", Value: p.Description})
+	}
+	if p.Color != "" {
+		pairs = append(pairs, tomledit.Pair{Key: "color", Value: p.Color})
+	}
+	var match any = []string(p.Match)
+	if len(p.Match) == 1 {
+		match = p.Match[0]
+	}
+	return append(pairs, tomledit.Pair{Key: "match", Value: match})
+}

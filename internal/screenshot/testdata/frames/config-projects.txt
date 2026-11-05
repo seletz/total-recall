@@ -2,14 +2,14 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  status settings [projects] actions setup                                            ~/.config/total-recall/config.toml
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   NAME         DESCRIPTION                       MATCH
-▸ ■ kompass      Wanderkarten, alle Repositories   https://git.invalid/mara/kompass*, ~/src/kompass*
-  ■ wetterwarte  Messstation und Auswertung        https://git.invalid/mara/wetterwarte
-  ■ fahrtenbuch                                    https://git.invalid/mara/fahrtenbuch
-  · notizen      Markdown-Notizen ohne Repository  ~/notizen
+   NAME                DESCRIPTION                      SESSIONS  MATCH
+▸ ■ kompass             Wanderkarten, alle Repositories       319  https://git.invalid/mara/kompass*, ~/src/kompass*
+  ■ wetterwarte         Messstation und Auswertung            218  https://git.invalid/mara/wetterwarte
+  ■ fahrtenbuch                                                88  https://git.invalid/mara/fahrtenbuch
 
-
-
+   UNMATCHED           SESSIONS  LAST         PATH
+  /home/mara/notizen        58  12d17h ago   /home/mara/notizen
+  dotfiles                  51  11d01h ago   /home/mara/dotfiles  https://git.invalid/mara/dotfiles
 
 
 
@@ -30,7 +30,7 @@
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- kompass  #4e79a7  https://git.invalid/mara/kompass*  ~/src/kompass*
- first matching definition wins; edit them in the file, E opens $EDITOR
+ kompass  #4e79a7  matches 1 path · 319 sessions: kompass
+ enter edits · a adds · x removes · K/J move (first match wins) · m adds a path as a pattern
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- tab page • ↑/↓ move • E open config in $EDITOR • 1 search • 2 stats • 3 activity • ? help • q quit
+ tab page • ↑/↓ move • enter edit / run • a add • x remove • m add as pattern • E open config in $EDITOR • 1 search …

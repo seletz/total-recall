@@ -114,6 +114,11 @@ const (
 	ConfigConfirm = "config_confirm"
 	ConfigCopy    = "config_copy"
 	ConfigEditor  = "config_editor"
+	ConfigAdd     = "config_add"
+	ConfigRemove  = "config_remove"
+	ConfigMoveUp  = "config_move_up"
+	ConfigMoveDn  = "config_move_down"
+	ConfigPattern = "config_pattern"
 )
 
 // Actions is the catalogue, in the order of the docs and of `config show`.
@@ -185,6 +190,11 @@ var Actions = []Action{
 	{ConfigConfirm, Config, []string{"y"}, "confirm"},
 	{ConfigCopy, Config, []string{"c"}, "copy hook block"},
 	{ConfigEditor, Config, []string{"E"}, "open config in $EDITOR"},
+	{ConfigAdd, Config, []string{"a"}, "add"},
+	{ConfigRemove, Config, []string{"x"}, "remove"},
+	{ConfigMoveUp, Config, []string{"K"}, "move up"},
+	{ConfigMoveDn, Config, []string{"J"}, "move down"},
+	{ConfigPattern, Config, []string{"m"}, "add as pattern"},
 }
 
 // ForceQuit is the fixed binding that quits in every state, even while a

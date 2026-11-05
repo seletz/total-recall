@@ -35,6 +35,19 @@ type testEnv struct {
 func newTestEnv(t *testing.T, extra string) *testEnv {
 	t.Helper()
 	_, db := fixturedb.Small(t)
+	return newTestEnvWith(t, extra, db)
+}
+
+// newActivityEnv is newTestEnv on the Activity fixture, whose directories
+// resolve to repositories (alpha with a worktree and beta) or not (gamma).
+func newActivityEnv(t *testing.T, extra string) *testEnv {
+	t.Helper()
+	_, db := fixturedb.Activity(t)
+	return newTestEnvWith(t, extra, db)
+}
+
+func newTestEnvWith(t *testing.T, extra, db string) *testEnv {
+	t.Helper()
 	home := t.TempDir()
 	h := &testEnv{home: home, db: db, settings: filepath.Join(home, ".claude", "settings.json"), env: map[string]string{}}
 	h.env["XDG_CONFIG_HOME"] = filepath.Join(home, ".config")
@@ -416,45 +429,6 @@ func TestSetupWritesTemplate(t *testing.T) {
 	if b, err := os.ReadFile(h.cfg.Path); err != nil || !strings.HasPrefix(string(b), "# total-recall configuration") {
 		t.Errorf("template not written: %v", err)
 	}
-}
-
-// TestProjects lists the project definitions of the file, read-only, and
-// reports a broken table.
-func TestProjects(t *testing.T) {
-	h := newTestEnv(t, `
-[[project]]
-name = "kompass"
-description = "Wanderkarten"
-color = "blue"
-match = ["https://git.invalid/mara/kompass*", "~/src/kompass-*"]
-[[project]]
-name = "notizen"
-match = "~/notizen"
-`)
-	m := drive(t, New(h.options(t)), "tab", "tab")
-	f := frame(m)
-	requireContains(t, f, "[projects]", "NAME", "DESCRIPTION", "MATCH",
-		"■ kompass  Wanderkarten  https://git.invalid/mara/kompass*, ~/src/kompass-*",
-		"· notizen", "~/notizen",
-		"kompass  #4e79a7  https://git.invalid/mara/kompass*  ~/src/kompass-*",
-		"first matching definition wins")
-	m = press(t, m, "j")
-	requireContains(t, frame(m), "▸ · notizen", "notizen  automatic colour  ~/notizen")
-	m = press(t, m, "enter")
-	requireContains(t, frame(m), "projects are edited in the file for now")
-	// The settings page shows the table as one read-only row.
-	m = press(t, m, "shift+tab")
-	m = goTo(t, m, "project")
-	requireContains(t, frame(m), "[project]", "kompass (#4e79a7)")
-	m = press(t, m, "enter")
-	requireContains(t, frame(m), "project is a table: edit it in the file")
-	// A broken definition is a problem, not a crash.
-	if err := os.WriteFile(h.cfg.Path, []byte(config.Template+"\n[[project]]\nname = \"x\"\ncolor = \"mauve\"\nmatch = \"a\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	h.reload(t)
-	m = drive(t, New(h.options(t)), "tab", "tab")
-	requireContains(t, frame(m), "[[project]] has a problem", "mauve")
 }
 
 // TestMigrate: an outdated archive shows the pending migration on the

@@ -187,6 +187,13 @@ func (c *Colors) Fix(key string, col color.Color) {
 	c.fixed[key] = true
 }
 
+// Reset forgets every colour, pinned or automatic, so the next keys start
+// the palette afresh; the views call it when the project definitions
+// change.
+func (c *Colors) Reset() {
+	c.byKey, c.fixed, c.used = nil, nil, 0
+}
+
 // Color returns the colour of a key: the one it received or was pinned
 // to, or, for a key seen for the first time, the next Palette colour that
 // no pinned key uses, cycling when the palette is exhausted.

@@ -11,6 +11,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
@@ -286,10 +288,39 @@ func (a App) configChanged(msg configview.Changed) (tea.Model, tea.Cmd) {
 	a.opts.Reload = cfg.TUI.Reload.Duration
 	a.opts.NoMouse = !cfg.TUI.Mouse
 	_, cmd := a.broadcastModel(msg)
+	cmds := []tea.Cmd{cmd, a.setProjects(cfg)}
 	if wasOff && a.opts.Reload > 0 {
-		return a, tea.Batch(cmd, a.tick())
+		cmds = append(cmds, a.tick())
 	}
-	return a, cmd
+	return a, tea.Batch(cmds...)
+}
+
+// projectsView is a view that applies the project definitions itself:
+// stats and activity swap their resolver and reload.
+type projectsView interface {
+	SetProjects(project.Resolver) (tea.Model, tea.Cmd)
+}
+
+// setProjects hands changed project definitions to the views that use
+// them, so a definition edited in the config view shows at once. A list
+// with a problem keeps the definitions the app started with.
+func (a *App) setProjects(cfg *config.Config) tea.Cmd {
+	r, err := cfg.ProjectResolver()
+	if err != nil || r.Equal(a.opts.Projects) {
+		return nil
+	}
+	a.opts.Projects = r
+	var cmds []tea.Cmd
+	for i, v := range a.views {
+		pv, ok := v.(projectsView)
+		if !ok {
+			continue
+		}
+		m, cmd := pv.SetProjects(r)
+		a.views = a.replace(i, m.(View))
+		cmds = append(cmds, cmd)
+	}
+	return tea.Batch(cmds...)
 }
 
 // broadcastModel is broadcast on a value receiver.

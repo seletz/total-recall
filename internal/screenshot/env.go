@@ -59,8 +59,11 @@ func NewEnv(dbPath, dir string) (*Env, error) {
 	return e, nil
 }
 
-// projects are the [[project]] definitions of the synthetic config: the
-// repositories of the demo archive with names, colours and patterns.
+// projects are the [[project]] definitions of the synthetic config: three
+// of the demo's repositories with names, colours and patterns; two of the
+// colours differ from the automatic ones, so the shots show them taking
+// effect. The dotfiles repository and the notes directory stay without a
+// definition, so the projects page has paths to offer.
 const projects = `
 [[project]]
 name = "kompass"
@@ -71,18 +74,13 @@ match = ["https://git.invalid/mara/kompass*", "~/src/kompass*"]
 [[project]]
 name = "wetterwarte"
 description = "Messstation und Auswertung"
-color = "orange"
+color = "purple"
 match = "https://git.invalid/mara/wetterwarte"
 
 [[project]]
 name = "fahrtenbuch"
-color = "green"
+color = "teal"
 match = "https://git.invalid/mara/fahrtenbuch"
-
-[[project]]
-name = "notizen"
-description = "Markdown-Notizen ohne Repository"
-match = "~/notizen"
 `
 
 // newHome lays out one home directory. With dbPath the demo archive is

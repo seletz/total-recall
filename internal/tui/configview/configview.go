@@ -10,8 +10,10 @@
 // for everything that writes, with progress lines and a cancel. Setup
 // checks the installation (config file, hooks in the harness settings,
 // binary on PATH, backup directory, transcripts, archive) and shows the
-// hook block to copy. Projects is a placeholder for the project
-// definitions (#4).
+// hook block to copy. Projects edits the project definitions
+// ([[project]]): a list with what each one gets of the archive and the
+// paths without a definition, a form per definition with a colour picker
+// and a preview of what a pattern matches.
 //
 // The view holds the state the pages share (the loaded status) and
 // forwards keys to the active page; a page that edits text takes the
@@ -188,7 +190,7 @@ type Model struct {
 func New(opts Options) Model {
 	opts.defaults()
 	m := Model{opts: opts, keys: newKeyMap(opts.Keys), th: theme.New(true), loading: true}
-	m.pages = []page{newStatusPage(), newSettingsPage(&m), projectsPage{}, newActionsPage(), newSetupPage()}
+	m.pages = []page{newStatusPage(), newSettingsPage(&m), newProjectsPage(), newActionsPage(), newSetupPage()}
 	return m
 }
 
@@ -221,8 +223,12 @@ func (m Model) Reload() (tea.Model, tea.Cmd) {
 func (m Model) Focused() bool { return m.pages[m.active].focused() }
 
 // ShortHelp returns the footer bindings: the page switch and the active
-// page's keys.
+// page's keys; a page that takes every key (a form, an input) shows its
+// own keys only.
 func (m Model) ShortHelp() []key.Binding {
+	if m.pages[m.active].focused() {
+		return m.pages[m.active].shortHelp(&m)
+	}
 	return append([]key.Binding{m.keys.Pages}, m.pages[m.active].shortHelp(&m)...)
 }
 
@@ -258,8 +264,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Changed:
 		m.opts.Config = msg.Config
 		cmd := m.loadState()
-		_, bcmd := m.broadcast(msg)
-		return m, tea.Batch(cmd, bcmd)
+		mm, bcmd := m.broadcast(msg)
+		return mm, tea.Batch(cmd, bcmd)
 	case Busy:
 		m.busy = msg.On
 		if !msg.On {

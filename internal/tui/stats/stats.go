@@ -369,6 +369,15 @@ func (m Model) load() (Model, tea.Cmd) {
 // when it is on) again, keeping the series on screen until the answer
 // arrives: no "Loading…" in between. Without a database there is nothing
 // to do.
+// SetProjects replaces the project definitions, forgets the colours (the
+// shared Colors, so the activity view starts afresh too) and loads the
+// window again, so a changed definition shows without a restart.
+func (m Model) SetProjects(r project.Resolver) (tea.Model, tea.Cmd) {
+	m.opts.Projects = r
+	m.colors.Reset()
+	return m.Reload()
+}
+
 func (m Model) Reload() (tea.Model, tea.Cmd) {
 	if m.opts.Loader == nil {
 		return m, nil

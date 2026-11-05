@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -166,6 +167,21 @@ func NewResolver(defs []Definition, home string) (Resolver, error) {
 	return r, nil
 }
 
+// Equal reports whether both resolvers have the same definitions in the
+// same order (name, description, colour and patterns) and the same home.
+func (r Resolver) Equal(o Resolver) bool {
+	if len(r.defs) != len(o.defs) || r.home != o.home {
+		return false
+	}
+	for i, d := range r.defs {
+		e := o.defs[i]
+		if d.Name != e.Name || d.Description != e.Description || d.Color != e.Color || !slices.Equal(d.Match, e.Match) {
+			return false
+		}
+	}
+	return true
+}
+
 // Empty reports whether the resolver has no definitions.
 func (r Resolver) Empty() bool { return len(r.defs) == 0 }
 
@@ -203,20 +219,32 @@ func (r Resolver) Key(key string, dir bool, remote string) string {
 	if len(r.defs) == 0 || !filepath.IsAbs(key) {
 		return key
 	}
-	var dirs []string
-	if dir {
-		dirs = []string{key}
-	}
-	targets := []string{key, Tilde(key, r.home), Names([]string{key}, dirs, r.home)[key]}
-	if remote != "" {
-		targets = append(targets, remote)
-	}
+	targets := Targets(key, dir, remote, r.home)
 	for _, d := range r.defs {
 		if d.Matches(targets...) {
 			return d.Name
 		}
 	}
 	return key
+}
+
+// Targets lists what the patterns of a definition are matched against for
+// a raw key (see Key): the key as a path, with the home directory as "~",
+// the name it gets without definitions, and the remote URL when there is
+// one. A key that is no absolute path has no targets.
+func Targets(key string, dir bool, remote, home string) []string {
+	if !filepath.IsAbs(key) {
+		return nil
+	}
+	var dirs []string
+	if dir {
+		dirs = []string{key}
+	}
+	targets := []string{key, Tilde(key, home), Names([]string{key}, dirs, home)[key]}
+	if remote != "" {
+		targets = append(targets, remote)
+	}
+	return targets
 }
 
 // Names is Names for a mix of configured names (as Key returns them) and
