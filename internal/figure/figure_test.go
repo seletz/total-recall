@@ -65,13 +65,80 @@ func TestPeriod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PeriodName(tt.since, tt.until, berlin); got != tt.wantName {
+			if got := PeriodName(tt.since, tt.until, berlin, EN); got != tt.wantName {
 				t.Errorf("PeriodName = %q, want %q", got, tt.wantName)
+			}
+			if got := PeriodName(tt.since, tt.until, berlin, ""); got != tt.wantName {
+				t.Errorf("PeriodName(empty lang) = %q, want %q", got, tt.wantName)
 			}
 			if got := PeriodSlug(tt.since, tt.until, berlin); got != tt.wantSlug {
 				t.Errorf("PeriodSlug = %q, want %q", got, tt.wantSlug)
 			}
 		})
+	}
+}
+
+// TestPeriodGerman: German month names and day.month.year; the slug of
+// the file name stays ISO.
+func TestPeriodGerman(t *testing.T) {
+	d := func(y int, m time.Month, day int) time.Time { return time.Date(y, m, day, 0, 0, 0, 0, berlin) }
+	tests := []struct {
+		name         string
+		since, until time.Time
+		want         string
+	}{
+		{"month", d(2026, 10, 1), d(2026, 11, 1), "Oktober 2026"},
+		{"march", d(2026, 3, 1), d(2026, 4, 1), "März 2026"},
+		{"days", d(2026, 10, 5), d(2026, 10, 12), "05.10.2026 – 11.10.2026"},
+		{"open end", d(2026, 10, 5), time.Time{}, "05.10.2026 – …"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PeriodName(tt.since, tt.until, berlin, DE); got != tt.want {
+				t.Errorf("PeriodName = %q, want %q", got, tt.want)
+			}
+		})
+	}
+	if got := PeriodSlug(d(2026, 10, 5), d(2026, 10, 12), berlin); got != "2026-10-05_2026-10-11" {
+		t.Errorf("PeriodSlug = %q", got)
+	}
+}
+
+// TestLang checks the parsing and the per-language formats.
+func TestLang(t *testing.T) {
+	for _, s := range []string{"en", "de", ""} {
+		if l, err := ParseLang(s); err != nil || (s != "" && string(l) != s) || (s == "" && l != EN) {
+			t.Errorf("ParseLang(%q) = %q, %v", s, l, err)
+		}
+	}
+	if _, err := ParseLang("fr"); err == nil {
+		t.Error("ParseLang(fr) = nil error")
+	}
+	tests := []struct {
+		lang               Lang
+		week, hours, other string
+		monday             string
+	}{
+		{EN, "W05", "7.3h", "other", "Mon"},
+		{DE, "KW 05", "7,3 h", "Sonstige", "Mo"},
+		{"", "W05", "7.3h", "other", "Mon"},
+	}
+	for _, tt := range tests {
+		if got := tt.lang.Week(5); got != tt.week {
+			t.Errorf("%q.Week = %q, want %q", tt.lang, got, tt.week)
+		}
+		if got := tt.lang.hours(7.25); got != tt.hours {
+			t.Errorf("%q.hours = %q, want %q", tt.lang, got, tt.hours)
+		}
+		if got := tt.lang.Other(); got != tt.other {
+			t.Errorf("%q.Other = %q, want %q", tt.lang, got, tt.other)
+		}
+		if got := tt.lang.Weekday(0); got != tt.monday {
+			t.Errorf("%q.Weekday(0) = %q, want %q", tt.lang, got, tt.monday)
+		}
+	}
+	if got := DE.hours(40); got != "40 h" {
+		t.Errorf("DE.hours(40) = %q", got)
 	}
 }
 
@@ -136,10 +203,10 @@ func TestHelpers(t *testing.T) {
 	if got := percent(1, 0); got != "0 %" {
 		t.Errorf("percent = %q", got)
 	}
-	if got := hours(7.25); got != "7.3h" {
+	if got := EN.hours(7.25); got != "7.3h" {
 		t.Errorf("hours = %q", got)
 	}
-	if got := hours(40); got != "40h" {
+	if got := EN.hours(40); got != "40h" {
 		t.Errorf("hours = %q", got)
 	}
 }
@@ -190,9 +257,10 @@ func sampleWorktime() WorktimeData {
 }
 
 // TestGolden compares the SVG of every figure with synthetic data against
-// golden files (go test ./internal/figure -update).
+// golden files (go test ./internal/figure -update), in both languages.
 func TestGolden(t *testing.T) {
 	period := Options{Period: "October 2026"}
+	de := Options{Period: "Oktober 2026", Lang: DE}
 	tests := []struct {
 		name  string
 		scene canvas.Scene
@@ -208,12 +276,26 @@ func TestGolden(t *testing.T) {
 		{"Worktime", Worktime(sampleWorktime(), period)},
 		{"WorktimeBare", Worktime(sampleWorktime(), Options{NoTitle: true, NoLegend: true})},
 		{"WorktimeEmpty", Worktime(WorktimeData{}, period)},
+		{"CalendarDE", Calendar(sampleCalendar(), nil, de)},
+		{"ProjectsDE", Projects(sampleProjects(), de)},
+		{"PunchcardDE", Punchcard(samplePunchcard(), de)},
+		{"WorktimeDE", Worktime(sampleWorktimeDE(), de)},
+		{"CalendarTitle", Calendar(sampleCalendar(), nil, Options{Period: "October 2026", Title: "Kompass im Oktober"})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			golden.RequireEqual(t, canvas.SVG(tt.scene, canvas.Size{}))
 		})
 	}
+}
+
+// sampleWorktimeDE is sampleWorktime with German week labels.
+func sampleWorktimeDE() WorktimeData {
+	d := sampleWorktime()
+	for i := range d.Weeks {
+		d.Weeks[i].Label = DE.Week(40 + i)
+	}
+	return d
 }
 
 // TestSizes checks the natural sizes against the figures of a report.

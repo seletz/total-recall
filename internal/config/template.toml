@@ -208,6 +208,9 @@ top = 12
 # Colour scale of the calendar, light to dark, one colour per level:
 # blue, orange, green, red, purple, teal or "#rrggbb".
 heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]
+# Language of the labels (titles, legends, weekdays, months, number
+# formats): en or de (--lang). File names stay the same.
+lang = "en"
 
 [keys]
 # Key bindings of the TUI: action = key or list of keys. Only listed

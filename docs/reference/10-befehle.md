@@ -558,7 +558,7 @@ Zeichnet die Grafiken eines Monatsberichts als SVG (Default) oder PNG: eine Graf
 ```sh
 total-recall chart <calendar|projects|punchcard|worktime|all> [--month YYYY-MM | --since/--until | --range NAME]
                    [--format svg|png] [--scale N | --width PX | --height PX] [--out DIR]
-                   [--no-title] [--no-legend] [--transparent] [--top N]
+                   [--no-title] [--no-legend] [--transparent] [--top N] [--lang en|de] [--title TEXT]
 ```
 
 | Grafik | Inhalt | Richtwert |
@@ -580,6 +580,12 @@ Dateien heißen `<YYYY-MM>-<grafik>.<format>` für einen ganzen Monat, sonst `<v
 
 `--no-title`, `--no-legend`, `--transparent`
 :   Überschrift (`<Grafik> · Oktober 2026`), Legende und weißer Hintergrund weg. Defaults aus `[chart]`: `title`, `legend`, `transparent`.
+
+`--lang en|de`
+:   Sprache der Beschriftungen: Titel, Legende, Achsen, Wochentage und Monatsnamen, dazu Datums- und Zahlenformat (`W41` / `KW 41`, `2026-10-05` / `05.10.2026`, `7.5h` / `7,5 h`, `other` / `Sonstige`). Die Dateinamen bleiben gleich. Default aus `[chart]`: `en`.
+
+`--title TEXT`
+:   Eigene Überschrift statt `<Grafik> · <Zeitraum>`; `--no-title` geht vor.
 
 `--top N`
 :   `projects`: die N größten Projekte, der Rest als `other`; `0` = alle. Default aus `[chart]`: 12.

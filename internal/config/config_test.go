@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/figure"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/worktime"
 )
@@ -804,7 +805,7 @@ func TestChart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Format != "svg" || s.Scale != 1 || !s.Title || !s.Legend || s.Transparent || s.Top != 12 || len(s.Heatmap) != 4 || len(s.CategoryColors) != 0 {
+	if s.Format != "svg" || s.Scale != 1 || !s.Title || !s.Legend || s.Transparent || s.Top != 12 || len(s.Heatmap) != 4 || len(s.CategoryColors) != 0 || s.Lang != figure.EN {
 		t.Errorf("defaults = %+v", s)
 	}
 	content := `[chart]
@@ -815,6 +816,7 @@ legend = false
 transparent = true
 top = 0
 heatmap = ["blue", "#ABCDEF"]
+lang = "de"
 
 [[worktime.category]]
 name = "kunde"
@@ -833,7 +835,7 @@ match = "*"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Format != "png" || s.Scale != 2.5 || s.Title || s.Legend || !s.Transparent || s.Top != 0 {
+	if s.Format != "png" || s.Scale != 2.5 || s.Title || s.Legend || !s.Transparent || s.Top != 0 || s.Lang != figure.DE {
 		t.Errorf("file = %+v", s)
 	}
 	if want := []string{"#4e79a7", "#abcdef"}; !slices.Equal(s.Heatmap, want) {
@@ -855,6 +857,9 @@ match = "*"
 	if e := entries["chart.scale"]; e.Value != "2.5" || e.Origin != OriginFile {
 		t.Errorf("scale entry = %+v", e)
 	}
+	if e := entries["chart.lang"]; e.Value != "de" || e.Origin != OriginFile {
+		t.Errorf("lang entry = %+v", e)
+	}
 	if e := entries["worktime.category"]; e.Value != `[kunde = ["*kunde*"] (Orange), sonstiges = ["*"]]` {
 		t.Errorf("category entry = %+v", e)
 	}
@@ -875,6 +880,7 @@ func TestChartErrors(t *testing.T) {
 		{"heatmap empty", "[chart]\nheatmap = []\n", "chart.heatmap"},
 		{"heatmap bad colour", "[chart]\nheatmap = [\"blue\", \"pink\"]\n", "chart.heatmap[1]"},
 		{"heatmap empty colour", "[chart]\nheatmap = [\"\"]\n", "chart.heatmap[0]"},
+		{"lang unknown", "[chart]\nlang = \"fr\"\n", "chart.lang"},
 		{"category colour", "[[worktime.category]]\nname = \"a\"\nmatch = [\"x\"]\ncolor = \"#12345\"\n", "worktime.category[0]"},
 	}
 	for _, tt := range tests {

@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.3.0 (unveröffentlicht)
 
+### Neu in der CLI
+
+- **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
+
 ### Backup
 
 - **Backups sind zstd-komprimiert** (`archive-YYYY-MM-DD.db.zst` statt `.db.gz`). Seit Schema v5 sind die Rohzeilen schon zstd-Blöcke, an denen gzip nichts mehr spart; auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in 6,3 s, zstd 220 MiB in rund 2 s, und das Entpacken dauert 0,4 statt 2 s. Alte `.db.gz` bleiben lesbar (`restore` erkennt das Format an der Endung) und zählen bei der Aufbewahrung weiter mit; `status`, `backup --if-older` und die Config-Seite der TUI nehmen die neueste Kopie in jedem Format. Rezept: [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen) ([#163](https://github.com/seletz/total-recall/issues/163)).

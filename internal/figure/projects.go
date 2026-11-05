@@ -23,13 +23,14 @@ type ProjectRow struct {
 func Projects(rows []ProjectRow, o Options) canvas.Scene {
 	const left, bar, rowH, plotW, right = 170.0, 9.0, 26.0, 380.0, 60.0
 	s := canvas.Scene{Background: background(o)}
-	top := heading(&s, o, "Share per project")
+	tx := o.Lang.text()
+	top := heading(&s, o, tx.projectsTitle)
 	if !o.NoLegend {
 		swatch := canvas.Hex("#8c8c8c")
 		for i, l := range []struct {
 			text string
 			fill color.NRGBA
-		}{{"agent work (agent events)", swatch}, {"own attention (own messages)", canvas.Alpha(swatch, 0.5)}} {
+		}{{tx.agentWork, swatch}, {tx.ownAttention, canvas.Alpha(swatch, 0.5)}} {
 			x := left + float64(i)*200
 			s.Add(canvas.Rect{X: x, Y: top + 2, W: 12, H: 10, Radius: 2, Fill: l.fill})
 			s.Add(label(x+18, top+11, l.text, canvas.Start))
@@ -62,7 +63,7 @@ func Projects(rows []ProjectRow, o Options) canvas.Scene {
 			v, sum int
 			fill   color.NRGBA
 			what   string
-		}{{r.Agent, sumA, r.Color, "agent events"}, {r.Human, sumH, canvas.Alpha(r.Color, 0.5), "own messages"}} {
+		}{{r.Agent, sumA, r.Color, tx.agentEvents}, {r.Human, sumH, canvas.Alpha(r.Color, 0.5), tx.ownMessages}} {
 			w := plotW * share(b.v, b.sum) / mx
 			by := y + float64(j)*(bar+1)
 			s.Add(canvas.Rect{X: left, Y: by, W: w, H: bar, Radius: 2, Fill: b.fill,

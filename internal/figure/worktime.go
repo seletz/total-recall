@@ -19,7 +19,7 @@ type WorktimeCategory struct {
 // name, missing = 0) and the target of the week in hours (daily target ×
 // workdays; 0 draws no target).
 type WorktimeWeek struct {
-	Label  string // W41
+	Label  string // Lang.Week: W41, KW 41
 	Hours  map[string]float64
 	Target float64
 }
@@ -37,7 +37,8 @@ type WorktimeData struct {
 func Worktime(d WorktimeData, o Options) canvas.Scene {
 	const left, colW, barW, plotH, legendW = 44.0, 64.0, 40.0, 200.0, 170.0
 	s := canvas.Scene{Background: background(o)}
-	top := heading(&s, o, "Working time per week") + 12
+	tx := o.Lang.text()
+	top := heading(&s, o, tx.worktimeTitle) + 12
 	mx := 0.0
 	for _, w := range d.Weeks {
 		sum := 0.0
@@ -56,7 +57,7 @@ func Worktime(d WorktimeData, o Options) canvas.Scene {
 	for h := 0.0; h <= ymax; h += step {
 		y := yOf(h)
 		s.Add(canvas.Line{X1: left, Y1: y, X2: left + plotW, Y2: y, Stroke: GridColor})
-		s.Add(label(left-6, y+4, hours(h), canvas.End))
+		s.Add(label(left-6, y+4, o.Lang.hours(h), canvas.End))
 	}
 	for i, w := range d.Weeks {
 		x := left + float64(i)*colW + (colW-barW)/2
@@ -67,7 +68,7 @@ func Worktime(d WorktimeData, o Options) canvas.Scene {
 				continue
 			}
 			s.Add(canvas.Rect{X: x, Y: yOf(base + h), W: barW, H: yOf(base) - yOf(base+h), Fill: c.Color,
-				Title: fmt.Sprintf("%s %s: %s", w.Label, c.Name, hours(h))})
+				Title: fmt.Sprintf("%s %s: %s", w.Label, c.Name, o.Lang.hours(h))})
 			base += h
 		}
 		if w.Target > 0 {
@@ -76,7 +77,7 @@ func Worktime(d WorktimeData, o Options) canvas.Scene {
 		}
 		s.Add(label(x+barW/2, top+plotH+16, w.Label, canvas.Middle))
 		if base > 0 {
-			s.Add(canvas.Text{X: x + barW/2, Y: yOf(base) - 4, Text: hours(base), Size: smallSize, Fill: TextColor, Anchor: canvas.Middle})
+			s.Add(canvas.Text{X: x + barW/2, Y: yOf(base) - 4, Text: o.Lang.hours(base), Size: smallSize, Fill: TextColor, Anchor: canvas.Middle})
 		}
 	}
 	s.Width = left + plotW + 10
@@ -90,7 +91,7 @@ func Worktime(d WorktimeData, o Options) canvas.Scene {
 			y += 18
 		}
 		s.Add(canvas.Line{X1: lx, Y1: y + 6, X2: lx + 12, Y2: y + 6, Width: 2, Stroke: TargetColor})
-		s.Add(label(lx+18, y+10, "target", canvas.Start))
+		s.Add(label(lx+18, y+10, tx.target, canvas.Start))
 		s.Width = lx + legendW
 		s.Height = max(s.Height, y+24)
 	}
