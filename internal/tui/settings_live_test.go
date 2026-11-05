@@ -112,6 +112,8 @@ func TestSettingsLive(t *testing.T) {
 			[]string{"[3 activity]", "2026-01-04 – 2026-01-10", "00      04"}, []string{"04      08"}},
 		{"tui.activity_projects colours the bars", ViewActivity, []string{"k"}, "tui.activity_projects", []string{""}, []string{"3"},
 			[]string{"[3 activity]", "2026-01-04 – 2026-01-10", "[projects]", "projects:"}, []string{"[hours]"}},
+		{"tui.activity_newest flips the rows", ViewActivity, []string{"k"}, "tui.activity_newest", []string{""}, []string{"3"},
+			[]string{"[3 activity]", "2026-01-04 – 2026-01-10", "day ↑"}, []string{"day ↓"}},
 		{"keys.global_stats rebinds the view key", ViewActivity, nil, "keys.global_stats", []string{"S"}, []string{"3", "2", "S"},
 			[]string{"[2 stats]", "• S stats"}, []string{"• 2 stats"}},
 		{"keys.activity_earlier shows in the footer", ViewActivity, nil, "keys.activity_earlier", []string{"<"}, []string{"3", "<"},

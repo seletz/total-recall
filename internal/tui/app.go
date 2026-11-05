@@ -341,8 +341,8 @@ type (
 	}
 )
 
-// setWork hands day_start, [work] and tui.activity_projects to the views
-// that use them; a view decides what a change needs (a redraw, a reload or
+// setWork hands day_start, [work], tui.activity_projects and
+// tui.activity_newest to the views that use them; a view decides what a change needs (a redraw, a reload or
 // a mode switch) and ignores what did not change. A [work] table with a
 // problem keeps the values the app started with.
 func (a *App) setWork(cfg *config.Config) tea.Cmd {
@@ -350,8 +350,8 @@ func (a *App) setWork(cfg *config.Config) tea.Cmd {
 	if err != nil {
 		return nil
 	}
-	s := activity.Settings{DayStart: cfg.DayStartOffset(), Work: work, Holidays: ops.Holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), ByProject: cfg.TUI.ActivityProjects}
-	a.opts.DayStart, a.opts.Work, a.opts.Holidays, a.opts.HumanOnly, a.opts.ActivityProjects = s.DayStart, s.Work, s.Holidays, s.HumanOnly, s.ByProject
+	s := activity.Settings{DayStart: cfg.DayStartOffset(), Work: work, Holidays: ops.Holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), ByProject: cfg.TUI.ActivityProjects, Newest: cfg.TUI.ActivityNewest}
+	a.opts.DayStart, a.opts.Work, a.opts.Holidays, a.opts.HumanOnly, a.opts.ActivityProjects, a.opts.ActivityNewest = s.DayStart, s.Work, s.Holidays, s.HumanOnly, s.ByProject, s.Newest
 	var cmds []tea.Cmd
 	for i, v := range a.views {
 		var m tea.Model

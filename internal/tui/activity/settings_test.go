@@ -37,6 +37,7 @@ func TestSetSettings(t *testing.T) {
 		{"day boundary reloads", with(base, func(s *Settings) { s.DayStart = 0 }), 1, []string{"00      04"}, nil},
 		{"all events", with(base, func(s *Settings) { s.HumanOnly = false }), 1, []string{"all events"}, []string{"human only"}},
 		{"by project", with(base, func(s *Settings) { s.ByProject = true }), 1, []string{"[projects]", "projects:"}, nil},
+		{"newest at the top", with(base, func(s *Settings) { s.Newest = NewestTop }), 0, []string{"day ↑"}, []string{"day ↓"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -52,8 +53,14 @@ func TestSetSettings(t *testing.T) {
 			if n := l.calls.Load() - before; n != tt.loads {
 				t.Errorf("loads = %d, want %d", n, tt.loads)
 			}
-			if got.offset != 2 || !got.span.equal(m.span) {
-				t.Errorf("offset = %d, span changed = %v", got.offset, !got.span.equal(m.span))
+			// The newest day at the top mirrors the scroll position, so the
+			// rows on screen stay the same.
+			offset := 2
+			if tt.settings.Newest == NewestTop {
+				offset = m.maxOffset() - 2
+			}
+			if got.offset != offset || !got.span.equal(m.span) {
+				t.Errorf("offset = %d, want %d; span changed = %v", got.offset, offset, !got.span.equal(m.span))
 			}
 			f := tuitest.Frame(got)
 			for _, w := range tt.want {

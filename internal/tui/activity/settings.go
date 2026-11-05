@@ -11,7 +11,7 @@ import (
 
 // Settings are the configured values the view takes over without a
 // restart (see SetSettings): the day boundary, the working time, the
-// holidays and the two modes the config starts the view in.
+// holidays and the modes the config starts the view in.
 type Settings struct {
 	// DayStart is the wall-clock time at which a day begins, as an offset
 	// from midnight.
@@ -24,19 +24,26 @@ type Settings struct {
 	// project: the view switches to the configured mode.
 	HumanOnly bool
 	ByProject bool
+	// Newest is where the newest day goes, NewestBottom or NewestTop: the
+	// view switches to it like o.
+	Newest string
 }
 
 // SetSettings applies changed settings in place, keeping the window and
 // the scroll position: a new working time only redraws the rows (the days
 // are the same), a new day boundary or holiday calendar drops the cache
 // and loads the window again (the days are counted differently), a new
-// counting or colouring mode switches to it like its key. Unchanged
-// settings do nothing.
+// counting or colouring mode switches to it like its key, a new place
+// for the newest day flips the rows like o. Unchanged settings do
+// nothing.
 func (m Model) SetSettings(s Settings) (tea.Model, tea.Cmd) {
 	reload := s.DayStart != m.opts.DayStart || !sameHolidays(s.Holidays, m.opts.Holidays)
 	mode := s.HumanOnly != m.humanOnly || s.ByProject != m.proj.on
 	m.opts.DayStart, m.opts.Work, m.opts.Holidays = s.DayStart, s.Work, s.Holidays
 	m.humanOnly, m.proj.on = s.HumanOnly, s.ByProject
+	if (s.Newest == NewestTop) != m.newestTop {
+		m = m.toggleOrder()
+	}
 	switch {
 	case reload:
 		return m.Reload()

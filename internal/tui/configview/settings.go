@@ -305,13 +305,13 @@ const (
 
 // effect says what a change of key does. The app applies the reload
 // interval, the mouse, the key bindings, the project definitions, the day
-// boundary, the working time and the start modes of the activity view at
-// once (see tui.App); the archive, the time zone, the view shown first,
+// boundary, the working time and the modes of the activity view (project
+// colours, place of the newest day) at once (see tui.App); the archive, the time zone, the view shown first,
 // the chart mode and the start states of the stats view and the activity
 // window are read at the start only. Everything else is for the commands.
 func effect(key string) string {
 	switch {
-	case key == "day_start", key == "project", key == "tui.mouse", key == "tui.reload", key == "tui.activity_projects",
+	case key == "day_start", key == "project", key == "tui.mouse", key == "tui.reload", key == "tui.activity_projects", key == "tui.activity_newest",
 		strings.HasPrefix(key, "work."), strings.HasPrefix(key, "keys."):
 		return effectNow
 	case key == "db", key == "timezone", strings.HasPrefix(key, "tui."):
