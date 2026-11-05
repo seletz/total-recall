@@ -30,7 +30,7 @@
   automation_prefixes    ["Hourly ", "Weekend watch"]                                                            file
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  backup.dir  Directory of the backups (archive-YYYY-MM-DD.db.zst)
- default: ~/Documents/total-recall
+ default: ~/Documents/total-recall · change: used by the next command or action
  > ~/Documents/total-recall   enter saves, esc cancels
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  enter edit / run • esc back • ^c quit

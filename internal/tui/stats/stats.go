@@ -740,3 +740,32 @@ func indent(s string) string {
 	}
 	return " " + strings.ReplaceAll(s, "\n", "\n ")
 }
+
+// SetHolidays replaces the holiday calendar and marks the day axis again;
+// the same calendar does nothing. nil means there are none.
+func (m Model) SetHolidays(h store.Holidays) (tea.Model, tea.Cmd) {
+	if sameHolidays(h, m.opts.Holidays) {
+		return m, nil
+	}
+	m.opts.Holidays = h
+	return m, m.rebuild()
+}
+
+// sameHolidays reports whether two calendars name the same holidays: both
+// nil, or both of the same region.
+func sameHolidays(a, b store.Holidays) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	ra, ok1 := a.(interface{ Region() string })
+	rb, ok2 := b.(interface{ Region() string })
+	return ok1 && ok2 && ra.Region() == rb.Region()
+}
+
+// SetKeys replaces the key bindings, so a changed [keys] table applies
+// without a restart.
+func (m Model) SetKeys(km keys.Map) tea.Model {
+	m.opts.Keys = km
+	m.keys = newKeyMap(km)
+	return m
+}

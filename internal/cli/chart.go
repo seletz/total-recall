@@ -14,6 +14,7 @@ import (
 	"github.com/seletz/total-recall/internal/canvas"
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/figure"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/worktime"
 )
@@ -372,7 +373,7 @@ func (r *chartRun) worktime(cmd *cobra.Command) (canvas.Scene, error) {
 	for i, ev := range events {
 		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Title: ev.Title, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL, Text: ev.Text}
 	}
-	opts := worktime.Options{Location: loc, DayStart: cfg.DayStartOffset(), Home: cfg.Home, Holidays: holidays(cfg), Projects: projects}
+	opts := worktime.Options{Location: loc, DayStart: cfg.DayStartOffset(), Home: cfg.Home, Holidays: ops.Holidays(cfg), Projects: projects}
 	if !r.daySince.IsZero() {
 		opts.From = store.DayOf(r.daySince, loc, cfg.DayStartOffset())
 	}

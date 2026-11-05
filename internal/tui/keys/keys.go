@@ -532,3 +532,14 @@ func Shown(b key.Binding) []string {
 	}
 	return out
 }
+
+// Equal reports whether m and o bind the same keys to every action; a nil
+// Map counts as the defaults.
+func (m Map) Equal(o Map) bool {
+	for _, a := range Actions {
+		if !slices.Equal(m.Keys(a.Name), o.Keys(a.Name)) {
+			return false
+		}
+	}
+	return true
+}
