@@ -125,16 +125,3 @@ homebrew_casks:
       bash: completions/total-recall.bash
       zsh: completions/_total-recall
       fish: completions/total-recall.fish
-    # Strip the macOS quarantine attribute so the binary runs without a
-    # Gatekeeper prompt. Kept as a safety net for releases built without the
-    # signing secrets (see notarize above); drop it once a notarized release
-    # has been verified. GoReleaser renders `hooks.post.install` as the
-    # deprecated `postflight do` block, so the declarative `postflight_steps`
-    # stanza is emitted via `custom_block`. `{{staged_path}}` is a Homebrew
-    # install-time token; the braces are escaped to survive Go templating.
-    custom_block: |
-      postflight_steps do
-        on_macos do
-          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{" }}staged_path{{ "}}" }}/total-recall"]
-        end
-      end

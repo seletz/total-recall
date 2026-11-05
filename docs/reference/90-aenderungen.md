@@ -12,6 +12,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
 
+### Installation
+
+- Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).
+
+### Intern
+
+- `scripts/release-notes.sh`, das den Kopf der GitHub-Release-Notes aus dieser Seite baut, hat einen Test gegen einen synthetischen Changelog: Abschnitt finden, relative Links und Anker auf die veröffentlichte Doku umschreiben, fehlende Version abweisen. Neu abgewiesen wird auch ein Abschnitt, der noch „(unveröffentlicht)“ heißt; bisher nahm das Skript ihn als Release Notes an. `mise run release:notes:check`, in der CI über `go test` ([#164](https://github.com/seletz/total-recall/issues/164)).
+
 ## v1.2.1
 
 ### Behoben
