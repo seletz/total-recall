@@ -692,18 +692,20 @@ total-recall migrate --json
 ```
 
 ```text
-database  /Users/me/Library/Application Support/total-recall/archive.db  (738.1 MiB)
+database  /Users/me/Library/Application Support/total-recall/archive.db  (1145.6 MiB)
 schema    v4 -> v5, 1 pending migration:
-  v5   events: …
+  v5    events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of source_path; rewrites every event, about a minute per 100,000 events, and needs free disk space of about twice the archive size next to it (copy and WAL)
 backup    /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
-space     about 1660.7 MiB free needed next to the database (copy and migration)
+space     about 2004.8 MiB free needed next to the database (copy and migration)
 Migrate now? Hooks that run meanwhile skip and catch up afterwards. [y/N] y
 store: schema v4 -> v5: backup written to /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
-migration v5: 120000/220295 (54 %)
-migration v5: 220295/220295 (100 %)
-store: migration v5 applied (3m12.4s)
-migrated v4 -> v5 (3m14.1s); the copy /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak can be removed once everything works
+migration v5: 209000/233198 (89 %)
+migration v5: 233198/233198 (100 %)
+store: migration v5 applied (25.077s)
+migrated v4 -> v5 (27.15s); the copy /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak can be removed once everything works
 ```
+
+Die Zahlen stammen von einer Kopie eines echten Archivs mit 233 198 Events (1,1 GiB). Die Migration auf v5 schreibt jedes Event neu ([`raw`](40-schema.md#raw) als komprimierter Auszug, `source_id`); danach ist die Datei zunächst **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste), erst [`maintenance`](#maintenance) baut sie klein (438 MiB). Deshalb nach `migrate` einmal `maintenance`, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 
 | Option | Bedeutung |
 |---|---|
@@ -716,7 +718,7 @@ Ablauf, jeder Schritt bricht bei einem Fehler ab:
 
 1. Plan: Version der Datenbank und des Programms, je ausstehender Migration eine Zeile. Ist die Datenbank aktuell, endet der Befehl hier (`is current, nothing to migrate`).
 2. Nachfrage, sofern nicht `--yes`. Alles außer `y` oder `yes` bricht ab (`migration cancelled, the archive is unchanged`, Exit 1).
-3. Prüfen, ob neben der Datenbank genug frei ist: die Kopie (etwa Dateigröße), dazu der Platzbedarf der größten Migration (als Faktor der Dateigröße; eine Migration, die alle Events umschreibt, braucht noch einmal etwa die Dateigröße für die WAL) und ein Viertel Reserve.
+3. Prüfen, ob neben der Datenbank genug frei ist: die Kopie (etwa Dateigröße), dazu der Platzbedarf der größten Migration (als Faktor der Dateigröße für die WAL; v5 deklariert 0,5, gemessen wächst sie auf gut ein Drittel der Datei) und ein Viertel Reserve. Für v5 also knapp das Doppelte der Dateigröße.
 4. Exklusives Lock gegen Hooks wie bei [`maintenance`](#maintenance): Hält ein `ingest` oder `backup` das Archiv noch offen, wartet der Befehl bis `--wait` und bricht dann mit `writers active` ab. Hooks, die währenddessen starten, überspringen ihren Lauf und lesen danach nach. Die TUI darf offen bleiben; sie zeigt die Migration nach der nächsten Prüfung.
 5. Kopie `archive.db.pre-v<N>.bak` neben der Datenbank (N = bisherige Version), per `VACUUM INTO`.
 6. Die Migrationen, jede in eigener Transaktion, danach ein WAL-Checkpoint. Bei langen Migrationen zeigt der Befehl den Fortschritt, höchstens alle zwei Sekunden.

@@ -83,8 +83,11 @@ Steht in der Zeile `schema` ein `MIGRATION PENDING`, migriert nichts von selbst:
 ```sh
 total-recall backup          # 1. sichern
 total-recall migrate         # 2. Plan ansehen, bestätigen, migrieren
-total-recall status          # 3. prüfen: schema ohne Hinweis
+total-recall maintenance     # 3. Datei neu aufbauen (nach v1.2.0 nötig, siehe unten)
+total-recall status          # 4. prüfen: schema ohne Hinweis
 ```
+
+**v1.2.0 (Schema v5)** schreibt jedes Event neu: `raw` wird ein komprimierter Auszug, Events verweisen per ID auf ihre Quelle ([Änderungen](../reference/90-aenderungen.md)). Auf einer Kopie eines echten Archivs mit 233 000 Events (1,1 GiB) dauerte `migrate` 27 Sekunden und brauchte neben der Datenbank rund 2 GiB frei (Kopie und WAL; `migrate` prüft das vorher). Direkt danach ist die Datei **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste); erst [`maintenance`](60-wartung.md) baut sie neu auf, in dem Beispiel in 11 Sekunden auf 438 MiB. Die lesenden Befehle liefern vorher und nachher dieselben Ergebnisse.
 
 `migrate` zeigt vorher, was es tut: die Versionen, jede ausstehende Migration mit einer Zeile Beschreibung, wo die Kopie `archive.db.pre-v<N>.bak` liegt und wie viel Platz frei sein muss. `--dry-run` zeigt nur den Plan, `--yes` fragt nicht nach. Bei einer langen Migration läuft eine Fortschrittsanzeige; Hooks, die währenddessen feuern, überspringen ihren Lauf und holen danach nach. Referenz: [`migrate`](../reference/10-befehle.md#migrate). Was sich je Version ändert und ob ein Update migrieren muss, steht in den [Änderungen](../reference/90-aenderungen.md).
 
