@@ -125,6 +125,7 @@ stats_period = "day"             # day | week | month
 stats_dimension = "project"      # project | agent | directory
 activity_window = "week"         # day | week | month
 activity_projects = false        # Balken der Aktivität in Projektfarben (p)
+activity_newest = "bottom"       # bottom | top: neuester Tag der Aktivität unten oder oben (o)
 reload = "5s"                    # Archiv auf Änderungen prüfen, sichtbare Ansicht neu laden; "0" = aus; --reload geht vor
 
 [chart]

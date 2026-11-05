@@ -18,12 +18,17 @@
 // for it; the answer arrives as tea.BackgroundColorMsg); every coloured
 // element also differs in glyph, so NO_COLOR stays legible.
 //
-// The window is a span: one period moved by a number of days. ↑/↓ scroll
-// the rows while not all of them fit and otherwise move the window by a
-// day, so the view scrolls through time without a gap; ←/→ jump by a
-// whole period. The window never ends after the current period, so the
-// view does not run into the future beyond what the current week or month
-// shows anyway.
+// The window is a span: one period moved by a number of days. It is what
+// the headline, the figures and the legend sum; the rows always fill the
+// height: a window shorter than the screen is led by the days before it,
+// drawn dimmed and without the window's marker, so the screen shows as
+// many days as fit on every terminal. ↑/↓ scroll the rows while not all
+// of them fit and otherwise move the window by a day, so the view scrolls
+// through time without a gap; ←/→ jump by a whole period. The window
+// never ends after the current period, so the view does not run into the
+// future beyond what the current week or month shows anyway. The newest
+// day is the bottom row by default; o puts it at the top, and ↑/↓ keep
+// showing the row above the top one and below the bottom one.
 //
 // The days are cached one by one per counting mode. A window whose days
 // are all in the cache is shown at once; otherwise one store.Workday
@@ -105,6 +110,9 @@ type Options struct {
 	// ByProject starts the view with the bars coloured by project; the key
 	// p switches to the working hours and back.
 	ByProject bool
+	// Newest is where the newest day goes: NewestBottom (the default,
+	// empty or unknown) or NewestTop; the key o switches.
+	Newest string
 	// Home is the home directory, abbreviated to "~" in the project names
 	// of the legend; empty means no abbreviation.
 	Home string
@@ -116,6 +124,12 @@ type Options struct {
 	// stats view, so a project looks alike in both. nil means own colours.
 	Colors *chart.Colors
 }
+
+// Where the newest day goes: Options.Newest and [tui] activity_newest.
+const (
+	NewestBottom = "bottom"
+	NewestTop    = "top"
+)
 
 func (o *Options) defaults() {
 	if o.Location == nil {
@@ -150,10 +164,11 @@ type query struct {
 	cancel       context.CancelFunc
 }
 
-// covers reports whether the query's answer will hold every day of s
-// counted as humanOnly says, with the project days when projects is set.
-func (q *query) covers(s span, humanOnly, projects bool) bool {
-	return q != nil && q.humanOnly == humanOnly && (q.projects || !projects) && !s.since().Before(q.since) && !s.until().After(q.until)
+// covers reports whether the query's answer will hold every day of
+// [since, until) counted as humanOnly says, with the project days when
+// projects is set.
+func (q *query) covers(since, until time.Time, humanOnly, projects bool) bool {
+	return q != nil && q.humanOnly == humanOnly && (q.projects || !projects) && !since.Before(q.since) && !until.After(q.until)
 }
 
 // resultMsg is the answer of one query. gen is the cache generation it
@@ -171,18 +186,25 @@ type resultMsg struct {
 	err          error
 }
 
-// shown is what the body renders: the days of one window under one
-// counting mode, by project or by working hours. It changes only when
-// every day of the window wanted now is at hand (with the colouring on,
-// its project days too), so the rows, the headline, the figures and the
+// data is what the rows draw: the days of the window and the lead, the
+// days before the window that fill the rows (see Model.lead), each oldest
+// first, with their project days while the bars are by project.
+type data struct {
+	before, days             []store.Workday
+	beforeProjects, projects []store.ProjectDay
+}
+
+// shown is what the body renders: the days of one window and its lead
+// under one counting mode, by project or by working hours. It changes
+// only when every day wanted now is at hand (with the colouring on, its
+// project days too), so the rows, the headline, the figures and the
 // legend stay on screen while an answer is pending.
 type shown struct {
 	span      span
 	humanOnly bool
-	days      []store.Workday
-	byProject bool               // the bars are by project
-	projects  []store.ProjectDay // the window's project days while byProject
-	loaded    bool               // days holds the window's data (false until the first answer)
+	data
+	byProject bool // the bars are by project
+	loaded    bool // data holds the window (false until the first answer)
 }
 
 // Model is the activity view.
@@ -205,8 +227,8 @@ type Model struct {
 	took    time.Duration // the query that completed the shown window; 0 from the cache
 	err     error
 
-	offset        int // first visible day row
-	initCmd       tea.Cmd
+	offset        int  // first visible day row, in the drawn order
+	newestTop     bool // the newest day is the top row, see rows
 	width, height int
 	// th is the theme; dark until the terminal answers the app's
 	// background colour query. styles are the view's styles derived from it.
@@ -226,11 +248,11 @@ func New(opts Options) Model {
 		proj:      projects{on: opts.ByProject, cache: map[dayKey]store.ProjectDay{}},
 		cache:     map[dayKey]store.Workday{},
 		figures:   true,
+		newestTop: opts.Newest == NewestTop,
 		th:        theme.New(true),
 		styles:    newStyles(theme.New(true)),
 	}
 	m.shown = shown{span: m.span, humanOnly: m.humanOnly}
-	m, m.initCmd = m.load()
 	return m
 }
 
@@ -245,16 +267,19 @@ func initialPeriod(name string) store.Period {
 // Title implements tui.View.
 func (Model) Title() string { return "activity" }
 
-// Init implements tea.Model: it starts the first load.
-func (m Model) Init() tea.Cmd { return m.initCmd }
+// Init implements tea.Model: nothing to do; the first window size starts
+// the first load, as the rows that fit decide the days wanted.
+func (m Model) Init() tea.Cmd { return nil }
 
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// The rows that fit decide the lead, so a new height wants other
+		// days; the rows on screen stay until they are at hand.
 		m.width, m.height = msg.Width, msg.Height
 		m.clampOffset()
-		return m, nil
+		return m.load()
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case tea.MouseClickMsg:
@@ -306,8 +331,9 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Projects):
 		return m.toggleProjects()
 	case key.Matches(msg, k.Figures):
-		m.figures = !m.figures
-		m.clampOffset()
+		return m.toggleFigures()
+	case key.Matches(msg, k.Order):
+		return m.toggleOrder(), nil
 	case key.Matches(msg, k.Up):
 		return m.up()
 	case key.Matches(msg, k.Down):
@@ -318,7 +344,8 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // click handles a left click: on the switches line a period name sets the
 // window like its key, a counting mode switches to it (like h, when it is
-// not the active one) and a bar mode likewise (like p); on the summary
+// not the active one) and a bar mode likewise (like p); on the day column
+// of the header it flips where the newest day goes like o; on the summary
 // figures it hides them like s. Clicks elsewhere do nothing, so do clicks
 // without a database.
 func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
@@ -339,33 +366,79 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if msg.Y == m.headerY() && msg.X >= 1 && msg.X < 1+dateWidth && m.hint() == "" {
+		return m.toggleOrder(), nil
+	}
 	if first := m.height - 1 - figureRows; m.showFigures() && msg.Y >= first && msg.Y < first+figureRows {
 		m.figures = false
-		m.clampOffset()
+		return m.load()
 	}
 	return m, nil
 }
 
-// up scrolls the rows up by one while the first is hidden; otherwise it
-// moves the window a day back, so the day before the first row appears.
+// headerY is the row of the column header: below the switches and, for a
+// week or a month, the headline.
+func (m Model) headerY() int {
+	if m.showHeadline() {
+		return 2
+	}
+	return 1
+}
+
+// toggleFigures shows or hides the summary figures; the rows that fit
+// change with them, so the lead is loaded anew.
+func (m Model) toggleFigures() (tea.Model, tea.Cmd) {
+	m.figures = !m.figures
+	return m.load()
+}
+
+// toggleOrder flips where the newest day goes and mirrors the scroll
+// position, so the rows on screen stay the same ones.
+func (m Model) toggleOrder() Model {
+	m.newestTop = !m.newestTop
+	m.offset = m.maxOffset() - m.offset
+	return m
+}
+
+// up shows the row above the top one: while the rows scroll, the scroll
+// position moves up by one; otherwise the window moves a day towards the
+// top row's neighbour in time, back with the newest day at the bottom, on
+// with it at the top, so the next day appears at the top.
 func (m Model) up() (tea.Model, tea.Cmd) {
 	if m.offset > 0 {
 		m.offset--
 		return m, nil
 	}
-	m.span = m.span.days(-1)
-	return m.load()
+	if m.newestTop {
+		return m.later()
+	}
+	return m.earlier()
 }
 
-// down scrolls the rows down by one while the last is hidden; otherwise
-// it moves the window a day on, keeping the scroll position so the new
-// last day appears at the bottom. It stops where the window would end
-// after the current period.
+// down shows the row below the bottom one: while the rows scroll, the
+// scroll position moves down by one; otherwise the window moves a day
+// towards the bottom row's neighbour in time, keeping the scroll
+// position, so the next day appears at the bottom.
 func (m Model) down() (tea.Model, tea.Cmd) {
 	if m.offset < m.maxOffset() {
 		m.offset++
 		return m, nil
 	}
+	if m.newestTop {
+		return m.earlier()
+	}
+	return m.later()
+}
+
+// earlier moves the window a day back.
+func (m Model) earlier() (tea.Model, tea.Cmd) {
+	m.span = m.span.days(-1)
+	return m.load()
+}
+
+// later moves the window a day on; it stops where the window would end
+// after the current period.
+func (m Model) later() (tea.Model, tea.Cmd) {
 	if !m.span.until().Before(m.limit()) {
 		return m, nil
 	}
@@ -400,37 +473,62 @@ func (m Model) bounds(since, until time.Time) (time.Time, time.Time) {
 	return store.DayBoundary(since, m.opts.DayStart), store.DayBoundary(until, m.opts.DayStart)
 }
 
-// cached returns the days of the wanted window when every one of them is
-// in the cache, and, with the colouring by project on, its project days
-// when they are all cached too.
-func (m Model) cached() ([]store.Workday, []store.ProjectDay, bool) {
-	var days []store.Workday
-	var projects []store.ProjectDay
-	for day := m.span.since(); day.Before(m.span.until()); day = day.AddDate(0, 0, 1) {
+// lead is the number of days before the wanted window that fill the rows:
+// the rows that fit the wanted window less its days, none when the window
+// is longer than the screen. It follows the height and whatever else
+// takes rows (the legend, the figures), so the rows are always full.
+func (m Model) lead() int {
+	rows, _ := m.fit(m.span.period(), m.proj.on)
+	return max(rows-m.span.len(), 0)
+}
+
+// wanted is the range of days [since, until) the rows want: the lead and
+// the wanted window.
+func (m Model) wanted() (since, until time.Time) {
+	return m.span.since().AddDate(0, 0, -m.lead()), m.span.until()
+}
+
+// cached returns the wanted days when every one of them is in the cache,
+// and, with the colouring by project on, their project days when they are
+// all cached too.
+func (m Model) cached() (data, bool) {
+	var d data
+	since, until := m.wanted()
+	for day := since; day.Before(until); day = day.AddDate(0, 0, 1) {
 		k := dayKey{day: day.Unix(), humanOnly: m.humanOnly}
-		d, ok := m.cache[k]
+		wd, ok := m.cache[k]
 		if !ok {
-			return nil, nil, false
+			return data{}, false
 		}
-		days = append(days, d)
+		in := !day.Before(m.span.since())
+		if in {
+			d.days = append(d.days, wd)
+		} else {
+			d.before = append(d.before, wd)
+		}
 		if m.proj.on {
 			p, ok := m.proj.cache[k]
 			if !ok {
-				return nil, nil, false
+				return data{}, false
 			}
-			projects = append(projects, p)
+			if in {
+				d.projects = append(d.projects, p)
+			} else {
+				d.beforeProjects = append(d.beforeProjects, p)
+			}
 		}
 	}
-	return days, projects, true
+	return d, true
 }
 
-// prefetch is the range a query asks for: the wanted window with a
-// period's worth of days, at least margin, in front and behind, cut at
-// the limit, so the next day steps and the neighbouring periods are
-// answered from the cache.
+// prefetch is the range a query asks for: the wanted days with a period's
+// worth of days, at least margin, in front and behind, cut at the limit,
+// so the next day steps and the neighbouring periods are answered from
+// the cache.
 func (m Model) prefetch() (since, until time.Time) {
 	n := max(m.span.len(), margin)
-	since, until = m.span.since().AddDate(0, 0, -n), m.span.until().AddDate(0, 0, n)
+	since, until = m.wanted()
+	since, until = since.AddDate(0, 0, -n), until.AddDate(0, 0, n)
 	if limit := m.limit(); until.After(limit) {
 		until = limit
 	}
@@ -448,11 +546,11 @@ func (m Model) load() (Model, tea.Cmd) {
 	if m.opts.Loader == nil {
 		return m, nil
 	}
-	if days, projects, ok := m.cached(); ok {
-		m = m.show(days, projects, 0)
+	if d, ok := m.cached(); ok {
+		m = m.show(d, 0)
 		return m, nil
 	}
-	if m.pending.covers(m.span, m.humanOnly, m.proj.on) {
+	if since, until := m.wanted(); m.pending.covers(since, until, m.humanOnly, m.proj.on) {
 		return m, nil
 	}
 	since, until := m.prefetch()
@@ -520,18 +618,17 @@ func (m *Model) stop() {
 	}
 }
 
-// show puts days, and the project days while the bars are by project, on
-// screen as the wanted window; a configured project gets its configured
-// colour pinned in the shared Colors first.
-func (m Model) show(days []store.Workday, projects []store.ProjectDay, took time.Duration) Model {
-	for _, d := range projects {
-		for _, p := range d.Projects {
+// show puts d on screen as the wanted window and its lead; a configured
+// project gets its configured colour pinned in the shared Colors first.
+func (m Model) show(d data, took time.Duration) Model {
+	for _, pd := range slices.Concat(d.beforeProjects, d.projects) {
+		for _, p := range pd.Projects {
 			if hex := m.opts.Projects.Color(p.Key); hex != "" {
 				m.opts.Colors.Fix(p.Key, lipgloss.Color(hex))
 			}
 		}
 	}
-	m.shown = shown{span: m.span, humanOnly: m.humanOnly, days: days, byProject: m.proj.on, projects: projects, loaded: true}
+	m.shown = shown{span: m.span, humanOnly: m.humanOnly, data: d, byProject: m.proj.on, loaded: true}
 	m.took = took
 	m.clampOffset()
 	return m
@@ -561,8 +658,8 @@ func (m Model) result(msg resultMsg) Model {
 	for _, d := range msg.projects {
 		m.proj.cache[dayKey{day: d.Day.Unix(), humanOnly: msg.humanOnly}] = d
 	}
-	if days, projects, ok := m.cached(); ok {
-		m = m.show(days, projects, msg.took)
+	if d, ok := m.cached(); ok {
+		m = m.show(d, msg.took)
 	}
 	return m
 }
@@ -583,26 +680,66 @@ const minDayRows = 3
 // period is shown: for a week or a month, not for a single day.
 func (m Model) showHeadline() bool { return m.shown.span.period() != store.PeriodDay }
 
+// fit is the number of day rows that fit beside the chrome of a window of
+// period p, with the legend while byProject, and whether the summary
+// figures take their rows then: when they are on, for a week or a month,
+// and when minDayRows day rows stay.
+func (m Model) fit(p store.Period, byProject bool) (rows int, figures bool) {
+	rows = m.height - chromeRows
+	if byProject {
+		rows--
+	}
+	if p != store.PeriodDay {
+		rows--
+		if m.figures && rows-figureRows >= minDayRows {
+			rows -= figureRows
+			figures = true
+		}
+	}
+	return max(rows, 0), figures
+}
+
 // showFigures reports whether the summary figures are shown: when they
 // are on, for a loaded week or month, and when minDayRows day rows stay.
 func (m Model) showFigures() bool {
-	return m.figures && m.shown.loaded && m.showHeadline() && m.height-chromeRows-1-m.legendRows()-figureRows >= minDayRows
+	_, figures := m.fit(m.shown.span.period(), m.shown.byProject)
+	return figures && m.shown.loaded
 }
 
-// rowsAvail is the number of day rows that fit.
+// rowsAvail is the number of day rows that fit beside the shown chrome.
 func (m Model) rowsAvail() int {
-	n := m.height - chromeRows - m.legendRows()
-	if m.showHeadline() {
-		n--
+	rows, figures := m.fit(m.shown.span.period(), m.shown.byProject)
+	if figures && !m.shown.loaded {
+		rows += figureRows
 	}
-	if m.showFigures() {
-		n -= figureRows
+	return rows
+}
+
+// row is one day row: its day and whether it is in the window; a day of
+// the lead is drawn dimmed and without the marker.
+type row struct {
+	day store.Workday
+	in  bool
+}
+
+// rows are the day rows in the order they are drawn: the lead then the
+// window, oldest first, or the reverse with the newest day at the top.
+func (m Model) rows() []row {
+	rows := make([]row, 0, len(m.shown.before)+len(m.shown.days))
+	for _, d := range m.shown.before {
+		rows = append(rows, row{day: d})
 	}
-	return max(n, 0)
+	for _, d := range m.shown.days {
+		rows = append(rows, row{day: d, in: true})
+	}
+	if m.newestTop {
+		slices.Reverse(rows)
+	}
+	return rows
 }
 
 // maxOffset is the largest scroll offset: the rows that do not fit.
-func (m Model) maxOffset() int { return max(0, len(m.shown.days)-m.rowsAvail()) }
+func (m Model) maxOffset() int { return max(0, len(m.shown.before)+len(m.shown.days)-m.rowsAvail()) }
 
 // clampOffset keeps the scroll offset within the rows.
 func (m *Model) clampOffset() {
@@ -615,10 +752,14 @@ func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
 // FullHelp implements help.KeyMap.
 func (m Model) FullHelp() [][]key.Binding { return m.keys.FullHelp() }
 
+// marker stands in front of the rows of the window, so they tell from the
+// lead without colours too.
+const marker = "▎"
+
 // View implements tea.Model: the switches, for a week or a month the
-// headline, the header with the time axis, one row per day, a rule, the
-// legend of the projects while the bars are by project, the summary
-// figures and the status line.
+// headline, the header with the time axis, one row per day (the window's
+// with the marker, the lead's dimmed), a rule, the legend of the projects
+// while the bars are by project, the summary figures and the status line.
 func (m Model) View() tea.View {
 	if m.width == 0 || m.height == 0 {
 		return tea.NewView("")
@@ -636,10 +777,17 @@ func (m Model) View() tea.View {
 		parts = append(parts, " "+m.styles.faint.Render(hint))
 	} else {
 		l := m.layout()
+		dim := l
+		dim.styles = l.styles.dim()
 		parts = append(parts, line(" "+l.header()))
-		end := min(m.offset+pad, len(m.shown.days))
-		for _, d := range m.shown.days[m.offset:end] {
-			parts = append(parts, line(" "+l.row(d)))
+		rows := m.rows()
+		end := min(m.offset+pad, len(rows))
+		for _, r := range rows[m.offset:end] {
+			if r.in {
+				parts = append(parts, line(m.styles.mark.Render(marker)+l.row(r.day)))
+			} else {
+				parts = append(parts, line(" "+dim.row(r.day)))
+			}
 		}
 		pad -= end - m.offset
 	}
@@ -885,9 +1033,10 @@ func (m Model) countMode() string {
 	return "all events"
 }
 
-// status is the bottom line: the shown days with the duration of their
-// query, the counting mode, the public holidays, and the visible rows
-// while they do not all fit; "loading…" only while nothing is shown yet.
+// status is the bottom line: the shown days (the window's, and the lead
+// before them) with the duration of their query, the counting mode, the
+// public holidays of the window, and the visible rows while they do not
+// all fit; "loading…" only while nothing is shown yet.
 func (m Model) status() string {
 	days := m.shown.days
 	switch {
@@ -900,12 +1049,16 @@ func (m Model) status() string {
 	case !m.shown.loaded:
 		return ""
 	}
-	s := fmt.Sprintf("%d days · %d ms · %s", len(days), m.took.Milliseconds(), m.countMode())
+	s := plural(len(days), "day")
+	if n := len(m.shown.before); n > 0 {
+		s += fmt.Sprintf(" + %d before", n)
+	}
+	s += fmt.Sprintf(" · %d ms · %s", m.took.Milliseconds(), m.countMode())
 	if n := m.opts.Work.Balance(days, time.Time{}).Holidays; n > 0 {
 		s += " · " + plural(n, "holiday")
 	}
-	if n := m.rowsAvail(); n < len(days) {
-		s += fmt.Sprintf(" · rows %d–%d of %d, ↑↓ scroll", m.offset+1, min(m.offset+n, len(days)), len(days))
+	if n, total := m.rowsAvail(), len(m.shown.before)+len(days); n < total {
+		s += fmt.Sprintf(" · rows %d–%d of %d, ↑↓ scroll", m.offset+1, min(m.offset+n, total), total)
 	}
 	return s
 }
@@ -919,6 +1072,7 @@ type layout struct {
 	work        store.WorkHours
 	styles      styles
 	projects    *projectLayout // nil while the bars are by working hours
+	newestTop   bool           // the newest day is the top row (the header says so)
 	first, last int            // widths of the clock columns
 	diff        bool           // the difference column is shown (there is a target)
 	bar         int            // width of the time axis, 0 when there is no room
@@ -934,8 +1088,8 @@ const (
 )
 
 func (m Model) layout() layout {
-	l := layout{loc: m.opts.Location, dayStart: m.opts.DayStart, work: m.opts.Work, styles: m.styles, projects: m.projectLayout(), first: 5, last: 5, diff: !m.opts.Work.IsZero()}
-	for _, d := range m.shown.days {
+	l := layout{loc: m.opts.Location, dayStart: m.opts.DayStart, work: m.opts.Work, styles: m.styles, projects: m.projectLayout(), newestTop: m.newestTop, first: 5, last: 5, diff: !m.opts.Work.IsZero()}
+	for _, d := range slices.Concat(m.shown.before, m.shown.days) {
 		l.first = max(l.first, len([]rune(d.FirstClock(l.loc))))
 		l.last = max(l.last, len([]rune(d.LastClock(l.loc))))
 	}
@@ -949,9 +1103,15 @@ func (m Model) layout() layout {
 	return l
 }
 
-// header is the column header with the hour labels of the time axis.
+// header is the column header with the hour labels of the time axis; the
+// day column says which way time runs down the rows: ↓ the newest day at
+// the bottom, ↑ at the top.
 func (l layout) header() string {
-	s := pad("day", dateWidth) + "  " + pad("first", l.first) + "  " + pad("last", l.last) + "  " + lpad("span", spanWidth)
+	order := "↓"
+	if l.newestTop {
+		order = "↑"
+	}
+	s := pad("day "+order, dateWidth) + "  " + pad("first", l.first) + "  " + pad("last", l.last) + "  " + lpad("span", spanWidth)
 	if l.diff {
 		s += "  " + lpad("diff", diffWidth)
 	}

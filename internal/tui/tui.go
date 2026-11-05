@@ -132,6 +132,9 @@ type Options struct {
 	// ActivityProjects starts the activity view with the bars coloured
 	// by project.
 	ActivityProjects bool
+	// ActivityNewest is where the activity view puts the newest day
+	// (bottom, top); empty means bottom.
+	ActivityNewest string
 	// Keys are the effective key bindings; nil means the defaults.
 	Keys keys.Map
 	// Reload is how often the archive is checked for changes; 0 never
@@ -279,7 +282,7 @@ func activityOptions(opts Options, colors *chart.Colors) (activity.Options, erro
 	if _, err := store.ParsePeriod(opts.ActivityWindow); err != nil {
 		return activity.Options{}, fmt.Errorf("activity window: %w", err)
 	}
-	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly, ByProject: opts.ActivityProjects, Home: opts.Home, Projects: opts.Projects, Colors: colors}
+	ao := activity.Options{Now: opts.Now, Location: opts.Location, DayStart: opts.DayStart, Work: opts.Work, Window: opts.ActivityWindow, Keys: opts.Keys, Holidays: opts.Holidays, HumanOnly: opts.HumanOnly, ByProject: opts.ActivityProjects, Newest: opts.ActivityNewest, Home: opts.Home, Projects: opts.Projects, Colors: colors}
 	if opts.Store != nil {
 		ao.Loader = opts.Store
 	}

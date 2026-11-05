@@ -32,15 +32,6 @@ func (m Model) toggleProjects() (Model, tea.Cmd) {
 	return m.load()
 }
 
-// legendRows is the height of the legend while the shown window is by
-// project.
-func (m Model) legendRows() int {
-	if m.shown.byProject {
-		return 1
-	}
-	return 0
-}
-
 // Glyphs of the project bars: one per palette colour in rank order, then
 // the folded rest beyond the palette and the gap, so the bars read without
 // colours too; the legend names every glyph.
@@ -52,18 +43,20 @@ const (
 )
 
 // projectLayout is what the rows and the legend need to draw the shown
-// window by project: the projects of the window by counted events, each
-// with its rank, glyph and style, and the project days by label. The
-// projects beyond the palette are the folded rest in the muted colour of
-// the stats view's "other".
+// window and its lead by project: the projects of the window by counted
+// events, each with its rank, glyph and style, and the project days of
+// the window and the lead by label. The projects beyond the palette are
+// the folded rest in the muted colour of the stats view's "other"; so is
+// a project of the lead that the window does not have, under the rank
+// after the last key.
 type projectLayout struct {
 	keys   []string // by counted events over the window, descending, then by key
 	events []int    // per key
 	dirs   []string // keys that are directories without a repository
 	rank   map[string]int
 	days   map[string]store.ProjectDay // by label
-	glyphs []rune                      // per rank
-	styles []lipgloss.Style            // per rank
+	glyphs []rune                      // per rank, then the rest
+	styles []lipgloss.Style            // per rank, then the rest
 	gap    lipgloss.Style
 	other  lipgloss.Style
 }
@@ -81,6 +74,9 @@ func (m Model) projectLayout() *projectLayout {
 	p := &projectLayout{rank: map[string]int{}, days: map[string]store.ProjectDay{}, gap: m.styles.faint, other: fg(store.OtherKey)}
 	totals := map[string]int{}
 	isDir := map[string]bool{}
+	for _, d := range m.shown.beforeProjects {
+		p.days[d.Label] = d
+	}
 	for _, d := range m.shown.projects {
 		p.days[d.Label] = d
 		for _, pr := range d.Projects {
@@ -113,13 +109,16 @@ func (m Model) projectLayout() *projectLayout {
 			p.styles = append(p.styles, p.other)
 		}
 	}
+	p.glyphs = append(p.glyphs, otherGlyph)
+	p.styles = append(p.styles, p.other)
 	return p
 }
 
 // ranks returns, per cell of the bar of d, the rank of the project with
 // the most counted events in the cell's time range, -1 for a cell without
-// events; a tie goes to the project with more events in the window. Nil
-// when the snapshot has no project day for d.
+// events; a tie goes to the project with more events in the window. A
+// project without a rank (one of the lead the window does not have) is
+// the rest. Nil when the snapshot has no project day for d.
 func (p *projectLayout) ranks(l layout, d store.Workday) []int {
 	pd, ok := p.days[d.Label]
 	if !ok {
@@ -131,12 +130,12 @@ func (p *projectLayout) ranks(l layout, d store.Workday) []int {
 	for _, pr := range pd.Projects {
 		r, ok := p.rank[pr.Key]
 		if !ok {
-			continue
+			r = len(p.keys)
 		}
 		for _, s := range pr.Slots {
 			i := min(max(int(float64(s.Offset)/float64(total)*float64(l.bar)), 0), l.bar-1)
 			if counts[i] == nil {
-				counts[i] = make([]int, len(p.keys))
+				counts[i] = make([]int, len(p.keys)+1)
 			}
 			counts[i][r] += s.Events
 		}
