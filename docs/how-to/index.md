@@ -9,7 +9,7 @@ Rezepte für konkrete Aufgaben: kurz, zielgerichtet, ohne Hintergrund. Das *Waru
 
 Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 
-- [Installieren](10-installieren.md): Homebrew oder Quellcode.
+- [Installieren](10-installieren.md): Homebrew oder Quellcode; Aktualisieren mit Backup und `migrate`.
 - [Hooks einrichten](20-hooks-einrichten.md): der Block für Claude Code, erstes Einlesen, Prüfen, nach einem Claude-Code-Update.
 - [Archiv auswerten](30-auswerten.md): Kennzahlen mit `stats`, Volltextsuche mit `search`, eigene Abfragen mit `sql`.
 - [Arbeitszeit nachvollziehen](40-arbeitszeit.md): erste und letzte Aktivität je Tag mit Soll und Saldo, in CLI und TUI.

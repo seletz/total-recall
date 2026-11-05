@@ -73,7 +73,8 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 	if _, err := os.Stat(cfg.DB); errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("no archive at %s", cfg.DB)
 	}
-	st, err := openWrite(cfg, log)
+	// backup is the step before a migration, so it accepts an older schema.
+	st, err := openWrite(cfg, log, store.AllowOutdated())
 	if err != nil {
 		return err
 	}

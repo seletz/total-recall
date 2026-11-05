@@ -43,6 +43,7 @@ Der Befehl schreibt zuerst ein Backup wie [`backup`](../reference/10-befehle.md#
 | `not enough free disk space` | Neben der Datenbank muss etwa die doppelte Dateigröße frei sein (Backup-Kopie und neue Kopie), im Backup-Ordner die halbe. Platz schaffen oder alte Backups löschen. |
 | `writers active` | Ein `ingest` oder `backup` hatte das Archiv noch offen, als `--wait` (Default 60 s) ablief. Kurz warten und noch einmal starten, oder `--wait 5m`. |
 | `readers active` | Ein lesender Prozess (TUI, `sql`, ein anderes Terminal) hält die Datei offen. Schließen, noch einmal starten. |
+| `older than this binary` | Die Datenbank hat ein älteres Schema als das Programm. `maintenance` migriert nicht: erst `total-recall backup`, dann [`total-recall migrate`](../reference/10-befehle.md#migrate), siehe [Aktualisieren](10-installieren.md#aktualisieren). |
 | `copy rejected` | Die Kopie hat die Prüfung nicht bestanden; das Archiv ist unverändert. Das sollte nicht vorkommen: Log und [`doctor`](../reference/10-befehle.md#doctor) ansehen, Issue aufmachen. |
 
 Referenz: [`maintenance`](../reference/10-befehle.md#maintenance).

@@ -1,15 +1,19 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/harness"
+	"github.com/seletz/total-recall/internal/store"
 )
 
 // doctorFindings is the exit code of doctor when something unknown was found.
@@ -62,6 +66,14 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 			}
 			_, _ = fmt.Fprintln(w)
 		}
+		if note := schemaNote(cfg); note != "" {
+			clean = false
+			w := o.w
+			if o.format.IsJSON() {
+				w = o.errw
+			}
+			_, _ = fmt.Fprintf(w, "%s\n\n", note)
+		}
 		for _, fc := range checkers {
 			r, err := fc.CheckFormat(cmd.Context())
 			if err != nil {
@@ -87,6 +99,28 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 	c.Flags().StringVar(&name, "harness", "claude", "harness to check")
 	of.register(c)
 	return c
+}
+
+// schemaNote returns a loud note when the archive exists and needs a
+// migration (or was written by a newer binary), else "". doctor does not
+// open the archive otherwise; the note is read-only.
+func schemaNote(cfg *config.Config) string {
+	if _, err := os.Stat(cfg.DB); err != nil {
+		return ""
+	}
+	st, err := store.OpenReadOnly(cfg.DB)
+	if err != nil {
+		if errors.Is(err, store.ErrSchemaTooNew) {
+			return "SCHEMA: " + err.Error()
+		}
+		return ""
+	}
+	defer func() { _ = st.Close() }()
+	if !st.MigrationPending() {
+		return ""
+	}
+	return fmt.Sprintf("MIGRATION PENDING: the archive has schema v%d, this binary v%d; hooks write nothing until you %s",
+		st.Version(), store.LatestSchemaVersion(), migrateHint)
 }
 
 func printFormatReport(w io.Writer, r harness.FormatReport) {

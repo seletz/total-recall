@@ -138,7 +138,7 @@ reload = "5s"                    # Archiv auf Änderungen prüfen und neu laden;
 :   Uhrzeit (`HH:MM`, Ortszeit), zu der ein Tag für die erste und letzte Aktivität je Tag beginnt ([`stats --workday`](10-befehle.md#stats-workday), TUI-Ansicht „activity“). Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt. `00:00` ist die Kalendermitternacht. Default: `04:00`. Wirkt nicht auf `stats` ohne `--workday` und nicht auf `daily_activity`.
 
 `log`
-:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie Backups vor einer Schema-Migration. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
+:   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie die `WARN`-Zeile, wenn eine Schema-Migration aussteht und die Hooks deshalb nichts schreiben. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).
 
 ### `[backup]`
 
