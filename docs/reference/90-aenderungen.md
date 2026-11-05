@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.3.0 (unveröffentlicht)
+
+### TUI
+
+- **Einstellungen wirken sofort.** Die Seite [Settings](30-tui.md#settings) der Ansicht Config übernimmt mehr Werte ohne Neustart: die Tastenbelegung `[keys]` (Tasten, Fußzeile und Hilfe aller Ansichten), `day_start` und die Tabelle `[work]` (Kernzeiten, Ziel und Grenzen zeichnen die Aktivität neu; Tagesgrenze und Bundesland laden das Fenster neu und markieren die Feiertage der Statistik neu; `count` schaltet die Zählweise um) sowie `tui.activity_projects`. Fenster, Markierung, Scrollposition und Eingabe bleiben dabei erhalten, wie schon bei `reload`, `mouse` und den Projektdefinitionen. Die Zeile `default` sagt zu jedem Schlüssel, was eine Änderung tut: `applied at once`, `takes effect at the next start` (`db`, `timezone` und die Startzustände der Ansichten) oder `used by the next command or action` (alles, was die TUI nicht selbst nutzt); die Meldung nach dem Schreiben wiederholt es. Eine im Editor geänderte Tabelle mit einem Fehler lässt die bisherigen Werte in Kraft ([#165](https://github.com/seletz/total-recall/issues/165)).
+
 ## v1.2.1
 
 ### Behoben

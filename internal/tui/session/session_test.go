@@ -17,6 +17,7 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -222,5 +223,23 @@ func TestWheel(t *testing.T) {
 	got := tuitest.Drive(t, m, down, down, up).(Model)
 	if got.vp.YOffset() != m.vp.MouseWheelDelta {
 		t.Errorf("YOffset = %d, want %d", got.vp.YOffset(), m.vp.MouseWheelDelta)
+	}
+}
+
+// TestSetKeys: new bindings act at once, in the viewport too.
+func TestSetKeys(t *testing.T) {
+	km, err := keys.Resolve(map[string][]string{keys.SessionDown: {"n"}, keys.SessionNext: {"N"}, keys.SessionPrev: {"P"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(nil, time.UTC, nil).SetKeys(km).(Model)
+	if got := m.keys.Down.Keys(); !slices.Equal(got, []string{"n"}) {
+		t.Errorf("down keys = %v", got)
+	}
+	if got := m.vp.KeyMap.Down.Keys(); !slices.Equal(got, []string{"n"}) {
+		t.Errorf("viewport down keys = %v", got)
+	}
+	if h := m.keys.Hit.Help(); h.Key != "N/P" {
+		t.Errorf("hit group help = %q", h.Key)
 	}
 }

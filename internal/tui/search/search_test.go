@@ -17,6 +17,7 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
+	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
 
@@ -578,5 +579,31 @@ func TestCursor(t *testing.T) {
 				t.Errorf("cursor = (%d,%d), want (%d,0)", c.X, c.Y, tt.wantX)
 			}
 		})
+	}
+}
+
+// TestSetKeys: new bindings act at once; the query and the hits stay.
+func TestSetKeys(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	km, err := keys.Resolve(map[string][]string{keys.SearchActor: {"A"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := tuitest.Drive(t, newModel(t, st, "release"), tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}, tuitest.Key("tab")).(Model)
+	m = m.SetKeys(km).(Model)
+	f := tuitest.Frame(m)
+	if !strings.Contains(f, "> release") {
+		t.Errorf("query lost:\n%s", f)
+	}
+	before := tuitest.Frame(tuitest.Send(t, m, tuitest.Key("a")).(Model))
+	after := tuitest.Frame(tuitest.Send(t, m, tuitest.Key("A")).(Model))
+	if before != f {
+		t.Errorf("a still switches the actor filter:\n%s", before)
+	}
+	if after == f {
+		t.Errorf("A does not switch the actor filter:\n%s", after)
+	}
+	if h := m.keys.Actor.Help(); h.Key != "A" {
+		t.Errorf("actor help = %q", h.Key)
 	}
 }
