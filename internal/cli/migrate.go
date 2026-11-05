@@ -93,7 +93,7 @@ completed; the copy stays.
 				return errors.New("migration cancelled, the archive is unchanged")
 			}
 		}
-		opts := store.MigrateOptions{LockDir: lockDir(cfg), Wait: wait}
+		opts := store.MigrateOptions{LockDir: lockDir(cfg), Wait: wait, RawTrimmers: rawTrimmers(adapters(cfg))}
 		if text {
 			opts.Logf = func(f string, a ...any) { _, _ = fmt.Fprintf(o.w, f+"\n", a...) }
 			opts.Progress = progressPrinter(o, e.app.Now)

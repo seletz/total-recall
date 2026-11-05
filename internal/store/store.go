@@ -62,6 +62,9 @@ type Store struct {
 	progress func(Progress)
 	lockDir  string // WithLockDir: shared maintenance lock held until Close
 	unlock   func()
+	// rawTrimmers reduce a stored raw line of a harness to the fields the
+	// harness needs again (migration 5); key = harness name.
+	rawTrimmers map[string]RawTrimFunc
 	// Poll state (read-only stores): the file identity at open, the pinned
 	// connection with the data_version it last saw. watchMu also orders
 	// Reopen against Poll.
@@ -85,6 +88,17 @@ func WithLogf(f func(format string, args ...any)) Option { return func(s *Store)
 
 // WithClock sets the clock used for ingested_at. Default time.Now.
 func WithClock(now func() time.Time) Option { return func(s *Store) { s.now = now } }
+
+// RawTrimFunc reduces a raw transcript line to the fields its harness needs
+// to read it again (harness.RawTrimmer). An error keeps the line as it is.
+type RawTrimFunc func(raw []byte) ([]byte, error)
+
+// WithRawTrimmers sets the trimmers migration 5 applies to the stored raw
+// lines, by harness name. Lines of a harness without a trimmer are only
+// compressed.
+func WithRawTrimmers(m map[string]RawTrimFunc) Option {
+	return func(s *Store) { s.rawTrimmers = m }
+}
 
 // AllowOutdated makes Open accept a database with an older schema than this
 // binary without migrating it, instead of failing with ErrSchemaOutdated.
@@ -347,9 +361,9 @@ func (s *Store) applyMigration(ctx context.Context, version int) error {
 	if _, err := tx.ExecContext(ctx, migrations[version-1]); err != nil {
 		return fail(tx, err)
 	}
-	if step, ok := migrationSteps[version]; ok {
+	if mk, ok := migrationSteps[version]; ok {
 		report := func(done, total int64) { s.report(Progress{Version: version, Done: done, Total: total}) }
-		if err := step(ctx, tx, report); err != nil {
+		if err := mk(s)(ctx, tx, report); err != nil {
 			return fail(tx, err)
 		}
 	}

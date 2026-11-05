@@ -29,6 +29,16 @@ type Reclassifier interface {
 	Reclassify(ev model.Event, subagent bool) (actor model.Actor, ok bool)
 }
 
+// RawTrimmer is implemented by adapters that can reduce a transcript line
+// to the fields they need to read it again (Parse, Reclassify). The adapter
+// applies it when it emits an event, and the store applies it to stored raw
+// lines when it migrates them (schema v5); the store itself does not know
+// the format. The result is compact JSON; an input that is not a record is
+// an error, and the caller then keeps the line as it is.
+type RawTrimmer interface {
+	TrimRaw(raw []byte) ([]byte, error)
+}
+
 var registry = map[string]Adapter{}
 
 // Register adds an adapter; called from adapter packages' init or from main.

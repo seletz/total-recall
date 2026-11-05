@@ -206,8 +206,8 @@ func TestWriteBatchIdempotent(t *testing.T) {
 	if e.ID != "claude:e4" || e.TokensIn != 10 || e.TokensOut != 20 || e.Model != "m1" || !e.TS.Equal(evs[3].TS) || e.SourcePath != "/src/a.jsonl" {
 		t.Errorf("round trip mismatch: %+v", e)
 	}
-	// Events does not load raw (#131); it is stored nevertheless.
-	if n := countRows(t, s, "SELECT count(*) FROM events WHERE id = 'claude:e4' AND raw = '{\"x\":1}'"); n != 1 {
+	// Events does not load raw (#131); it is stored nevertheless, compressed.
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE id = 'claude:e4' AND raw_text(raw) = '{\"x\":1}' AND typeof(raw) = 'blob'"); n != 1 {
 		t.Errorf("stored raw rows for e4 = %d, want 1", n)
 	}
 	if got[1].ToolName != "Bash" {
@@ -723,7 +723,7 @@ func TestWriteBatchRewriteRaw(t *testing.T) {
 		}
 	}
 	// Events does not load raw (#131): check the columns directly.
-	if n := countRows(t, s, `SELECT count(*) FROM events WHERE raw = '{"x":2,"text":"readable again"}' AND raw_truncated = 0`); n != len(evs)-1 {
+	if n := countRows(t, s, `SELECT count(*) FROM events WHERE raw_text(raw) = '{"x":2,"text":"readable again"}' AND raw_truncated = 0`); n != len(evs)-1 {
 		t.Errorf("rewritten raw rows = %d, want %d", n, len(evs)-1)
 	}
 	if n := countRows(t, s, "SELECT count(*) FROM events WHERE id = 'claude:e2' AND raw_truncated = 1 AND raw IS NULL"); n != 1 {

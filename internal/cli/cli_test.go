@@ -609,6 +609,9 @@ func TestStatus(t *testing.T) {
 	if s.LastIngest["claude"] == "" {
 		t.Errorf("status = %+v", s)
 	}
+	if s.RawRows != 9 || s.RawBytes <= 0 || s.RawTruncated != 0 || s.RawRatio <= 1 {
+		t.Errorf("raw stats = rows %d, bytes %d, truncated %d, ratio %.2f", s.RawRows, s.RawBytes, s.RawTruncated, s.RawRatio)
+	}
 	if s.ErrorsWindow != "24h" || string(s.ErrorsSince) != isoTime(e.now.Add(-24*time.Hour)) || s.OlderErrors != 1 || s.RecentErrorsTotal != 1 {
 		t.Errorf("error window = %+v", s)
 	}
@@ -616,7 +619,7 @@ func TestStatus(t *testing.T) {
 		t.Errorf("recent errors = %+v", s.RecentErrors)
 	}
 	out := e.mustRun(t, "status")
-	for _, want := range []string{e.db, "schema", "last ingest (claude)", "none in", "recent errors (last 24h", "2026-10-20 11:00  (3h00m ago)  hook Stop: boom", "older errors: 1", "--all-errors"} {
+	for _, want := range []string{e.db, "schema", "in 9 events, compressed", "last ingest (claude)", "none in", "recent errors (last 24h", "2026-10-20 11:00  (3h00m ago)  hook Stop: boom", "older errors: 1", "--all-errors"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status lacks %q:\n%s", want, out)
 		}
@@ -1336,7 +1339,7 @@ func TestIngestRewriteRaw(t *testing.T) {
 	if got := counts(); got != before {
 		t.Errorf("counts after rewrite = %q, want %q", got, before)
 	}
-	if n := e.mustRun(t, "sql", "--format", "csv", "SELECT count(*) FROM events WHERE raw LIKE '%high_entropy%' OR raw IS NULL"); !strings.HasSuffix(strings.TrimSpace(n), "0") {
+	if n := e.mustRun(t, "sql", "--format", "csv", "SELECT count(*) FROM events WHERE raw_text(raw) LIKE '%high_entropy%' OR raw IS NULL"); !strings.HasSuffix(strings.TrimSpace(n), "0") {
 		t.Errorf("raw still masked: %q", n)
 	}
 }

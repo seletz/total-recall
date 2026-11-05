@@ -20,7 +20,7 @@ type UserMessage struct {
 // UserMessages calls fn for every user message (role user, kind message)
 // of the harness in insertion order. It stops at the first error fn returns.
 func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMessage) error) error {
-	rows, err := s.db().QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), e.text, COALESCE(e.raw, ''),
+	rows, err := s.db().QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), e.text, e.raw,
 			COALESCE(s.parent_id, '') <> ''
 		FROM events e JOIN sessions s ON s.id = e.session_id
 		WHERE s.harness = ? AND e.role = 'user' AND e.kind = 'message'
@@ -32,8 +32,12 @@ func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMe
 	for rows.Next() {
 		var m UserMessage
 		var actor string
-		if err := rows.Scan(&m.ID, &actor, &m.Text, &m.Raw, &m.Subagent); err != nil {
+		var raw []byte
+		if err := rows.Scan(&m.ID, &actor, &m.Text, &raw, &m.Subagent); err != nil {
 			return fmt.Errorf("store: user messages: %w", err)
+		}
+		if m.Raw, err = rawText(raw); err != nil {
+			return fmt.Errorf("store: user messages: %s: %w", m.ID, err)
 		}
 		m.Actor = model.Actor(actor)
 		if err := fn(m); err != nil {

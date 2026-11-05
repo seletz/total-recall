@@ -141,13 +141,11 @@ func relocate(ctx context.Context, dbPath, from, to string) (Summary, error) {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
 	defer func() { _ = db.Close() }()
-	for _, q := range []string{
-		"UPDATE sources SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
-		"UPDATE events SET source_path = ? || substr(source_path, ?) WHERE substr(source_path, 1, ?) = ?",
-	} {
-		if _, err := db.ExecContext(ctx, q, to, len(from)+1, len(from), from); err != nil {
-			return Summary{}, fmt.Errorf("demo: relocate: %w", err)
-		}
+	// Events reference their source by id (schema v5): the path lives in
+	// sources only.
+	if _, err := db.ExecContext(ctx, "UPDATE sources SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
+		to, len(from)+1, len(from), from); err != nil {
+		return Summary{}, fmt.Errorf("demo: relocate: %w", err)
 	}
 	var s Summary
 	if err := db.QueryRowContext(ctx, "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM events)").Scan(&s.Sessions, &s.Events); err != nil {

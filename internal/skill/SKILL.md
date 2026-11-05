@@ -100,7 +100,7 @@ LIMIT 50"
 ## Cost notes
 
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
-- `events.text` of tool results is truncated to 4 KiB. `events.raw` is the full original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); never select `raw` in a list query.
+- `events.text` of tool results is truncated to 4 KiB. `events.raw` is a compressed extract of the original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); read it with `raw_text(raw)`, and never select it in a list query.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
 - `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
@@ -187,9 +187,9 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `model` | model of the assistant message |
 | `tokens_in` | input tokens, NULL if unknown |
 | `tokens_out` | output tokens, NULL if unknown |
-| `source_path` | transcript file the line came from |
+| `source_id` | `sources.id` of the transcript file the line came from (`JOIN sources s ON s.id = e.source_id` for the path) |
 | `source_offset` | byte offset of the line in that file |
-| `raw` | original JSON line, redacted; NULL above `ingest.raw_max_bytes` (default 16 KiB) or with `store_raw = false` |
+| `raw` | extract of the original JSON line as a zstd-compressed BLOB (since schema v5): record type, ids, time stamp, classifier flags, `message` (`content`, `model`) and `toolUseResult` without diffs; redacted. `raw_text(raw)` gives the JSON text. NULL above `ingest.raw_max_bytes` (default 16 KiB) or with `store_raw = false` |
 | `raw_truncated` | 1 if `raw` was dropped because of its size (`text` is still filled) |
 
 #### `events_fts`
@@ -228,7 +228,7 @@ View: per local day (configured zone) and session.
 
 #### Housekeeping tables
 
-`sources` (`path`, `harness`, `size`, `mtime`, `offset`, `ingested_at`): ingested transcript files. `dirs` (`cwd`, `git_root`, `git_remote_url`, `resolved_at`): cache of git lookups. `schema_version` (`version`): schema version of the database.
+`sources` (`id`, `path`, `harness`, `size`, `mtime`, `offset`, `ingested_at`): ingested transcript files, referenced by `events.source_id`. `dirs` (`cwd`, `git_root`, `git_remote_url`, `resolved_at`): cache of git lookups. `schema_version` (`version`): schema version of the database.
 
 ### Other caveats
 
@@ -360,6 +360,10 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `sessions` | count |
 | `events` | count |
 | `sources` | count of ingested files |
+| `raw_rows` | events with a stored `raw` line |
+| `raw_bytes` | compressed size of all `raw` lines |
+| `raw_truncated` | events whose `raw` line was dropped for its size |
+| `raw_ratio` | uncompressed over compressed size of `raw`, estimated from a sample of rows; 0 if unknown |
 | `last_ingest` | object harness → time (UTC) |
 | `backup_dir` | |
 | `last_backup` | path of the last backup, `null` if none |

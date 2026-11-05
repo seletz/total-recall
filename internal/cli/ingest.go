@@ -157,6 +157,17 @@ func warnOutdatedOnce(cfg *config.Config, log *logger, now time.Time, event stri
 	log.Warnf("hook %s: nothing written, the archive needs a migration (%v); hooks catch up afterwards", event, err)
 }
 
+// rawTrimmers collects the raw trimmers of the adapters by harness name.
+func rawTrimmers(as []harness.Adapter) map[string]store.RawTrimFunc {
+	m := map[string]store.RawTrimFunc{}
+	for _, a := range as {
+		if t, ok := a.(harness.RawTrimmer); ok {
+			m[a.Name()] = t.TrimRaw
+		}
+	}
+	return m
+}
+
 // ingestFlags are the mode flags of `ingest`.
 type ingestFlags struct {
 	all, regit, reread, rewriteRaw bool

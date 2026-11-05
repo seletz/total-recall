@@ -8,9 +8,10 @@ Das Archiv wächst mit jeder Session, bei täglicher Arbeit um einige hundert Mi
 
 ## Wann
 
+- Einmal nach [`migrate`](../reference/10-befehle.md#migrate) auf Schema v5 (v1.2.0): Die Migration schreibt jedes Event neu, die alten Seiten bleiben als Freiliste in der Datei, die dadurch zunächst größer ist als vorher. Auf einer Kopie eines echten Archivs: 1146 MiB vor der Migration, 1533 MiB danach, 438 MiB nach `maintenance` (`freelist pages` in `maintenance --dry-run` zeigt den Anteil). Rezept: [Aktualisieren](10-installieren.md#aktualisieren).
 - Einmal nach dem Update auf eine Version mit `maintenance`: Archive, die vorher angelegt wurden, haben 4 KiB-Seiten. [`status`](../reference/10-befehle.md#status) zeigt die Seitengröße und weist darauf hin, solange sie unter 16384 liegt.
 - Danach selten. Die Seitengröße bleibt; ein weiterer Lauf lohnt nur, wenn viel gelöscht wurde (`freelist pages` in `maintenance --dry-run`).
-- Zu einer ruhigen Zeit, etwa morgens vor der ersten Session: Der Befehl hält das Archiv für die Dauer des Neuaufbaus exklusiv, bei 1 GiB eine knappe Minute. Hooks, die in dieser Zeit laufen, überspringen ihren Lauf und holen das beim nächsten Hook derselben Session oder beim nächsten `SessionStart` vom gespeicherten Offset nach; eine `INFO`-Zeile im Log (`maintenance in progress, skipped`) ist dann kein Fehler, und es geht nichts verloren.
+- Zu einer ruhigen Zeit, etwa morgens vor der ersten Session: Der Befehl hält das Archiv für die Dauer des Neuaufbaus exklusiv, bei 1,5 GiB rund zehn Sekunden plus das Backup. Hooks, die in dieser Zeit laufen, überspringen ihren Lauf und holen das beim nächsten Hook derselben Session oder beim nächsten `SessionStart` vom gespeicherten Offset nach; eine `INFO`-Zeile im Log (`maintenance in progress, skipped`) ist dann kein Fehler, und es geht nichts verloren.
 
 ## Wie
 
