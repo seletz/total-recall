@@ -123,6 +123,7 @@ func (e *env) openRead(cfg *config.Config) (*store.Store, error) {
 		return nil, errKind(ErrKindDB, err)
 	}
 	if w := st.SchemaWarning(); w != "" {
+		e.schemaOutdated = true
 		_, _ = fmt.Fprintln(e.app.Stderr, "warning:", w)
 	}
 	return st, nil
