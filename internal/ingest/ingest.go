@@ -92,8 +92,11 @@ type Summary struct {
 	Locked    int // sources skipped because another process holds the lock
 	Events    int // events newly inserted
 	// RawRewritten counts existing events and meta records whose raw was
-	// replaced (Deps.RewriteRaw).
+	// replaced (Deps.RewriteRaw). It counts rows, each once per Run or All
+	// call however often its record comes by, and none this call inserted.
 	RawRewritten int
+	// MetaRewritten is the part of RawRewritten that are meta records.
+	MetaRewritten int
 	// Meta counts meta records newly inserted (table session_meta).
 	Meta int
 	// Blobs counts attachments newly stored, BlobBytes their size as
@@ -110,6 +113,7 @@ type runner struct {
 	deps     Deps
 	sessions map[string]bool
 	dirs     map[string]store.DirInfo // per-run cwd cache (also negative results)
+	written  *store.WrittenRows       // rows written so far, with RewriteRaw
 	sum      Summary
 	err      error // the failure of the current file's add, if any
 }
@@ -127,7 +131,11 @@ func newRun(d Deps) *runner {
 	if d.Logf == nil {
 		d.Logf = func(string, ...any) {}
 	}
-	return &runner{deps: d, sessions: map[string]bool{}, dirs: map[string]store.DirInfo{}}
+	r := &runner{deps: d, sessions: map[string]bool{}, dirs: map[string]store.DirInfo{}}
+	if d.RewriteRaw {
+		r.written = store.NewWrittenRows()
+	}
+	return r
 }
 
 // PathOwner is optionally implemented by adapters to claim explicit paths
@@ -262,12 +270,13 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	flush := func(off int64) error {
 		src.Offset = off
 		src.Size = max(fi.Size(), off)
-		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw, Meta: metas})
+		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw, Meta: metas, Written: r.written})
 		if err != nil {
 			return err
 		}
 		r.sum.Events += res.Inserted
 		r.sum.RawRewritten += res.RawRewritten
+		r.sum.MetaRewritten += res.MetaRewritten
 		r.sum.Meta += res.MetaInserted
 		r.sum.Blobs += res.Blobs
 		r.sum.BlobBytes += res.BlobBytes
