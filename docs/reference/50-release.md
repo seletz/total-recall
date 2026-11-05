@@ -72,6 +72,8 @@ Signiert wird im Release-Lauf auf dem Linux-Runner mit [quill](https://github.co
 
 Ein Notarisierungs-Ticket lässt sich nur an Bundles, Disk-Images und Installer-Pakete heften (`stapler`), nicht an ein nacktes Mach-O-Binary. Beim ersten Start holt macOS das Ticket deshalb bei Apple; ohne Netz prüft Gatekeeper nur die Signatur.
 
+Der Homebrew-Cask verlässt sich seit v1.3.0 auf diese Signatur und entfernt das Quarantäne-Attribut nicht mehr; `xattr -l "$(brew --prefix)/bin/total-recall"` zeigt es nach der Installation weiterhin, `spctl` meldet das Binary trotzdem als `accepted`. Der `postflight`-Schritt bis v1.2.1 war die Übergangslösung für Releases ohne Signatur. Ein Release, das ohne die Secrets gebaut wurde, startet aus dem Cask also nicht ohne Gatekeeper-Dialog; der Workflow [`signed-snapshot.yml`](#signatur-ohne-release-testen) prüft die Secrets vorher.
+
 ### Signatur prüfen
 
 Nach dem Entpacken des Archivs:
@@ -192,7 +194,7 @@ Lokal installiert mise goreleaser über seine aqua-Registry in derselben Version
 
 ## Release durchführen
 
-1. Abschnitt `## <tag>` in [Änderungen](90-aenderungen.md) anlegen oder den Zusatz „(unveröffentlicht)“ entfernen; `scripts/release.sh` taggt sonst nicht, und der Workflow bricht ohne Abschnitt ab.
+1. Abschnitt `## <tag>` in [Änderungen](90-aenderungen.md) anlegen oder den Zusatz „(unveröffentlicht)“ entfernen; `scripts/release.sh` taggt sonst nicht, und der Workflow bricht ohne Abschnitt ab. Den Abschnitt liest `scripts/release-notes.sh`, das relative Links und Anker der Seite auf die veröffentlichte Doku umschreibt; `mise run release:notes:check` testet das Skript gegen einen synthetischen Changelog, die CI mit `go test`.
 2. `mise run sbom:check` lokal: baut den Snapshot und prüft die SBOMs so, wie es die CI tut; `mise run tools:check` prüft die [Werkzeug-Pins](#werkzeuge-des-release-laufs).
 3. `mise run release`: wählt die Versionsnummer, taggt und pusht den Tag; der Workflow baut, signiert, notarisiert, erzeugt SBOMs und Prüfsummen, legt das GitHub-Release an und aktualisiert den Cask.
-4. Nach dem Lauf: das darwin-Archiv laden und die [Signatur prüfen](#signatur-prufen); `brew upgrade --cask total-recall` auf einem Mac und `total-recall --version`.
+4. Nach dem Lauf: das darwin-Archiv laden und die [Signatur prüfen](#signatur-prufen); `brew upgrade --cask total-recall` auf einem Mac und `total-recall --version`, ohne Gatekeeper-Dialog.
