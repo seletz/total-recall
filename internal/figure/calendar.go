@@ -37,7 +37,8 @@ func Calendar(d CalendarData, scale []color.NRGBA, o Options) canvas.Scene {
 		scale, _ = Colors(DefaultHeatmap)
 	}
 	s := canvas.Scene{Background: background(o)}
-	top := heading(&s, o, "Own messages per day") + 12
+	tx := o.Lang.text()
+	top := heading(&s, o, tx.calendarTitle) + 12
 	// The weeks: Monday of the first day's week to the last day.
 	first := d.First
 	last := d.Last
@@ -55,13 +56,13 @@ func Calendar(d CalendarData, scale []color.NRGBA, o Options) canvas.Scene {
 		total += v
 		mx = max(mx, v)
 	}
-	for i, wd := range Weekdays {
+	for i, wd := range tx.weekdays {
 		s.Add(canvas.Text{X: 0, Y: top + float64(i)*(cell+gap) + cell/2 + 4, Text: wd[:2], Size: smallSize, Fill: TextColor})
 	}
 	for w := range weeks {
 		t := monday.AddDate(0, 0, 7*w)
 		_, wk := t.ISOWeek()
-		s.Add(canvas.Text{X: left + float64(w)*(cell+gap), Y: top - 6, Text: fmt.Sprintf("W%02d", wk), Size: smallSize, Fill: TextColor})
+		s.Add(canvas.Text{X: left + float64(w)*(cell+gap), Y: top - 6, Text: o.Lang.Week(wk), Size: smallSize, Fill: TextColor})
 	}
 	for t := first; !t.After(last); t = t.AddDate(0, 0, 1) {
 		w := daysBetween(monday, t) / 7
@@ -74,7 +75,7 @@ func Calendar(d CalendarData, scale []color.NRGBA, o Options) canvas.Scene {
 		}
 		x, y := left+float64(w)*(cell+gap), top+float64(row)*(cell+gap)
 		s.Add(canvas.Rect{X: x, Y: y, W: cell, H: cell, Radius: 4, Fill: fill,
-			Title: fmt.Sprintf("%s %s: %d", Weekdays[row], t.Format("2006-01-02"), v)})
+			Title: fmt.Sprintf("%s %s: %d", tx.weekdays[row], o.Lang.day(t), v)})
 		num := TextColor
 		if lv*2 > len(scale) {
 			num = Background
@@ -86,12 +87,12 @@ func Calendar(d CalendarData, scale []color.NRGBA, o Options) canvas.Scene {
 	s.Height = top + 7*(cell+gap) - gap + 8
 	if !o.NoLegend {
 		lx := gridW + 12
-		s.Add(label(lx, top+12, fmt.Sprintf("max %d/day", mx), canvas.Start))
+		s.Add(label(lx, top+12, fmt.Sprintf(tx.maxPerDay, mx), canvas.Start))
 		sw := append([]color.NRGBA{EmptyColor}, scale...)
 		for i, c := range sw {
 			s.Add(canvas.Rect{X: lx + float64(i)*18, Y: top + 22, W: 14, H: 14, Radius: 3, Fill: c})
 		}
-		s.Add(label(lx, top+54, fmt.Sprintf("total %d", total), canvas.Start))
+		s.Add(label(lx, top+54, fmt.Sprintf(tx.total, total), canvas.Start))
 		s.Width = lx + max(float64(len(sw))*18+20, 140)
 	}
 	return s

@@ -39,7 +39,7 @@ Ab v1.0.0 kommt `total-recall` als Cask aus dem Tap `seletz/homebrew-tap`:
 brew install --cask seletz/tap/total-recall
 ```
 
-Der Cask installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert. Er entfernt beim Installieren zusätzlich das Quarantäne-Attribut; für die signierten Binaries ab v1.0.2 ist das nicht mehr nötig und bleibt vorerst als Absicherung drin.
+Der Cask installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert. Er verlässt sich auf die Signatur und Notarisierung des Binarys: Das Quarantäne-Attribut, das Homebrew beim Laden setzt, bleibt stehen, und Gatekeeper startet das Binary trotzdem ohne Dialog. Bis v1.2.1 entfernte der Cask das Attribut beim Installieren zusätzlich; das war die Übergangslösung aus der Zeit vor der Signatur.
 
 ```sh
 brew upgrade --cask total-recall
@@ -89,7 +89,7 @@ total-recall status          # 4. prüfen: schema ohne Hinweis
 
 **v1.2.0 (Schema v5)** schreibt jedes Event neu: `raw` wird ein komprimierter Auszug, Events verweisen per ID auf ihre Quelle ([Änderungen](../reference/90-aenderungen.md)). Auf einer Kopie eines echten Archivs mit 233 000 Events (1,1 GiB) dauerte `migrate` 27 Sekunden und brauchte neben der Datenbank rund 2 GiB frei (Kopie und WAL; `migrate` prüft das vorher). Direkt danach ist die Datei **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste); erst [`maintenance`](60-wartung.md) baut sie neu auf, in dem Beispiel in 11 Sekunden auf 438 MiB. Dafür muss neben der Datenbank noch einmal etwa das Doppelte der Dateigröße frei sein und im Backup-Ordner die Hälfte. Die lesenden Befehle liefern vorher und nachher dieselben Ergebnisse.
 
-Zwei Dinge fallen nach dem Update auf: Die Kopie `archive.db.pre-v4.bak` liegt unkomprimiert neben der Datenbank, bis du sie löschst. Und die gzip-Backups in `~/Documents/total-recall` werden **größer**, obwohl die Datenbank kleiner ist, in dem Beispiel von 187 auf 244 MiB: `raw` ist jetzt schon mit zstd komprimiert, und gzip kann diese Blöcke nicht weiter packen.
+Zwei Dinge fallen nach dem Update auf: Die Kopie `archive.db.pre-v4.bak` liegt unkomprimiert neben der Datenbank, bis du sie löschst. Und die gzip-Backups in `~/Documents/total-recall` werden **größer**, obwohl die Datenbank kleiner ist, in dem Beispiel von 187 auf 244 MiB: `raw` ist jetzt schon mit zstd komprimiert, und gzip kann diese Blöcke nicht weiter packen. Ab v1.3.0 schreibt `backup` deshalb `.db.zst` statt `.db.gz` (kleiner und deutlich schneller); die alten `.db.gz` bleiben lesbar und zählen bei der Aufbewahrung mit, siehe [Backup wiederherstellen](60-wartung.md#backup-wiederherstellen).
 
 `migrate` zeigt vorher, was es tut: die Versionen, jede ausstehende Migration mit einer Zeile Beschreibung, wo die Kopie `archive.db.pre-v<N>.bak` liegt und wie viel Platz frei sein muss. `--dry-run` zeigt nur den Plan, `--yes` fragt nicht nach. Bei einer langen Migration läuft eine Fortschrittsanzeige; Hooks, die währenddessen feuern, überspringen ihren Lauf und holen danach nach. Referenz: [`migrate`](../reference/10-befehle.md#migrate). Was sich je Version ändert und ob ein Update migrieren muss, steht in den [Änderungen](../reference/90-aenderungen.md).
 

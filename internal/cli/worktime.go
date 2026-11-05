@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/worktime"
 )
@@ -149,7 +150,7 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 	for i, ev := range events {
 		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Title: ev.Title, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL, Text: ev.Text}
 	}
-	cal := holidays(cfg)
+	cal := ops.Holidays(cfg)
 	opts := worktime.Options{Location: loc, DayStart: cfg.DayStartOffset(), Home: cfg.Home, Holidays: cal, Projects: projects}
 	if !since.IsZero() {
 		opts.From = store.DayOf(since, loc, cfg.DayStartOffset())

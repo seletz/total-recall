@@ -13,28 +13,37 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/klauspost/compress/zstd"
 )
 
-// backupName matches backup copies: gzip-compressed (current) and plain
-// SQLite files (written by older versions). Group 1 is the month.
-var backupName = regexp.MustCompile(`^archive-(\d{4}-\d{2})-\d{2}\.db(\.gz)?$`)
+// backupName matches backup copies: zstd-compressed (current),
+// gzip-compressed (up to v1.2) and plain SQLite files (older versions).
+// Group 1 is the month.
+var backupName = regexp.MustCompile(`^archive-(\d{4}-\d{2})-\d{2}\.db(\.gz|\.zst)?$`)
+
+// backupEncoderConcurrency bounds the goroutines (and so the memory) of the
+// zstd encoder: the backup runs from a hook next to the user's work.
+const backupEncoderConcurrency = 4
 
 // BackupFileName returns the backup file name for the calendar day of now
 // (in now's location).
 func BackupFileName(now time.Time) string {
-	return legacyBackupFileName(now) + ".gz"
+	return legacyBackupFileName(now) + ".zst"
 }
 
+// legacyBackupFileName is the name of an uncompressed copy of the day;
+// legacyBackupFileName + ".gz" the gzip-compressed one written up to v1.2.
 func legacyBackupFileName(now time.Time) string {
 	return "archive-" + now.Format("2006-01-02") + ".db"
 }
 
-// Backup writes a consistent, gzip-compressed copy of the database to
-// dir/archive-YYYY-MM-DD.db.gz (replacing a copy from the same day, also an
-// uncompressed one from older versions), then applies retention: keep the
-// keepDaily newest copies plus the newest copy of each month, limited to the
-// keepMonthly newest months (0 = all months). It returns the path of the new
-// copy.
+// Backup writes a consistent, zstd-compressed copy of the database to
+// dir/archive-YYYY-MM-DD.db.zst (replacing a copy from the same day, also a
+// gzip-compressed or uncompressed one from older versions), then applies
+// retention: keep the keepDaily newest copies plus the newest copy of each
+// month, limited to the keepMonthly newest months (0 = all months). It
+// returns the path of the new copy.
 //
 // The copy is made with VACUUM INTO into a temporary file next to the
 // database (not in dir, which may be synced), compressed into dir/<name>.tmp
@@ -61,7 +70,7 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
 	tmp := fmt.Sprintf("%s.%d.tmp", dst, os.Getpid())
-	if err := gzipFile(tmpDB, tmp); err != nil {
+	if err := zstdFile(tmpDB, tmp); err != nil {
 		_ = os.Remove(tmp)
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
@@ -69,9 +78,11 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 		_ = os.Remove(tmp)
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
-	// The compressed copy supersedes an uncompressed one of the same day.
-	if err := os.Remove(filepath.Join(dir, legacyBackupFileName(now))); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return dst, fmt.Errorf("store: backup: %w", err)
+	// The new copy supersedes older formats of the same day.
+	for _, sfx := range []string{"", ".gz"} {
+		if err := os.Remove(filepath.Join(dir, legacyBackupFileName(now)+sfx)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return dst, fmt.Errorf("store: backup: %w", err)
+		}
 	}
 	if _, err := PruneBackups(dir, keepDaily, keepMonthly); err != nil {
 		return dst, err
@@ -79,8 +90,11 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 	return dst, nil
 }
 
-// gzipFile compresses src into a new file dst and syncs it.
-func gzipFile(src, dst string) error {
+// zstdFile compresses src into a new file dst and syncs it. The level is
+// SpeedBetterCompression: on a real archive it was a tenth smaller than
+// SpeedDefault for less than a second more, while SpeedBestCompression took
+// ten times as long for another 5 %.
+func zstdFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -90,7 +104,13 @@ func gzipFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	zw := gzip.NewWriter(out)
+	zw, err := zstd.NewWriter(out,
+		zstd.WithEncoderLevel(zstd.SpeedBetterCompression),
+		zstd.WithEncoderConcurrency(backupEncoderConcurrency))
+	if err != nil {
+		_ = out.Close()
+		return err
+	}
 	if _, err := io.Copy(zw, in); err != nil {
 		_ = out.Close()
 		return err
@@ -107,7 +127,8 @@ func gzipFile(src, dst string) error {
 }
 
 // Restore writes the database contained in the backup file src to dst. src
-// is a gzip-compressed copy (*.gz) or an uncompressed SQLite file. dst must
+// is a zstd-compressed copy (*.zst), a gzip-compressed one (*.gz, up to
+// v1.2) or an uncompressed SQLite file (older versions). dst must
 // not exist unless force is set; with force, dst and its -wal/-shm files are
 // replaced. The data is first written to a temporary file next to dst and
 // checked (schema version, PRAGMA quick_check); dst is only touched if the
@@ -136,17 +157,13 @@ func Restore(ctx context.Context, src, dst string, force bool) error {
 			_ = os.Remove(tmp + sfx)
 		}
 	}
-	var r io.Reader = in
-	if strings.HasSuffix(src, ".gz") {
-		zr, err := gzip.NewReader(in)
-		if err != nil {
-			_ = tmpf.Close()
-			cleanup()
-			return fmt.Errorf("store: restore %s: %w", src, err)
-		}
-		defer func() { _ = zr.Close() }()
-		r = zr
+	r, closeReader, err := backupReader(src, in)
+	if err != nil {
+		_ = tmpf.Close()
+		cleanup()
+		return fmt.Errorf("store: restore %s: %w", src, err)
 	}
+	defer closeReader()
 	_, err = io.Copy(tmpf, r)
 	if err == nil {
 		err = tmpf.Sync()
@@ -178,6 +195,27 @@ func Restore(ctx context.Context, src, dst string, force bool) error {
 	return nil
 }
 
+// backupReader wraps in with the decompressor the backup file name asks for:
+// zstd for .zst, gzip for .gz, none otherwise. A decoding error (a file that
+// is not what its name says) surfaces from the first read.
+func backupReader(name string, in io.Reader) (io.Reader, func(), error) {
+	switch {
+	case strings.HasSuffix(name, ".zst"):
+		zr, err := zstd.NewReader(in, zstd.WithDecoderConcurrency(1))
+		if err != nil {
+			return nil, nil, err
+		}
+		return zr, zr.Close, nil
+	case strings.HasSuffix(name, ".gz"):
+		zr, err := gzip.NewReader(in)
+		if err != nil {
+			return nil, nil, err
+		}
+		return zr, func() { _ = zr.Close() }, nil
+	}
+	return in, func() {}, nil
+}
+
 // checkDatabase verifies that path is a total-recall database this binary
 // can read and that SQLite finds no corruption.
 func checkDatabase(ctx context.Context, path string) error {
@@ -204,7 +242,7 @@ func checkDatabase(ctx context.Context, path string) error {
 }
 
 // backupFiles returns backup file names in dir, newest first (for the same
-// day the compressed copy first). A missing dir yields no files.
+// day .zst before .gz before .db). A missing dir yields no files.
 func backupFiles(dir string) ([]string, error) {
 	ents, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -225,7 +263,7 @@ func backupFiles(dir string) ([]string, error) {
 }
 
 // PruneBackups deletes backup copies in dir that fall outside the retention
-// policy (see Backup) and returns the removed paths. Compressed and legacy
+// policy (see Backup) and returns the removed paths. zstd, gzip and legacy
 // uncompressed copies count alike. Other files are never touched.
 func PruneBackups(dir string, keepDaily, keepMonthly int) ([]string, error) {
 	names, err := backupFiles(dir)
@@ -264,9 +302,9 @@ func PruneBackups(dir string, keepDaily, keepMonthly int) ([]string, error) {
 	return removed, nil
 }
 
-// LastBackup returns the newest backup copy in dir (compressed or legacy
-// uncompressed) and its modification time. path is empty if there is none
-// (also if dir does not exist).
+// LastBackup returns the newest backup copy in dir (in any of the formats
+// backupName matches) and its modification time. path is empty if there is
+// none (also if dir does not exist).
 func LastBackup(dir string) (path string, modTime time.Time, err error) {
 	names, err := backupFiles(dir)
 	if err != nil || len(names) == 0 {

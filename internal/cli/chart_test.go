@@ -59,6 +59,12 @@ func TestChartGolden(t *testing.T) {
 		{"PunchcardBox", []string{"punchcard", "--month", "2026-10", "--width", "800", "--height", "400"}},
 		{"WorktimeEmpty", []string{"worktime", "--month", "2026-03"}},
 		{"ProjectsEmpty", []string{"projects", "--month", "2026-03"}},
+		{"CalendarDE", []string{"calendar", "--month", "2026-10", "--lang", "de"}},
+		{"ProjectsDE", []string{"projects", "--month", "2026-10", "--lang", "de", "--top", "3"}},
+		{"PunchcardDE", []string{"punchcard", "--month", "2026-10", "--lang", "de"}},
+		{"WorktimeDE", []string{"worktime", "--month", "2026-10", "--lang", "de"}},
+		{"CalendarWeekDE", []string{"calendar", "--since", "2026-10-05", "--until", "2026-10-11", "--lang", "de"}},
+		{"WorktimeTitle", []string{"worktime", "--month", "2026-10", "--title", "Kompass im Oktober"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,6 +98,35 @@ func TestChartConfig(t *testing.T) {
 	r = e.run(t, "", "--db", db, "chart", "projects", "--month", "2026-10", "--top", "0")
 	if n := strings.Count(r.stdout, "<text x=\"162\""); n < 5 {
 		t.Errorf("rows = %d, want every project with --top 0", n)
+	}
+}
+
+// TestChartLang: [chart] lang sets the language, --lang overrides it and
+// the file names stay the same.
+func TestChartLang(t *testing.T) {
+	e, db := chartEnv(t)
+	appendConfig(t, e, "\n[chart]\nlang = \"de\"\n")
+	r := e.run(t, "", "--db", db, "chart", "worktime", "--month", "2026-10")
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	for _, want := range []string{"Arbeitszeit je Woche · Oktober 2026", ">KW 41<", ">Soll<", ",5 h<"} {
+		if !strings.Contains(r.stdout, want) {
+			t.Errorf("German chart lacks %q", want)
+		}
+	}
+	r = e.run(t, "", "--db", db, "chart", "worktime", "--month", "2026-10", "--lang", "en")
+	if !strings.Contains(r.stdout, "Working time per week · October 2026") || strings.Contains(r.stdout, "KW ") {
+		t.Error("--lang en does not override [chart] lang")
+	}
+	r = e.run(t, "", "--db", db, "chart", "projects", "--month", "2026-10", "--top", "2")
+	if !strings.Contains(r.stdout, ">Sonstige</text>") {
+		t.Error("folded projects are not named in German")
+	}
+	out := t.TempDir()
+	r = e.run(t, "", "--db", db, "chart", "calendar", "--month", "2026-10", "--out", out)
+	if r.code != 0 || strings.TrimSpace(r.stdout) != filepath.Join(out, "2026-10-calendar.svg") {
+		t.Errorf("file name with lang = de: %q (exit %d)", r.stdout, r.code)
 	}
 }
 
@@ -169,6 +204,7 @@ func TestChartErrors(t *testing.T) {
 		{"negative width", []string{"calendar", "--width", "-1"}, "--width"},
 		{"zero scale", []string{"calendar", "--scale", "0"}, "--scale"},
 		{"negative top", []string{"projects", "--top", "-2"}, "--top"},
+		{"bad lang", []string{"calendar", "--lang", "fr"}, "invalid language"},
 		{"bad config", []string{"calendar", "--month", "2026-10"}, "chart.format"},
 	}
 	for _, tt := range tests {
