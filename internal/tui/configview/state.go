@@ -35,7 +35,10 @@ type state struct {
 	raw store.RawStats
 	// blobs counts the stored attachments; not read while a migration is
 	// pending either.
-	blobs  store.BlobStats
+	blobs store.BlobStats
+	// meta counts the stored meta records (session_meta) and their
+	// compressed size; not read while a migration is pending either.
+	meta   store.MetaStats
 	status store.Status
 	// backup is the newest backup copy and its time; empty without one.
 	backup   string
@@ -127,6 +130,9 @@ func load(opts Options, now time.Time) state {
 		s.err = err
 	}
 	if s.blobs, err = opts.Store.BlobStats(ctx); err != nil {
+		s.err = err
+	}
+	if s.meta, err = opts.Store.MetaStats(ctx); err != nil {
 		s.err = err
 	}
 	return s

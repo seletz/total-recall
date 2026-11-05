@@ -175,3 +175,62 @@ func TestExtractWhitespaceAndEscapes(t *testing.T) {
 		t.Errorf("Restore = %s, %v", restored, err)
 	}
 }
+
+// TestLift: the values a rule names leave the line as compact JSON
+// attachments with a reference in their place; the rest of the line stays
+// byte for byte; a value inside a lifted one is part of it; the root, a
+// line without the values and a line that is not JSON are left alone.
+func TestLift(t *testing.T) {
+	rule := func(path string) (string, bool) {
+		return "application/json", path == "shape" || path == "shape.tools" || path == "attachment.systemPrompt"
+	}
+	line := `{"type":"api-request-shape", "shape": {"system":[{"type":"text","text":"hi \"there\""}], "tools": [ {"name":"x"} ]},` +
+		`"attachment":{"type":"prompt_snapshot","systemPrompt":["a", 1, null],"reminderFold":true},"ts":"t"}`
+	out, atts, err := Lift([]byte(line), rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(atts) != 2 {
+		t.Fatalf("attachments = %d, want 2 (shape swallows shape.tools): %+v", len(atts), atts)
+	}
+	shape := `{"system":[{"type":"text","text":"hi \"there\""}],"tools":[{"name":"x"}]}`
+	prompt := `["a",1,null]`
+	want := []Attachment{
+		{Path: "shape", MediaType: "application/json", SHA256: hashOf([]byte(shape)), Data: []byte(shape)},
+		{Path: "attachment.systemPrompt", MediaType: "application/json", SHA256: hashOf([]byte(prompt)), Data: []byte(prompt)},
+	}
+	for i, a := range atts {
+		if a.Path != want[i].Path || a.MediaType != want[i].MediaType || a.SHA256 != want[i].SHA256 || !bytes.Equal(a.Data, want[i].Data) {
+			t.Errorf("attachment %d = %+v, want %+v", i, a, want[i])
+		}
+	}
+	wantLine := `{"type":"api-request-shape", "shape": "blob:sha256:` + hashOf([]byte(shape)) + `",` +
+		`"attachment":{"type":"prompt_snapshot","systemPrompt":"blob:sha256:` + hashOf([]byte(prompt)) + `","reminderFold":true},"ts":"t"}`
+	if string(out) != wantLine {
+		t.Errorf("line:\n got %s\nwant %s", out, wantLine)
+	}
+	if !json.Valid(out) {
+		t.Errorf("not JSON: %s", out)
+	}
+	// Idempotent, and Extract sees nothing to do.
+	if again, atts2, err := Lift(out, rule); err != nil || len(atts2) != 0 || !bytes.Equal(again, out) {
+		t.Errorf("Lift on its output: %d attachments, %v", len(atts2), err)
+	}
+	if again, atts2, err := Extract(out, apiRule); err != nil || len(atts2) != 0 || !bytes.Equal(again, out) {
+		t.Errorf("Extract on lifted line: %d attachments, %v", len(atts2), err)
+	}
+	// Nothing to lift: the same bytes back, no attachments.
+	plain := []byte(`{"type":"mode","shape":"a string, not a value"}`)
+	if out, atts, err := Lift(plain, rule); err != nil || len(atts) != 0 || !bytes.Equal(out, plain) {
+		t.Errorf("plain line: %s, %d, %v", out, len(atts), err)
+	}
+	// The root is never lifted, even if the rule would take it.
+	if out, atts, err := Lift(plain, func(string) (string, bool) { return "application/json", true }); err != nil || len(atts) != 0 || !bytes.Equal(out, plain) {
+		t.Errorf("root: %s, %d, %v", out, len(atts), err)
+	}
+	// Not JSON: error, line unchanged.
+	bad := []byte(`{"shape":{`)
+	if out, _, err := Lift(bad, rule); err == nil || !bytes.Equal(out, bad) {
+		t.Errorf("bad line: %s, %v", out, err)
+	}
+}

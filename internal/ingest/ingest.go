@@ -10,8 +10,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/gitinfo"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/model"
@@ -88,8 +91,11 @@ type Summary struct {
 	Unchanged int // sources without new data
 	Locked    int // sources skipped because another process holds the lock
 	Events    int // events newly inserted
-	// RawRewritten counts existing events whose raw was replaced (Deps.RewriteRaw).
+	// RawRewritten counts existing events and meta records whose raw was
+	// replaced (Deps.RewriteRaw).
 	RawRewritten int
+	// Meta counts meta records newly inserted (table session_meta).
+	Meta int
 	// Blobs counts attachments newly stored, BlobBytes their size as
 	// delivered (an attachment the archive already had does not count).
 	Blobs     int
@@ -251,31 +257,33 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	src := store.SourceState{Path: path, Harness: a.Name(), MTime: fi.ModTime()}
 	var sessions []model.Session
 	var events []model.Event
-	var pending int64 // attachment bytes in events
+	var metas []model.Meta
+	var pending int64 // attachment bytes in events and meta records
 	flush := func(off int64) error {
 		src.Offset = off
 		src.Size = max(fi.Size(), off)
-		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw})
+		res, err := st.WriteBatchOpts(ctx, src, sessions, events, store.WriteOptions{RewriteRaw: r.deps.RewriteRaw, Meta: metas})
 		if err != nil {
 			return err
 		}
 		r.sum.Events += res.Inserted
 		r.sum.RawRewritten += res.RawRewritten
+		r.sum.Meta += res.MetaInserted
 		r.sum.Blobs += res.Blobs
 		r.sum.BlobBytes += res.BlobBytes
-		sessions, events, pending = sessions[:0], events[:0], 0
+		sessions, events, metas, pending = sessions[:0], events[:0], metas[:0], 0
 		return nil
 	}
 
 	end, perr := a.Parse(ctx, path, offset, func(rec model.Record) error {
 		// Flush before a record that starts a new line, so the stored offset
 		// always sits on a line boundary whose predecessors are all written.
-		if (len(events) >= r.deps.BatchSize || pending >= r.deps.BatchBytes) && len(rec.Events) > 0 {
-			if err := flush(rec.Events[0].SourceOffset); err != nil {
+		if off, ok := rec.Offset(); ok && (len(events)+len(metas) >= r.deps.BatchSize || pending >= r.deps.BatchBytes) {
+			if err := flush(off); err != nil {
 				return err
 			}
 		}
-		pending += r.add(ctx, rec, &sessions, &events)
+		pending += r.add(ctx, rec, &sessions, &events, &metas)
 		return r.err
 	})
 	// Lines before end were fully emitted: persist them even if Parse failed.
@@ -287,8 +295,10 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 
 // add prepares one record (git info, redaction) and appends it to the
 // batch. It returns the attachment bytes it added; a failure is left in
-// r.err.
-func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Session, events *[]model.Event) int64 {
+// r.err. Meta records follow StoreRaw and RawMaxBytes like raw: without
+// StoreRaw none is kept, a line above the cap is dropped (logged) because
+// the line is all a meta record has.
+func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Session, events *[]model.Event, metas *[]model.Meta) int64 {
 	s := rec.Session
 	if s.ID != "" {
 		r.sessions[s.ID] = true
@@ -331,6 +341,36 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 			}
 		}
 		*events = append(*events, e)
+	}
+	for _, m := range rec.Meta {
+		switch {
+		case !r.deps.StoreRaw:
+			continue
+		case r.deps.RawMaxBytes > 0 && len(m.Raw) > r.deps.RawMaxBytes:
+			r.deps.Logf("ingest %s: meta record %s (%s) dropped: %d bytes over raw_max_bytes", m.SourcePath, m.ID, m.Type, len(m.Raw))
+			continue
+		}
+		r.sessions[m.SessionID] = true
+		// The attachments of a meta record are redacted JSON (a system
+		// prompt, tool definitions), not images: they are kept whatever
+		// StoreBlobs says, else the record would lose its content. Redaction
+		// changes the hash, so the reference in the line follows.
+		m.Attachments = slices.Clone(m.Attachments)
+		for i, a := range m.Attachments {
+			if rd := r.deps.Redactor; rd != nil && a.MediaType == "application/json" {
+				if red, _ := rd.JSON(string(a.Data)); red != string(a.Data) {
+					h := blobref.Hash([]byte(red))
+					m.Raw = strings.ReplaceAll(m.Raw, blobref.Ref{SHA256: a.SHA256}.String(), blobref.Ref{SHA256: h}.String())
+					a.Data, a.SHA256 = []byte(red), h
+					m.Attachments[i] = a
+				}
+			}
+			added += int64(len(a.Data))
+		}
+		if rd := r.deps.Redactor; rd != nil {
+			m.Raw, _ = rd.JSON(m.Raw)
+		}
+		*metas = append(*metas, m)
 	}
 	return added
 }

@@ -231,8 +231,10 @@ func TestSmall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := rows[0][0].(int64); got != 3 {
-		t.Errorf("Small sessions = %d, want 3", got)
+	// Two main sessions, a subagent and the workflow agent named by its
+	// journal (a meta record, no events).
+	if got := rows[0][0].(int64); got != 4 {
+		t.Errorf("Small sessions = %d, want 4", got)
 	}
 }
 

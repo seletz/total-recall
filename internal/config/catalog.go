@@ -69,7 +69,7 @@ var Catalog = []Key{
 	{"ingest.store_blobs", KindBool, nil, "Keep images and documents of the lines as blobs (once per hash); they cannot be redacted"},
 	{"harness.claude.enabled", KindBool, nil, "Read Claude Code transcripts"},
 	{"harness.claude.projects_dir", KindPath, nil, "Transcript directory; default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects"},
-	{"harness.claude.skip_record_types", KindList, nil, "Record types to skip in addition to the built-in exclusions"},
+	{"harness.claude.skip_record_types", KindList, nil, "Record types to skip in addition to the built-in exclusions; attachment/<subtype> skips one attachment subtype"},
 	{"harness.claude.actors.peer_prefixes", KindList, nil, "Message prefixes of tasks from other agents (actor peer)"},
 	{"harness.claude.actors.peer_paste_headers", KindList, nil, "First lines of a pasted block that make it a task from another agent"},
 	{"harness.claude.actors.automation_prefixes", KindList, nil, "Message prefixes of scheduled automations (actor automation)"},

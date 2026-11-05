@@ -110,7 +110,60 @@ func Extract(raw []byte, rule Rule) ([]byte, []Attachment, error) {
 		h := Hash(data)
 		atts = append(atts, Attachment{Path: f.path, MediaType: media, SHA256: h, Data: data})
 		repl = append(repl, replacement{span: sp, text: strconv.Quote(Ref{SHA256: h}.String())})
-	}, nil)
+	}, nil, nil)
+	if err != nil {
+		return raw, nil, err
+	}
+	if len(repl) == 0 {
+		return raw, nil, nil
+	}
+	return splice(raw, repl), atts, nil
+}
+
+// LiftRule decides whether the JSON value at path, an object or an array
+// such as "shape" or "attachment.systemPrompt", leaves the line as an
+// attachment, and with which media type (usually "application/json"). It
+// is never asked about the line itself (path "").
+type LiftRule func(path string) (mediaType string, ok bool)
+
+// Lift moves whole JSON values out of raw: every object or array the rule
+// accepts is replaced by its Ref, like the data strings in Extract, and
+// comes back as an attachment whose Data is the value as compact JSON.
+// Meant for the large structured parts a harness writes again and again
+// (a system prompt, tool definitions): the line keeps a reference, the
+// store keeps the value once per hash. The rest of the line is copied
+// byte for byte. A value inside an accepted one is part of it, not an
+// attachment of its own. A line that is not valid JSON is an error, raw
+// comes back unchanged.
+func Lift(raw []byte, rule LiftRule) ([]byte, []Attachment, error) {
+	var atts []Attachment
+	var repl []replacement
+	err := walk(raw, nil, nil, func(f *frame, sp span) {
+		if f.path == "" {
+			return
+		}
+		media, ok := rule(f.path)
+		if !ok {
+			return
+		}
+		// An accepted value swallows the ones lifted inside it.
+		keepR, keepA := repl[:0], atts[:0]
+		for i, r := range repl {
+			if r.start >= sp.start && r.end <= sp.end {
+				continue
+			}
+			keepR, keepA = append(keepR, r), append(keepA, atts[i])
+		}
+		repl, atts = keepR, keepA
+		var buf bytes.Buffer
+		if err := json.Compact(&buf, raw[sp.start:sp.end]); err != nil {
+			return
+		}
+		data := bytes.Clone(buf.Bytes())
+		h := Hash(data)
+		atts = append(atts, Attachment{Path: f.path, MediaType: media, SHA256: h, Data: data})
+		repl = append(repl, replacement{span: sp, text: strconv.Quote(Ref{SHA256: h}.String())})
+	})
 	if err != nil {
 		return raw, nil, err
 	}
@@ -144,7 +197,7 @@ func Restore(raw []byte, lookup func(sha256 string) ([]byte, error)) ([]byte, er
 			return
 		}
 		repl = append(repl, replacement{span: sp, text: `"` + base64.StdEncoding.EncodeToString(data) + `"`})
-	})
+	}, nil)
 	if err != nil {
 		return raw, err
 	}
@@ -199,6 +252,7 @@ type frame struct {
 	key       string // object: the key of the value being read
 	index     int    // array: the index of the next element
 	path      string // the container's own path
+	start     int    // offset of the opening delimiter in raw
 	fields    Fields
 	spans     map[string]span // object: spans of its string values, by key
 }
@@ -230,9 +284,10 @@ func (f *frame) advance() {
 }
 
 // walk tokenises raw and calls onObject when an object closes (with its
-// string fields and their spans) and onString for every string value
-// (never for keys). Either callback may be nil.
-func walk(raw []byte, onObject func(f *frame, obj Fields, spans map[string]span), onString func(value string, sp span)) error {
+// string fields and their spans), onString for every string value (never
+// for keys) and onContainer when an object or array closes (with its
+// span). Any callback may be nil.
+func walk(raw []byte, onObject func(f *frame, obj Fields, spans map[string]span), onString func(value string, sp span), onContainer func(f *frame, sp span)) error {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	var stack []*frame
 	top := func() *frame {
@@ -259,7 +314,7 @@ func walk(raw []byte, onObject func(f *frame, obj Fields, spans map[string]span)
 			switch v {
 			case '{', '[':
 				parent := top()
-				f := &frame{object: v == '{', expectKey: v == '{', path: parent.childPath()}
+				f := &frame{object: v == '{', expectKey: v == '{', path: parent.childPath(), start: stringStart(raw, int(before))}
 				if f.object {
 					f.fields, f.spans = Fields{}, map[string]span{}
 				}
@@ -270,6 +325,9 @@ func walk(raw []byte, onObject func(f *frame, obj Fields, spans map[string]span)
 				stack = stack[:len(stack)-1]
 				if f.object && onObject != nil {
 					onObject(f, f.fields, f.spans)
+				}
+				if onContainer != nil {
+					onContainer(f, span{start: f.start, end: int(after)})
 				}
 			}
 		case string:
@@ -293,9 +351,9 @@ func walk(raw []byte, onObject func(f *frame, obj Fields, spans map[string]span)
 	}
 }
 
-// stringStart finds the opening quote of the string token that ends at
-// the decoder's position: from the end of the previous token only
-// whitespace, ',' and ':' can precede it.
+// stringStart finds the opening quote of the string token, or the opening
+// delimiter of the container, that the decoder read after from: from the
+// end of the previous token only whitespace, ',' and ':' can precede it.
 func stringStart(raw []byte, from int) int {
 	for i := from; i < len(raw); i++ {
 		switch raw[i] {

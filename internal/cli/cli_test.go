@@ -163,7 +163,7 @@ func TestHookContract(t *testing.T) {
 		wantError  string // substring of an ERROR log line; "" = no error logged
 	}{
 		{"SessionStart ingests its transcript and everything else",
-			func(e *testEnv, t *testing.T) string { return e.hookPayload(t, "SessionStart") }, nil, 9, 3, ""},
+			func(e *testEnv, t *testing.T) string { return e.hookPayload(t, "SessionStart") }, nil, 9, 4, ""},
 		{"Stop ingests the session transcript",
 			func(e *testEnv, t *testing.T) string { return e.hookPayload(t, "Stop") }, nil, 5, 1, ""},
 		{"SubagentStop ingests session and subagent transcript",
@@ -181,7 +181,7 @@ func TestHookContract(t *testing.T) {
 		{"SessionStart without transcript_path still reads everything",
 			func(e *testEnv, t *testing.T) string {
 				return `{"session_id":"x","hook_event_name":"SessionStart","source":"resume"}`
-			}, nil, 9, 3, ""},
+			}, nil, 9, 4, ""},
 		{"malformed JSON",
 			func(e *testEnv, t *testing.T) string { return `{"session_id": "x", "transcript_path": ` }, nil, 0, 0, "invalid payload JSON"},
 		{"empty stdin",
@@ -265,7 +265,7 @@ func TestHookMissingTranscript(t *testing.T) {
 		{"SessionStart of a session not yet on disk still reads everything",
 			func(e *testEnv) string {
 				return `{"session_id":"new","transcript_path":"` + filepath.Join(e.projects, "-w-new", "new.jsonl") + `","hook_event_name":"SessionStart","source":"startup"}`
-			}, 9, 3, "new.jsonl"},
+			}, 9, 4, "new.jsonl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -566,11 +566,13 @@ func TestSQL(t *testing.T) {
 	e.mustRun(t, "ingest", "--all")
 	q := "SELECT harness, count(*) AS n FROM sessions GROUP BY harness"
 	rows := decode[[]map[string]any](t, e.mustRun(t, "sql", "--json", q))
-	if len(rows) != 1 || rows[0]["n"] != float64(3) {
+	// Four sessions: two main ones, a subagent and the workflow agent whose
+	// journal (a meta record) names it.
+	if len(rows) != 1 || rows[0]["n"] != float64(4) {
 		t.Errorf("json = %v", rows)
 	}
 	recs, err := csv.NewReader(strings.NewReader(e.mustRun(t, "sql", "--format", "csv", q))).ReadAll()
-	if err != nil || len(recs) != 2 || recs[0][1] != "n" || recs[1][1] != "3" {
+	if err != nil || len(recs) != 2 || recs[0][1] != "n" || recs[1][1] != "4" {
 		t.Errorf("csv = %v %v", recs, err)
 	}
 	if out := e.mustRun(t, "sql", q); !strings.Contains(out, "harness") || !strings.Contains(out, "claude") {
@@ -584,7 +586,7 @@ func TestSQL(t *testing.T) {
 			t.Errorf("write %q succeeded", w)
 		}
 	}
-	if got := e.count(t, "SELECT count(*) FROM sessions"); got != 3 {
+	if got := e.count(t, "SELECT count(*) FROM sessions"); got != 4 {
 		t.Errorf("sessions after write attempts = %d", got)
 	}
 }
@@ -603,8 +605,12 @@ func TestStatus(t *testing.T) {
 	logfile.New(e.log, at(-3*time.Hour)).Infof("hook SubagentStop: transcript not present, skipped: /p/c.jsonl")
 	logfile.New(e.log, at(-3*time.Hour)).Errorf("hook Stop: boom")
 	s := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
-	if s.Sessions != 3 || s.Events != 9 || s.Sources != 4 || s.DB != e.db || s.DBSizeBytes == 0 {
+	if s.Sessions != 4 || s.Events != 9 || s.Sources != 4 || s.DB != e.db || s.DBSizeBytes == 0 {
 		t.Errorf("status = %+v", s)
+	}
+	// The Small fixture has one meta record: the workflow journal's started record.
+	if s.MetaRows != 1 || s.MetaBytes <= 0 {
+		t.Errorf("meta stats = rows %d, bytes %d", s.MetaRows, s.MetaBytes)
 	}
 	if s.SchemaVersion != store.LatestSchemaVersion() || s.BinarySchemaVersion != store.LatestSchemaVersion() {
 		t.Errorf("schema versions = %d/%d", s.SchemaVersion, s.BinarySchemaVersion)
@@ -622,7 +628,7 @@ func TestStatus(t *testing.T) {
 		t.Errorf("recent errors = %+v", s.RecentErrors)
 	}
 	out := e.mustRun(t, "status")
-	for _, want := range []string{e.db, "schema", "in 9 events, compressed", "last ingest (claude)", "none in", "recent errors (last 24h", "2026-10-20 11:00  (3h00m ago)  hook Stop: boom", "older errors: 1", "--all-errors"} {
+	for _, want := range []string{e.db, "schema", "in 9 events, compressed", "meta records", "in 1 records", "last ingest (claude)", "none in", "recent errors (last 24h", "2026-10-20 11:00  (3h00m ago)  hook Stop: boom", "older errors: 1", "--all-errors"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status lacks %q:\n%s", want, out)
 		}
@@ -1336,7 +1342,8 @@ func TestIngestRewriteRaw(t *testing.T) {
 	}
 	before := counts()
 	out := e.mustRun(t, "ingest", "--all", "--reread", "--rewrite-raw")
-	if !strings.Contains(out, "0 new events, 9 raw rewritten") {
+	// 9 events and 1 meta record (the workflow journal) are rewritten.
+	if !strings.Contains(out, "0 new events, 0 meta records, 10 raw rewritten") {
 		t.Errorf("rewrite summary = %q", out)
 	}
 	if got := counts(); got != before {

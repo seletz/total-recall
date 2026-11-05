@@ -94,7 +94,7 @@ store_blobs = true
 [harness.claude]
 enabled = true
 projects_dir = "~/.claude/projects"   # Default: $CLAUDE_CONFIG_DIR/projects bzw. ~/.claude/projects
-skip_record_types = []                # zusätzlich zu den Standard-Ausschlüssen
+skip_record_types = []                # zusätzlich zu den Standard-Ausschlüssen; "attachment/<subtyp>" für einen Attachment-Subtyp
 
 [harness.claude.actors]
 # zusätzliche Präfixe für die Actor-Klassifikation
@@ -188,13 +188,13 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Tool-Ergebnisse (etwa die Ausgabe eines Shell-Befehls) werden im Feld `text` auf diese Länge gekürzt. Default: 4096 Bytes.
 
 `raw_max_bytes`
-:   Obergrenze für die Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression, ohne die Daten von Bildern und Dokumenten). Ist sie größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1; der lesbare Text (`text`) wird trotzdem gespeichert. Default: `0`, keine Grenze: Das Archiv soll die Zeile vollständig halten, denn die Transkripte verschwinden nach einigen Wochen. Bis v1.2 war der Default 16384; Archive aus der Zeit holen die fehlenden Zeilen mit [`ingest --all --reread --rewrite-raw`](10-befehle.md#ingest) nach.
+:   Obergrenze für die Original-JSON-Zeile ([`raw`](40-schema.md#raw), gemessen vor der Kompression, ohne die Daten von Bildern und Dokumenten). Ist sie größer, bleibt `raw` leer (NULL) und `raw_truncated` wird 1; der lesbare Text (`text`) wird trotzdem gespeichert. Gilt auch für [Meta-Records](40-schema.md#session_meta): eine größere Zeile wird nicht gespeichert (eine Zeile im Log). Default: `0`, keine Grenze: Das Archiv soll die Zeile vollständig halten, denn die Transkripte verschwinden nach einigen Wochen. Bis v1.2 war der Default 16384; Archive aus der Zeit holen die fehlenden Zeilen mit [`ingest --all --reread --rewrite-raw`](10-befehle.md#ingest) nach.
 
 `store_raw`
-:   Die Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`) und macht das Archiv vom Transkript unabhängig. Default: `true`.
+:   Die Original-JSON-Zeile jedes Events (maskiert, komprimiert) in der Spalte `raw` speichern. Kostet Platz, erlaubt aber spätere Neuauswertung (`reindex --actors`) und macht das Archiv vom Transkript unabhängig. Mit `false` werden auch keine [Meta-Records](40-schema.md#session_meta) gespeichert, denn die bestehen nur aus ihrer Zeile. Default: `true`.
 
 `store_blobs`
-:   Bilder und Dokumente aus den Zeilen (eingefügte Screenshots, von Werkzeugen gelesene Bilder) als [Blobs](40-schema.md#blobs) speichern, einmal je Inhalt. Mit `false` werden die Daten verworfen; in `raw` bleibt der Verweis mit dem Hash, im Text der Platzhalter. Bilder werden nicht maskiert, siehe [Datenschutz](../explanation/datenschutz.md). Default: `true`.
+:   Bilder und Dokumente aus den Zeilen (eingefügte Screenshots, von Werkzeugen gelesene Bilder) als [Blobs](40-schema.md#blobs) speichern, einmal je Inhalt. Mit `false` werden die Daten verworfen; in `raw` bleibt der Verweis mit dem Hash, im Text der Platzhalter. Bilder werden nicht maskiert, siehe [Datenschutz](../explanation/datenschutz.md). Die JSON-Blobs der [Meta-Records](40-schema.md#session_meta) (System-Prompts, Tool-Definitionen) sind davon **nicht** betroffen: Sie sind maskierter Text und bleiben auch mit `false` erhalten, sonst wäre der Inhalt weg; wer sie nicht will, schließt die Typen mit `skip_record_types` aus. Default: `true`.
 
 ### `[harness.claude]`
 
@@ -205,7 +205,7 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 :   Wo die Transkripte liegen. Default: `$CLAUDE_CONFIG_DIR/projects`, sonst `~/.claude/projects`.
 
 `skip_record_types`
-:   Weitere Record-Typen, die übersprungen werden. Die Standard-Ausschlüsse (`attachment`, `api-request*`, `file-history-*` usw.) gelten immer.
+:   Weitere Record-Typen, die übersprungen werden. Die Standard-Ausschlüsse gelten immer: `api-request`, `api-request-blob`, `last-prompt` und sieben Attachment-Subtypen (Kataloge und Erinnerungen der Harness; Liste im [Design](../explanation/design.md#session_meta)). Alle anderen Typen, auch unbekannte, landen als [Meta-Records](40-schema.md#session_meta) im Archiv. Ein Eintrag `attachment/<subtyp>` schließt einen einzelnen Attachment-Subtyp aus, `attachment` alle; `["api-request-shape", "attachment/prompt_snapshot"]` lässt die System-Prompts und Tool-Definitionen draußen.
 
 ### `[harness.claude.actors]`
 

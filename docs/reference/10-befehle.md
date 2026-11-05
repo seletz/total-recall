@@ -69,14 +69,15 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 Ausgabe:
 
 ```text
-scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 3 sessions touched (55ms)
+scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 9 meta records, 3 sessions touched (55ms)
 ```
 
 - `changed`: Dateien mit neuen Zeilen. `unchanged`: nichts Neues. `locked`: gerade von einem anderen Lauf gelesen, übersprungen.
 - Fehler je Datei stehen auf stderr; die übrigen Dateien werden trotzdem gelesen. Gab es Fehler, ist der Exit-Code 1.
 - Mit `--regit` kommt eine Zeile dazu: `regit: 57 directories, 12 sessions updated (1.2s)`.
+- `meta records`: neu gespeicherte [Meta-Records](40-schema.md) (Anhänge, Modus, Pull Request, Datei-Historie, …); gleicher Inhalt je Session zählt nur beim ersten Mal.
 - Mit `--reread` zählen alle gelesenen Dateien als `changed`, obwohl `new events` 0 bleibt.
-- Mit `--rewrite-raw` steht hinter `new events` zusätzlich `N raw rewritten`: so viele vorhandene Events haben eine neue Rohzeile bekommen.
+- Mit `--rewrite-raw` steht hinter `meta records` zusätzlich `N raw rewritten`: so viele vorhandene Events und Meta-Records haben eine neue Rohzeile bekommen.
 - Wurden Bilder oder Dokumente gespeichert, folgt `N attachments (X MiB)`: so viele neue Blobs, mit ihrer Größe, wie geliefert.
 
 **Altbestand nach einem Schema-Update.** Neue Session-Felder (seit Schema v4: `continued_in`, `account_id`, `organization_id`) stammen aus Records, die beim ersten Einlesen übersprungen wurden. Bereits gelesene Transkripte liefern sie erst nach einem einmaligen `total-recall ingest --all --reread`; das dauert so lange wie das erste Einlesen und ändert an den Events nichts.
@@ -138,6 +139,7 @@ events                158203
 sources               280
 raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
 blobs                 1234 attachments, 387.2 MiB (387.2 MiB stored)
+meta records          38.1 MiB in 79412 records
 last ingest (claude)  2026-11-01 14:59  (2m ago)
 last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.zst  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
@@ -149,7 +151,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`raw` zeigt die komprimierte Größe der Rohzeilen und die Events ohne; `blobs` die Zahl der gespeicherten Bilder und Dokumente ([Schema](40-schema.md#blobs)) mit ihrer Größe, wie geliefert, und in Klammern, wie sie im Archiv liegen (PDF und Text zstd-komprimiert; JSON `blobs`, `blob_bytes`, `blob_stored_bytes`). `schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`raw` zeigt die komprimierte Größe der Rohzeilen und die Events ohne; `blobs` die Zahl der gespeicherten Bilder und Dokumente ([Schema](40-schema.md#blobs)) mit ihrer Größe, wie geliefert, und in Klammern, wie sie im Archiv liegen (PDF und Text zstd-komprimiert; JSON `blobs`, `blob_bytes`, `blob_stored_bytes`). `schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. `meta records` ist die Zahl und komprimierte Größe der [Meta-Records](40-schema.md#session_meta) (`session_meta`). Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `meta_rows`, `meta_bytes`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
@@ -238,7 +240,7 @@ Die Filter wirken in dieser Reihenfolge: erst `--all`, dann das Zeitfenster und 
 
 ## `blob` { #blob }
 
-Gibt ein Bild oder Dokument aus dem Archiv aus ([Schema](40-schema.md#blobs)). Den Hash nennt [`show`](#show) in der Zeile `attachment` bzw. unter `attachments` im JSON; ein eindeutiges Präfix genügt.
+Gibt ein Bild oder Dokument aus dem Archiv aus ([Schema](40-schema.md#blobs)), oder einen ausgelagerten Wert eines [Meta-Records](40-schema.md#session_meta) wie den System-Prompt einer Runde (JSON). Den Hash nennt [`show`](#show) in der Zeile `attachment` bzw. unter `attachments` im JSON, bei Meta-Records steht er als `blob:sha256:<hex>` in `raw`; ein eindeutiges Präfix genügt.
 
 ```sh
 total-recall blob 3b7c2e1f --out screenshot.png      # in eine Datei
@@ -253,9 +255,9 @@ wrote screenshot.png (image/png, 84.3 KiB)
 | Option | Bedeutung |
 |---|---|
 | `--out DATEI` | die Daten in diese Datei schreiben (wird überschrieben) statt nach stdout |
-| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); mit `--json` werden nur die Metadaten ausgegeben: `sha256`, `media_type`, `bytes` (wie geliefert), `stored_bytes` (im Archiv), `events` (IDs der Events, deren Zeile den Anhang trägt), `out` (die geschriebene Datei, sonst `null`). Mit `--out` wird die Datei trotzdem geschrieben |
+| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); mit `--json` werden nur die Metadaten ausgegeben: `sha256`, `media_type`, `bytes` (wie geliefert), `stored_bytes` (im Archiv), `events` (IDs der Events, deren Zeile den Anhang trägt), `meta_records` (IDs der Meta-Records, die ihn tragen), `out` (die geschriebene Datei, sonst `null`). Mit `--out` wird die Datei trotzdem geschrieben |
 
-Ohne `--out` gehen die Bytes nach stdout, Binärdaten aber nur in eine Pipe oder Datei: Auf ein Terminal schreibt der Befehl sie nicht (`usage`-Fehler mit Hinweis auf `--out`). Ein unbekannter Hash ist `not_found`, ein Präfix, das auf mehrere Anhänge passt, `ambiguous`. Die Daten kommen so zurück, wie sie im Transkript standen (PDF und Text werden entpackt). Der Hash ist der SHA-256 der Daten; `shasum -a 256 screenshot.png` prüft ihn.
+Ohne `--out` gehen die Bytes nach stdout, Binärdaten aber nur in eine Pipe oder Datei: Auf ein Terminal schreibt der Befehl sie nicht (`usage`-Fehler mit Hinweis auf `--out`); Text und JSON schon. Ein unbekannter Hash ist `not_found`, ein Präfix, das auf mehrere Anhänge passt, `ambiguous`. Die Daten kommen so zurück, wie sie im Transkript standen (PDF und Text werden entpackt). Der Hash ist der SHA-256 der Daten; `shasum -a 256 screenshot.png` prüft ihn.
 
 ## `search` { #search }
 
@@ -824,7 +826,7 @@ Gemeldet werden:
 
 | Befund | Bedeutung |
 |---|---|
-| unbekannte Record-Typen | weder eingelesen noch als bewusst übersprungen bekannt (`skip_record_types` aus der Config zählt als bekannt) |
+| unbekannte Record-Typen | weder eingelesen noch als Meta-Record noch als bewusst übersprungen bekannt (`skip_record_types` aus der Config zählt als bekannt); sie werden trotzdem als [Meta-Record](40-schema.md) aufbewahrt, der Befund sagt nur, dass der Adapter die Liste nachziehen sollte |
 | unbekannte Content-Block-Typen | in `user`-/`assistant`-Nachrichten oder im Inhalt eines `tool_result`, z.B. `assistant/hologram` |
 | fehlende Felder | `timestamp`, `sessionId`, `uuid`, `cwd` bei `user`/`assistant`/`system`; `sessionId` bei Titel-Records |
 | kaputte Zeilen | vollständige Zeilen, die kein JSON-Objekt sind (eine halb geschriebene letzte Zeile zählt nicht) |

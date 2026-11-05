@@ -171,7 +171,34 @@ func TestParseFixture(t *testing.T) {
 		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
 	}
 
-	// 9 ingested records (permission-mode, attachment and history-suppression skipped).
+	// 9 ingested records plus 3 meta records (permission-mode, an attachment
+	// of an unknown subtype, history-suppression), each with the whole line
+	// and no event; the meta records are taken out of the list below.
+	var metas []model.Meta
+	for i := 0; i < len(recs); {
+		if len(recs[i].Meta) == 0 {
+			i++
+			continue
+		}
+		if len(recs[i].Events) != 0 || len(recs[i].Meta) != 1 || !recs[i].Session.StartedAt.IsZero() {
+			t.Errorf("meta record = %+v", recs[i])
+		}
+		metas = append(metas, recs[i].Meta...)
+		recs, sess = append(recs[:i], recs[i+1:]...), append(sess[:i], sess[i+1:]...)
+	}
+	var metaTypes []string
+	for _, m := range metas {
+		metaTypes = append(metaTypes, m.Type)
+		if m.SessionID != "claude:"+sid || !strings.HasPrefix(m.Raw, `{"type":"`+m.Type+`"`) || strings.HasSuffix(m.Raw, "\n") || m.SourcePath == "" {
+			t.Errorf("meta = %+v", m)
+		}
+	}
+	if want := []string{"permission-mode", "attachment", "history-suppression"}; !reflect.DeepEqual(metaTypes, want) {
+		t.Errorf("meta types = %v, want %v", metaTypes, want)
+	}
+	if metas[1].ID != "claude:aaaaaaaa-0000-4000-8000-000000000004" || !metas[1].TS.Equal(time.Date(2026, 10, 1, 8, 0, 2, 500e6, time.UTC)) {
+		t.Errorf("attachment meta = %+v", metas[1])
+	}
 	if len(recs) != 9 {
 		t.Fatalf("records = %d, want 9", len(recs))
 	}
@@ -496,9 +523,7 @@ func TestParseAITitle(t *testing.T) {
 }
 
 func TestSkippedRecordTypes(t *testing.T) {
-	types := []string{"attachment", "api-request", "api-request-blob", "api-request-shape", "bridge-session", "last-prompt",
-		"mode", "atis-latch", "permission-mode", "pr-link", "queue-operation", "file-history-snapshot", "file-history-delta",
-		"cost-state", "tools-used", "started", "result", "history-suppression", "something-new"}
+	types := []string{"api-request", "api-request-blob", "last-prompt"}
 	for _, typ := range types {
 		t.Run(typ, func(t *testing.T) {
 			p := writeFile(t, "p/"+sid+".jsonl", `{"type":"`+typ+`","uuid":"z","sessionId":"`+sid+`","message":{"role":"user","content":"x"}}`+"\n")
@@ -515,6 +540,197 @@ func TestSkippedRecordTypes(t *testing.T) {
 			t.Errorf("records = %+v", recs)
 		}
 	})
+	t.Run("configured skip of a meta type", func(t *testing.T) {
+		p := writeFile(t, "p/"+sid+".jsonl", `{"type":"pr-link","sessionId":"`+sid+`","prNumber":1}`+"\n")
+		recs, _ := parseFile(t, New("", WithSkipRecordTypes("pr-link")), p, 0)
+		if len(recs) != 0 {
+			t.Errorf("records = %+v", recs)
+		}
+	})
+}
+
+// attachmentLine builds a synthetic attachment record of the given subtype.
+func attachmentLine(uuid, subtype string) string {
+	return fmt.Sprintf(`{"type":"attachment","uuid":%q,"timestamp":"2026-10-02T10:00:01.000Z","sessionId":%q,"cwd":"/tmp/x","attachment":{"type":%q,"text":"hello"}}`, uuid, sid, subtype)
+}
+
+// TestSkippedAttachmentTypes: attachments are kept as meta records except
+// the subtypes in SkippedAttachmentTypes and those configured as
+// "attachment/<subtype>"; a subtype the adapter has never seen is kept.
+func TestSkippedAttachmentTypes(t *testing.T) {
+	tests := []struct {
+		name    string
+		subtype string
+		opts    []Option
+		want    int
+	}{
+		{"skipped reminder", "total_tokens_reminder", nil, 0},
+		{"skipped catalog", "deferred_tools_record", nil, 0},
+		{"kept system prompt", "prompt_snapshot", nil, 1},
+		{"configured skip of the system prompt", "prompt_snapshot", []Option{WithSkipRecordTypes("attachment/prompt_snapshot")}, 0},
+		{"kept instructions", "instructions", nil, 1},
+		{"kept new subtype", "something_new", nil, 1},
+		{"configured skip", "instructions", []Option{WithSkipRecordTypes("attachment/instructions")}, 0},
+		{"configured skip of the whole type", "instructions", []Option{WithSkipRecordTypes("attachment")}, 0},
+		{"missing attachment object", "", nil, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := attachmentLine("z", tt.subtype)
+			if tt.subtype == "" {
+				line = `{"type":"attachment","uuid":"z","sessionId":"` + sid + `"}`
+			}
+			p := writeFile(t, "p/"+sid+".jsonl", line+"\n")
+			recs, _ := parseFile(t, New("", tt.opts...), p, 0)
+			if len(recs) != tt.want {
+				t.Fatalf("records = %d, want %d", len(recs), tt.want)
+			}
+			if tt.want == 1 && (len(recs[0].Meta) != 1 || recs[0].Meta[0].Type != "attachment") {
+				t.Errorf("record = %+v", recs[0])
+			}
+		})
+	}
+	for _, sub := range SkippedAttachmentTypes() {
+		if !strings.HasPrefix(AttachmentSkipKey(sub), "attachment/") {
+			t.Errorf("skip key %q", AttachmentSkipKey(sub))
+		}
+	}
+}
+
+// TestMetaRecords: every type that is neither ingested nor skipped becomes
+// one meta record with the whole line, no event, and a session without
+// time stamps.
+func TestMetaRecords(t *testing.T) {
+	types := append(MetaRecordTypes(), "something-new")
+	for _, typ := range types {
+		t.Run(typ, func(t *testing.T) {
+			line := `{"type":"` + typ + `","sessionId":"` + sid + `","cwd":"/tmp/x","version":"2.1.400","payload":{"k":"v"}}`
+			p := writeFile(t, "p/"+sid+".jsonl", line+"\n")
+			recs, off := parseFile(t, New(""), p, 0)
+			if len(recs) != 1 || off != int64(len(line)+1) {
+				t.Fatalf("records = %+v, offset = %d", recs, off)
+			}
+			r := recs[0]
+			if len(r.Events) != 0 || len(r.Meta) != 1 {
+				t.Fatalf("record = %+v", r)
+			}
+			m := r.Meta[0]
+			if m.Type != typ || m.Raw != line || m.SessionID != "claude:"+sid || m.SourcePath != p || m.SourceOffset != 0 || !m.TS.IsZero() {
+				t.Errorf("meta = %+v", m)
+			}
+			if !strings.HasPrefix(m.ID, "claude:") || len(m.ID) != len("claude:")+40 {
+				t.Errorf("id = %q, want claude:<sha1>", m.ID)
+			}
+			if s := r.Session; s.ID != "claude:"+sid || s.Cwd != "/tmp/x" || s.HarnessVersion != "2.1.400" || !s.StartedAt.IsZero() || !s.EndedAt.IsZero() {
+				t.Errorf("session = %+v", s)
+			}
+		})
+	}
+	if ingested["attachment"] || skipped["attachment"] {
+		t.Error("attachment must be a meta type")
+	}
+	for _, typ := range MetaRecordTypes() {
+		if ingested[typ] || skipped[typ] {
+			t.Errorf("%s is in two lists", typ)
+		}
+	}
+}
+
+// TestMetaID: a record with a uuid is identified by it; one without by a
+// hash of session, type and content, the same for the same content in
+// another turn (uuid, timestamp, parentUuid do not count), different for
+// another session, type or content.
+func TestMetaID(t *testing.T) {
+	ids := func(line string) string {
+		p := writeFile(t, "p/"+sid+".jsonl", line+"\n")
+		recs, _ := parseFile(t, New(""), p, 0)
+		if len(recs) != 1 || len(recs[0].Meta) != 1 {
+			t.Fatalf("records = %+v", recs)
+		}
+		return recs[0].Meta[0].ID
+	}
+	if got := ids(attachmentLine("att-1", "instructions")); got != "claude:att-1" {
+		t.Errorf("attachment id = %q", got)
+	}
+	base := ids(`{"type":"mode","sessionId":"` + sid + `","mode":"normal"}`)
+	tests := []struct {
+		name string
+		line string
+		same bool
+	}{
+		{"same line", `{"type":"mode","sessionId":"` + sid + `","mode":"normal"}`, true},
+		{"other key order and spacing", `{ "mode":"normal", "type":"mode","sessionId":"` + sid + `" }`, true},
+		{"other timestamp and parent", `{"type":"mode","timestamp":"2026-10-02T11:00:00.000Z","parentUuid":"p","sessionId":"` + sid + `","mode":"normal"}`, true},
+		{"other content", `{"type":"mode","sessionId":"` + sid + `","mode":"plan"}`, false},
+		{"other type", `{"type":"permission-mode","sessionId":"` + sid + `","mode":"normal"}`, false},
+		{"other session", `{"type":"mode","sessionId":"22222222-2222-4222-8222-222222222222","mode":"normal"}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ids(tt.line); (got == base) != tt.same {
+				t.Errorf("id = %q, base %q, want same=%v", got, base, tt.same)
+			}
+		})
+	}
+}
+
+// TestMetaTimestamp: a meta record keeps its own time stamp; one without
+// borrows the time of the last record before it that had one, within the
+// Parse call; before any such record it has none.
+func TestMetaTimestamp(t *testing.T) {
+	p := writeFile(t, "p/"+sid+".jsonl",
+		`{"type":"mode","sessionId":"`+sid+`","mode":"a"}`+"\n"+
+			userLine("", `"hi"`)+"\n"+
+			`{"type":"mode","sessionId":"`+sid+`","mode":"b"}`+"\n"+
+			`{"type":"pr-link","timestamp":"2026-10-02T12:00:00.000Z","sessionId":"`+sid+`","prNumber":7}`+"\n"+
+			`{"type":"mode","sessionId":"`+sid+`","mode":"c"}`+"\n")
+	recs, _ := parseFile(t, New(""), p, 0)
+	var got []string
+	for _, r := range recs {
+		for _, m := range r.Meta {
+			got = append(got, m.TS.Format(time.RFC3339))
+		}
+	}
+	want := []string{"0001-01-01T00:00:00Z", "2026-10-02T10:00:00Z", "2026-10-02T12:00:00Z", "2026-10-02T12:00:00Z"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("timestamps = %v, want %v", got, want)
+	}
+}
+
+// TestMetaSubagentAndWorkflow: a meta record in a subagent transcript
+// belongs to the agent session; the workflow journal (started, result)
+// names its agent and lands on that agent's session.
+func TestMetaSubagentAndWorkflow(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "p", sid, "subagents", "agent-a01.jsonl")
+	journal := filepath.Join(dir, "p", sid, "subagents", "workflows", "wf_1", "journal.jsonl")
+	for path, content := range map[string]string{
+		sub:     `{"type":"mode","sessionId":"` + sid + `","agentId":"a01","mode":"normal"}` + "\n",
+		journal: `{"type":"started","agentId":"a02","key":"k"}` + "\n" + `{"type":"result","agentId":"a02","key":"k","result":{"ok":true}}` + "\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recs, _ := parseFile(t, New(""), sub, 0)
+	if len(recs) != 1 || recs[0].Meta[0].SessionID != "claude:agent-a01" || recs[0].Session.ParentID != "claude:"+sid {
+		t.Errorf("subagent meta = %+v", recs)
+	}
+	recs, _ = parseFile(t, New(""), journal, 0)
+	if len(recs) != 2 {
+		t.Fatalf("journal records = %+v", recs)
+	}
+	for _, r := range recs {
+		if r.Meta[0].SessionID != "claude:agent-a02" || r.Session.ParentID != "claude:"+sid {
+			t.Errorf("journal meta = %+v", r)
+		}
+	}
+	if recs[0].Meta[0].ID == recs[1].Meta[0].ID {
+		t.Error("started and result share an ID")
+	}
 }
 
 func TestParseOffsets(t *testing.T) {
@@ -715,5 +931,73 @@ func TestSizeLabel(t *testing.T) {
 		if got := sizeLabel(tt.n); got != tt.want {
 			t.Errorf("sizeLabel(%d) = %q, want %q", tt.n, got, tt.want)
 		}
+	}
+}
+
+// TestMetaLift: the shape of an api-request-shape record and the system
+// prompt of a prompt_snapshot attachment leave the line as JSON
+// attachments; the line keeps a reference; the record's ID hashes the
+// line with the reference, so the same shape in another session has the
+// same attachment but its own record; a record of the type without the
+// value is kept as it is.
+func TestMetaLift(t *testing.T) {
+	shape := `{"system":[{"type":"text","text":"be brief"}],"tools":[{"name":"Read"}]}`
+	prompt := `[{"type":"text","text":"be brief"}]`
+	tests := []struct {
+		name, line, path, data string
+	}{
+		{"request shape", `{"type":"api-request-shape","sessionId":"` + sid + `","timestamp":"2026-10-01T10:00:00Z","shape":` + shape + `,"version":"2.1.400"}`, "shape", shape},
+		{"prompt snapshot", `{"type":"attachment","uuid":"ps-1","sessionId":"` + sid + `","timestamp":"2026-10-01T10:00:00Z","attachment":{"type":"prompt_snapshot","systemPrompt":` + prompt + `,"reminderFold":true}}`, "attachment.systemPrompt", prompt},
+	}
+	// A newer prompt snapshot carries the tool definitions too: both leave.
+	t.Run("prompt snapshot with tools", func(t *testing.T) {
+		tools := `[{"name":"Read","input_schema":{"type":"object"}}]`
+		line := `{"type":"attachment","uuid":"ps-2","sessionId":"` + sid + `","attachment":{"type":"prompt_snapshot","systemPrompt":` + prompt + `,"tools":` + tools + `,"inlineTools":false}}`
+		p := writeFile(t, "p/"+sid+".jsonl", line+"\n")
+		recs, _ := parseFile(t, New(""), p, 0)
+		if len(recs) != 1 || len(recs[0].Meta) != 1 || len(recs[0].Meta[0].Attachments) != 2 {
+			t.Fatalf("records = %+v", recs)
+		}
+		m := recs[0].Meta[0]
+		want := `{"type":"attachment","uuid":"ps-2","sessionId":"` + sid + `","attachment":{"type":"prompt_snapshot","systemPrompt":"` + blobref.Ref{SHA256: blobref.Hash([]byte(prompt))}.String() +
+			`","tools":"` + blobref.Ref{SHA256: blobref.Hash([]byte(tools))}.String() + `","inlineTools":false}}`
+		if m.Raw != want || string(m.Attachments[1].Data) != tools {
+			t.Errorf("raw = %s\nattachments = %+v", m.Raw, m.Attachments)
+		}
+	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, "p/"+sid+".jsonl", tt.line+"\n")
+			recs, _ := parseFile(t, New(""), p, 0)
+			if len(recs) != 1 || len(recs[0].Meta) != 1 {
+				t.Fatalf("records = %+v", recs)
+			}
+			m := recs[0].Meta[0]
+			h := blobref.Hash([]byte(tt.data))
+			if len(m.Attachments) != 1 || m.Attachments[0].MediaType != "application/json" || m.Attachments[0].SHA256 != h || string(m.Attachments[0].Data) != tt.data {
+				t.Errorf("attachments = %+v", m.Attachments)
+			}
+			want := strings.Replace(tt.line, tt.data, `"`+blobref.Ref{SHA256: h}.String()+`"`, 1)
+			if m.Raw != want {
+				t.Errorf("raw:\n got %s\nwant %s", m.Raw, want)
+			}
+			if m.TS.IsZero() {
+				t.Error("ts not taken from the record")
+			}
+		})
+	}
+	// Same shape, another session: same blob, another record.
+	other := strings.ReplaceAll(tests[0].line, sid, "0000aaaa-0000-0000-0000-000000000002")
+	p := writeFile(t, "p/two.jsonl", tests[0].line+"\n"+other+"\n")
+	recs, _ := parseFile(t, New(""), p, 0)
+	if len(recs) != 2 || recs[0].Meta[0].ID == recs[1].Meta[0].ID || recs[0].Meta[0].Attachments[0].SHA256 != recs[1].Meta[0].Attachments[0].SHA256 {
+		t.Errorf("two sessions: %+v", recs)
+	}
+	// A shape record without a shape value stays whole.
+	line := `{"type":"api-request-shape","sessionId":"` + sid + `","shape":"n/a"}`
+	p = writeFile(t, "p/none.jsonl", line+"\n")
+	recs, _ = parseFile(t, New(""), p, 0)
+	if len(recs) != 1 || recs[0].Meta[0].Raw != line || len(recs[0].Meta[0].Attachments) != 0 {
+		t.Errorf("without value: %+v", recs)
 	}
 }

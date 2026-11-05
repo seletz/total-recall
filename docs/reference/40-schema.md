@@ -15,9 +15,11 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `events_fts` | Volltextindex über `events.text` |
 | `exchanges` | je menschlicher Nachricht: die Anfrage und die letzte Antwort des Agenten |
 | `daily_activity` | je Tag (lokale Zeit) und Session: Repo, Anzahl human-/agent-Events |
+| `session_meta` | Harness-Records, die keine Nachricht sind, aber zur Session gehören (seit Schema v7): von der Harness eingefügter Kontext (Claude Code: `attachment` mit den `CLAUDE.md`-Dateien, @-erwähnten Dateien, Hook-Ausgaben, System-Prompt, …), während der Arbeit des Agenten getippter Text (`queue-operation`), Modus, Pull Request (`pr-link`), Kosten (`cost-state`), System-Prompt und Tool-Definitionen je Request-Form (`api-request-shape`), Datei-Historie, Workflow-Journal und unbekannte Typen; siehe [unten](#session_meta) |
+| `meta_blobs` | welche Meta-Records welche Blobs tragen (`meta_id`, `position`, `sha256`), wie `event_blobs`; seit Schema v7 |
 | `sources` | eingelesene Dateien und Lesestand; `events.source_id` verweist auf `id` (seit Schema v5) |
 | `dirs` | Cache: Verzeichnis → Git-Root und Remote |
-| `blobs` | Bilder und Dokumente aus den Transkripten, einmal je Inhalt (SHA-256), seit Schema v6; siehe [unten](#blobs) |
+| `blobs` | Bilder und Dokumente aus den Transkripten und die großen JSON-Werte der Meta-Records (System-Prompts, Tool-Definitionen), einmal je Inhalt (SHA-256), seit Schema v6; siehe [unten](#blobs) |
 | `event_blobs` | welche Events welche Blobs tragen, in welcher Reihenfolge |
 
 Wichtige Spalten in `events`: `seq` (Einfügereihenfolge, Primärschlüssel), `id`, `session_id`, `ts` (UTC) und `ts_local` (Ortszeit mit Offset, für Tagesgrenzen), `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`, `tokens_in`, `tokens_out`. Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`; `source_offset` ist der Byte-Offset der Zeile darin. `raw` und `raw_truncated` beschreibt der nächste Abschnitt.
@@ -51,6 +53,18 @@ Bilder, die du in eine Session einfügst, und Bilder oder Dokumente, die ein Wer
 ```sh
 total-recall sql "SELECT e.id, b.media_type, b.bytes FROM event_blobs eb JOIN blobs b ON b.sha256 = eb.sha256 JOIN events e ON e.id = eb.event_id ORDER BY e.ts DESC LIMIT 20"
 ```
+
+## `session_meta` und `meta_blobs` { #session_meta }
+
+Harness-Records, die keine Nachricht sind, aber zur Session gehören (seit Schema v7, [#182](https://github.com/seletz/total-recall/issues/182)): bei Claude Code der Kontext, den die Harness in eine Runde eingefügt hat (`attachment`: die geladenen `CLAUDE.md`-Dateien, @-erwähnte Dateien, Ausgaben der Hooks, der System-Prompt), während der Arbeit getippter Text (`queue-operation`), Modus, Pull Request, Kosten je Modell, Request-Formen (`api-request-shape`), der Index der Datei-Historie, das Workflow-Journal, und jeder Typ, den der Adapter nicht kennt. Sie erzeugen kein Event, stehen nicht im Volltextindex und zählen in keiner Statistik; gleicher Inhalt je Session steht einmal. Spalten: `seq`, `id` (ID der Harness oder Hash aus Session, Typ und Inhalt), `session_id`, `ts` (NULL ohne Zeitstempel), `type` (Typname der Harness), `source_id`, `source_offset`, `raw`.
+
+`session_meta.raw` ist die **ganze** Zeile des Records, maskiert und komprimiert wie `events.raw`. Große Werte, die die Harness jede Runde wiederholt (bei Claude Code `shape` des `api-request-shape`-Records und `attachment.systemPrompt` des `prompt_snapshot`-Attachments), stehen nicht in der Zeile, sondern einmal je Inhalt über alle Sessions in `blobs` (Medientyp `application/json`, maskiert wie die Zeile); in der Zeile steht `blob:sha256:<hex>`, `meta_blobs` verknüpft beides, [`blob HASH`](10-befehle.md#blob) gibt den Wert aus. Erst nach `type` und `session_id` filtern, dann wenige Zeilen entpacken, zum Beispiel die Pull Requests einer Session:
+
+```sh
+total-recall sql "SELECT DISTINCT json_extract(raw_text(raw), '$.prUrl') FROM session_meta WHERE type = 'pr-link' AND session_id = 'claude:…'"
+```
+
+Welche Record-Typen von Claude Code als Meta-Record landen und welche bewusst draußen bleiben, steht im [Design](../explanation/design.md#session_meta).
 
 Die Schema-Version steht in `schema_version` und bei [`status`](10-befehle.md#status). Ein Programm-Update migriert nie von selbst; das macht [`migrate`](10-befehle.md#migrate) nach einem Backup, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 

@@ -199,6 +199,10 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'event_blobs_sha256'":      1,
 				"SELECT count(*) FROM blobs":                                    min(max(k-5, 0), 1),
 				"SELECT count(*) FROM event_blobs WHERE event_id = 'claude:e3'": min(max(k-5, 0), 1),
+				// Migration 7: the meta table exists, empty, with its index.
+				"SELECT count(*) FROM session_meta": 0,
+				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'session_meta_session'": 1,
+				"SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'meta_blobs'":           1,
 			}
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
@@ -245,7 +249,16 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			if n := countRows(t, s, "SELECT count(*) FROM events_fts WHERE events_fts MATCH 'after'"); n != 1 {
 				t.Errorf("FTS after migration = %d", n)
 			}
-			// Migration 5 reports its progress per batch and at the end.
+			// Migration 6: meta records are written and read on the migrated archive.
+			if _, err := s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{
+				{ID: "claude:m1", SessionID: "claude:s1", Type: "pr-link", SourcePath: "/p/a.jsonl", Raw: `{"type":"pr-link","prNumber":1}`}}}); err != nil {
+				t.Fatalf("meta after migration: %v", err)
+			}
+			if n := countRows(t, s, "SELECT count(*) FROM session_meta m JOIN sources src ON src.id = m.source_id WHERE m.type = 'pr-link' AND raw_text(m.raw) LIKE '%prNumber%' AND src.path = '/p/a.jsonl'"); n != 1 {
+				t.Errorf("meta rows after migration = %d", n)
+			}
+			// Migration 5 reports its progress per batch and at the end
+			// (later migrations only report their start).
 			if k < 5 {
 				var last Progress
 				for _, pr := range progress {

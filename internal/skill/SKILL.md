@@ -102,7 +102,7 @@ LIMIT 50"
 ## Cost notes
 
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
-- `events.text` of tool results is truncated to 4 KiB. `events.raw` is the whole original JSON line, redacted and zstd-compressed, with the data of images and documents replaced by `blob:sha256:<hash>` references; read it with `raw_text(raw)`, and never select it in a list query. `blobs.data` is the attachment data: never select it in a list query either, `total-recall blob HASH --out FILE` writes one.
+- `events.text` of tool results is truncated to 4 KiB. `events.raw` is the whole original JSON line, redacted and zstd-compressed, with the data of images and documents replaced by `blob:sha256:<hash>` references; read it with `raw_text(raw)`, and never select it in a list query. `blobs.data` is the attachment data: never select it in a list query either, `total-recall blob HASH --out FILE` writes one. The same goes for `session_meta.raw`: filter by `type` and `session_id` first, then `raw_text(raw)` on a few rows.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
 - `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
@@ -245,6 +245,23 @@ View: per local day (configured zone) and session.
 | `human_events` | count of `actor = 'human'` |
 | `agent_events` | count of `actor = 'agent'` |
 
+#### `session_meta`
+
+Harness records that are no message but belong to a session (since schema v7): context the harness injected (Claude Code: `attachment` records such as the instructions files, @-mentioned files, hook output, the system prompt as `prompt_snapshot`), text queued while the agent worked (`queue-operation`), the session's modes, pull request (`pr-link`), cost (`cost-state`), the system prompt and tool definitions per request shape (`api-request-shape`), file-history snapshots, the workflow journal, and record types the adapter does not know. One row per record, the same content once per session; no event, not in `events_fts`, in no statistic.
+
+| column | meaning |
+|---|---|
+| `seq` | PK, insertion order |
+| `id` | `<harness>:<record id>`, or `<harness>:<hash>` for a record without an ID |
+| `session_id` | FK `sessions.id` |
+| `ts` | UTC, NULL for records without a time stamp |
+| `type` | record type of the harness, e.g. `attachment`, `pr-link` |
+| `source_id` | `sources.id` of the transcript file the record came from |
+| `source_offset` | byte offset of the line in that file |
+| `raw` | the whole JSON line as a zstd-compressed BLOB, redacted; `raw_text(raw)` gives the text. Never select it in a list query. Large values the harness repeats every turn (Claude Code: `shape` of `api-request-shape`, `attachment.systemPrompt` of `prompt_snapshot`) are replaced by `blob:sha256:<hash>`: the value is in `blobs` (media type `application/json`, redacted, once per content across sessions), `meta_blobs(meta_id, position, sha256)` links them, `total-recall blob HASH` prints it |
+
+Example, the pull requests a session worked on: `SELECT DISTINCT json_extract(raw_text(raw), '$.prUrl') FROM session_meta WHERE type = 'pr-link' AND session_id = 'claude:…'`.
+
 #### Housekeeping tables
 
 `sources` (`id`, `path`, `harness`, `size`, `mtime`, `offset`, `ingested_at`): ingested transcript files, referenced by `events.source_id`. `dirs` (`cwd`, `git_root`, `git_remote_url`, `resolved_at`): cache of git lookups. `schema_version` (`version`): schema version of the database.
@@ -268,7 +285,7 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit; every event lists its `attachments` |
-| `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices); `--json` prints type, size and the events that refer to it. Only when the user asks for the picture or document itself |
+| `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE, or prints a JSON value of a meta record (a system prompt) to stdout; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices) or from `session_meta.raw`; `--json` prints type, size and the events and meta records that refer to it. Only when the user asks for the picture, document or prompt itself |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
@@ -391,6 +408,8 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `blobs` | number of stored attachments (images, documents) |
 | `blob_bytes` | their size as delivered |
 | `blob_stored_bytes` | their size in the archive (PDF and text are zstd-compressed) |
+| `meta_rows` | stored meta records (table `session_meta`) |
+| `meta_bytes` | compressed size of all meta records |
 | `last_ingest` | object harness → time (UTC) |
 | `backup_dir` | |
 | `last_backup` | path of the last backup, `null` if none |

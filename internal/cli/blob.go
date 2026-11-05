@@ -12,14 +12,16 @@ import (
 )
 
 // BlobJSON is the JSON output of blob: the metadata of the attachment and
-// the events whose raw line refers to it; Out is the file it was written
-// to, null without --out. The data itself is never part of the JSON.
+// the events and meta records whose raw line refers to it; Out is the
+// file it was written to, null without --out. The data itself is never
+// part of the JSON.
 type BlobJSON struct {
 	SHA256      string     `json:"sha256"`
 	MediaType   string     `json:"media_type"`
 	Bytes       int64      `json:"bytes"`
 	StoredBytes int64      `json:"stored_bytes"`
 	Events      []string   `json:"events"`
+	MetaRecords []string   `json:"meta_records"`
 	Out         NullString `json:"out"`
 }
 
@@ -28,11 +30,13 @@ func (e *env) blobCmd() *cobra.Command {
 	var out string
 	c := &cobra.Command{
 		Use:   "blob HASH",
-		Short: "Write an attachment (image, document) of the archive to a file or stdout",
+		Short: "Write an attachment (image, document, system prompt) of the archive to a file or stdout",
 		Long: `Write an attachment of the archive, identified by its SHA-256 (full digest
-or a unique prefix, as show lists it), to --out FILE or to stdout. Binary
-data is not written to a terminal: use --out or a pipe. With --json only the
-metadata is printed (type, size, the events that refer to it).`,
+or a unique prefix, as show lists it), to --out FILE or to stdout: an image
+or document of a message, or a part of a meta record such as a system
+prompt (application/json). Binary data is not written to a terminal: use
+--out or a pipe. With --json only the metadata is printed (type, size, the
+events and meta records that refer to it).`,
 		Args: usageArgs(cobra.ExactArgs(1)),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
@@ -65,14 +69,18 @@ metadata is printed (type, size, the events that refer to it).`,
 			if err != nil {
 				return err
 			}
+			metas, err := st.BlobMeta(cmd.Context(), info.SHA256)
+			if err != nil {
+				return err
+			}
 			return o.object(BlobJSON{SHA256: info.SHA256, MediaType: info.MediaType, Bytes: info.Bytes, StoredBytes: info.StoredBytes,
-				Events: events, Out: NullString(out)})
+				Events: events, MetaRecords: metas, Out: NullString(out)})
 		}
 		if out != "" {
 			_, _ = fmt.Fprintf(o.w, "wrote %s (%s, %s)\n", out, info.MediaType, sizeLabel(info.Bytes))
 			return nil
 		}
-		if e.app.TerminalWidth() > 0 && !strings.HasPrefix(info.MediaType, "text/") {
+		if e.app.TerminalWidth() > 0 && !strings.HasPrefix(info.MediaType, "text/") && info.MediaType != "application/json" {
 			return usagef("refusing to write %s (%s) to a terminal; use --out FILE or a pipe", info.MediaType, sizeLabel(info.Bytes))
 		}
 		_, err = o.w.Write(data)

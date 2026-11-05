@@ -58,6 +58,7 @@ func (m Model) statusView(width, height int) string {
 		add("schema", schema)
 		add("raw", rawCell(s, m.th.Muted.Render))
 		add("blobs", blobCell(s, m.th.Muted.Render))
+		add("meta records", metaCell(s, m.th.Muted.Render))
 		add("sessions", strconv.Itoa(s.status.Sessions))
 		add("events", strconv.Itoa(s.status.Events))
 		add("sources", strconv.Itoa(s.status.Sources))
@@ -167,6 +168,18 @@ func blobCell(s state, muted func(...string) string) string {
 		return "none"
 	}
 	return fmt.Sprintf("%d attachments, %s", s.blobs.Count, mib(s.blobs.Bytes))
+}
+
+// metaCell is the meta records row: rows and compressed size of
+// session_meta; "unknown" while the migration is pending.
+func metaCell(s state, muted func(...string) string) string {
+	if s.pending() {
+		return muted("unknown until the migration ran")
+	}
+	if s.meta.Rows == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%s in %d records", mib(s.meta.Bytes), s.meta.Rows)
 }
 
 // sortStrings sorts in place (a tiny wrapper, so the page reads without

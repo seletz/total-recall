@@ -19,7 +19,8 @@ import (
 // or reads blobs.data: the writer (blobWriter, from WriteBatchOpts), Blob
 // for `total-recall blob`, RawLine for a line with its data put back. The
 // read paths of show, search and the TUI load only the metadata
-// (SessionAttachments) or nothing.
+// (SessionAttachments) or nothing. Meta records (meta.go) use the same
+// writer with the link table meta_blobs.
 
 // BlobInfo describes a stored attachment without its data.
 type BlobInfo struct {
@@ -113,16 +114,22 @@ func decodeBlob(encoding string, stored []byte) ([]byte, error) {
 	return nil, fmt.Errorf("store: blob: unknown encoding %q", encoding)
 }
 
-// blobWriter stores the attachments of events within one transaction.
+// blobWriter stores the attachments of events or meta records within one
+// transaction: the blobs once per hash, the links in linkTable
+// (event_blobs or meta_blobs), whose first column idColumn holds the
+// owner's ID.
 type blobWriter struct {
-	ctx               context.Context
-	tx                *sql.Tx
-	ins, link, unlink *sql.Stmt
-	prepared          bool
-	err               error
+	ctx                 context.Context
+	tx                  *sql.Tx
+	linkTable, idColumn string
+	ins, link, unlink   *sql.Stmt
+	prepared            bool
+	err                 error
 }
 
-func newBlobWriter(ctx context.Context, tx *sql.Tx) *blobWriter { return &blobWriter{ctx: ctx, tx: tx} }
+func newBlobWriter(ctx context.Context, tx *sql.Tx, linkTable, idColumn string) *blobWriter {
+	return &blobWriter{ctx: ctx, tx: tx, linkTable: linkTable, idColumn: idColumn}
+}
 
 // prepare prepares the statements on first use: most batches have no
 // attachments.
@@ -136,8 +143,8 @@ func (w *blobWriter) prepare() error {
 		q   string
 	}{
 		{&w.ins, `INSERT INTO blobs (sha256, media_type, bytes, encoding, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(sha256) DO NOTHING`},
-		{&w.link, `INSERT INTO event_blobs (event_id, position, sha256) VALUES (?, ?, ?) ON CONFLICT(event_id, position) DO UPDATE SET sha256 = excluded.sha256`},
-		{&w.unlink, `DELETE FROM event_blobs WHERE event_id = ?`},
+		{&w.link, fmt.Sprintf(`INSERT INTO %s (%s, position, sha256) VALUES (?, ?, ?) ON CONFLICT(%[2]s, position) DO UPDATE SET sha256 = excluded.sha256`, w.linkTable, w.idColumn)},
+		{&w.unlink, fmt.Sprintf(`DELETE FROM %s WHERE %s = ?`, w.linkTable, w.idColumn)},
 	} {
 		st, err := w.tx.PrepareContext(w.ctx, p.q)
 		if err != nil {
@@ -157,18 +164,18 @@ func (w *blobWriter) close() {
 	}
 }
 
-// add stores the attachments of a newly inserted event.
-func (w *blobWriter) add(e model.Event, res *WriteResult) error {
-	if len(e.Attachments) == 0 {
+// add stores the attachments of a newly inserted event or meta record id.
+func (w *blobWriter) add(id string, atts []model.Attachment, res *WriteResult) error {
+	if len(atts) == 0 {
 		return nil
 	}
 	if err := w.prepare(); err != nil {
 		return err
 	}
-	for i, a := range e.Attachments {
+	for i, a := range atts {
 		h := blobref.Hash(a.Data)
 		if a.SHA256 != "" && a.SHA256 != h {
-			return fmt.Errorf("store: event %s: attachment %d: hash %s does not match its data (%s)", e.ID, i, a.SHA256, h)
+			return fmt.Errorf("store: %s: attachment %d: hash %s does not match its data (%s)", id, i, a.SHA256, h)
 		}
 		stored, enc, err := encodeBlob(a.MediaType, a.Data)
 		if err != nil {
@@ -176,29 +183,29 @@ func (w *blobWriter) add(e model.Event, res *WriteResult) error {
 		}
 		r, err := w.ins.ExecContext(w.ctx, h, a.MediaType, len(a.Data), enc, stored)
 		if err != nil {
-			return fmt.Errorf("store: event %s: store blob %s: %w", e.ID, h, err)
+			return fmt.Errorf("store: %s: store blob %s: %w", id, h, err)
 		}
 		if n, _ := r.RowsAffected(); n > 0 {
 			res.Blobs++
 			res.BlobBytes += int64(len(a.Data))
 		}
-		if _, err := w.link.ExecContext(w.ctx, e.ID, i, h); err != nil {
-			return fmt.Errorf("store: event %s: link blob %s: %w", e.ID, h, err)
+		if _, err := w.link.ExecContext(w.ctx, id, i, h); err != nil {
+			return fmt.Errorf("store: %s: link blob %s: %w", id, h, err)
 		}
 	}
 	return nil
 }
 
-// replace stores the attachments of a rewritten event in place of the
-// ones its old raw line had.
-func (w *blobWriter) replace(e model.Event, res *WriteResult) error {
+// replace stores the attachments of a rewritten event or meta record in
+// place of the ones its old raw line had.
+func (w *blobWriter) replace(id string, atts []model.Attachment, res *WriteResult) error {
 	if err := w.prepare(); err != nil {
 		return err
 	}
-	if _, err := w.unlink.ExecContext(w.ctx, e.ID); err != nil {
-		return fmt.Errorf("store: event %s: unlink blobs: %w", e.ID, err)
+	if _, err := w.unlink.ExecContext(w.ctx, id); err != nil {
+		return fmt.Errorf("store: %s: unlink blobs: %w", id, err)
 	}
-	return w.add(e, res)
+	return w.add(id, atts, res)
 }
 
 // Blob returns an attachment by its SHA-256 (full hex digest or a unique
@@ -259,6 +266,26 @@ func (s *Store) BlobEvents(ctx context.Context, sha256 string) ([]string, error)
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return nil, fmt.Errorf("store: blob events: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// BlobMeta lists the IDs of the meta records whose line refers to the
+// blob with the full hash sha256, in archive order.
+func (s *Store) BlobMeta(ctx context.Context, sha256 string) ([]string, error) {
+	rows, err := s.db().QueryContext(ctx, `SELECT DISTINCT mb.meta_id FROM meta_blobs mb LEFT JOIN session_meta m ON m.id = mb.meta_id
+		WHERE mb.sha256 = ? ORDER BY m.seq, mb.meta_id`, sha256)
+	if err != nil {
+		return nil, fmt.Errorf("store: blob meta records: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("store: blob meta records: %w", err)
 		}
 		ids = append(ids, id)
 	}

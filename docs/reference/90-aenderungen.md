@@ -8,23 +8,50 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.3.0 (unveröffentlicht)
 
-Dieses Release bringt ein neues Schema, **v6**, und ändert, was im Archiv liegt: Die Rohzeilen sind wieder vollständig, und Bilder und Dokumente aus den Sessions werden gespeichert. Das Archiv soll ohne die Transkripte auskommen, die Claude Code nach einigen Wochen löscht; „lässt sich aus dem Transkript neu schreiben“ gilt nicht mehr als Sicherheitsnetz.
+### Was dieses Update mit dem Archiv macht
 
-**Nach dem Update einmal, in dieser Reihenfolge** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+Dieses Release bringt Schema **v7** (zwei kurze Migrationen, v6 und v7) und ändert, was im Archiv liegt. Grundsatz: Das Archiv soll ohne die Transkripte auskommen, die Claude Code nach einigen Wochen löscht; „lässt sich aus dem Transkript neu schreiben“ gilt nicht mehr als Sicherheitsnetz.
+
+**Eine Ausnahme von der Regel, dass fertige Migrationen nicht geändert werden.** Migration 5 (v1.2.0) hat `raw` beim Umbau zum komprimierten BLOB auf einen Auszug entschlackt (ohne Buchhaltung der Harness, Token-Zahlen, Diffs). Dieser Schritt ist nachträglich entfernt worden: Migration 5 komprimiert jetzt nur noch. Das bricht die Forward-only-Regel einmal und mit Absicht, denn ein Archiv, das noch auf v4 steht, behält beim Update so alle Felder, statt sie erst zu verlieren und dann aus den Transkripten zurückzuholen. Es gibt noch keine fremden Benutzer, die ein v4-Archiv mit v1.2 migriert hätten; dokumentiert bleibt es trotzdem.
+
+**Was je nach Ausgangslage passiert:**
+
+- **Archiv auf v4** (bis v1.1.x): `migrate` komprimiert `raw` und behält alle Felder. Was damals wegen `raw_max_bytes` (16 KiB) nicht gespeichert wurde, holt der Reread aus den Transkripten.
+- **Archiv auf v5** (v1.2.x): `raw` bleibt der Auszug von v1.2, bis `ingest --all --reread --rewrite-raw` gelaufen ist. Danach ist jede Zeile vollständig, deren Transkript noch da ist.
+- **Transkript schon gelöscht:** Der Auszug (oder die leere Zeile) bleibt, wie er ist. Was weg ist, bleibt weg; deshalb den Reread bald nach dem Update ausführen (Claude Code löscht nach `cleanupPeriodDays`, standardmäßig 30 Tagen).
+
+**Was neu gespeichert wird:**
+
+- **Vollständige Rohzeilen**, ohne Größengrenze (`raw_max_bytes` ist jetzt 0): jede Transkriptzeile, wie sie war, maskiert und komprimiert ([#180](https://github.com/seletz/total-recall/issues/180)).
+- **Bilder und Dokumente als Blobs**, einmal je Inhalt. Sie werden **nicht maskiert**, ein Screenshot mit einem Token darin liegt unverändert im Archiv; `ingest.store_blobs = false` verwirft sie ([#181](https://github.com/seletz/total-recall/issues/181), [Datenschutz](../explanation/datenschutz.md)).
+- **Meta-Records**: Records, die keine Nachricht sind, aber zur Session gehören, darunter der **System-Prompt und die Tool-Definitionen** jeder Runde, die geladenen `CLAUDE.md`-Dateien, Hook-Ausgaben, während der Arbeit getippter Text, Modus, Pull Request, Kosten, Datei-Historie ([#182](https://github.com/seletz/total-recall/issues/182), [Datenschutz](../explanation/datenschutz.md)). System-Prompts und Tool-Definitionen liegen maskiert und einmal je Inhalt über alle Sessions als Blob; `store_blobs = false` lässt sie **nicht** aus, abschalten geht nur über `skip_record_types`.
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Stand v5, 532 Sessions, 239 791 Events, 534 Transkripte, alle noch vorhanden):
+
+| | vorher (v5) | nach `migrate` | nach Reread | nach `maintenance` |
+|---|---|---|---|---|
+| Datei | 453 MiB | 469 MiB | 854 MiB | 830 MiB |
+| Backup (`.db.zst`) | 224 MiB | | | 526 MiB |
+| Dauer | | 0,6 s | 4 min 36 s | 8 s |
+
+Davon `raw` 271 MiB in 240 061 Events (komprimiert, Faktor 3,3), Bilder und Dokumente 904 Blobs mit 108 MiB, Meta-Records 49 MiB in 76 766 Zeilen, darin System-Prompts und Tool-Definitionen als 517 JSON-Blobs, 38 MiB roh, 13 MiB gespeichert (356 verschiedene Request-Formen aus 951 Records, 161 verschiedene System-Prompts und Tool-Listen aus 1 491 Snapshots). `migrate` braucht neben der Datenbank Platz für die Kopie `archive.db.pre-v5.bak` (566 MiB in dem Beispiel, es prüft das vorher); die Kopie kann weg, sobald alles läuft. Der Reread schreibt jede Zeile neu, die Datei wächst dabei bis `maintenance` auf ihre Endgröße plus Freiliste.
+
+**Die Schritte, in dieser Reihenfolge** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
 
 ```sh
-total-recall backup
-total-recall migrate                              # Sekunden: legt nur zwei Tabellen an
-total-recall ingest --all --reread --rewrite-raw  # Rohzeilen und Bilder aus den Transkripten nachtragen
-total-recall maintenance                          # Platz der ersetzten Zeilen freigeben
+total-recall backup                               # 1. sichern
+total-recall migrate                              # 2. Sekunden: legt vier Tabellen an
+total-recall ingest --all --reread --rewrite-raw  # 3. Rohzeilen, Bilder und Meta-Records aus den Transkripten nachtragen
+total-recall maintenance                          # 4. Platz der ersetzten Zeilen freigeben
 ```
 
-Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber nur aus Transkripten, die es noch gibt. Was Claude Code schon gelöscht hat, bleibt beim Auszug von v1.2; deshalb bald nach dem Update. Der Lauf lässt sich abbrechen und wiederholen.
+Schritt 3 lässt sich abbrechen und wiederholen und funktioniert nur für Transkripte, die noch da sind; die Hooks füllen danach alles Neue von selbst.
 
 Neu festgelegt ist, was bei total-recall im Sinne von Semantic Versioning stabil ist: Befehle, Flags, JSON-Ausgabe, Config-Schlüssel, Exit-Codes und Hooks. Schema, Views, `raw`, Backup-Format und TUI sind es nicht, und ein neues Schema ist eine Minor-Version, weil die Migration nur von Hand läuft; v1.2.0 hielt sich bereits daran. Die Seite [Versionierung](60-versionierung.md) sagt, was das für eigene Skripte heißt ([#190](https://github.com/seletz/total-recall/issues/190)).
 
 ### Archiv
 
+- **Meta-Records (Schema v7).** Records der Harness, die keine Nachricht sind, aber zur Session gehören, landen in der neuen Tabelle `session_meta`: bei Claude Code der eingefügte Kontext (`attachment`: die geladenen `CLAUDE.md`-Dateien, @-erwähnte Dateien, Ausgaben der Hooks, der System-Prompt als `prompt_snapshot`, …), während der Arbeit getippter Text (`queue-operation`, auch entfernter), Modus und Pull Request (`pr-link`), Kosten je Modell (`cost-state`), System-Prompt und Tool-Definitionen je Request-Form (`api-request-shape`), der Index der Datei-Historie, das Workflow-Journal, und jeder Typ, den der Adapter nicht kennt. Je Record die ganze Zeile, maskiert und komprimiert wie `raw`; gleicher Inhalt je Session einmal; kein Event, nicht in Suche und Statistik. System-Prompts und Tool-Definitionen stehen nicht in der Zeile, sondern als JSON-Blob einmal je Inhalt über alle Sessions (`blobs`, `meta_blobs`; `blob HASH` gibt sie aus). Draußen bleiben der API-Request-Cache (`api-request`, `api-request-blob`: 1,25 GB auf einem lokalen Archiv, wiederholt nur die Nachrichten), `last-prompt` und sieben Attachment-Subtypen (Kataloge, Erinnerungen); `skip_record_types` nimmt jetzt auch `attachment/<subtyp>`. `status` zeigt Zahl und Größe (`meta records`), die Ingest-Zusammenfassung `N meta records`; die Zeile `blobs` zählt die JSON-Blobs mit. Messung und Entscheidung je Typ im [Design](../explanation/design.md#session_meta), was neu gespeichert wird unter [Datenschutz](../explanation/datenschutz.md) ([#182](https://github.com/seletz/total-recall/issues/182)).
 - **Rohzeilen wieder vollständig, ohne Limit** ([#180](https://github.com/seletz/total-recall/issues/180)). `events.raw` ist die ganze Transkriptzeile, nicht mehr der Auszug von v1.2.0 (der Buchhaltung, Token-Zahlen und Diffs wegließ), und `ingest.raw_max_bytes` ist jetzt `0` (keine Grenze; bis v1.2 wurden Zeilen über 16 KiB ganz verworfen). Dafür gibt es ein zweites Kompressions-Wörterbuch, trainiert auf vollständigen Zeilen; Archive mit dem alten bleiben lesbar. Migration 5 beschneidet die Zeilen eines v4-Archivs nicht mehr.
 - **Bilder und Dokumente als Blobs** ([#181](https://github.com/seletz/total-recall/issues/181)). Screenshots, die du in eine Session einfügst, und Bilder oder PDFs, die ein Werkzeug liest, kommen einmal je Inhalt (SHA-256) in die neue Tabelle `blobs`; in der Rohzeile steht an ihrer Stelle ein Verweis mit dem Hash, aus beidem lässt sich die Zeile Byte für Byte wiederherstellen ([Schema](40-schema.md#blobs)). PNG und JPEG liegen wie geliefert, PDF und Text zstd-komprimiert. `ingest.store_blobs = false` schaltet das ab. Bilder werden **nicht maskiert** ([Datenschutz](../explanation/datenschutz.md)).
 - Eingefügte Bilder sind jetzt ein Event mit Platzhalter (`[image image/png 84.3 KiB]`), auch im Text eines Tool-Ergebnisses; frühere Versionen übersprangen diese Blöcke, `--reread` legt die Events nach.

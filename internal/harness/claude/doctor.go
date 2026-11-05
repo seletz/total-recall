@@ -19,7 +19,9 @@ var _ harness.FormatChecker = (*Adapter)(nil)
 // (read-only, complete lines only) and reports record types, content block
 // types and missing fields the adapter does not expect, malformed lines and
 // the Claude Code versions seen. Record types configured with
-// WithSkipRecordTypes count as known.
+// WithSkipRecordTypes count as known. Meta record types are known; a type
+// in no list is kept as a meta record too, but reported here so the lists
+// get updated.
 func (a *Adapter) CheckFormat(ctx context.Context) (harness.FormatReport, error) {
 	r := harness.NewFormatReport(a.Name())
 	srcs, err := a.Sources()
@@ -28,7 +30,7 @@ func (a *Adapter) CheckFormat(ctx context.Context) (harness.FormatReport, error)
 	}
 	c := &checker{
 		r:        &r,
-		known:    setOf(ingestedTypes, skippedTypes),
+		known:    setOf(ingestedTypes, metaTypes, skippedTypes),
 		user:     setOf(handledUserBlocks, ignoredUserBlocks),
 		asst:     setOf(handledAssistantBlocks, ignoredAssistantBlocks),
 		result:   setOf(toolResultBlocks),

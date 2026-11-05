@@ -238,6 +238,39 @@ CREATE TABLE event_blobs (
 	PRIMARY KEY (event_id, position)
 ) WITHOUT ROWID;
 CREATE INDEX event_blobs_sha256 ON event_blobs(sha256);
+	`,
+	// 7: meta records (#182): harness records that are no message but
+	// belong to a session (Claude: attachments, queued commands, modes,
+	// system prompts, file-history snapshots, workflow journal, types the
+	// adapter does not know). One row per record with the whole line as
+	// a redacted zstd BLOB like events.raw; no event, no full-text index,
+	// no view reads it. id is the harness's record ID or a hash of
+	// session, type and content, so the same content is stored once per
+	// session and a reread is idempotent. ts may be NULL (records
+	// without a time stamp). meta_blobs links a record to the large
+	// values the adapter took out of its line (blobref references, like
+	// event_blobs): a system prompt or the tool definitions are stored
+	// once per hash across all sessions. The archive gets the records of
+	// existing transcripts with ingest --all --reread.
+	`
+CREATE TABLE session_meta (
+	seq           INTEGER PRIMARY KEY,
+	id            TEXT NOT NULL UNIQUE,
+	session_id    TEXT NOT NULL REFERENCES sessions(id),
+	ts            TEXT,
+	type          TEXT NOT NULL,
+	source_id     INTEGER REFERENCES sources(id),
+	source_offset INTEGER,
+	raw           BLOB NOT NULL
+);
+CREATE INDEX session_meta_session ON session_meta(session_id, type);
+CREATE TABLE meta_blobs (
+	meta_id  TEXT NOT NULL,
+	position INTEGER NOT NULL,
+	sha256   TEXT NOT NULL REFERENCES blobs(sha256),
+	PRIMARY KEY (meta_id, position)
+) WITHOUT ROWID;
+CREATE INDEX meta_blobs_sha256 ON meta_blobs(sha256);
 `,
 }
 
@@ -256,6 +289,8 @@ var migrationNotes = []migrationNote{
 		Space: 0.5},
 	{Summary: "blobs and event_blobs for attachments (images, documents) referenced from raw; moves no data, " +
 		"run `ingest --all --reread --rewrite-raw` afterwards to fill raw and the blobs from the transcripts"},
+	{Summary: "session_meta and meta_blobs: harness records that are no message (attachments, queued commands, modes, system prompts, file-history snapshots, unknown types) as redacted, compressed lines; " +
+		"moves no data, the same `ingest --all --reread --rewrite-raw` fills them from the transcripts"},
 }
 
 // migrationNote is the description of one migration.

@@ -4,6 +4,7 @@ package testfixture
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,10 +86,64 @@ func ContinuedIn(session, ts, continuedIn string) Line {
 
 // HistorySuppression returns a history-suppression record: a cause and the
 // account the suppression was vetoed against, with ts instead of timestamp.
-// The adapter skips it; nothing of it is stored.
+// The adapter keeps it as a meta record.
 func HistorySuppression(session, ts string) Line {
 	return Line{"type": "history-suppression", "sessionId": session, "cause": "chokepoint_veto",
 		"vetoedAgainstAccountUuid": Account2, "ts": ts}
+}
+
+// Attachment returns an attachment record of the given subtype with a
+// text, as Claude Code writes it for context it injected into a turn. The
+// adapter keeps it as a meta record unless the subtype is skipped.
+func Attachment(session, uuid, ts, cwd, subtype, text string) Line {
+	return Line{"type": "attachment", "uuid": uuid, "timestamp": ts, "sessionId": session, "cwd": cwd,
+		"gitBranch": "main", "version": "2.1.300",
+		"attachment": map[string]any{"type": subtype, "text": text}}
+}
+
+// PromptSnapshot returns an attachment of subtype prompt_snapshot: the
+// system prompt of a turn as text blocks. The adapter keeps it as a meta
+// record with the prompt as a blob (once per content across sessions).
+func PromptSnapshot(session, uuid, ts, cwd string, system ...string) Line {
+	l := Attachment(session, uuid, ts, cwd, "prompt_snapshot", "")
+	l["attachment"] = map[string]any{"type": "prompt_snapshot", "systemPrompt": textBlocks(system), "reminderFold": true}
+	return l
+}
+
+// APIRequestShape returns an api-request-shape record: the system prompt
+// and the tool definitions of a request, without uuid. The adapter keeps
+// it as a meta record with the shape as a blob (once per content across
+// sessions).
+func APIRequestShape(session, ts string, system []string, tools ...string) Line {
+	tl := make([]any, len(tools))
+	for i, t := range tools {
+		tl[i] = map[string]any{"name": t, "description": "Tool " + t, "input_schema": map[string]any{"type": "object"}}
+	}
+	return Line{"type": "api-request-shape", "timestamp": ts, "sessionId": session, "version": "2.1.300",
+		"shape": map[string]any{"system": textBlocks(system), "tools": tl}}
+}
+
+func textBlocks(texts []string) []any {
+	out := make([]any, len(texts))
+	for i, t := range texts {
+		out[i] = map[string]any{"type": "text", "text": t}
+	}
+	return out
+}
+
+// PermissionMode returns a permission-mode record: the mode of the
+// session, written every turn without a timestamp. The adapter keeps it as
+// a meta record, the same content once per session.
+func PermissionMode(session, mode string) Line {
+	return Line{"type": "permission-mode", "sessionId": session, "permissionMode": mode}
+}
+
+// PRLink returns a pr-link record: the pull request of the session,
+// repeated every turn. The adapter keeps it as a meta record, the same
+// content once per session.
+func PRLink(session, ts string, number int) Line {
+	return Line{"type": "pr-link", "timestamp": ts, "sessionId": session, "prNumber": number,
+		"prRepository": "demo/repo", "prUrl": fmt.Sprintf("https://git.invalid/demo/repo/pull/%d", number)}
 }
 
 // Join concatenates lines as JSONL.
@@ -141,7 +196,8 @@ const (
 // directories, one with a subagent and a workflow journal. It returns the
 // projects dir. Counts: session 1 has 2 human and 3 agent events (one is a
 // tool_use), its subagent 1 human-ish (peer) and 1 agent event; session 2 has
-// 1 human and 1 agent event.
+// 1 human and 1 agent event. The journal's started record is a meta record
+// on the session of the workflow agent (agent-a02), which has no events.
 func Small(t testing.TB, dir string) string {
 	t.Helper()
 	projects := filepath.Join(dir, "projects")

@@ -52,9 +52,13 @@ type StatusJSON struct {
 	RawRatio     float64 `json:"raw_ratio"`
 	// Blobs is the number of stored attachments, BlobBytes their size as
 	// delivered, BlobStoredBytes their size in the archive.
-	Blobs             int64             `json:"blobs"`
-	BlobBytes         int64             `json:"blob_bytes"`
-	BlobStoredBytes   int64             `json:"blob_stored_bytes"`
+	Blobs           int64 `json:"blobs"`
+	BlobBytes       int64 `json:"blob_bytes"`
+	BlobStoredBytes int64 `json:"blob_stored_bytes"`
+	// MetaRows is the number of stored meta records (table session_meta),
+	// MetaBytes their compressed size.
+	MetaRows          int64             `json:"meta_rows"`
+	MetaBytes         int64             `json:"meta_bytes"`
 	LastIngest        map[string]string `json:"last_ingest"`
 	BackupDir         string            `json:"backup_dir"`
 	LastBackup        NullString        `json:"last_backup"`
@@ -91,6 +95,18 @@ func schemaCell(db, binary int) string {
 type StatusError struct {
 	At      NullString `json:"at"`
 	Message string     `json:"message"`
+}
+
+// metaCell renders the meta records line of status: rows and compressed
+// size; "unknown" while the archive still waits for its migration.
+func metaCell(ms store.MetaStats, pending bool) string {
+	if pending {
+		return "unknown until the migration ran"
+	}
+	if ms.Rows == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%.1f MiB in %d records", float64(ms.Bytes)/(1<<20), ms.Rows)
 }
 
 // rawCell renders the raw line of status: compressed size, rows and ratio;
@@ -176,9 +192,13 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		// The raw statistics need the columns of v5; on an older archive
 		// the line says so instead of failing the whole status.
 		var rs store.RawStats
+		var ms store.MetaStats
 		var bs store.BlobStats
 		if !st.MigrationPending() {
 			if rs, err = st.RawStats(ctx); err != nil {
+				return err
+			}
+			if ms, err = st.MetaStats(ctx); err != nil {
 				return err
 			}
 			if bs, err = st.BlobStats(ctx); err != nil {
@@ -189,7 +209,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
-			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes,
+			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes, MetaRows: ms.Rows, MetaBytes: ms.Bytes,
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
 			if fi, err := os.Stat(cfg.DB + suffix); err == nil {
@@ -242,6 +262,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			{"sources", strconv.Itoa(s.Sources)},
 			{"raw", rawCell(rs, st.MigrationPending())},
 			{"blobs", blobCell(bs, st.MigrationPending())},
+			{"meta records", metaCell(ms, st.MigrationPending())},
 		}
 		harnesses := make([]string, 0, len(s.LastIngest))
 		for h := range s.LastIngest {

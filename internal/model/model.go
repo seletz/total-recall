@@ -141,8 +141,51 @@ type Attachment struct {
 	Data []byte
 }
 
-// Record is what an adapter emits per transcript line: session facts and zero or more events.
+// Meta is a harness record that carries no message but belongs to a
+// session: an attachment the harness injected, a queued command, a mode
+// change, a file-history snapshot, a record type the adapter does not know.
+// It is kept as its raw line (redacted and compressed by the store) so
+// nothing of the transcript is lost; it is no event, has no text and
+// counts in no statistic.
+type Meta struct {
+	// ID is "<harness>:<native id>", or "<harness>:<hash>" for a record
+	// without an ID: the adapter hashes session, type and content, so the
+	// same content is stored once per session.
+	ID        string
+	SessionID string
+	// TS is the record's own time stamp, else the time of the record seen
+	// before it in the same file, else zero (NULL).
+	TS time.Time
+	// Type is the harness's record type, e.g. "attachment".
+	Type         string
+	SourcePath   string
+	SourceOffset int64
+	// Raw is the complete JSON line (redacted before storing), with the
+	// values of Attachments replaced by blobref references.
+	Raw string
+	// Attachments are large structured parts of the line the adapter took
+	// out (a system prompt, tool definitions), stored once per hash like
+	// the attachments of an event. Data is JSON for media type
+	// application/json and is redacted like Raw.
+	Attachments []Attachment
+}
+
+// Record is what an adapter emits per transcript line: session facts, zero
+// or more events, zero or more meta records.
 type Record struct {
 	Session Session
 	Events  []Event
+	Meta    []Meta
+}
+
+// Offset returns the source offset of the record's first event or meta
+// record; ok is false when it has neither.
+func (r Record) Offset() (off int64, ok bool) {
+	switch {
+	case len(r.Events) > 0:
+		return r.Events[0].SourceOffset, true
+	case len(r.Meta) > 0:
+		return r.Meta[0].SourceOffset, true
+	}
+	return 0, false
 }
