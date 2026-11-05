@@ -353,8 +353,8 @@ func TestMigrationNotes(t *testing.T) {
 			t.Errorf("note of migration 5 lacks %q: %s", want, migrationNotes[4].Summary)
 		}
 	}
-	if migrationNotes[4].Space < 1 {
-		t.Errorf("migration 5 declares a space factor of %v; it rewrites every row", migrationNotes[4].Space)
+	if migrationNotes[4].Space < 0.4 {
+		t.Errorf("migration 5 declares a space factor of %v; its WAL grows to about 0.36 times the file", migrationNotes[4].Space)
 	}
 	all := PendingMigrations(0)
 	if len(all) != len(migrations) || all[0].Version != 1 || all[len(all)-1].Version != len(migrations) {

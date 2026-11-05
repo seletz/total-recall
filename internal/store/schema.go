@@ -225,8 +225,10 @@ var migrationNotes = []migrationNote{
 	{Summary: "events: raw_truncated marks events whose raw line was dropped for its size"},
 	{Summary: "sessions: continuation chain (continued_in), account_id and organization_id with indexes"},
 	{Summary: "events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of source_path; " +
-		"rewrites every event, about a minute per 100,000 events, and needs free disk space of about three times the archive size next to it (copy and WAL)",
-		Space: 1.5},
+		"rewrites every event, about a minute per 100,000 events, and needs free disk space of about twice the archive size next to it (copy and WAL)",
+		// Measured on a 1.1 GiB archive: the WAL grows to 0.36 times the
+		// file (the new events table; dropped pages only join the freelist).
+		Space: 0.5},
 }
 
 // migrationNote is the description of one migration.
