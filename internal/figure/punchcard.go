@@ -20,7 +20,8 @@ type PunchcardData struct {
 func Punchcard(d PunchcardData, o Options) canvas.Scene {
 	const cw, rh, left = 30.0, 30.0, 30.0
 	s := canvas.Scene{Background: background(o)}
-	top := heading(&s, o, "Messages per weekday and hour") + 18
+	tx := o.Lang.text()
+	top := heading(&s, o, tx.punchcardTitle) + 18
 	mh, ma := 1, 1
 	for i := range 7 {
 		for h := range 24 {
@@ -28,7 +29,7 @@ func Punchcard(d PunchcardData, o Options) canvas.Scene {
 			ma = max(ma, d.Agent[i][h])
 		}
 	}
-	for i, wd := range Weekdays {
+	for i, wd := range tx.weekdays {
 		y := top + float64(i)*rh
 		s.Add(label(0, y+4, wd[:2], canvas.Start))
 		s.Add(canvas.Line{X1: left, Y1: y, X2: left + 24*cw, Y2: y, Stroke: EmptyColor})
@@ -36,11 +37,11 @@ func Punchcard(d PunchcardData, o Options) canvas.Scene {
 			cx := left + float64(h)*cw + cw/2
 			if a := d.Agent[i][h]; a > 0 {
 				s.Add(canvas.Circle{CX: cx, CY: y, R: 2 + 12*math.Sqrt(float64(a)/float64(ma)), Fill: canvas.Alpha(AgentColor, 0.45),
-					Title: fmt.Sprintf("%s %02d–%02d: %d agent events", wd, h, h+1, a)})
+					Title: fmt.Sprintf("%s %02d–%02d: %d %s", wd, h, h+1, a, tx.agentEvents)})
 			}
 			if v := d.Human[i][h]; v > 0 {
 				s.Add(canvas.Circle{CX: cx, CY: y, R: 1.5 + 8*math.Sqrt(float64(v)/float64(mh)), Fill: HumanColor,
-					Title: fmt.Sprintf("%s %02d–%02d: %d own messages", wd, h, h+1, v)})
+					Title: fmt.Sprintf("%s %02d–%02d: %d %s", wd, h, h+1, v, tx.ownMessages)})
 			}
 		}
 	}
@@ -52,9 +53,9 @@ func Punchcard(d PunchcardData, o Options) canvas.Scene {
 	s.Height = y + 8
 	if !o.NoLegend {
 		s.Add(canvas.Circle{CX: left + 6, CY: y + 20, R: 6, Fill: HumanColor})
-		s.Add(label(left+16, y+24, "own messages", canvas.Start))
+		s.Add(label(left+16, y+24, tx.ownMessages, canvas.Start))
 		s.Add(canvas.Circle{CX: left + 176, CY: y + 20, R: 6, Fill: canvas.Alpha(AgentColor, 0.45)})
-		s.Add(label(left+186, y+24, "agent activity", canvas.Start))
+		s.Add(label(left+186, y+24, tx.agentActivity, canvas.Start))
 		s.Height = y + 32
 	}
 	return s

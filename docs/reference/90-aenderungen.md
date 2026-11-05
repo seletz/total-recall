@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.3.0 (unveröffentlicht)
+
+### Neu in der CLI
+
+- **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
+
 ## v1.2.1
 
 ### Behoben

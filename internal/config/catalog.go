@@ -103,6 +103,7 @@ var Catalog = []Key{
 	{"chart.transparent", KindBool, nil, "Leave the white background out"},
 	{"chart.top", KindInt, nil, "Projects the project chart shows, the rest is other; 0 = all"},
 	{"chart.heatmap", KindList, nil, "Colour scale of the calendar, light to dark: palette names or #rrggbb"},
+	{"chart.lang", KindEnum, ChartLangs, "Language of the labels of a figure: en or de"},
 	{"accounts", KindTable, nil, "Names for account and organization IDs; edit them in the file"},
 	{"project", KindTable, nil, "Project definitions [[project]]: name, colour, patterns; see the projects page, edit them in the file"},
 }

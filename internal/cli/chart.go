@@ -35,6 +35,7 @@ type chartFlags struct {
 	noTitle, noLegend        bool
 	transparent              bool
 	top                      int
+	lang, title              string
 }
 
 func (e *env) chartCmd() *cobra.Command {
@@ -64,7 +65,10 @@ Files are named <YYYY-MM>-<figure>.<format> for a month, else
 Colours: projects take the color of their [[project]] definition, else the
 palette in order of volume; categories the color of [[worktime.category]],
 else the palette in order of the rules; the heatmap [chart] heatmap.
-[chart] holds the defaults of the format and switches.`,
+--lang en|de sets the language of the labels (titles, legends, weekdays,
+months, number formats); file names stay the same. --title replaces the
+heading. [chart] holds the defaults of the format, the language and the
+switches.`,
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return e.runChart(cmd, args[0], f)
@@ -83,6 +87,8 @@ else the palette in order of the rules; the heatmap [chart] heatmap.
 	c.Flags().BoolVar(&f.noLegend, "no-legend", false, "leave the legend out")
 	c.Flags().BoolVar(&f.transparent, "transparent", false, "transparent instead of white background")
 	c.Flags().IntVar(&f.top, "top", -1, "projects: keep the N largest, fold the rest into \"other\" (0 = all; default from [chart], 12)")
+	c.Flags().StringVar(&f.lang, "lang", "", "language of the labels: "+strings.Join(figure.Langs, ", ")+" (default from [chart], en)")
+	c.Flags().StringVar(&f.title, "title", "", "own heading instead of the default one with the period")
 	return c
 }
 
@@ -145,6 +151,12 @@ func (e *env) runChart(cmd *cobra.Command, which string, f chartFlags) error {
 	if f.top >= 0 {
 		r.top = f.top
 	}
+	lang := settings.Lang
+	if f.lang != "" {
+		if lang, err = figure.ParseLang(f.lang); err != nil {
+			return usage(err)
+		}
+	}
 	loc := cfg.Location()
 	if r.since, r.until, err = chartRange(f, r.now, loc, 0); err != nil {
 		return err
@@ -153,7 +165,9 @@ func (e *env) runChart(cmd *cobra.Command, which string, f chartFlags) error {
 		return err
 	}
 	r.opts = figure.Options{
-		Period:      figure.PeriodName(r.since, r.until, loc),
+		Period:      figure.PeriodName(r.since, r.until, loc, lang),
+		Title:       f.title,
+		Lang:        lang,
 		NoTitle:     !settings.Title || f.noTitle,
 		NoLegend:    !settings.Legend || f.noLegend,
 		Transparent: settings.Transparent || f.transparent,
@@ -294,6 +308,9 @@ func (r *chartRun) projects(cmd *cobra.Command) (canvas.Scene, error) {
 		if n, ok := names[k]; ok {
 			rows[i].Name = n
 		}
+		if k == store.OtherKey {
+			rows[i].Name = r.opts.Lang.Other()
+		}
 	}
 	for _, b := range as.Buckets {
 		for i, c := range b.Cells {
@@ -398,7 +415,7 @@ func (r *chartRun) worktime(cmd *cobra.Command) (canvas.Scene, error) {
 		key := fmt.Sprintf("%d-W%02d", y, w)
 		wk := weeks[key]
 		if wk == nil {
-			wk = &figure.WorktimeWeek{Label: fmt.Sprintf("W%02d", w), Hours: map[string]float64{}}
+			wk = &figure.WorktimeWeek{Label: r.opts.Lang.Week(w), Hours: map[string]float64{}}
 			weeks[key] = wk
 			labels = append(labels, key)
 		}
