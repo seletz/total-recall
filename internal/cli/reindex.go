@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/ingest"
+	"github.com/seletz/total-recall/internal/logfile"
+	"github.com/seletz/total-recall/internal/ops"
 )
 
 func (e *env) reindexCmd() *cobra.Command {
@@ -32,13 +34,13 @@ reading the transcripts again.
 			if err != nil {
 				return err
 			}
-			log := newLogger(cfg.LogPath(), e.app.Now)
-			st, err := openWrite(cfg, log)
+			log := logfile.New(cfg.LogPath(), e.app.Now)
+			st, err := ops.OpenWrite(cfg, log)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = st.Close() }()
-			d, err := deps(cfg, st, log)
+			d, err := ops.Deps(cfg, st, log)
 			if err != nil {
 				return err
 			}

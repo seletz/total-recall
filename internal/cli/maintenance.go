@@ -5,20 +5,18 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 )
 
 // RecommendedPageSize is the page size maintenance uses by default and
-// status recommends: rows of 1 to 4 KiB waste far less overflow space in
-// 16 KiB pages than in SQLite's default 4 KiB pages.
-const RecommendedPageSize = 16384
+// status recommends; see ops.RecommendedPageSize.
+const RecommendedPageSize = ops.RecommendedPageSize
 
 // MaintenanceJSON is the JSON output of maintenance. Every key is always
 // present; Backup is null without a backup (dry run).
@@ -33,9 +31,6 @@ type MaintenanceJSON struct {
 	SavedBytes int64           `json:"saved_bytes"`
 	DurationMS int64           `json:"duration_ms"`
 }
-
-// lockDir is the directory of the ingest and maintenance lock files.
-func lockDir(cfg *config.Config) string { return filepath.Join(filepath.Dir(cfg.DB), "locks") }
 
 func (e *env) maintenanceCmd() *cobra.Command {
 	var of outputFlags
@@ -73,16 +68,7 @@ size next to the database.
 		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		opts := store.MaintainOptions{
-			PageSize:    pageSize,
-			DryRun:      dryRun,
-			LockDir:     lockDir(cfg),
-			Wait:        wait,
-			BackupDir:   cfg.Backup.Dir,
-			Now:         e.app.Now().In(cfg.Location()),
-			KeepDaily:   cfg.Backup.KeepDaily,
-			KeepMonthly: cfg.Backup.KeepMonthly,
-		}
+		opts := ops.MaintainOptions(cfg, e.app.Now(), pageSize, dryRun, wait)
 		if !o.format.IsJSON() {
 			opts.Logf = func(f string, a ...any) { _, _ = fmt.Fprintf(o.w, f+"\n", a...) }
 		}

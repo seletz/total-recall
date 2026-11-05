@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/harness"
+	"github.com/seletz/total-recall/internal/ops"
 )
 
 // doctorFindings is the exit code of doctor when something unknown was found.
@@ -37,7 +38,7 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 			return err
 		}
 		var checkers []harness.FormatChecker
-		for _, a := range adapters(cfg) {
+		for _, a := range ops.Adapters(cfg) {
 			if name != "" && a.Name() != name {
 				continue
 			}

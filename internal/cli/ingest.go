@@ -13,10 +13,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
-	"github.com/seletz/total-recall/internal/harness"
-	"github.com/seletz/total-recall/internal/harness/claude"
 	"github.com/seletz/total-recall/internal/ingest"
-	"github.com/seletz/total-recall/internal/redact"
+	"github.com/seletz/total-recall/internal/logfile"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -91,51 +90,6 @@ func (e *env) ingestCmd() *cobra.Command {
 	return c
 }
 
-// deps builds the ingest dependencies from the configuration.
-func deps(cfg *config.Config, st *store.Store, log *logger) (ingest.Deps, error) {
-	d := ingest.Deps{
-		Store:       st,
-		StoreRaw:    cfg.Ingest.StoreRaw,
-		RawMaxBytes: cfg.Ingest.RawMaxBytes,
-		ResolveGit:  cfg.Git.Resolve,
-		LockDir:     lockDir(cfg),
-		Logf:        func(f string, a ...any) { log.Infof(f, a...) },
-	}
-	if cfg.Redact.Enabled {
-		r, err := redact.New(redact.Options{ExtraPatterns: cfg.Redact.ExtraPatterns, Allow: cfg.Redact.Allow})
-		if err != nil {
-			return d, err
-		}
-		d.Redactor = r
-	}
-	d.Adapters = adapters(cfg)
-	return d, nil
-}
-
-// adapters returns the enabled harness adapters configured from cfg.
-func adapters(cfg *config.Config) []harness.Adapter {
-	var out []harness.Adapter
-	if c := cfg.Harness.Claude; c.Enabled {
-		out = append(out, claude.New(c.ProjectsDir,
-			claude.WithToolResultMaxBytes(cfg.Ingest.ToolResultMaxBytes),
-			claude.WithPeerPrefixes(c.Actors.PeerPrefixes...),
-			claude.WithPeerPasteHeaders(c.Actors.PeerPasteHeaders...),
-			claude.WithAutomationPrefixes(c.Actors.AutomationPrefixes...),
-			claude.WithSkipRecordTypes(c.SkipRecordTypes...),
-		))
-	}
-	return out
-}
-
-// openWrite opens the archive read-write (migrating it if needed) and holds
-// the shared maintenance lock until Close: while `maintenance` rebuilds the
-// archive, it fails with store.ErrMaintenance.
-func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
-	return store.Open(cfg.DB, store.WithLocation(cfg.Location()),
-		store.WithLockDir(lockDir(cfg)),
-		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
-}
-
 // ingestFlags are the mode flags of `ingest`.
 type ingestFlags struct {
 	all, regit, reread, rewriteRaw bool
@@ -149,13 +103,13 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	if fl.rewriteRaw && !cfg.Ingest.StoreRaw {
 		return fmt.Errorf("ingest --rewrite-raw: ingest.store_raw is disabled in the configuration, it would drop raw instead")
 	}
-	log := newLogger(cfg.LogPath(), e.app.Now)
-	st, err := openWrite(cfg, log)
+	log := logfile.New(cfg.LogPath(), e.app.Now)
+	st, err := ops.OpenWrite(cfg, log)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = st.Close() }()
-	d, err := deps(cfg, st, log)
+	d, err := ops.Deps(cfg, st, log)
 	if err != nil {
 		return err
 	}
@@ -195,7 +149,7 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	if len(total.Errors) > 0 {
 		w := e.app.Stderr
 		if e.g.detachedChild {
-			w = &logWriter{l: log, level: "ERROR"}
+			w = log.Writer("ERROR")
 		}
 		for _, fe := range total.Errors {
 			_, _ = fmt.Fprintf(w, "error: %s: %v\n", fe.Path, fe.Err)
@@ -227,7 +181,7 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		_, _ = fmt.Fprintln(e.app.Stderr, "total-recall: hook:", err)
 		return nil
 	}
-	log := newLogger(cfg.LogPath(), e.app.Now)
+	log := logfile.New(cfg.LogPath(), e.app.Now)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("hook: panic: %v", r)
@@ -283,7 +237,7 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		return nil
 	}
 
-	st, err := openWrite(cfg, log)
+	st, err := ops.OpenWrite(cfg, log)
 	if errors.Is(err, store.ErrMaintenance) {
 		// Nothing is lost: the next hook of the session (or SessionStart
 		// with --all) reads on from the stored offset.
@@ -295,7 +249,7 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 		return nil
 	}
 	defer func() { _ = st.Close() }()
-	d, err := deps(cfg, st, log)
+	d, err := ops.Deps(cfg, st, log)
 	if err != nil {
 		log.Errorf("hook %s: %v", p.HookEventName, err)
 		return nil
