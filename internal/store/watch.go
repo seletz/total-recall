@@ -65,6 +65,11 @@ func (s *Store) Poll(ctx context.Context) (Change, error) {
 	changed := !first && v != s.watchVersion
 	s.watched, s.watchVersion = true, v
 	if changed {
+		// A commit may have been a migration: refresh the version so that
+		// MigrationPending follows (best effort, the next Poll retries).
+		if sv, err := schemaVersion(ctx, s.watch); err == nil {
+			s.version = sv
+		}
 		return Modified, nil
 	}
 	return Unchanged, nil

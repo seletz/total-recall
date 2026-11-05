@@ -60,6 +60,9 @@ func (l *logger) Printf(level, format string, args ...any) {
 // Errorf logs at level ERROR.
 func (l *logger) Errorf(format string, args ...any) { l.Printf("ERROR", format, args...) }
 
+// Warnf logs at level WARN.
+func (l *logger) Warnf(format string, args ...any) { l.Printf("WARN", format, args...) }
+
 // Infof logs at level INFO.
 func (l *logger) Infof(format string, args ...any) { l.Printf("INFO", format, args...) }
 

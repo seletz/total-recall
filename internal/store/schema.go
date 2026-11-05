@@ -1,5 +1,10 @@
 package store
 
+import (
+	"context"
+	"database/sql"
+)
+
 // migrations are applied in order, each in its own transaction; the index+1
 // is the schema version recorded in schema_version. Forward-only: never edit
 // a released migration, append a new one.
@@ -158,3 +163,38 @@ CREATE INDEX sessions_continued_in ON sessions(continued_in);
 CREATE INDEX sessions_account_id ON sessions(account_id);
 `,
 }
+
+// migrationNotes describe the migrations for `total-recall migrate`, one
+// entry per entry of migrations (index+1 = version; a test checks that both
+// lists have the same length). Like migrations, the list is append-only.
+var migrationNotes = []migrationNote{
+	{Summary: "initial schema: sources, sessions, events with full-text index, views exchanges and daily_activity"},
+	{Summary: "sessions: harness-generated title (ai_title) and the derived display_name"},
+	{Summary: "events: raw_truncated marks events whose raw line was dropped for its size"},
+	{Summary: "sessions: continuation chain (continued_in), account_id and organization_id with indexes"},
+}
+
+// migrationNote is the description of one migration.
+type migrationNote struct {
+	// Summary says in one line what changes and, when it matters, how long
+	// it takes.
+	Summary string
+	// Space is the extra free space the migration needs next to the
+	// database while it runs, as a factor of the database size: the WAL
+	// grows by the pages the migration changes until the checkpoint after
+	// it. 0 for a migration that touches few pages (ALTER TABLE, indexes
+	// on small tables); 1 for one that rewrites every row.
+	Space float64
+}
+
+// migrationStep is the Go part of a migration that cannot be expressed in
+// SQL alone, for example rewriting every row. It runs in the migration's
+// transaction after its SQL block and before schema_version is updated, so
+// a failure leaves the database at the previous version. report publishes
+// the progress (done of total work units, e.g. rows) to the caller of
+// Migrate; call it every few thousand units.
+type migrationStep func(ctx context.Context, tx *sql.Tx, report func(done, total int64)) error
+
+// migrationSteps holds the Go part of the migrations that have one, keyed
+// by version. Most migrations are SQL only and have no entry.
+var migrationSteps = map[int]migrationStep{}

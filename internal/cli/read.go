@@ -35,6 +35,7 @@ type StatusJSON struct {
 	PageSize            int               `json:"page_size"`
 	SchemaVersion       int               `json:"schema_version"`
 	BinarySchemaVersion int               `json:"binary_schema_version"`
+	MigrationPending    bool              `json:"migration_pending"`
 	Sessions            int               `json:"sessions"`
 	Events              int               `json:"events"`
 	Sources             int               `json:"sources"`
@@ -57,6 +58,16 @@ func pageSizeCell(n int) string {
 		return strconv.Itoa(n)
 	}
 	return fmt.Sprintf("%d  (total-recall maintenance rebuilds with %d and saves space)", n, RecommendedPageSize)
+}
+
+// schemaCell renders the schema versions with a loud hint while a
+// migration is pending.
+func schemaCell(db, binary int) string {
+	s := fmt.Sprintf("v%d (binary supports v%d)", db, binary)
+	if db < binary {
+		s += "  MIGRATION PENDING: " + migrateHint
+	}
+	return s
 }
 
 // StatusError is one error line in StatusJSON.RecentErrors. At is null
@@ -112,7 +123,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			return err
 		}
 		now, loc := e.app.Now(), cfg.Location()
-		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(),
+		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
@@ -160,7 +171,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			{"database", cfg.DB},
 			{"size", fmt.Sprintf("%.1f MiB", float64(out.DBSizeBytes)/(1<<20))},
 			{"page size", pageSizeCell(ps.PageSize)},
-			{"schema", fmt.Sprintf("v%d (binary supports v%d)", v, out.BinarySchemaVersion)},
+			{"schema", schemaCell(v, out.BinarySchemaVersion)},
 			{"sessions", strconv.Itoa(s.Sessions)},
 			{"events", strconv.Itoa(s.Events)},
 			{"sources", strconv.Itoa(s.Sources)},
