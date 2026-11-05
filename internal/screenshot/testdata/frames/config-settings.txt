@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                        1 search   2 stats   3 activity  [4 config]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status [settings] projects actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ KEY                    VALUE                                                                                   ORIGIN
+  db                     ~/.local/share/total-recall/archive.db                                                  default
+  timezone               Europe/Berlin                                                                           file
+  day_start              04:00                                                                                   file
+  log                    ""                                                                                      file
+  [backup]
+▸ dir                    ~/Documents/total-recall                                                                file
+  keep_daily             7                                                                                       file
+  keep_monthly           0                                                                                       file
+  min_interval           24h                                                                                     file
+  [redact]
+  enabled                true                                                                                    file
+  extra_patterns         []                                                                                      file
+  allow                  []                                                                                      file
+  [ingest]
+  tool_result_max_bytes  4096                                                                                    file
+  raw_max_bytes          16384                                                                                   file
+  store_raw              true                                                                                    file
+  [harness.claude]
+  enabled                true                                                                                    file
+  projects_dir           ~/.claude/projects                                                                      default
+  skip_record_types      []                                                                                      file
+  [harness.claude.actors]
+  peer_prefixes          []                                                                                      file
+  peer_paste_headers     []                                                                                      file
+  automation_prefixes    ["Hourly ", "Weekend watch"]                                                            file
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ backup.dir  Directory of the backups (archive-YYYY-MM-DD.db.gz)
+ default: ~/Documents/total-recall
+ > ~/Documents/total-recall   enter saves, esc cancels
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab page • enter edit / run • esc back • ^c quit

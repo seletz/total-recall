@@ -100,7 +100,9 @@ func Build(ctx context.Context, path string) (Summary, error) {
 			return Summary{}, fmt.Errorf("demo: %w", err)
 		}
 	}
-	st, err := store.Open(path)
+	// The archive says it was last read at Now, so a status rendered
+	// against it does not depend on when it was built.
+	st, err := store.Open(path, store.WithClock(func() time.Time { return Now }))
 	if err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
@@ -148,6 +150,13 @@ func relocate(ctx context.Context, dbPath, from, to string) (Summary, error) {
 		if _, err := db.ExecContext(ctx, q, to, len(from)+1, len(from), from); err != nil {
 			return Summary{}, fmt.Errorf("demo: relocate: %w", err)
 		}
+	}
+	// The page layout after the ingest depends on the length of the
+	// temporary path; a vacuum lays the file out from its content alone,
+	// so size and page count are the same in every build (the status of
+	// the TUI shows them).
+	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
+		return Summary{}, fmt.Errorf("demo: vacuum: %w", err)
 	}
 	var s Summary
 	if err := db.QueryRowContext(ctx, "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM events)").Scan(&s.Sessions, &s.Events); err != nil {
