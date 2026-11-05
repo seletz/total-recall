@@ -9,6 +9,8 @@ description: Query the local archive of past coding-agent sessions (Claude Code 
 
 Start with `total-recall search --by-session --json` for the sessions of a topic, then `total-recall sql --json` with full-text search (FTS5) for everything that needs grouping, counting or joining: `search` returns hits, `sql` returns answers. Always pass `--json` and parse stdout only.
 
+The commands and their JSON fields (`search`, `sessions`, `show`, `stats`, `status` with `--json`) are the stable interface: they only gain fields within a major version. The database schema, the views and the format of `raw` are **not** stable and may change in a minor version; `sql` is the flexible path, not the durable one. The schema below matches the binary that printed this document (`total-recall llm --skill`), so prefer the commands when both work, and check the live schema (see *Tables and views*) before relying on a column.
+
 ## The four core queries
 
 Replace `sbom` with the topic. FTS5 syntax (with `search --raw` and in `sql`): `word`, `"exact phrase"`, `prefix*`, `a AND b`, `a OR b`, `a NOT b`. In SQL the `MATCH` operand must be the table name `events_fts` (an alias does not work), and `events_fts.rowid` joins to `events.seq`.
@@ -140,7 +142,7 @@ A resumed session is a new session: `continued_in` of the old one holds the full
 
 ### Tables and views
 
-Inspect the live schema if anything here does not match:
+The schema is not part of the stable interface: tables, columns and views may change in a minor version (v1.2.0 replaced `source_path` with `source_id` and made `raw` a BLOB; v1.3.0 added `blobs`). The release notes name every change. Inspect the live schema if anything here does not match:
 
 ```sh
 total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('table','view')"
