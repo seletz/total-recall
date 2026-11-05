@@ -51,7 +51,7 @@ Eigene Muster und Ausnahmen: `[redact]` in der [Konfiguration](../reference/20-k
 |---|---|
 | Datenbank | `~/Library/Application Support/total-recall/archive.db` |
 | Log | `total-recall.log` neben der Datenbank |
-| Backups | `~/Documents/total-recall/archive-YYYY-MM-DD.db.zst` |
+| Backups | `~/Documents/total-recall/archive-YYYY-MM-DD.db.zst`, weitere Kopien eines Tages mit Uhrzeit im Namen |
 | Config | `~/.config/total-recall/config.toml` |
 
 Auf Linux liegt die Datenbank unter `$XDG_DATA_HOME/total-recall/`.

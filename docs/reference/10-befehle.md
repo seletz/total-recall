@@ -669,7 +669,7 @@ Schema: [Schema](40-schema.md); Beispiele: [Archiv auswerten](../how-to/30-auswe
 
 ## `backup` { #backup }
 
-Schreibt eine konsistente, mit zstd komprimierte Kopie der Datenbank nach `<backup.dir>/archive-YYYY-MM-DD.db.zst`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt, auch eine `archive-YYYY-MM-DD.db.gz` (bis v1.2) oder eine unkomprimierte `archive-YYYY-MM-DD.db` noch älterer Versionen. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt; `.db.zst`, `.db.gz` und `.db` zählen dabei gleich.
+Schreibt eine konsistente, mit zstd komprimierte Kopie der Datenbank nach `<backup.dir>/archive-YYYY-MM-DD.db.zst`. Datum und Uhrzeit sind in der konfigurierten Zeitzone. Ein neues Backup ersetzt nie ein vorhandenes: Hat der Tag schon eine Kopie, auch eine `archive-YYYY-MM-DD.db.gz` (bis v1.2) oder eine unkomprimierte `archive-YYYY-MM-DD.db` noch älterer Versionen, heißt die neue `archive-YYYY-MM-DD-HHMM.db.zst`, in derselben Minute `archive-YYYY-MM-DD-HHMM-2.db.zst` und so weiter. Danach werden alte Kopien nach den Regeln in [`[backup]`](20-konfiguration.md#backup) aufgeräumt, die ältesten zuerst; jede gelöschte Kopie steht als `backup: pruned …` im Log. Alle Namen und Formate zählen dabei gleich, und `status`, `backup --if-older` und die TUI finden die neueste Kopie unter jedem Namen.
 
 zstd statt gzip seit v1.3.0: Auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in gut 6 Sekunden, zstd 220 MiB in rund 2; das Entpacken dauert 0,4 statt 2 Sekunden. Die Stufe ist fest (`SpeedBetterCompression`, höchstens 4 Threads, etwa 30 MiB Arbeitsspeicher).
 
@@ -692,7 +692,7 @@ backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.zst
 
 ## `restore` { #restore }
 
-Stellt eine Backup-Kopie wieder her: entpackt `archive-YYYY-MM-DD.db.zst` (oder eine `.db.gz` von bis v1.2, oder kopiert eine alte, unkomprimierte `.db`) in eine Datenbankdatei. Das Format erkennt der Befehl an der Endung.
+Stellt eine Backup-Kopie wieder her: entpackt `archive-YYYY-MM-DD.db.zst` oder `archive-YYYY-MM-DD-HHMM.db.zst` (oder eine `.db.gz` von bis v1.2, oder kopiert eine alte, unkomprimierte `.db`) in eine Datenbankdatei. Das Format erkennt der Befehl an der Endung.
 
 ```sh
 total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.zst --to /tmp/archive.db
