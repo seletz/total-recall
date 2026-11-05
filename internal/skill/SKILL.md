@@ -255,8 +255,11 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory\|account] [--top N]` | time series per period, optionally per key (`account`: configured names, else ids, `unknown` without one) |
 | `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
 | `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell, the issue/PR references of their titles and the user's messages (`refs`) and a booking text (`text`); `--sessions` and `--summary` add them to the text output. Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
+| `total-recall chart <calendar\|projects\|punchcard\|worktime\|all> [--month YYYY-MM] [--out DIR] [--format svg\|png]` | figures for a monthly report as files (`<YYYY-MM>-<chart>.svg`); counted like `stats`. Only when the user asks for a picture |
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
 | `total-recall llm --skill` | prints this document |
+
+Not for agents: `ingest`, `reindex --actors`, `backup`, `migrate` and `maintenance` write to the archive or rebuild it (`maintenance` and `migrate` lock it and the hooks skip meanwhile). When `status` reports `migration_pending` or a small `page_size`, tell the user which command to run; do not run it yourself.
 
 Every read command takes `--format table|json|jsonl` (`sql` also `csv`), `--json` and `--no-truncate`. Global flags: `--db PATH`, `--config PATH`, `--tz ZONE` (default `Europe/Berlin`; used by `stats`, day boundaries and displayed times).
 
@@ -395,7 +398,7 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `until` | end of the range (UTC) |
 | `timezone` | |
 | `period` | `day`, `week` or `month` |
-| `by` | `project`, `agent`, `directory` or `null` |
+| `by` | `project`, `agent`, `directory`, `account` or `null` |
 | `keys` | all keys of the range |
 | `total` | `sessions`, `human`, `agent` over the range |
 | `by_key` | per key: `key`, `sessions`, `human`, `agent` |

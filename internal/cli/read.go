@@ -945,7 +945,7 @@ messages: the values are a lower bound.`,
 	c.Flags().StringVar(&sinceArg, "since", "", "from this time (instead of --month)")
 	c.Flags().StringVar(&untilArg, "until", "", "until this time; a date includes the whole day")
 	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
-	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent or directory (implies --period day)")
+	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory or account (implies --period day)")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")

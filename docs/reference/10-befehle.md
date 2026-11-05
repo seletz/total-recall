@@ -130,7 +130,7 @@ total-recall status --errors 20         # bis zu 20 Fehlerzeilen statt 5
 database              /Users/me/Library/Application Support/total-recall/archive.db
 size                  612.4 MiB
 page size             4096  (total-recall maintenance rebuilds with 16384 and saves space)
-schema                v2 (binary supports v2)
+schema                v5 (binary supports v5)
 sessions              274
 events                158203
 sources               280

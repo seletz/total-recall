@@ -8,7 +8,7 @@ icon: lucide/webhook
 
 ## Der Block für Claude Code
 
-Diesen Block gibt `total-recall hooks print --harness claude` aus. Er gehört in `~/.claude/settings.json`. Bei Stefan wird er über die dotfiles eingetragen.
+Diesen Block gibt `total-recall hooks print --harness claude` aus. Er gehört in `~/.claude/settings.json`; wer seine Dotfiles versioniert, trägt ihn dort ein. Die Seite **setup** der [TUI](../reference/30-tui.md#setup) prüft, ob er vollständig ist, und kopiert ihn in die Zwischenablage.
 
 Mit `--binary` steht ein anderer Befehl in den Hooks, etwa ein absoluter Pfad: `total-recall hooks print --binary "$(command -v total-recall)"`. Das hilft, wenn Claude Code `total-recall` nicht im `PATH` findet.
 

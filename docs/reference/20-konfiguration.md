@@ -79,6 +79,7 @@ min_credit = "3m"                # was eine längere Lücke zählt
 grid = "15m"                     # Rundungsraster, 0 = keine Rundung
 rounding = "up"                  # up | down | nearest
 scope = "category"               # category | project: was gerundet wird
+summary_max_chars = 200          # Länge der Zusammenfassung je Zelle in --worktime --summary
 # [[worktime.category]]          # Regeln in Reihenfolge, die erste passende gewinnt
 # name = "kunde-a"
 # match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
@@ -113,7 +114,7 @@ resolve = true
 # "aaaaaaaa-0000-4000-8000-000000000001" = "work"
 
 [tui]
-view = "search"                  # Ansicht beim Start: search, stats, activity
+view = "search"                  # Ansicht beim Start: search, stats, activity, config
 graphics = "auto"                # Chart: auto, text, kitty (--graphics)
 mouse = true                     # false = --no-mouse
 stats_period = "day"             # Statistik beim Start: day, week, month

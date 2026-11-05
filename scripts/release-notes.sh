@@ -25,8 +25,10 @@ fi
 # Release notes are plain Markdown: turn the ++key++ syntax of the docs into
 # code spans and relative doc links into links to the published site. Links
 # are relative to docs/reference/ (where the changelog lives): a sibling page
-# ("10-befehle.md") lands under reference/, "../explanation/x.md" at the root.
+# ("10-befehle.md") lands under reference/, "../explanation/x.md" at the root,
+# and a bare anchor ("#behoben") on the changelog page itself.
 printf '%s\n' "$NOTES" | perl -pe '
     s/\+\+(.+?)\+\+/`$1`/g;
     s{\]\((\.\./)?([a-z0-9/-]+)\.md(#[a-z0-9-]+)?\)}{"](https://seletz.github.io/total-recall/" . ($1 ? "" : "reference/") . "$2/" . ($3 // "") . ")"}ge;
+    s{\]\((#[a-z0-9-]+)\)}{](https://seletz.github.io/total-recall/reference/90-aenderungen/$1)}g;
 '

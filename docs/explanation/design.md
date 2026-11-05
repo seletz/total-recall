@@ -231,9 +231,11 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 
 | Spalte | Typ | |
 |---|---|---|
-| `id` | TEXT PK | `<harness>:<native event id>`; ohne native ID: `<harness>:<sha1(path)>:<offset>` |
+| `seq` | INTEGER PK | Einfügereihenfolge; zugleich `rowid` des Volltextindex (`content_rowid`), deshalb muss der nach einer Migration nicht neu gebaut werden |
+| `id` | TEXT UNIQUE | `<harness>:<native event id>`; ohne native ID: `<harness>:<sha1(path)>:<offset>` |
 | `session_id` | TEXT FK | |
-| `ts` | TEXT | |
+| `ts` | TEXT | UTC, ISO 8601 mit `T` und `Z` |
+| `ts_local` | TEXT | derselbe Zeitpunkt in der Zone `timezone` mit Offset; Tagesgrenzen (`daily_activity`, `stats`) rechnen damit, weil SQLite keine Zeitzonen-Datenbank hat |
 | `kind` | TEXT | `message`, `tool_use`, `tool_result`, `system`, `meta` |
 | `role` | TEXT | `user`, `assistant`, `system`, `tool` |
 | `actor` | TEXT | `human`, `agent`, `peer`, `automation`, `tool` |
@@ -245,7 +247,7 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 | `raw` | BLOB NULL | Auszug der Original-Zeile als zstd-Frame (siehe [`raw`](#raw)), redigiert; NULL, wenn der Auszug größer als `ingest.raw_max_bytes` ist |
 | `raw_truncated` | INTEGER | 1, wenn `raw` wegen der Größe weggelassen wurde (Migration 3); `text` bleibt wie sonst |
 
-`events_fts`: FTS5 über `text` (external content auf `events`, Trigger für insert).
+`events_fts`: FTS5 über `text` (external content auf `events` mit `seq` als `rowid`, Trigger für insert, delete und update von `text`).
 
 Die Lesepfade (`store.Events`, `EventWindow`, `Search`, also `show`, `search`, `sessions`, `stats` und die TUI) laden `raw` nicht: kein Lesebefehl gibt die Spalte aus, und sie ist mit Abstand die größte. `model.Event.Raw` ist aus dem Store deshalb immer leer. Nur `store.UserMessages` (`reindex --actors`) liest `raw`; `backup` kopiert die Datei. Den Pfad der Quelle holen die Lesepfade über `LEFT JOIN sources` (`store.eventCols`, `eventFrom`).
 
@@ -280,7 +282,7 @@ In SQL (`sql`, Tests) entpackt die Funktion `raw_text(raw)` (registriert im Trei
 | Text beginnt mit „Another Claude session“, `<agent-message`, `[Cross-session` oder einem Präfix aus `peer_prefixes`; `origin.kind = "peer"` (Nachrichten anderer Sessions über den Socket, `<cross-session-message …>`); Subagent-Hand-back | `peer` |
 | Nachricht besteht nur aus einem `<pasted_content …>`-Block, dessen erste nicht leere Zeile mit einem Eintrag aus `peer_paste_headers` beginnt (ein in das Terminal eingefügter Auftrag eines Koordinators) | `peer` |
 | `<task-notification>`, geplante Prompts („Hourly …“, Scheduled), `isMeta`, `<command-…>`/`<local-command-…>`, `This session is being continued`, `Base directory for this skill`, `<system-reminder>` | `automation` |
-| `<bash-input>` | `human` (Stefan hat `!cmd` getippt) |
+| `<bash-input>` | `human` (der Benutzer hat `!cmd` getippt) |
 | `<pasted_content …>` sonst | `human` |
 | `type=user` mit `tool_result`-Blöcken | `tool` (kind `tool_result`) |
 | `type=assistant` | `agent` (Text → kind `message`, `tool_use`-Block → kind `tool_use`) |

@@ -18,7 +18,7 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `sources` | eingelesene Dateien und Lesestand; `events.source_id` verweist auf `id` (seit Schema v5) |
 | `dirs` | Cache: Verzeichnis → Git-Root und Remote |
 
-Wichtige Spalten in `events`: `session_id`, `ts`, `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`. Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`.
+Wichtige Spalten in `events`: `seq` (Einfügereihenfolge, Primärschlüssel), `id`, `session_id`, `ts` (UTC) und `ts_local` (Ortszeit mit Offset, für Tagesgrenzen), `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`, `tokens_in`, `tokens_out`. Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`; `source_offset` ist der Byte-Offset der Zeile darin. `raw` und `raw_truncated` beschreibt der nächste Abschnitt.
 
 ## `raw` { #raw }
 
@@ -55,5 +55,5 @@ Alle Zeiten stehen in **UTC** im Format `2026-10-31T22:21:58.123Z`. Für lokale 
 Das vollständige Schema steht im [Design](../explanation/design.md#datenmodell).
 
 !!! note "Spalten der Views"
-    Die Spaltennamen der Views `exchanges` (`session_id`, `ts`, `request`, `response`) und `daily_activity` (`day`, …) sind vorläufig. Maßgeblich ist das Schema in der Datenbank: `total-recall sql "SELECT sql FROM sqlite_master WHERE type = 'view'"`.
+    Die Spaltennamen der Views `exchanges` (`session_id`, `ts`, `request`, `response`, `request_id`, `response_id`, `response_ts`) und `daily_activity` (`day`, `session_id`, `repo`, `human_events`, `agent_events`) sind vorläufig. Maßgeblich ist das Schema in der Datenbank: `total-recall sql "SELECT sql FROM sqlite_master WHERE type = 'view'"`.
 

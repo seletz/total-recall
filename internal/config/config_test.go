@@ -615,7 +615,7 @@ func TestTUIErrors(t *testing.T) {
 	tests := []struct {
 		name, toml, want string
 	}{
-		{"view", "[tui]\nview = \"help\"\n", `tui.view "help": use search, stats or activity`},
+		{"view", "[tui]\nview = \"help\"\n", `tui.view "help": use search, stats, activity or config`},
 		{"graphics", "[tui]\ngraphics = \"sixel\"\n", `tui.graphics "sixel": use auto, text or kitty`},
 		{"period", "[tui]\nstats_period = \"year\"\n", `tui.stats_period "year": use day, week or month`},
 		{"dimension", "[tui]\nstats_dimension = \"repo\"\n", `tui.stats_dimension "repo": use project, agent or directory`},
