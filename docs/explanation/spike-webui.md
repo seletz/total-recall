@@ -20,6 +20,8 @@ Aus dem Issue, mit Verweis auf die Antwort:
 6. **Tests und Screenshots** gegen das Demo-Archiv → [Tests](#tests), [Screenshots](#screenshots).
 7. **Aufwand und Nutzen**, Empfehlung → [Aufwand](#aufwandsschaetzung), [Empfehlung](#empfehlung).
 
+Dazugekommen nach der ersten Durchsicht: **Gestaltung.** Wie die Web-UI hübsch und stylbar wird und wie Vorschläge dafür entstehen → [Gestaltung](#gestaltung).
+
 ## Festgelegt
 
 Vorgaben aus dem Epic, hier nicht neu verhandelt:
@@ -238,6 +240,40 @@ Was ausprobiert wurde und nicht trägt:
 - **Web-Screenshots unter `docs/assets/screenshots/`** machen `docs:screenshots:check` rot (`diff -r` über das Verzeichnis). Eigenes Verzeichnis `docs/assets/webui/`.
 - **JSON-Typen der CLI direkt im Web-Paket.** `internal/web` dürfte `internal/cli` nicht importieren (Zyklus). Statt die Typen zu verschieben, reicht die CLI Closures hinein; das Verschieben bleibt ein Folgeschritt.
 
+## Gestaltung
+
+Der Prototyp ist bewusst schlicht: Systemschrift, ein Akzent, eine Palette. Soll die Web-UI bleiben, dann soll sie **hübsch** sein und **stylbar**, also mit einem Aussehen, das sich ohne Codeänderung umstellen lässt. Das Vorbild zeigt, woran das hängt; nicht an einer Bibliothek, sondern an drei Gewohnheiten:
+
+1. **Tokens mit Rollen, an einer Stelle.** Jede Farbe, jeder Radius, jeder Schatten, jede Schrift ist eine benannte CSS-Variable in einer Datei; Komponenten verwenden nur die Namen, nie Hex-Werte. Ein Dokument sagt, wofür jedes Token *ist* (Seitengrund, Fläche, erhöhte Fläche, Rand, Text, gedämpfter Text, Primär, Akzent, Fehler, Erfolg) und welche Fallen dahinterstecken. Dunkles Design definiert dieselben Namen neu. `web/src/app.css` hat davon eine kleine Fassung; der Schritt ist, die Rollen sauber zu benennen und die Regeln aufzuschreiben, damit jede spätere Ansicht das Aussehen erbt, statt sich eines auszudenken.
+2. **Eine typografische Stimme.** Das Vorbild paart eine Display-Serife mit einer ruhigen Sans, beide selbst gehostet über fontsource-Pakete; nichts kommt aus dem Netz. Das geht auch unter unserer CSP (`font-src 'self'`): die Schriften werden Dateien im Binary. Für ein Archiv von Coding-Sessions passt eher das Gegenteil einer Rezepte-App: eine ruhige Sans für die Oberfläche, eine gute Monospace für Session-IDs, Snippets und Code, Tabellenziffern in jeder Tabelle. Zwei variable Schriften kosten etwa 300 KiB im Binary, neben dem HTTP-Stack unerheblich.
+3. **Regeln, die aus Fehlern kamen.** Die Liste des Vorbilds ist konkret: eine Aktion ist nie nackter Text, ein Knopf bricht nie um, ein Titel bricht um und wird nie abgeschnitten, Trennlinien stehen zwischen Zeilen und nie nach der letzten, Hover tönt mit der eigenen Farbe des Elements, `prefers-reduced-motion` schaltet jede Bewegung ab, 44 px Ziele auf dem Telefon. Das meiste kostet nichts, wenn man es von Anfang an macht, und ist das, was eine Oberfläche fertig wirken lässt.
+
+### Was für total-recall gilt
+
+- **Identität:** ruhig und datendicht. Neutrale Grautöne, ein Akzent für Fokus und Links, und als einzige weitere Farben die Projektfarben aus `project.Palette` der Konfiguration, damit Chart, Legende, Aktivitätsbalken und ein Projekt-Chip in der Trefferliste dasselbe sagen wie TUI und `total-recall chart`.
+- **Suche:** Treffer als Karten mit klarer Hierarchie: Session-Name zuerst, Zeit und Repo gedämpft, Actor als kleiner farbiger Chip, Snippet in der Monospace mit weicher Markierungsfarbe; Pfeiltasten und ++enter++ wie in der TUI.
+- **Statistik:** Hover-Tooltips an den Balken, Haarlinien-Raster, Periodenlabels, die sich auf schmalen Bildschirmen ausdünnen, Tabelle mit Tabellenziffern und fixiertem Kopf.
+- **Aktivität:** eine Zeile je Tag, Kernzeit als blasses Band, Wochenende und Feiertage schattiert, Projekt-Slots als runde Balken, heute markiert.
+- **Zustände:** Leerzustand mit einem Satz, Skelett erst nach 300 ms, Fehlerbanner, das die Ursache nennt, Live-Punkt mit Erklärung beim Hover.
+
+### Stylbar
+
+Zwei Ebenen, beide ohne Build:
+
+- **Themes als Token-Sätze.** Ein Theme ist eine CSS-Datei, die nur Variablen setzt (`:root[data-theme="…"]`). Die UI bringt zwei bis drei mit (hell, dunkel, vielleicht ein kontrastarmes „paper“); `data-theme` am `<html>` wählt, „system“ ist die Abwesenheit des Attributs wie beim Vorbild. Weil Komponenten nur Namen kennen, ist ein neues Theme eine Datei mit etwa 30 Zeilen.
+- **Eigenes CSS aus dem Config-Verzeichnis.** `serve` liefert eine optionale Datei `~/.config/total-recall/webui.css` unter `/user.css` aus (gleicher Origin, also erlaubt unter `style-src 'self'`), die Seite bindet sie nach den eigenen Styles ein. Wer eine Farbe oder Schrift ändern will, überschreibt Variablen; wer mehr will, hat die Klassen. Ein Schlüssel `theme` in `[serve]` wählt das Start-Theme. Keine Node-Toolchain nötig, kein Rebuild.
+
+### Vorgehen: Vorschläge sehen, visuell entscheiden
+
+Die Entscheidung über das Aussehen soll **am Bild** fallen, nicht am Code: Agenten machen Vorschläge, Stefan wählt und sagt, was ihm gefällt und was nicht; daraus entsteht das Design-Dokument. Konkret:
+
+1. **Varianten als Theme-Dateien.** Ein Vorschlag ist ein Token-Satz plus Schriftpaar, kein Umbau der Komponenten. Zwei bis drei Varianten je Runde (z. B. „Terminal“: Monospace-lastig, dunkel; „Papier“: warme Grautöne, Serife für Titel; „Werkbank“: kühle Grautöne, Sans, kräftiger Akzent), jede eine Datei unter `web/src/themes/`.
+2. **Screenshots je Variante, automatisch.** Das Playwright-Skript aus dem Spike (gegen `mise run serve:demo`, feste Uhr, Demo-Archiv) rendert jede Ansicht in jeder Variante bei 1200 px und 360 px, hell und dunkel, nach `docs/assets/webui/<variante>/`. Eine Runde ist ein Branch mit Bildern, kein laufender Server.
+3. **Auswahl und Rückmeldung in Worten.** Die Rückmeldung („die Serife ja, aber der Akzent zu laut; Tabellen wie in Variante 2“) geht in eine kurze Seite `docs/explanation/webui-design.md`: gewählte Tokens, gewählte Schriften, die Regeln, die Begründung, und was verworfen wurde. Die Seite ist das Design-System; `app.css` hält nur die Werte, wie beim Vorbild.
+4. **Nächste Runde aus der Rückmeldung.** Agenten leiten aus dem Text neue Varianten ab, wieder als Theme-Dateien, bis eine steht. Komponentenregeln (Chips, Karten, Tabellen, Zustände) kommen in einer zweiten Runde auf dieselbe Art.
+
+Das hält jede Runde billig (ein Token-Satz, ein Screenshot-Lauf), macht Vorschläge vergleichbar (dieselben Ansichten, dieselben Daten) und hinterlässt eine schriftliche Begründung, an der spätere Ansichten sich ausrichten. Werkzeuge erst, wenn sie gebraucht werden: Tailwind v4 für Utilities und Bits UI für kopflose Primitive (Select, Dialog, Segmented Control) nimmt das Vorbild; für drei lesende Ansichten reicht CSS mit Tokens, Bits UI lohnt sich mit der ersten Dialog- oder Menü-Komponente, also frühestens mit der Session-Detailansicht.
+
 ## Aufwandsschätzung { #aufwandsschaetzung }
 
 Grob, in Arbeitstagen, aufbauend auf dem Prototyp:
@@ -251,9 +287,10 @@ Grob, in Arbeitstagen, aufbauend auf dem Prototyp:
 | Config-Ansicht lesend (Status, Herkunft je Wert); schreibend mit denselben Locks wie die TUI | 1 lesend, 2 bis 3 schreibend |
 | Playwright-Screenshots gegen `serve:demo`, in `docs:screenshots` eingehängt | 1 |
 | Umstieg auf SvelteKit, falls die Ansichten das brauchen | 1 |
-| Design-Politur, Tastaturbedienung, Kopieren von IDs/Snippets | 1 bis 2 |
+| Gestaltung: Token-Rollen, Schriftpaar, Themes, `user.css`, Screenshot-Skript je Variante, Design-Seite; zwei bis drei Runden Vorschläge | 2 bis 3 |
+| Tastaturbedienung, Kopieren von IDs/Snippets | 1 |
 
-Bis zur Parität mit der TUI (Suche, Session, Statistik, Aktivität, Config) also etwa 8 bis 12 Tage; der abgespeckte Umfang unten etwa 4 bis 5.
+Bis zur Parität mit der TUI (Suche, Session, Statistik, Aktivität, Config) also etwa 10 bis 14 Tage; der abgespeckte Umfang unten mit Gestaltung etwa 6 bis 8.
 
 ## Empfehlung
 
@@ -276,8 +313,9 @@ Nicht angelegt, nur gelistet; Reihenfolge ist Abhängigkeit:
 5. **Aktivität je Tag:** Kalenderansicht aus `store.Workday`/`ProjectDays` (wie `stats --workday`), Feiertage und Soll aus `[work]`.
 6. **Screenshots reproduzierbar:** Playwright-Skript gegen `mise run serve:demo` mit fester Uhr, Ausgabe nach `docs/assets/webui/`, Prüfung in `docs:screenshots:check` (oder eigener Task `docs:webui:check`), Chromium nur für diesen Task.
 7. **Config `[serve]`:** Port, Poll-Intervall, `open`; Flags gehen vor. Erst wenn jemand sie braucht.
-8. **Build-Tag `noweb`** nur, wenn die 3,9 MiB stören; dann CI für beide Varianten.
-9. **SvelteKit-Umstieg** als Entscheidung nach Punkt 3, nicht vorher.
+8. **Gestaltung:** Token-Rollen und Schriftpaar festlegen, Themes als Dateien, `user.css` aus dem Config-Verzeichnis und `[serve] theme`, Screenshot-Skript je Variante, `docs/explanation/webui-design.md` als Design-System; Ablauf wie unter [Gestaltung](#gestaltung): Agenten liefern Varianten als Bilder, die Wahl fällt visuell, die Begründung steht in der Seite. Kann parallel zu Punkt 3 laufen, sobald Punkt 1 durch ist.
+9. **Build-Tag `noweb`** nur, wenn die 3,9 MiB stören; dann CI für beide Varianten.
+10. **SvelteKit-Umstieg** als Entscheidung nach Punkt 3, nicht vorher.
 
 ## Entfernungsanleitung
 
