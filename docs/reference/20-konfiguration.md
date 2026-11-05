@@ -38,7 +38,7 @@ Beispiel: `--db /tmp/test.db` schlägt `TOTAL_RECALL_DB`, und das schlägt `db =
 
 Beim Laden prüft jeder Befehl die Kerneinstellungen streng: Pfade, `timezone`, `day_start`, `[backup]`, `[ingest]`, `[redact]`, unbekannte Schlüssel und falsche Typen. Ein Fehler dort bricht jeden Befehl ab.
 
-Die Abschnitte `[work]`, `[worktime]`, `[tui]`, `[keys]` und die Liste `[[project]]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --by project`, `stats --workday`, `stats --worktime` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
+Die Abschnitte `[work]`, `[worktime]`, `[tui]`, `[chart]` (samt den Farben der Kategorien), `[keys]` und die Liste `[[project]]` werden erst geprüft, wenn ein Befehl sie braucht: `stats --by project`, `stats --workday`, `stats --worktime`, `chart` und `tui` brechen mit der Fehlermeldung ab, `config show` listet die Probleme unter der Tabelle und endet mit Exit-Code 1, `doctor` meldet sie als Befund (Exit-Code 2). Hooks, `ingest`, `search` und alle anderen Befehle laufen trotzdem. Ein Tippfehler in der Tastenbelegung oder der Arbeitszeit stoppt also nie die Archivierung.
 
 ## Vollständige Vorlage
 
@@ -80,6 +80,7 @@ scope = "category"               # category | project: was gerundet wird
 # [[worktime.category]]          # Regeln in Reihenfolge, die erste passende gewinnt
 # name = "kunde-a"
 # match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
+# color = "blue"                 # optional, Farbe in `chart worktime`: Palettenname oder "#rrggbb"
 
 [ingest]
 tool_result_max_bytes = 4096
@@ -118,6 +119,15 @@ stats_dimension = "project"      # project, agent, directory
 activity_window = "week"         # Aktivität beim Start: day, week, month
 activity_projects = false        # Balken der Aktivität beim Start in Projektfarben (p)
 reload = "5s"                    # Archiv auf Änderungen prüfen und neu laden; "0" = aus (--reload)
+
+[chart]
+format = "svg"                   # svg | png (--format)
+scale = 1.0                      # Größenfaktor (--scale); --width/--height setzen die Größe
+title = true                     # Überschrift (--no-title)
+legend = true                    # Legende (--no-legend)
+transparent = false              # true = ohne weißen Hintergrund (--transparent)
+top = 12                         # Projekte in `chart projects`, Rest als other; 0 = alle (--top)
+heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]   # Stufen des Kalenders, hell nach dunkel
 
 [keys]
 # Tastenbelegung der TUI, Aktion = Taste oder Liste; siehe TUI, „Tastenbelegung anpassen“
@@ -267,12 +277,13 @@ Arbeitszeit je Projekt und Tag aus deinen eigenen Nachrichten ([`stats --worktim
 :   Länge des Buchungstexts je Kategorie und Tag, den [`stats --worktime --summary`](10-befehle.md#stats-worktime) aus den Session-Titeln und den Issue-/PR-Referenzen deiner Nachrichten baut, in Zeichen; ein längerer Text endet mit `…`. `0` schaltet die Grenze ab, negativ ist ein Fehler. Default: `200`.
 
 `[[worktime.category]]`
-:   Regeln, die Projekte Kategorien zuordnen, in der Reihenfolge der Datei; die erste passende gewinnt. Je Regel `name` (die Kategorie) und `match` (ein Muster oder eine Liste). Ein Muster wird als Ganzes gegen den Projektnamen (wie bei `stats --by project`, also den Namen aus [`[[project]]`](#project), wenn eine Definition passt), den Git-Root bzw. das Arbeitsverzeichnis (als Pfad und mit `~` für das Home-Verzeichnis) und die Remote-URL geprüft; `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Projekt ohne passende Regel ist seine eigene Kategorie und heißt wie das Projekt. Eine letzte Regel mit `match = "*"` sammelt den Rest. Gleiche Namen zweimal, eine Regel ohne Namen oder ohne Muster sind Fehler. Default: keine Regeln.
+:   Regeln, die Projekte Kategorien zuordnen, in der Reihenfolge der Datei; die erste passende gewinnt. Je Regel `name` (die Kategorie) und `match` (ein Muster oder eine Liste). Ein Muster wird als Ganzes gegen den Projektnamen (wie bei `stats --by project`, also den Namen aus [`[[project]]`](#project), wenn eine Definition passt), den Git-Root bzw. das Arbeitsverzeichnis (als Pfad und mit `~` für das Home-Verzeichnis) und die Remote-URL geprüft; `*` steht für beliebigen Text, auch über `/` hinweg, `?` für ein Zeichen, alles andere ist wörtlich. Ein Projekt ohne passende Regel ist seine eigene Kategorie und heißt wie das Projekt. Eine letzte Regel mit `match = "*"` sammelt den Rest. Gleiche Namen zweimal, eine Regel ohne Namen oder ohne Muster sind Fehler. Optional `color`: die Farbe der Kategorie in [`chart worktime`](10-befehle.md#chart), ein Name der Palette (`blue`, `orange`, `green`, `red`, `purple`, `teal`, wie bei `[[project]]`) oder `#rrggbb`; ohne Farbe nimmt die Grafik die nächste freie Reihenfarbe. Eine falsche Farbe ist ein Fehler für `chart`, nicht für `stats --worktime`. Default: keine Regeln.
 
 ```toml
 [[worktime.category]]
 name = "kunde-a"
 match = ["https://github.com/kunde-a/*", "~/src/kunde-a-*"]
+color = "blue"
 
 [[worktime.category]]
 name = "intern"
@@ -344,6 +355,28 @@ Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansich
 
 `reload`
 :   Intervall, in dem die TUI das Archiv auf Änderungen prüft und die sichtbare Ansicht neu lädt, siehe [Neuladen](30-tui.md#neuladen). Eine Dauer wie `"5s"` oder `"1m"`, mindestens `"1s"`; `"0"` schaltet das Neuladen ab (`R` lädt dann noch von Hand). Override: `--reload`. Default: `"5s"`.
+
+### `[chart]` { #chart }
+
+Defaults für [`total-recall chart`](10-befehle.md#chart), die Grafiken für Monatsberichte; Flags gehen vor. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md).
+
+`format`
+:   `svg` oder `png`. Override: `--format`. Default: `svg`.
+
+`scale`
+:   Faktor auf die natürliche Größe, größer als 0 und höchstens 16; `--width` oder `--height` setzen stattdessen die Größe in Pixeln. Override: `--scale`. Default: `1.0`.
+
+`title`, `legend`
+:   Überschrift und Legende zeichnen. Override für einen Lauf: `--no-title`, `--no-legend`. Default: `true`.
+
+`transparent`
+:   `true` lässt den weißen Hintergrund weg. Override: `--transparent`. Default: `false`.
+
+`top`
+:   Projekte in `chart projects`; der Rest wird zu `other`, `0` zeigt alle. Override: `--top`. Default: `12`.
+
+`heatmap`
+:   Farbstufen des Kalenders von hell nach dunkel, je Stufe ein Palettenname oder `#rrggbb`, mindestens eine; die Zahl der Einträge ist die Zahl der Stufen. Default: `["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]`.
 
 ### `[keys]` { #keys }
 
