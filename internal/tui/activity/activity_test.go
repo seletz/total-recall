@@ -1,9 +1,12 @@
 package activity
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"image/color"
+	"io"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
+	"github.com/charmbracelet/x/exp/teatest/v2"
 
 	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/store"
@@ -325,10 +329,10 @@ func (l *countingLoader) Workday(ctx context.Context, f store.WorkdayFilter) ([]
 	return l.st.Workday(ctx, f)
 }
 
-func (l *countingLoader) ProjectDays(ctx context.Context, f store.WorkdayFilter) (store.ProjectDays, error) {
+func (l *countingLoader) ProjectDays(ctx context.Context, f store.WorkdayFilter) ([]store.ProjectDay, error) {
 	l.projectCalls.Add(1)
 	if l.projectErr != nil {
-		return store.ProjectDays{}, l.projectErr
+		return nil, l.projectErr
 	}
 	return l.st.ProjectDays(ctx, f)
 }
@@ -339,9 +343,11 @@ func TestLoadError(t *testing.T) {
 	golden.RequireEqual(t, tuitest.Frame(m))
 }
 
-// TestCache checks that a filter combination is loaded once: switching
-// back to a seen window or counting mode shows the cached days without a
-// command; scrolling never loads.
+// TestCache checks how often the days are queried: a load fetches the
+// window with a period's worth of days (at least seven) in front and
+// behind, so the neighbouring periods and the next day steps come from
+// the cache; scrolling the rows never loads, a window seen before is
+// shown without a command, and a held key fetches once per margin.
 func TestCache(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	tests := []struct {
@@ -352,14 +358,19 @@ func TestCache(t *testing.T) {
 		{"start", nil, 1},
 		{"same period again", []string{"w"}, 1},
 		{"current again", []string{"c"}, 1},
-		{"period back and forth", []string{"d", "w"}, 2},
-		{"last and current", []string{"l", "c", "l"}, 2},
-		{"shift back and forth", []string{"[", "]"}, 2},
-		{"shift equals last", []string{"[", "l"}, 2},
+		{"day of the week is prefetched", []string{"d", "w"}, 1},
+		{"last week is prefetched", []string{"l", "c", "l"}, 1},
+		{"shift back and forth", []string{"[", "]"}, 1},
+		{"two weeks back loads once", []string{"[", "[", "]", "]", "[", "["}, 2},
 		{"all events back and forth", []string{"h", "h", "h"}, 2},
+		{"month loads once, last month is prefetched", []string{"m", "l", "]", "l"}, 2},
 		{"scrolling does not load", []string{"m", "j", "j", "k"}, 2},
-		{"day step loads once per window", []string{"k", "j", "k"}, 2},
+		{"day steps within the margin", []string{"k", "j", "k"}, 1},
 		{"day step at the limit does not load", []string{"j", "j"}, 1},
+		{"seven days back come from the margin", repeat("k", 7), 1},
+		{"held key fetches once per margin", repeat("k", 14), 2},
+		{"held key over three margins", repeat("k", 21), 3},
+		{"single day steps a week back", append([]string{"d"}, repeat("k", 7)...), 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -372,23 +383,154 @@ func TestCache(t *testing.T) {
 	}
 }
 
-// TestStaleResultDropped checks that the answer to an older load does not
-// replace the current data, but is cached.
+// dayRow matches a day row of the frame.
+var dayRow = regexp.MustCompile(`(?m)^ (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} `)
+
+// wheel repeats the wheel message n times.
+func wheel(msg tea.MouseWheelMsg, n int) []tea.Msg {
+	out := make([]tea.Msg, n)
+	for i := range out {
+		out[i] = msg
+	}
+	return out
+}
+
+// TestScrollKeepsContent sends day steps and wheel turns one message at a
+// time and looks at the frame after every step before its command has
+// run, the way a terminal shows them: every frame has the day rows, the
+// headline and the figures of a complete window and the body height, no
+// frame shows a loading or an empty state, and the frame changes only to
+// a window whose days are all at hand; a step whose answer is pending
+// leaves it as it was. Once the answers are in, the frame is the one the
+// steps reach when every command runs at once.
+func TestScrollKeepsContent(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	up := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelUp}
+	down := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelDown}
+	tests := []struct {
+		name  string
+		setup []string // keys driven to completion first
+		msgs  []tea.Msg
+		rows  int // day rows on screen
+	}{
+		{"keys", nil, tuitest.Keys(repeat("k", 10)...), 7},
+		{"arrows", nil, tuitest.Keys(repeat("up", 16)...), 7},
+		{"wheel", nil, wheel(up, 10), 7},
+		{"wheel back and forth", nil, append(wheel(up, 9), wheel(down, 4)...), 7},
+		{"periods", nil, tuitest.Keys("[", "[", "[", "]", "k", "k"), 7},
+		{"month", []string{"m"}, wheel(up, 35), 18},
+		{"month scrolled to the end", []string{"m", "l"}, append(tuitest.Keys(repeat("j", 13)...), wheel(down, 20)...), 18},
+		{"single day", []string{"d"}, tuitest.Keys(repeat("k", 10)...), 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var tm tea.Model = drive(t, newModel(t, st), tt.setup...)
+			prev := tuitest.Frame(tm)
+			var cmds []tea.Cmd
+			for i, msg := range tt.msgs {
+				var cmd tea.Cmd
+				tm, cmd = tm.Update(msg)
+				m, f := tm.(Model), tuitest.Frame(tm)
+				if strings.Contains(strings.ToLower(f), "loading") {
+					t.Errorf("step %d shows a loading state:\n%s", i, f)
+				}
+				if got := len(dayRow.FindAllString(f, -1)); got != tt.rows {
+					t.Errorf("step %d shows %d day rows, want %d:\n%s", i, got, tt.rows, f)
+				}
+				if m.shown.span.period() != store.PeriodDay && !strings.Contains(f, "median") {
+					t.Errorf("step %d lost the figures:\n%s", i, f)
+				}
+				if got := strings.Count(f, "\n"); got != bodySize.Height {
+					t.Errorf("step %d has %d lines, want %d", i, got, bodySize.Height)
+				}
+				if f != prev && !m.shown.span.equal(m.span) {
+					t.Errorf("step %d changed the frame before its answer arrived:\n%s", i, f)
+				}
+				if cmd != nil && f != prev {
+					t.Errorf("step %d started a query and changed the frame:\n%s", i, f)
+				}
+				prev = f
+				cmds = append(cmds, cmd)
+			}
+			for _, cmd := range cmds {
+				tm = tuitest.Run(t, tm, cmd)
+			}
+			want := tuitest.Drive(t, newModel(t, st), append(append([]tea.Msg{bodySize}, tuitest.Keys(tt.setup...)...), tt.msgs...)...)
+			if got, w := tuitest.Frame(tm), tuitest.Frame(want); got != w {
+				t.Errorf("after the answers:\n%s\nwant:\n%s", got, w)
+			}
+			if tm.(Model).pending != nil {
+				t.Error("a query is still pending after every answer")
+			}
+		})
+	}
+}
+
+// TestProgramScroll holds ↑ in a test program, where the answers arrive
+// asynchronously: the output after the first complete frame (WaitFor
+// consumes the output up to it) never paints a loading state, and the
+// final frame is the one of the synchronous drive. The renderer paints a
+// line from its first to its last changed cell, so the end of the window
+// label is waited for: it is painted in one piece and names the last
+// window only.
+func TestProgramScroll(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	tm := tuitest.New(t, newModel(t, st))
+	tuitest.WaitFor(t, tm, "week:")
+	tuitest.Press(tm, repeat("k", 20)...)
+	tuitest.WaitFor(t, tm, "– 2025-12-22")
+	_ = tm.Quit()
+	out, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(tuitest.Timeout)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(bytes.ToLower(out), []byte("loading")) {
+		t.Error("a loading state was painted while scrolling")
+	}
+	want := tuitest.Drive(t, newModel(t, st), append([]tea.Msg{tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}}, tuitest.Keys(repeat("k", 20)...)...)...)
+	final := tm.FinalModel(t, teatest.WithFinalTimeout(tuitest.Timeout)).(Model)
+	if got, w := tuitest.Frame(final), tuitest.Frame(want); got != w {
+		t.Errorf("final frame:\n%s\nwant:\n%s", got, w)
+	}
+}
+
+// TestStaleResultDropped checks the two rules for late answers: one from
+// before a reload belongs to a cache that is gone, so it is neither shown
+// nor cached, however current its days look; one of the current
+// generation fills the cache, even when its query was superseded, and is
+// shown when it completes the window wanted now.
 func TestStaleResultDropped(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	m := drive(t, newModel(t, st))
-	// Start a load for last week but do not run its command; then switch
-	// back to this week (cached) and deliver the stale answer.
+	before, cached := tuitest.Frame(m), len(m.cache)
+	// Seven inactive days in place of this week: shown, the headline
+	// would say 0 days.
+	var days []store.Workday
+	for day := m.span.since(); day.Before(m.span.until()); day = day.AddDate(0, 0, 1) {
+		days = append(days, store.Workday{Day: day, Label: day.Format("2006-01-02")})
+	}
 	var tm tea.Model
-	var cmd tea.Cmd
-	tm, cmd = m.Update(tuitest.Key("l"))
-	stale := cmd()
-	tm, cmd = tm.Update(tuitest.Key("c"))
-	tm = tuitest.Run(t, tm, cmd)
-	tm, _ = tm.Update(stale)
-	m = tm.(Model)
-	if !strings.Contains(tuitest.Frame(m), "2026-01-05 – 2026-01-11") || len(m.cache) != 2 {
-		t.Errorf("stale result changed the view or was not cached:\n%s", tuitest.Frame(m))
+	tm, _ = m.Update(resultMsg{gen: m.gen - 1, humanOnly: true, days: days})
+	got := tm.(Model)
+	if f := tuitest.Frame(got); f != before || len(got.cache) != cached {
+		t.Errorf("an answer of an older generation changed the view or the cache:\n%s", f)
+	}
+	tm, _ = m.Update(resultMsg{gen: m.gen, id: 99, humanOnly: true, days: days})
+	got = tm.(Model)
+	if f := tuitest.Frame(got); !strings.Contains(f, "in 0 days") || len(got.cache) != cached {
+		t.Errorf("a late answer of the current generation was not shown from the cache:\n%s", f)
+	}
+	// A reload cancels the running query; the error of the cancelled one
+	// is not an error of the view.
+	tm, first := m.Reload()
+	tm, second := tm.(Model).Reload()
+	tm, _ = tm.Update(first())
+	if f := tuitest.Frame(tm); f != before {
+		t.Errorf("the cancelled query changed the view:\n%s", f)
+	}
+	tm = tuitest.Run(t, tm, second)
+	if f := tuitest.Frame(tm); f != before {
+		t.Errorf("the reload changed the view:\n%s", f)
 	}
 }
 
@@ -519,7 +661,7 @@ func TestClick(t *testing.T) {
 			if m.span.period() != tt.period || m.humanOnly != tt.human || m.figures != tt.figures {
 				t.Errorf("period = %v, humanOnly = %v, figures = %v; want %v, %v, %v", m.span.period(), m.humanOnly, m.figures, tt.period, tt.human, tt.figures)
 			}
-			if !m.loaded {
+			if !m.shown.loaded {
 				t.Error("not loaded after the click")
 			}
 		})

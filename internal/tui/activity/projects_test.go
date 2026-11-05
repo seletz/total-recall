@@ -32,34 +32,44 @@ func TestProjectRanks(t *testing.T) {
 	mon := time.Date(2026, 1, 5, 0, 0, 0, 0, loc)
 	h, m := time.Hour, time.Minute
 	day := store.Workday{Day: mon, Label: "2026-01-05", First: mon.Add(9*h + 15*m), Last: mon.Add(13 * h)}
-	slot := func(p int, off time.Duration, n int) store.ProjectSlot {
-		return store.ProjectSlot{Project: p, Offset: off, Events: n}
+	type slot struct {
+		project int
+		off     time.Duration
+		n       int
 	}
 	tests := []struct {
-		name  string
-		keys  int // projects of the window
-		slots []store.ProjectSlot
-		want  string
+		name    string
+		keys    int // projects of the window, ranked a, b, c, … by volume
+		covered bool
+		slots   []slot
+		want    string
 	}{
-		{"not covered", 3, nil, "·····████────│··········"},
-		{"most events win, tie to the larger project, gap",
-			3, []store.ProjectSlot{slot(0, 5*h, 1), slot(1, 5*h+30*m, 1), slot(0, 6*h+5*m, 1), slot(1, 6*h+10*m, 2), slot(2, 8*h+59*m, 1)},
+		{"not covered", 3, false, nil, "·····████────│··········"},
+		{"most events win, tie to the larger project, gap", 3, true,
+			[]slot{{0, 5 * h, 1}, {1, 5*h + 30*m, 1}, {0, 6*h + 5*m, 1}, {1, 6*h + 10*m, 2}, {2, 8*h + 59*m, 1}},
 			"·····█▓░▒────│··········"},
-		{"beyond the palette is the rest", 8, []store.ProjectSlot{slot(7, 5*h, 1), slot(6, 6*h, 1), slot(5, 7*h, 1), slot(0, 8*h, 1)},
+		{"beyond the palette is the rest", 8, true, []slot{{7, 5 * h, 1}, {6, 6 * h, 1}, {5, 7 * h, 1}, {0, 8 * h, 1}},
 			"·····▪▪▌█────│··········"},
-		{"events outside the span keep the background", 1, []store.ProjectSlot{slot(0, 2*h, 1), slot(0, 5*h, 1), slot(0, 20*h, 1)},
+		{"events outside the span keep the background", 1, true, []slot{{0, 2 * h, 1}, {0, 5 * h, 1}, {0, 20 * h, 1}},
 			"·····█░░░────│··········"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data := store.ProjectDays{Keys: make([]string, tt.keys)}
-			for i := range data.Keys {
-				data.Keys[i] = string(rune('a' + i))
+			// Every project has a day's worth of events in volume order,
+			// so the ranks are a, b, c, …; the slots are the cells' events.
+			pd := store.ProjectDay{Day: mon, Label: "2026-01-05"}
+			for i := range tt.keys {
+				pd.Projects = append(pd.Projects, store.DayProject{Key: string(rune('a' + i)), Events: 100 - i})
 			}
-			if tt.slots != nil {
-				data.Days = []store.ProjectDay{{Day: mon, Label: "2026-01-05", Slots: tt.slots}}
+			for _, s := range tt.slots {
+				p := &pd.Projects[s.project]
+				p.Slots = append(p.Slots, store.ProjectSlot{Offset: s.off, Events: s.n})
 			}
-			m := Model{opts: Options{Colors: &chart.Colors{}}, th: theme.New(true), styles: newStyles(theme.New(true)), proj: projects{on: true, data: data}}
+			sh := shown{byProject: true, projects: []store.ProjectDay{pd}, loaded: true}
+			if !tt.covered {
+				sh.projects = []store.ProjectDay{{Day: mon.AddDate(0, 0, 1), Label: "2026-01-06", Projects: pd.Projects}}
+			}
+			m := Model{opts: Options{Colors: &chart.Colors{}}, th: theme.New(true), styles: newStyles(theme.New(true)), shown: sh}
 			l := layout{loc: loc, dayStart: 4 * time.Hour, work: work, bar: 24, styles: m.styles, projects: m.projectLayout()}
 			cells := l.cells(day)
 			if got := stripANSI(l.projects.bar(l, cells, day)); got != tt.want {
@@ -167,7 +177,7 @@ func TestProjectSharedColors(t *testing.T) {
 	// Alpha leads last month but took the third colour.
 	for i, want := range []color.Color{chart.Palette[2], chart.Palette[1], chart.Palette[0]} {
 		if got := p.styles[i].GetForeground(); !sameColor(got, want) {
-			t.Errorf("project %d (%s) = %v, want %v", i, m.proj.data.Keys[i], got, want)
+			t.Errorf("project %d (%s) = %v, want %v", i, p.keys[i], got, want)
 		}
 	}
 }
@@ -204,10 +214,12 @@ func TestProjectNoColor(t *testing.T) {
 	}
 }
 
-// TestProjectCache checks that the project data is loaded once per window
-// and counting mode, only while the bars are by project, and never by
-// scrolling or toggling back to a seen window; the days are not loaded
-// again by the toggle.
+// TestProjectCache checks how often the query runs with the bars by
+// project: the project days come with the days in the one query of a
+// load, with the same prefetch, so day steps and the neighbouring periods
+// come from the cache; turning the colouring on for a window whose days
+// are cached loads once more (the project days are missing), turning it
+// off and on again loads nothing, and scrolling never loads.
 func TestProjectCache(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	tests := []struct {
@@ -215,20 +227,26 @@ func TestProjectCache(t *testing.T) {
 		keys          []string
 		loads, pLoads int32
 	}{
-		{"off loads nothing", []string{"l", "m"}, 3, 0},
-		{"on loads once", []string{"p"}, 1, 1},
-		{"toggle keeps the cache", []string{"p", "p", "p"}, 1, 1},
-		{"toggle does not reload the days", []string{"l", "p"}, 2, 1},
-		{"window back and forth", []string{"p", "l", "c", "l"}, 2, 2},
-		{"counting mode", []string{"p", "h", "h"}, 2, 2},
-		{"scrolling does not load", []string{"p", "m", "l", "j", "j", "k"}, 3, 3},
-		{"day step loads once per window", []string{"p", "k", "j", "k"}, 2, 2},
-		{"a window seen while off loads once on", []string{"l", "p", "c", "l"}, 2, 2},
+		{"off loads nothing", []string{"l", "m"}, 2, 0},
+		{"on loads the window once more", []string{"p"}, 2, 1},
+		{"toggle keeps the cache", []string{"p", "p", "p"}, 2, 1},
+		{"on at the start loads once", []string{"P"}, 1, 1},
+		{"last week is prefetched", []string{"p", "l", "c", "l"}, 2, 1},
+		{"counting mode", []string{"p", "h", "h"}, 3, 2},
+		{"scrolling does not load", []string{"p", "m", "l", "j", "j", "k"}, 3, 2},
+		{"day steps within the margin", []string{"p", "k", "j", "k"}, 2, 1},
+		{"held key fetches once per margin", append([]string{"p"}, repeat("k", 14)...), 3, 2},
+		{"a window seen while off loads once on", []string{"l", "p", "c", "l"}, 2, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := &countingLoader{st: st}
-			drive(t, newModel(t, l), tt.keys...)
+			m := newModel(t, l)
+			if len(tt.keys) > 0 && tt.keys[0] == "P" {
+				m = New(Options{Loader: l, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Holidays: holidays, HumanOnly: true, Projects: true})
+				tt.keys = tt.keys[1:]
+			}
+			drive(t, m, tt.keys...)
 			if got, pgot := l.calls.Load(), l.projectCalls.Load(); got != tt.loads || pgot != tt.pLoads {
 				t.Errorf("loads = %d, project loads = %d; want %d, %d", got, pgot, tt.loads, tt.pLoads)
 			}
@@ -247,8 +265,72 @@ func TestProjectStart(t *testing.T) {
 	if !m.proj.on || !strings.Contains(f, "bars: hours [projects]") || !strings.Contains(f, "projects: █") {
 		t.Errorf("bars are not by project at start:\n%s", f)
 	}
-	if l.projectCalls.Load() != 1 {
-		t.Errorf("project loads = %d, want 1", l.projectCalls.Load())
+	if l.projectCalls.Load() != 1 || l.calls.Load() != 1 {
+		t.Errorf("loads = %d, project loads = %d; want 1, 1", l.calls.Load(), l.projectCalls.Load())
+	}
+}
+
+// TestProjectScrollKeepsContent is TestScrollKeepsContent with the bars by
+// project: every frame while the answers are pending shows a complete
+// window with its legend, and the frame changes only to a window whose
+// days and project days are all at hand. Turning the colouring on or off
+// for a window not yet cached that way keeps the frame as well, until the
+// answer arrives.
+func TestProjectScrollKeepsContent(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	up := tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelUp}
+	tests := []struct {
+		name  string
+		setup []string // keys driven to completion first
+		msgs  []tea.Msg
+		rows  int // day rows on screen
+	}{
+		{"keys", []string{"p"}, tuitest.Keys(repeat("k", 10)...), 7},
+		{"wheel", []string{"p"}, wheel(up, 10), 7},
+		{"periods", []string{"p"}, tuitest.Keys("[", "[", "[", "]", "k", "k"), 7},
+		{"month", []string{"p", "m"}, wheel(up, 35), 17},
+		{"single day", []string{"p", "d"}, tuitest.Keys(repeat("k", 10)...), 1},
+		{"on and off while scrolling", []string{"p"}, tuitest.Keys("[", "[", "p", "k", "p", "k", "h", "p"), 7},
+		{"turning on", []string{"[", "["}, tuitest.Keys("p"), 7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var tm tea.Model = drive(t, newModel(t, st), tt.setup...)
+			prev := tuitest.Frame(tm)
+			var cmds []tea.Cmd
+			for i, msg := range tt.msgs {
+				var cmd tea.Cmd
+				tm, cmd = tm.Update(msg)
+				m, f := tm.(Model), tuitest.Frame(tm)
+				if strings.Contains(strings.ToLower(f), "loading") {
+					t.Errorf("step %d shows a loading state:\n%s", i, f)
+				}
+				if got := len(dayRow.FindAllString(f, -1)); got != tt.rows {
+					t.Errorf("step %d shows %d day rows, want %d:\n%s", i, got, tt.rows, f)
+				}
+				if m.shown.byProject != strings.Contains(f, "projects: ") {
+					t.Errorf("step %d: legend does not match the shown mode:\n%s", i, f)
+				}
+				if got := strings.Count(f, "\n"); got != bodySize.Height {
+					t.Errorf("step %d has %d lines, want %d", i, got, bodySize.Height)
+				}
+				if cmd != nil && f != prev {
+					t.Errorf("step %d started a query and changed the frame:\n%s", i, f)
+				}
+				prev = f
+				cmds = append(cmds, cmd)
+			}
+			for _, cmd := range cmds {
+				tm = tuitest.Run(t, tm, cmd)
+			}
+			want := tuitest.Drive(t, newModel(t, st), append(append([]tea.Msg{bodySize}, tuitest.Keys(tt.setup...)...), tt.msgs...)...)
+			if got, w := tuitest.Frame(tm), tuitest.Frame(want); got != w {
+				t.Errorf("after the answers:\n%s\nwant:\n%s", got, w)
+			}
+			if tm.(Model).pending != nil {
+				t.Error("a query is still pending after every answer")
+			}
+		})
 	}
 }
 
@@ -257,39 +339,31 @@ func TestProjectStart(t *testing.T) {
 // older window is cached but not shown.
 func TestProjectStaleStays(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
-	m := drive(t, newModel(t, st), "p")
-	before := m.legend()
-	// Start the loads for last week and run them, but do not deliver the
-	// answers yet.
+	// Last week is prefetched; two weeks back are not.
+	m := drive(t, newModel(t, st), "p", "[")
+	before := tuitest.Frame(m)
 	var tm tea.Model
 	var cmd tea.Cmd
-	tm, cmd = m.Update(tuitest.Key("l"))
+	tm, cmd = m.Update(tuitest.Key("["))
 	m = tm.(Model)
-	if m.legend() != before {
-		t.Errorf("legend changed before the answer:\n%s\n%s", stripANSI(before), stripANSI(m.legend()))
+	if cmd == nil || tuitest.Frame(m) != before {
+		t.Fatalf("[ did not start a load or changed the frame:\n%s", tuitest.Frame(m))
 	}
-	batch, ok := cmd().(tea.BatchMsg)
-	if !ok || len(batch) != 2 {
-		t.Fatalf("l did not start two loads: %T", cmd())
-	}
-	var stale []tea.Msg
-	for _, c := range batch {
-		stale = append(stale, c())
-	}
-	// Back to this week (cached), then deliver the stale answers.
+	stale := cmd()
+	cached := len(m.proj.cache)
+	// Back to this week (cached), then deliver the stale answer.
 	tm, back := m.Update(tuitest.Key("c"))
 	tm = tuitest.Run(t, tm, back)
-	for _, msg := range stale {
-		tm, _ = tm.Update(msg)
-	}
+	this := tuitest.Frame(tm)
+	tm, _ = tm.Update(stale)
 	m = tm.(Model)
-	if m.legend() != before || len(m.proj.cache) != 2 {
-		t.Errorf("stale answer changed the legend or was not cached (%d cached):\n%s", len(m.proj.cache), stripANSI(m.legend()))
+	if f := tuitest.Frame(m); f != this || len(m.proj.cache) <= cached {
+		t.Errorf("stale answer changed the frame or was not cached (%d cached):\n%s", len(m.proj.cache), f)
 	}
 }
 
-// TestProjectLoadError: a failing project query names its error in the
-// legend; the days are still shown.
+// TestProjectLoadError: a failing project query is the query's error, so
+// the hint and the status line name it.
 func TestProjectLoadError(t *testing.T) {
 	st, _ := fixturedb.Activity(t)
 	l := &countingLoader{st: st, projectErr: errors.New("boom")}
@@ -309,14 +383,15 @@ func TestProjectReload(t *testing.T) {
 		}
 		m := drive(t, newModel(t, l), keys...)
 		before := tuitest.Frame(m)
+		calls := l.calls.Load()
 		tm, cmd := m.Reload()
 		m = tuitest.Run(t, tm, cmd).(Model)
 		want := int32(0)
 		if on {
 			want = 2
 		}
-		if l.projectCalls.Load() != want || l.calls.Load() != 2 {
-			t.Errorf("on=%v: loads = %d, project loads = %d; want 2, %d", on, l.calls.Load(), l.projectCalls.Load(), want)
+		if l.projectCalls.Load() != want || l.calls.Load() != calls+1 {
+			t.Errorf("on=%v: loads = %d, project loads = %d; want %d, %d", on, l.calls.Load(), l.projectCalls.Load(), calls+1, want)
 		}
 		if got := tuitest.Frame(m); got != before {
 			t.Errorf("on=%v: reload changed the frame:\n%s\n%s", on, before, got)

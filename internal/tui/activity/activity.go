@@ -25,16 +25,25 @@
 // view does not run into the future beyond what the current week or month
 // shows anyway.
 //
-// Every change of window or counting mode loads a store.Workday as a
-// command; results carry the sequence number of the change they belong
-// to, so a slow answer to an older change is dropped. Loaded days are
-// cached per filter, so switching back is instant. The chart is text only:
-// a row per day is a table as much as a chart, so there is no image path.
+// The days are cached one by one per counting mode. A window whose days
+// are all in the cache is shown at once; otherwise one store.Workday
+// query runs as a command for the window plus a period's worth of days
+// (at least seven) in front and behind, so the next day steps and the
+// neighbouring periods come from the cache too. While an answer is
+// pending the body keeps showing the days it has (the shown snapshot): no
+// loading or empty state appears between two windows, and steps that stay
+// within the pending range wait for that one answer instead of starting
+// their own. Answers carry the generation of the cache they were asked
+// for; a reload starts a new generation, so an answer from before it is
+// dropped. The chart is text only: a row per day is a table as much as a
+// chart, so there is no image path and nothing is transmitted again.
 //
 // The key p colours the bars by project instead (see projects.go): every
 // cell takes the project with the most counted events in its time range,
 // in the colour the stats view gives the project, with a legend below the
-// rows. The project data is a second query per window, cached alike.
+// rows. While the colouring is on, the query fetches the project days
+// (store.ProjectDays) along with the days, they are cached alike, and the
+// window is shown once both are at hand.
 package activity
 
 import (
@@ -64,7 +73,7 @@ const MinBarWidth = 12
 // implements it.
 type Loader interface {
 	Workday(ctx context.Context, f store.WorkdayFilter) ([]store.Workday, error)
-	ProjectDays(ctx context.Context, f store.WorkdayFilter) (store.ProjectDays, error)
+	ProjectDays(ctx context.Context, f store.WorkdayFilter) ([]store.ProjectDay, error)
 }
 
 // Options configure the view.
@@ -93,10 +102,10 @@ type Options struct {
 	// switches to all events and back.
 	HumanOnly bool
 	// Projects starts the view with the bars coloured by project; the key
-	// p switches back and forth.
+	// p switches to the working hours and back.
 	Projects bool
 	// Home is the home directory, abbreviated to "~" in the project names
-	// of directories without a repository; empty keeps full paths.
+	// of the legend; empty means no abbreviation.
 	Home string
 	// Colors maps the projects to their colours; share the app's with the
 	// stats view, so a project looks alike in both. nil means own colours.
@@ -115,40 +124,81 @@ func (o *Options) defaults() {
 	}
 }
 
-// filter is one cache key: the parameters of a load.
-type filter struct {
-	since, until int64 // unix seconds
-	humanOnly    bool
+// dayKey identifies a cached day: its local midnight and the counting
+// mode it was counted under.
+type dayKey struct {
+	day       int64 // unix seconds of the local midnight
+	humanOnly bool
 }
 
-// resultMsg is the answer of one load; it is shown only when seq is still
-// the current sequence, and cached in any case.
+// margin is the least number of days a query fetches in front of and
+// behind the window; a period longer than that fetches a period's worth.
+const margin = 7
+
+// query is one running load: the days it covers, whether it fetches the
+// project days too, and how to cancel it.
+type query struct {
+	id           uint64
+	since, until time.Time // local midnights, the days [since, until)
+	humanOnly    bool
+	projects     bool
+	cancel       context.CancelFunc
+}
+
+// covers reports whether the query's answer will hold every day of s
+// counted as humanOnly says, with the project days when projects is set.
+func (q *query) covers(s span, humanOnly, projects bool) bool {
+	return q != nil && q.humanOnly == humanOnly && (q.projects || !projects) && !s.since().Before(q.since) && !s.until().After(q.until)
+}
+
+// resultMsg is the answer of one query. gen is the cache generation it
+// was asked for and id the query; an answer of an older generation is
+// dropped, a successful one of the current generation is cached whether
+// or not its query is still the pending one. projects holds the project
+// days of the same range when the query fetched them.
 type resultMsg struct {
-	seq    uint64
-	filter filter
-	days   []store.Workday
-	took   time.Duration
-	err    error
+	gen, id      uint64
+	since, until time.Time
+	humanOnly    bool
+	days         []store.Workday
+	projects     []store.ProjectDay
+	took         time.Duration
+	err          error
+}
+
+// shown is what the body renders: the days of one window under one
+// counting mode, by project or by working hours. It changes only when
+// every day of the window wanted now is at hand (with the colouring on,
+// its project days too), so the rows, the headline, the figures and the
+// legend stay on screen while an answer is pending.
+type shown struct {
+	span      span
+	humanOnly bool
+	days      []store.Workday
+	byProject bool               // the bars are by project
+	projects  []store.ProjectDay // the window's project days while byProject
+	loaded    bool               // days holds the window's data (false until the first answer)
 }
 
 // Model is the activity view.
 type Model struct {
 	opts      Options
 	keys      KeyMap
-	span      span // the days shown
+	span      span // the days wanted; shown.span once they are at hand
 	humanOnly bool
-	figures   bool // the summary figures are shown (week and month)
+	figures   bool     // the summary figures are shown (week and month)
+	proj      projects // the bars by project, see projects.go
 
-	seq    uint64
-	cancel context.CancelFunc
-
-	cache   map[filter][]store.Workday
-	loaded  bool // days holds the data of the current filter
-	loading bool
-	days    []store.Workday
-	took    time.Duration
+	// gen is the cache generation: Reload starts a new one and drops the
+	// cache, answers of an older generation are ignored. pending is the
+	// running query, nil while idle.
+	gen     uint64
+	seq     uint64 // numbers the queries
+	pending *query
+	cache   map[dayKey]store.Workday
+	shown   shown
+	took    time.Duration // the query that completed the shown window; 0 from the cache
 	err     error
-	proj    projects // the bars by project, see projects.go
 
 	offset        int // first visible day row
 	initCmd       tea.Cmd
@@ -168,12 +218,13 @@ func New(opts Options) Model {
 		keys:      newKeyMap(opts.Keys),
 		span:      single(initialPeriod(opts.Window), opts.Now(), opts.Location),
 		humanOnly: opts.HumanOnly,
-		cache:     map[filter][]store.Workday{},
-		proj:      projects{on: opts.Projects, cache: map[filter]store.ProjectDays{}},
+		proj:      projects{on: opts.Projects, cache: map[dayKey]store.ProjectDay{}},
+		cache:     map[dayKey]store.Workday{},
 		figures:   true,
 		th:        theme.New(true),
 		styles:    newStyles(theme.New(true)),
 	}
+	m.shown = shown{span: m.span, humanOnly: m.humanOnly}
 	m, m.initCmd = m.load()
 	return m
 }
@@ -216,8 +267,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case resultMsg:
 		return m.result(msg), nil
-	case projectsMsg:
-		return m.projectsResult(msg), nil
 	case tea.BackgroundColorMsg:
 		m.th = theme.New(msg.IsDark())
 		m.styles = newStyles(m.th)
@@ -249,11 +298,11 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Human):
 		m.humanOnly = !m.humanOnly
 		return m.load()
+	case key.Matches(msg, k.Projects):
+		return m.toggleProjects()
 	case key.Matches(msg, k.Figures):
 		m.figures = !m.figures
 		m.clampOffset()
-	case key.Matches(msg, k.Projects):
-		return m.toggleProjects()
 	case key.Matches(msg, k.Up):
 		return m.up()
 	case key.Matches(msg, k.Down):
@@ -264,7 +313,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // click handles a left click: on the switches line a period name sets the
 // window like its key, a counting mode switches to it (like h, when it is
-// not the active one) and a bar mode to that one (like p); on the summary
+// not the active one) and a bar mode likewise (like p); on the summary
 // figures it hides them like s. Clicks elsewhere do nothing, so do clicks
 // without a database.
 func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
@@ -330,6 +379,8 @@ func (m Model) current() span {
 func (m Model) limit() time.Time { return m.current().until() }
 
 // setSpan shows s from its first row; the same days again are a no-op.
+// The scroll position resets at once, so a key pressed while the answer
+// is pending acts as it does when s is shown already.
 func (m Model) setSpan(s span) (tea.Model, tea.Cmd) {
 	if s.equal(m.span) {
 		return m, nil
@@ -338,105 +389,159 @@ func (m Model) setSpan(s span) (tea.Model, tea.Cmd) {
 	return m.load()
 }
 
-// since and until are the bounds of the window under the day rule: the
-// day boundary of its first day and of the day after its last.
-func (m Model) since() time.Time { return store.DayBoundary(m.span.since(), m.opts.DayStart) }
-func (m Model) until() time.Time { return store.DayBoundary(m.span.until(), m.opts.DayStart) }
-
-// filter is the cache key of the current state.
-func (m Model) filter() filter {
-	return filter{since: m.since().Unix(), until: m.until().Unix(), humanOnly: m.humanOnly}
+// bounds are the query bounds of the days [since, until) under the day
+// rule: the day boundary of the first day and of the day after the last.
+func (m Model) bounds(since, until time.Time) (time.Time, time.Time) {
+	return store.DayBoundary(since, m.opts.DayStart), store.DayBoundary(until, m.opts.DayStart)
 }
 
-// load shows the cached days of the current filter, or starts loading
-// them, and the same for the project data while the bars are by project.
-func (m Model) load() (Model, tea.Cmd) {
-	m, cmd := m.loadDays()
-	if !m.proj.on {
-		return m, cmd
+// cached returns the days of the wanted window when every one of them is
+// in the cache, and, with the colouring by project on, its project days
+// when they are all cached too.
+func (m Model) cached() ([]store.Workday, []store.ProjectDay, bool) {
+	var days []store.Workday
+	var projects []store.ProjectDay
+	for day := m.span.since(); day.Before(m.span.until()); day = day.AddDate(0, 0, 1) {
+		k := dayKey{day: day.Unix(), humanOnly: m.humanOnly}
+		d, ok := m.cache[k]
+		if !ok {
+			return nil, nil, false
+		}
+		days = append(days, d)
+		if m.proj.on {
+			p, ok := m.proj.cache[k]
+			if !ok {
+				return nil, nil, false
+			}
+			projects = append(projects, p)
+		}
 	}
-	var pcmd tea.Cmd
-	m, pcmd = m.loadProjects()
-	return m, tea.Batch(cmd, pcmd)
+	return days, projects, true
 }
 
-// loadDays shows the cached days of the current filter, or starts loading
-// them. A running load is cancelled; its result would be stale.
-func (m Model) loadDays() (Model, tea.Cmd) {
-	m.seq++
-	m.stop()
+// prefetch is the range a query asks for: the wanted window with a
+// period's worth of days, at least margin, in front and behind, cut at
+// the limit, so the next day steps and the neighbouring periods are
+// answered from the cache.
+func (m Model) prefetch() (since, until time.Time) {
+	n := max(m.span.len(), margin)
+	since, until = m.span.since().AddDate(0, 0, -n), m.span.until().AddDate(0, 0, n)
+	if limit := m.limit(); until.After(limit) {
+		until = limit
+	}
+	if until.Before(m.span.until()) {
+		until = m.span.until()
+	}
+	return since, until
+}
+
+// load shows the wanted window from the cache, waits for the pending
+// query when its answer will cover it, or starts a query for it; the
+// days on screen stay until then.
+func (m Model) load() (Model, tea.Cmd) {
 	m.err = nil
 	if m.opts.Loader == nil {
 		return m, nil
 	}
-	f := m.filter()
-	if d, ok := m.cache[f]; ok {
-		m.days, m.loaded, m.took = d, true, 0
+	if days, projects, ok := m.cached(); ok {
+		m = m.show(days, projects, 0)
 		return m, nil
 	}
-	m.loaded = false
-	return m.fetch(f, false)
+	if m.pending.covers(m.span, m.humanOnly, m.proj.on) {
+		return m, nil
+	}
+	since, until := m.prefetch()
+	return m.fetch(since, until)
 }
 
-// Reload drops the cache and loads the current window again, keeping the
-// rows and the scroll position on screen until the answer arrives.
-// Without a database there is nothing to do.
+// Reload starts a new cache generation and loads the wanted window again,
+// keeping the rows and the scroll position on screen until the answer
+// arrives; an answer from before is dropped. Without a database there is
+// nothing to do.
 func (m Model) Reload() (tea.Model, tea.Cmd) {
 	if m.opts.Loader == nil {
 		return m, nil
 	}
-	m.cache = map[filter][]store.Workday{}
-	m.seq++
-	m.stop()
+	m.gen++
+	m.cache = map[dayKey]store.Workday{}
+	m.proj.cache = map[dayKey]store.ProjectDay{}
 	m.err = nil
-	m, cmd := m.fetch(m.filter(), true)
-	var pcmd tea.Cmd
-	m, pcmd = m.reloadProjects()
-	return m, tea.Batch(cmd, pcmd)
+	since, until := m.prefetch()
+	return m.fetch(since, until)
 }
 
-// fetch starts the query for f with the current sequence number. A quiet
-// fetch (reload) does not announce itself in the status line.
-func (m Model) fetch(f filter, quiet bool) (Model, tea.Cmd) {
-	m.loading = !quiet
+// fetch starts the query for the days [since, until) under the current
+// counting mode and generation, with their project days while the bars
+// are by project; the pending query, if any, is cancelled. Both go in one
+// command, so the window appears in one step.
+func (m Model) fetch(since, until time.Time) (Model, tea.Cmd) {
+	m.stop()
+	m.seq++
 	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
-	seq, now, l := m.seq, m.opts.Now, m.opts.Loader
+	q := &query{id: m.seq, since: since, until: until, humanOnly: m.humanOnly, projects: m.proj.on, cancel: cancel}
+	m.pending = q
+	gen, now, l := m.gen, m.opts.Now, m.opts.Loader
+	qs, qu := m.bounds(since, until)
 	wf := store.WorkdayFilter{
-		Since: m.since(), Until: m.until(), Location: m.opts.Location,
+		Since: qs, Until: qu, Location: m.opts.Location,
 		DayStart: m.opts.DayStart, HumanOnly: m.humanOnly, Holidays: m.opts.Holidays,
 	}
 	return m, func() tea.Msg {
 		start := now()
-		d, err := l.Workday(ctx, wf)
-		return resultMsg{seq: seq, filter: f, days: d, took: now().Sub(start), err: err}
+		msg := resultMsg{gen: gen, id: q.id, since: since, until: until, humanOnly: q.humanOnly}
+		msg.days, msg.err = l.Workday(ctx, wf)
+		if msg.err == nil && q.projects {
+			msg.projects, msg.err = l.ProjectDays(ctx, wf)
+		}
+		msg.took = now().Sub(start)
+		return msg
 	}
 }
 
-// stop cancels the running load, if any.
+// stop cancels the pending query, if any.
 func (m *Model) stop() {
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	if m.pending != nil {
+		m.pending.cancel()
+		m.pending = nil
 	}
-	m.loading = false
 }
 
-// result caches a successful answer and shows it when it is still current.
-func (m Model) result(msg resultMsg) Model {
-	if msg.err == nil {
-		m.cache[msg.filter] = msg.days
-	}
-	if msg.seq != m.seq {
-		return m
-	}
-	m.loading, m.cancel = false, nil
-	m.took, m.err = msg.took, msg.err
-	if msg.err != nil {
-		return m
-	}
-	m.days, m.loaded = msg.days, true
+// show puts days, and the project days while the bars are by project, on
+// screen as the wanted window.
+func (m Model) show(days []store.Workday, projects []store.ProjectDay, took time.Duration) Model {
+	m.shown = shown{span: m.span, humanOnly: m.humanOnly, days: days, byProject: m.proj.on, projects: projects, loaded: true}
+	m.took = took
 	m.clampOffset()
+	return m
+}
+
+// result takes an answer: one of an older generation is dropped; an
+// error is shown when it is the pending query's (a cancelled query ends
+// in one too); the days of a successful answer go to the cache, and the
+// wanted window is shown once the cache holds all of it.
+func (m Model) result(msg resultMsg) Model {
+	if msg.gen != m.gen {
+		return m
+	}
+	current := m.pending != nil && m.pending.id == msg.id
+	if current {
+		m.pending = nil
+	}
+	if msg.err != nil {
+		if current {
+			m.err = msg.err
+		}
+		return m
+	}
+	for _, d := range msg.days {
+		m.cache[dayKey{day: d.Day.Unix(), humanOnly: msg.humanOnly}] = d
+	}
+	for _, d := range msg.projects {
+		m.proj.cache[dayKey{day: d.Day.Unix(), humanOnly: msg.humanOnly}] = d
+	}
+	if days, projects, ok := m.cached(); ok {
+		m = m.show(days, projects, msg.took)
+	}
 	return m
 }
 
@@ -454,12 +559,12 @@ const minDayRows = 3
 
 // showHeadline reports whether the headline with the working time of the
 // period is shown: for a week or a month, not for a single day.
-func (m Model) showHeadline() bool { return m.span.period() != store.PeriodDay }
+func (m Model) showHeadline() bool { return m.shown.span.period() != store.PeriodDay }
 
 // showFigures reports whether the summary figures are shown: when they
 // are on, for a loaded week or month, and when minDayRows day rows stay.
 func (m Model) showFigures() bool {
-	return m.figures && m.loaded && m.showHeadline() && m.height-chromeRows-1-m.legendRows()-figureRows >= minDayRows
+	return m.figures && m.shown.loaded && m.showHeadline() && m.height-chromeRows-1-m.legendRows()-figureRows >= minDayRows
 }
 
 // rowsAvail is the number of day rows that fit.
@@ -475,7 +580,7 @@ func (m Model) rowsAvail() int {
 }
 
 // maxOffset is the largest scroll offset: the rows that do not fit.
-func (m Model) maxOffset() int { return max(0, len(m.days)-m.rowsAvail()) }
+func (m Model) maxOffset() int { return max(0, len(m.shown.days)-m.rowsAvail()) }
 
 // clampOffset keeps the scroll offset within the rows.
 func (m *Model) clampOffset() {
@@ -510,8 +615,8 @@ func (m Model) View() tea.View {
 	} else {
 		l := m.layout()
 		parts = append(parts, line(" "+l.header()))
-		end := min(m.offset+pad, len(m.days))
-		for _, d := range m.days[m.offset:end] {
+		end := min(m.offset+pad, len(m.shown.days))
+		for _, d := range m.shown.days[m.offset:end] {
 			parts = append(parts, line(" "+l.row(d)))
 		}
 		pad -= end - m.offset
@@ -520,7 +625,7 @@ func (m Model) View() tea.View {
 		parts = append(parts, "")
 	}
 	parts = append(parts, m.th.Rule.Render(strings.Repeat("─", m.width)))
-	if m.proj.on {
+	if m.shown.byProject {
 		parts = append(parts, line(" "+m.legend()))
 	}
 	if m.showFigures() {
@@ -542,20 +647,21 @@ var (
 	barNames     = []string{"hours", "projects"}
 )
 
-// switches is the top line: the period, the counting mode and the bar mode
-// with the active value in brackets, and the window on the right. It
-// returns the columns of every period, counting mode and bar mode name,
-// clipped like the line, so a click lands on what is shown.
+// switches is the top line: the period, the counting mode and the bar
+// mode of the shown days with the active value in brackets, and the
+// window on the right. It returns the columns of every period, counting
+// mode and bar mode name, clipped like the line, so a click lands on what
+// is shown.
 func (m Model) switches() (string, []zone.Span, []zone.Span, []zone.Span) {
 	active, bar := 0, 0
-	if m.humanOnly {
+	if m.shown.humanOnly {
 		active = 1
 	}
-	if m.proj.on {
+	if m.shown.byProject {
 		bar = 1
 	}
 	left := " period: "
-	periods, pSpans := zone.Toggles(m.styles.active, periodNames, slices.Index(periodValues, m.span.period()), lipgloss.Width(left))
+	periods, pSpans := zone.Toggles(m.styles.active, periodNames, slices.Index(periodValues, m.shown.span.period()), lipgloss.Width(left))
 	left += periods + "  count: "
 	counts, cSpans := zone.Toggles(m.styles.active, countNames, active, lipgloss.Width(left))
 	left += counts + "  bars: "
@@ -590,26 +696,27 @@ func (m Model) switches() (string, []zone.Span, []zone.Span, []zone.Span) {
 	return line, pSpans, cSpans, bSpans
 }
 
-// windowParts names the window, as the parts the switches line joins with
-// " · ": its relation to now when it is the current or the previous
-// period, the ISO week or the month when the window is a whole one, and
-// the first and last day, e.g. "this week", "2026-W02", "2026-01-05 –
-// 2026-01-11". A window moved by days shows the days only.
+// windowParts names the shown window, as the parts the switches line
+// joins with " · ": its relation to now when it is the current or the
+// previous period, the ISO week or the month when the window is a whole
+// one, and the first and last day, e.g. "this week", "2026-W02",
+// "2026-01-05 – 2026-01-11". A window moved by days shows the days only.
 func (m Model) windowParts() []string {
 	var parts []string
-	cur, p := m.current(), m.span.period()
+	s, days := m.shown.span, m.shown.days
+	cur, p := single(s.period(), m.opts.Now(), m.opts.Location), s.period()
 	switch {
-	case m.span.equal(cur):
+	case s.equal(cur):
 		parts = append(parts, [...]string{"today", "this week", "this month"}[p])
-	case m.span.equal(cur.periods(-1)):
+	case s.equal(cur.periods(-1)):
 		parts = append(parts, [...]string{"yesterday", "last week", "last month"}[p])
 	}
-	first, last := m.span.since(), m.span.until().AddDate(0, 0, -1)
+	first, last := s.since(), s.until().AddDate(0, 0, -1)
 	switch p {
 	case store.PeriodDay:
 		parts = append(parts, first.Format("Mon 2006-01-02"))
-		if m.loaded && len(m.days) == 1 && m.days[0].IsHoliday() {
-			parts = append(parts, m.styles.holidayText.Render(m.days[0].Holiday))
+		if m.shown.loaded && len(days) == 1 && days[0].IsHoliday() {
+			parts = append(parts, m.styles.holidayText.Render(days[0].Holiday))
 		}
 	default:
 		if id := m.windowID(); id != "" {
@@ -621,14 +728,15 @@ func (m Model) windowParts() []string {
 }
 
 // windowID is the ISO week ("2026-W02") or the month ("2026-01") of the
-// window when it is a whole one; empty for a single day or a window moved
-// by days.
+// shown window when it is a whole one; empty for a single day or a window
+// moved by days.
 func (m Model) windowID() string {
-	if !m.span.aligned() {
+	s := m.shown.span
+	if !s.aligned() {
 		return ""
 	}
-	first := m.span.since()
-	switch m.span.period() {
+	first := s.since()
+	switch s.period() {
 	case store.PeriodWeek:
 		y, w := first.ISOWeek()
 		return fmt.Sprintf("%04d-W%02d", y, w)
@@ -645,7 +753,7 @@ func (m Model) hint() string {
 		return "No database open."
 	case m.err != nil:
 		return "The query failed; see the status line."
-	case !m.loaded:
+	case !m.shown.loaded:
 		return "Loading…"
 	}
 	return ""
@@ -662,12 +770,12 @@ func (m Model) asOf() time.Time { return store.DayOf(m.opts.Now(), m.opts.Locati
 // time it is the days with activity and the sum of their spans. Empty
 // until the days are loaded.
 func (m Model) headline() string {
-	if !m.loaded {
+	if !m.shown.loaded {
 		return ""
 	}
 	st, w := m.styles, m.opts.Work
-	b := w.Balance(m.days, m.asOf())
-	label := st.label.Render([...]string{"day:", "week:", "month:"}[m.span.period()])
+	b := w.Balance(m.shown.days, m.asOf())
+	label := st.label.Render([...]string{"day:", "week:", "month:"}[m.shown.span.period()])
 	parts := []string{st.rating(w.RateBalance(b)).Bold(true).Render(store.FormatSpan(b.Span)) + st.faint.Render(" in "+plural(b.Active, "day"))}
 	if !w.IsZero() {
 		target := fmt.Sprintf("target %s (%s × %s)", store.FormatSpan(b.Target), plural(b.Workdays, "workday"), store.FormatSpan(w.Target))
@@ -683,7 +791,7 @@ func (m Model) headline() string {
 // Weihnachten, Fri 26 Zweiter Weihnachtsfeiertag"; empty without any.
 func (m Model) holidayNames() string {
 	var names []string
-	for _, d := range m.days {
+	for _, d := range m.shown.days {
 		if d.IsHoliday() {
 			names = append(names, d.Day.Format("Mon 02")+" "+d.Holiday)
 		}
@@ -698,7 +806,7 @@ func (m Model) holidayNames() string {
 // are "-".
 func (m Model) figureLines() []string {
 	st := m.styles
-	sum := store.Summarize(m.days, m.opts.DayStart)
+	sum := store.Summarize(m.shown.days, m.opts.DayStart)
 	clock := func(d time.Duration) (string, lipgloss.Style) {
 		return store.FormatClock(d, m.opts.DayStart), lipgloss.NewStyle()
 	}
@@ -747,34 +855,35 @@ func plural(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
-// countMode names what is counted: "human only" or "all events".
+// countMode names what the shown days count: "human only" or "all events".
 func (m Model) countMode() string {
-	if m.humanOnly {
+	if m.shown.humanOnly {
 		return "human only"
 	}
 	return "all events"
 }
 
-// status is the bottom line: the state of the load and its duration, the
-// counting mode, the public holidays, and the visible rows while they do
-// not all fit.
+// status is the bottom line: the shown days with the duration of their
+// query, the counting mode, the public holidays, and the visible rows
+// while they do not all fit; "loading…" only while nothing is shown yet.
 func (m Model) status() string {
+	days := m.shown.days
 	switch {
 	case m.opts.Loader == nil:
 		return "no database"
 	case m.err != nil:
 		return "error: " + m.err.Error()
-	case m.loading:
+	case !m.shown.loaded && m.pending != nil:
 		return "loading…"
-	case !m.loaded:
+	case !m.shown.loaded:
 		return ""
 	}
-	s := fmt.Sprintf("%d days · %d ms · %s", len(m.days), m.took.Milliseconds(), m.countMode())
-	if n := m.opts.Work.Balance(m.days, time.Time{}).Holidays; n > 0 {
+	s := fmt.Sprintf("%d days · %d ms · %s", len(days), m.took.Milliseconds(), m.countMode())
+	if n := m.opts.Work.Balance(days, time.Time{}).Holidays; n > 0 {
 		s += " · " + plural(n, "holiday")
 	}
-	if n := m.rowsAvail(); n < len(m.days) {
-		s += fmt.Sprintf(" · rows %d–%d of %d, ↑↓ scroll", m.offset+1, min(m.offset+n, len(m.days)), len(m.days))
+	if n := m.rowsAvail(); n < len(days) {
+		s += fmt.Sprintf(" · rows %d–%d of %d, ↑↓ scroll", m.offset+1, min(m.offset+n, len(days)), len(days))
 	}
 	return s
 }
@@ -804,7 +913,7 @@ const (
 
 func (m Model) layout() layout {
 	l := layout{loc: m.opts.Location, dayStart: m.opts.DayStart, work: m.opts.Work, styles: m.styles, projects: m.projectLayout(), first: 5, last: 5, diff: !m.opts.Work.IsZero()}
-	for _, d := range m.days {
+	for _, d := range m.shown.days {
 		l.first = max(l.first, len([]rune(d.FirstClock(l.loc))))
 		l.last = max(l.last, len([]rune(d.LastClock(l.loc))))
 	}
