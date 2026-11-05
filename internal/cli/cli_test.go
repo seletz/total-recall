@@ -1055,6 +1055,7 @@ func TestTUIOptions(t *testing.T) {
 		{"bad keys table", func(c *config.Config) { c.Keys = map[string]config.KeyList{"stats_days": {"e"}} }, tuiFlags{}, tui.Options{}, "stats_metric"},
 		{"bad tui table", func(c *config.Config) { c.TUI.View = "help" }, tuiFlags{View: "search"}, tui.Options{}, "tui.view"},
 		{"bad work table", func(c *config.Config) { c.Work.Hours = "9-17" }, tuiFlags{}, tui.Options{}, "work.hours"},
+		{"bad project list", func(c *config.Config) { c.Projects = []config.Project{{Name: "x"}} }, tuiFlags{}, tui.Options{}, "project[0]"},
 		{"bad graphics flag", nil, tuiFlags{Graphics: "sixel", GraphicsSet: true}, tui.Options{}, "graphics"},
 	}
 	for _, tt := range tests {

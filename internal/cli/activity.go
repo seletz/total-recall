@@ -169,17 +169,18 @@ func writeSeriesTable(w io.Writer, s ActivitySeriesJSON) error {
 }
 
 // keyNames returns the display names of the series keys: project names for
-// the project dimension, the configured account names for the account
-// dimension (IDs without a name stay), else nil (raw keys). Directories
-// without a repository are named by their path; home is abbreviated to "~"
-// in it, an empty home keeps the full path (the JSON output, which is meant
-// for scripts and should not depend on who runs it).
-func keyNames(s store.ActivitySeries, o seriesOptions, home string, accounts map[string]string) map[string]string {
+// the project dimension (configured names stay, the rest are derived), the
+// configured account names for the account dimension (IDs without a name
+// stay), else nil (raw keys). Directories without a repository are named by
+// their path; home is abbreviated to "~" in it, an empty home keeps the full
+// path (the JSON output, which is meant for scripts and should not depend
+// on who runs it).
+func keyNames(s store.ActivitySeries, o seriesOptions, home string, accounts map[string]string, projects project.Resolver) map[string]string {
 	switch {
 	case o.byName == "":
 		return nil
 	case o.by == store.DimProject:
-		return project.Names(s.Keys, s.Dirs, home)
+		return projects.Names(s.Keys, s.Dirs, home)
 	case o.by == store.DimAccount:
 		names := map[string]string{}
 		for _, k := range s.Keys {

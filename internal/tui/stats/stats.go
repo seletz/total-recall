@@ -81,6 +81,10 @@ type Options struct {
 	// Holidays names the public holidays marked on the day axis; nil
 	// means there are none.
 	Holidays store.Holidays
+	// Projects assigns the keys of the project dimension to the configured
+	// projects ([[project]]) and supplies their colours; the zero value
+	// leaves the keys and uses the palette.
+	Projects project.Resolver
 }
 
 func (o *Options) defaults() {
@@ -387,7 +391,7 @@ func (m Model) fetch(f filter, quiet bool) (Model, tea.Cmd) {
 	seq, now, l := m.seq, m.opts.Now, m.opts.Loader
 	af := store.ActivityFilter{
 		Since: m.window.Since(), Until: m.window.Until(), Location: m.opts.Location,
-		Period: m.window.Period, Dimension: m.dim, TopN: TopN,
+		Period: m.window.Period, Dimension: m.dim, TopN: TopN, Project: m.opts.Projects.Key,
 	}
 	return m, func() tea.Msg {
 		start := now()
@@ -488,12 +492,20 @@ func (m Model) result(msg resultMsg) (Model, tea.Cmd) {
 
 // rebuild derives the spec from the series and the metric and hands it to
 // the chart, returning the chart's render command. Colours are assigned
-// once per key and kept across switches.
+// once per key and kept across switches; a configured project keeps its
+// configured colour.
 func (m *Model) rebuild() tea.Cmd {
 	if !m.loaded {
 		return nil
 	}
-	names := project.Names(m.series.Keys, m.series.Dirs, m.opts.Home)
+	names := m.opts.Projects.Names(m.series.Keys, m.series.Dirs, m.opts.Home)
+	if m.dim == store.DimProject {
+		for _, k := range m.series.Keys {
+			if hex := m.opts.Projects.Color(k); hex != "" {
+				m.colors.Fix(k, lipgloss.Color(hex))
+			}
+		}
+	}
 	m.spec = m.colors.Assign(chart.FromSeries(m.series, m.window.Period, m.metric, names))
 	m.spec.Marks = chart.DayMarks(m.series, m.window.Period, m.opts.Holidays)
 	return tea.Batch(m.chart.SetSpec(m.spec), m.chart.SetSize(m.chartSize()))

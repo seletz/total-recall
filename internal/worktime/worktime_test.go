@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/seletz/total-recall/internal/project"
 )
 
 // cet is the fixed zone of the test events (no DST in the test dates).
@@ -361,3 +363,62 @@ func TestComputeCollidingNames(t *testing.T) {
 type holidayFunc func(time.Time) string
 
 func (f holidayFunc) Name(d time.Time) string { return f(d) }
+
+func TestComputeProjectDefinitions(t *testing.T) {
+	defs := []project.Definition{
+		mustDefinition(t, "kompass", "https://example.test/o/kompass-*"),
+		mustDefinition(t, "notizbox", "~/notes"),
+	}
+	res, err := project.NewResolver(defs, "/home/mara")
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []Event{
+		ev(at(0, 9, 0), "a1", "/w/kompass-api"),
+		ev(at(0, 9, 10), "b1", "/w/kompass-web"),
+		ev(at(0, 9, 20), "c1", "/w/iris"),
+		{Time: at(0, 9, 30), Session: "d1", Project: "/home/mara/notes", Dir: true},
+	}
+	opts := Options{Location: cet, DayStart: 4 * time.Hour, Home: "/home/mara", Projects: res}
+	r := Compute(events, defaults(), opts)
+	if n := len(r.Days[0].Categories); n != 3 {
+		t.Fatalf("categories = %d, want 3: %+v", n, r.Days[0].Categories)
+	}
+	k, ok := cell(r, "2026-01-05", "kompass")
+	if !ok || k.Raw != 3*time.Minute+10*time.Minute {
+		t.Fatalf("kompass = %+v (ok %v)", k, ok)
+	}
+	// Two repositories, one project: one row, keyed by the project name.
+	if len(k.Projects) != 1 || k.Projects[0].Name != "kompass" || k.Projects[0].Key != "kompass" {
+		t.Errorf("kompass projects = %+v", k.Projects)
+	}
+	if len(k.Sessions) != 2 || k.Sessions[0].Project != "kompass" || k.Sessions[1].Project != "kompass" {
+		t.Errorf("kompass sessions = %+v", k.Sessions)
+	}
+	if n, ok := cell(r, "2026-01-05", "notizbox"); !ok || len(n.Projects) != 1 || n.Projects[0].Name != "notizbox" {
+		t.Errorf("notizbox = %+v (ok %v)", n, ok)
+	}
+	if i, ok := cell(r, "2026-01-05", "iris"); !ok || i.Projects[0].Key != "/w/iris" {
+		t.Errorf("iris = %+v (ok %v)", i, ok)
+	}
+
+	// Category rules see the configured project name.
+	s := defaults()
+	s.Rules = rules(t, "kunde", "kompass,notizbox")
+	r = Compute(events, s, opts)
+	if n := len(r.Days[0].Categories); n != 2 {
+		t.Fatalf("categories with rule = %d, want 2: %+v", n, r.Days[0].Categories)
+	}
+	if c, ok := cell(r, "2026-01-05", "kunde"); !ok || len(c.Projects) != 2 || c.Projects[0].Name != "kompass" || c.Projects[1].Name != "notizbox" {
+		t.Errorf("kunde = %+v (ok %v)", c, ok)
+	}
+}
+
+func mustDefinition(t *testing.T, name string, match ...string) project.Definition {
+	t.Helper()
+	d, err := project.NewDefinition(name, "", "", match)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}

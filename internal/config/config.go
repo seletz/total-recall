@@ -5,11 +5,11 @@
 // Precedence: flag > environment variable > config file > default.
 //
 // Load validates the core settings (paths, time zone, day boundary, backup,
-// ingest, redaction). The tables [work], [worktime], [tui] and [keys] are
-// only parsed: their values are checked when a command uses them
-// (WorkHours, WorktimeSettings, KeyMap, ValidateTUI), so a mistake there never
-// stops hooks and ingest. Problems lists every such error for `config show`
-// and `doctor`.
+// ingest, redaction). The tables [work], [worktime], [tui], [keys] and the
+// list [[project]] are only parsed: their values are checked when a command
+// uses them (WorkHours, WorktimeSettings, KeyMap, ValidateTUI,
+// ProjectResolver), so a mistake there never stops hooks and ingest.
+// Problems lists every such error for `config show` and `doctor`.
 package config
 
 import (
@@ -30,6 +30,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/worktime"
 )
@@ -107,6 +108,10 @@ type Config struct {
 	// code shows the name where it has one; `sessions --account` and
 	// `stats --by account` accept the names.
 	Accounts map[string]string `toml:"accounts"`
+	// Projects are the configured projects ([[project]]) in file order:
+	// name, description, colour and the patterns that assign sessions to
+	// them. ProjectResolver validates and compiles them.
+	Projects []Project `toml:"project"`
 
 	// Path is the config file that was considered (it may not exist).
 	Path string `toml:"-"`
@@ -180,6 +185,19 @@ type Worktime struct {
 type Category struct {
 	Name  string     `toml:"name"`
 	Match StringList `toml:"match"`
+}
+
+// Project is one [[project]] definition: the name (required, unique), an
+// optional description and colour (a project.Palette name or #rrggbb;
+// empty means the automatic colour) and the glob patterns (same syntax as
+// Category) matched against the git root or working directory as a path
+// and with "~", the remote URL and the derived project name. The first
+// definition with a match wins; see project.Resolver.
+type Project struct {
+	Name        string     `toml:"name"`
+	Description string     `toml:"description"`
+	Color       string     `toml:"color"`
+	Match       StringList `toml:"match"`
 }
 
 // Built-in working time per project: gaps up to 20 minutes count in full,
@@ -411,6 +429,23 @@ var fields = []struct {
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
 	{"tui.reload", func(c *Config) string { return c.TUI.Reload.String() }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
+	{"project", func(c *Config) string { return formatProjects(c.Projects) }},
+}
+
+// formatProjects formats the project definitions as `[name (#rrggbb) =
+// ["glob", …], …]`; the colour is left out when there is none.
+func formatProjects(ps []Project) string {
+	parts := make([]string, len(ps))
+	for i, p := range ps {
+		name := p.Name
+		if hex, err := project.ParseColor(p.Color); err == nil && hex != "" {
+			name += " (" + hex + ")"
+		} else if p.Color != "" {
+			name += " (" + strconv.Quote(p.Color) + ")"
+		}
+		parts[i] = name + " = " + formatList(p.Match)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 // formatAccounts formats the account names as `["id" = "name", …]`, by ID.
@@ -483,6 +518,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: Duration{DefaultReload}}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
+	c.Projects = []Project{}
 	return c
 }
 
@@ -733,6 +769,28 @@ func (c *Config) WorktimeSettings() (worktime.Settings, error) {
 	return s, nil
 }
 
+// ProjectResolver validates the [[project]] list and compiles it into the
+// resolver that assigns sessions to the configured projects, with Home as
+// "~" in the patterns. A definition without a name or pattern, an empty
+// pattern, an unknown colour or two definitions with the same name are
+// errors; commands that never name a project do not see them. Without
+// definitions the resolver leaves every key as it is.
+func (c *Config) ProjectResolver() (project.Resolver, error) {
+	defs := make([]project.Definition, 0, len(c.Projects))
+	for i, p := range c.Projects {
+		d, err := project.NewDefinition(p.Name, p.Description, p.Color, p.Match)
+		if err != nil {
+			return project.Resolver{}, fmt.Errorf("config: project[%d]: %w", i, err)
+		}
+		defs = append(defs, d)
+	}
+	r, err := project.NewResolver(defs, c.Home)
+	if err != nil {
+		return project.Resolver{}, fmt.Errorf("config: %w", err)
+	}
+	return r, nil
+}
+
 // ValidateTUI checks the values of the [tui] table.
 func (c *Config) ValidateTUI() error {
 	for _, v := range []struct {
@@ -771,8 +829,8 @@ func (c *Config) KeyMap() (keys.Map, error) {
 }
 
 // Problems returns the errors of the tables that Load does not validate
-// ([work], [worktime], [tui], [keys]), in that order; nil when they are
-// all fine.
+// ([work], [worktime], [tui], [keys], [[project]]), in that order; nil when
+// they are all fine.
 func (c *Config) Problems() []error {
 	var out []error
 	if _, _, err := c.WorkHours(); err != nil {
@@ -785,6 +843,9 @@ func (c *Config) Problems() []error {
 		out = append(out, err)
 	}
 	if _, err := c.KeyMap(); err != nil {
+		out = append(out, err)
+	}
+	if _, err := c.ProjectResolver(); err != nil {
 		out = append(out, err)
 	}
 	return out

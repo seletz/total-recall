@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -404,5 +405,96 @@ func TestActivitySeriesDirs(t *testing.T) {
 		if strings.Join(got.Dirs, ",") != strings.Join(want, ",") {
 			t.Errorf("%s: dirs = %q, want %q", d, got.Dirs, want)
 		}
+	}
+}
+
+func TestActivitySeriesProjectMapper(t *testing.T) {
+	s, _ := openTestStore(t)
+	sessions := []model.Session{
+		{ID: "claude:m1", Harness: "claude", NativeID: "m1", Cwd: "/w/kompass-api", GitRoot: "/w/kompass-api", GitRemoteURL: "https://git.invalid/mara/kompass-api",
+			StartedAt: ts("2026-03-01T10:00:00Z"), EndedAt: ts("2026-03-01T10:05:00Z")},
+		{ID: "claude:m2", Harness: "claude", NativeID: "m2", Cwd: "/w/kompass-web/x", GitRoot: "/w/kompass-web", GitRemoteURL: "https://git.invalid/mara/kompass-web",
+			StartedAt: ts("2026-03-01T11:00:00Z"), EndedAt: ts("2026-03-01T11:05:00Z")},
+		// A subagent of m2: resolves to the parent's key and remote.
+		{ID: "claude:m2sub", Harness: "claude", NativeID: "m2sub", ParentID: "claude:m2", Cwd: "/w/kompass-web/x",
+			StartedAt: ts("2026-03-01T11:01:00Z"), EndedAt: ts("2026-03-01T11:02:00Z")},
+		{ID: "claude:m3", Harness: "claude", NativeID: "m3", Cwd: "/w/notes",
+			StartedAt: ts("2026-03-02T11:00:00Z"), EndedAt: ts("2026-03-02T11:05:00Z")},
+		{ID: "claude:m4", Harness: "claude", NativeID: "m4", Cwd: "/w/iris", GitRoot: "/w/iris", GitRemoteURL: "https://git.invalid/mara/iris",
+			StartedAt: ts("2026-03-02T12:00:00Z"), EndedAt: ts("2026-03-02T12:05:00Z")},
+	}
+	evs := []model.Event{
+		ev("claude:m1-1", "claude:m1", "2026-03-01T10:00:00Z", model.ActorHuman, model.KindMessage, "user", "a"),
+		ev("claude:m2-1", "claude:m2", "2026-03-01T11:00:00Z", model.ActorHuman, model.KindMessage, "user", "b"),
+		ev("claude:m2s-1", "claude:m2sub", "2026-03-01T11:01:00Z", model.ActorAgent, model.KindMessage, "assistant", "c"),
+		ev("claude:m3-1", "claude:m3", "2026-03-02T11:00:00Z", model.ActorHuman, model.KindMessage, "user", "d"),
+		ev("claude:m3-2", "claude:m3", "2026-03-02T11:01:00Z", model.ActorAgent, model.KindMessage, "assistant", "e"),
+		ev("claude:m4-1", "claude:m4", "2026-03-02T12:00:00Z", model.ActorHuman, model.KindMessage, "user", "f"),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/m.jsonl", Harness: "claude", Offset: 1}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	var seen []string
+	mapper := func(key string, dir bool, remote string) string {
+		seen = append(seen, fmt.Sprintf("%s|%v|%s", key, dir, remote))
+		switch {
+		case strings.HasPrefix(remote, "https://git.invalid/mara/kompass"):
+			return "kompass"
+		case key == "/w/notes" && dir:
+			return "notizbox"
+		}
+		return key
+	}
+	f := ActivityFilter{Since: ts("2026-03-01T00:00:00Z"), Until: ts("2026-03-03T00:00:00Z"),
+		Location: time.UTC, Period: PeriodDay, Dimension: DimProject, Project: mapper}
+	got, err := s.ActivitySeries(ctx, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// kompass: 3 events of 3 sessions; notizbox: 2 events of 1 session; iris: 1.
+	if want := []string{"kompass", "notizbox", "/w/iris"}; strings.Join(got.Keys, ",") != strings.Join(want, ",") {
+		t.Errorf("keys = %q, want %q", got.Keys, want)
+	}
+	if len(got.Dirs) != 0 {
+		t.Errorf("dirs = %q, want none: a mapped directory is a project", got.Dirs)
+	}
+	if got.Sessions != 5 || fmt.Sprint(got.KeySessions) != "[3 1 1]" {
+		t.Errorf("sessions = %d %v", got.Sessions, got.KeySessions)
+	}
+	if want := []string{"kompass:3/2/1"}; strings.Join(cells(got.Buckets[0]), ",") != strings.Join(want, ",") {
+		t.Errorf("day 1 cells = %q, want %q", cells(got.Buckets[0]), want)
+	}
+	if want := []string{"notizbox:1/1/1", "/w/iris:1/1/0"}; strings.Join(cells(got.Buckets[1]), ",") != strings.Join(want, ",") {
+		t.Errorf("day 2 cells = %q, want %q", cells(got.Buckets[1]), want)
+	}
+	for _, want := range []string{"/w/kompass-api|false|https://git.invalid/mara/kompass-api", "/w/kompass-web|false|https://git.invalid/mara/kompass-web", "/w/notes|true|"} {
+		found := false
+		for _, s := range seen {
+			found = found || s == want
+		}
+		if !found {
+			t.Errorf("mapper never saw %q (saw %q)", want, seen)
+		}
+	}
+	// TopN folds after the mapping, so a merged project is one key.
+	f.TopN = 1
+	got, err = s.ActivitySeries(ctx, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"kompass", OtherKey}; strings.Join(got.Keys, ",") != strings.Join(want, ",") {
+		t.Errorf("top 1 keys = %q, want %q", got.Keys, want)
+	}
+	if fmt.Sprint(got.KeySessions) != "[3 2]" {
+		t.Errorf("top 1 key sessions = %v", got.KeySessions)
+	}
+	// The mapper is for the project dimension only.
+	f.TopN, f.Dimension = 0, DimDirectory
+	got, err = s.ActivitySeries(ctx, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(got.Keys, "kompass") || slices.Contains(got.Keys, "notizbox") {
+		t.Errorf("directory keys mapped: %q", got.Keys)
 	}
 }

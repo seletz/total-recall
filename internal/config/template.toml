@@ -135,6 +135,26 @@ summary_max_chars = 200
 # Resolve git root, remote URL and branch for session working directories.
 resolve = true
 
+# Projects, as an ordered list of definitions; the first definition with a
+# matching pattern wins. A pattern is matched whole against the git root or
+# working directory of a session (as a path and with the home directory as
+# "~"), its remote URL and the project name it would get without
+# definitions (the base name of the git root); "*" matches anything, also
+# "/", "?" one character. Sessions no definition matches keep that derived
+# name, so without definitions nothing changes. Several repositories with
+# the same definition are one project in `stats --by project`,
+# `stats --worktime` (the category rules see the project name) and the TUI.
+# color is a palette name (blue, orange, green, red, purple, teal) or
+# "#rrggbb"; without one the project takes the next free palette colour.
+# [[project]]
+# name = "kompass"
+# description = "Wanderkarten, alle Repositories"
+# color = "blue"
+# match = ["https://github.com/mara/kompass*", "~/src/kompass-*"]
+# [[project]]
+# name = "notizbox"
+# match = "~/notes"
+
 # Names for the account and organization IDs of the sessions (Claude Code
 # writes them since 2.1.317). `sessions --account NAME`, `stats --by account`
 # and `show` use the names; IDs without a name are shown as they are.

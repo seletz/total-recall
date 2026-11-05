@@ -35,7 +35,7 @@ name = "sonstiges"
 match = "*"
 ```
 
-Ein Muster passt auf den Projektnamen, den Git-Root (als Pfad oder mit `~`) oder die Remote-URL; `*` steht für beliebigen Text, auch über `/` hinweg. Was keine Regel trifft, bleibt sein eigenes Projekt; die letzte Regel mit `*` sammelt es ein, wenn du das möchtest. `total-recall config show` zeigt die wirksamen Regeln, ein Fehler darin stoppt nur `stats --worktime`, nie die Hooks.
+Ein Muster passt auf den Projektnamen, den Git-Root (als Pfad oder mit `~`) oder die Remote-URL; `*` steht für beliebigen Text, auch über `/` hinweg. Wer seine Projekte in [`[[project]]`](../reference/20-konfiguration.md#project) definiert hat, kann hier einfach deren Namen nennen: Die Definitionen gelten zuerst, die Regeln sehen den konfigurierten Namen. Was keine Regel trifft, bleibt sein eigenes Projekt; die letzte Regel mit `*` sammelt es ein, wenn du das möchtest. `total-recall config show` zeigt die wirksamen Regeln, ein Fehler darin stoppt nur `stats --worktime`, nie die Hooks.
 
 ## Den Tag oder die Woche abrufen
 
