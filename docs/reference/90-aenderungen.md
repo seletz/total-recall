@@ -29,6 +29,7 @@ Dieses Release bringt so ein neues Schema, **v5**: Die Rohzeilen (`events.raw`) 
 ### Behoben
 
 - **Flackern beim Blättern durch die Zeit in der Aktivität.** Jeder Tagesschritt (++up++/++down++, Mausrad) zeichnete bis zur Antwort seiner Abfrage einen Ladezustand ohne Zeilen, Kopfzeile und Kennzahlen; jetzt bleibt der alte Inhalt stehen, bis das neue Fenster vollständig da ist, die Tage werden einzeln gecacht und mit einer Periode (mindestens sieben Tagen) Vorlauf und Nachlauf abgefragt, Schritte innerhalb der laufenden Abfrage warten auf deren Antwort, und eine Antwort von vor einem Neuladen wird verworfen ([#147](https://github.com/seletz/total-recall/issues/147)).
+- **`view = "config"` in `[tui]` war ein Konfigurationsfehler**, obwohl `total-recall tui config` die Ansicht kennt; der Wert ist jetzt erlaubt. Die Release-Notes auf GitHub verlinken Anker innerhalb der Änderungsseite (`#behoben`) jetzt absolut.
 
 ### Neu in der CLI
 

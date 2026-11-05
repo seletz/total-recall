@@ -227,7 +227,7 @@ const (
 
 // TUI configures `total-recall tui`. Flags override every value.
 type TUI struct {
-	// View is the view shown first: search, stats or activity.
+	// View is the view shown first: search, stats, activity or config.
 	View string `toml:"view"`
 	// Graphics is the chart mode: auto, text or kitty (--graphics).
 	Graphics string `toml:"graphics"`
@@ -316,7 +316,7 @@ func ValidReload(d time.Duration) error {
 
 // Allowed values of the [tui] table.
 var (
-	TUIViews      = []string{"search", "stats", "activity"}
+	TUIViews      = []string{"search", "stats", "activity", "config"}
 	TUIGraphics   = []string{"auto", "text", "kitty"}
 	TUIPeriods    = []string{"day", "week", "month"}
 	TUIDimensions = []string{"project", "agent", "directory"}

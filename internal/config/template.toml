@@ -169,7 +169,7 @@ resolve = true
 [tui]
 # Start-up defaults of `total-recall tui`; flags and the view argument
 # override them.
-# View shown first: search, stats or activity.
+# View shown first: search, stats, activity or config.
 view = "search"
 # Chart rendering in the stats view: auto, text or kitty (--graphics).
 graphics = "auto"
