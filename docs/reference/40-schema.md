@@ -32,6 +32,8 @@ total-recall sql "SELECT id, raw_text(raw) FROM events WHERE id = 'claude:…' L
 
 `raw` ist `NULL`, wenn der Auszug größer als `ingest.raw_max_bytes` war (`raw_truncated = 1`) oder `ingest.store_raw = false` gilt. In Listenabfragen `raw` nie mitselektieren; [`status`](10-befehle.md#status) zeigt die Größe aller Rohzeilen und das Kompressionsverhältnis. Details: [Design](../explanation/design.md#raw).
 
+Die Schema-Version steht in `schema_version` und bei [`status`](10-befehle.md#status). Ein Programm-Update migriert nie von selbst; das macht [`migrate`](10-befehle.md#migrate) nach einem Backup, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
+
 Eine Fortsetzungskette liest sich über `continued_in`; die Gegenrichtung ist eine Abfrage: `SELECT id FROM sessions WHERE continued_in = 'claude:…'`. Sessions aus der Zeit vor Schema v4 haben die drei neuen Spalten erst nach [`ingest --all --reread`](10-befehle.md#ingest).
 
 ## Actor

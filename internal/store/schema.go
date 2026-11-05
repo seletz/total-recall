@@ -216,28 +216,46 @@ CREATE TABLE events_v5 (
 `,
 }
 
-// migrationNotes describe each migration for `total-recall migrate`, one
-// line per entry of migrations (same index). They name what changes and,
-// for long ones, duration and disk space.
-var migrationNotes = []string{
-	"initial schema: sources, sessions, events, dirs, full-text index, views",
-	"sessions.ai_title and display_name",
-	"events.raw_truncated",
-	"sessions.continued_in, account_id, organization_id",
-	"events.raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), events.source_id instead of source_path; " +
-		"rewrites every event: about a minute per 100,000 events, needs free disk space of about twice the archive size (WAL plus the backup)",
+// migrationNotes describe the migrations for `total-recall migrate`, one
+// entry per entry of migrations (index+1 = version; a test checks that both
+// lists have the same length). Like migrations, the list is append-only.
+var migrationNotes = []migrationNote{
+	{Summary: "initial schema: sources, sessions, events with full-text index, views exchanges and daily_activity"},
+	{Summary: "sessions: harness-generated title (ai_title) and the derived display_name"},
+	{Summary: "events: raw_truncated marks events whose raw line was dropped for its size"},
+	{Summary: "sessions: continuation chain (continued_in), account_id and organization_id with indexes"},
+	{Summary: "events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of source_path; " +
+		"rewrites every event, about a minute per 100,000 events, and needs free disk space of about three times the archive size next to it (copy and WAL)",
+		Space: 1.5},
 }
 
-// migrationStep is Go code run inside the transaction of a migration,
-// after its SQL block and before schema_version is set. report receives
-// the progress (rows done of total) every batch.
+// migrationNote is the description of one migration.
+type migrationNote struct {
+	// Summary says in one line what changes and, when it matters, how long
+	// it takes.
+	Summary string
+	// Space is the extra free space the migration needs next to the
+	// database while it runs, as a factor of the database size: the WAL
+	// grows by the pages the migration changes until the checkpoint after
+	// it. 0 for a migration that touches few pages (ALTER TABLE, indexes
+	// on small tables); 1 for one that rewrites every row.
+	Space float64
+}
+
+// migrationStep is the Go part of a migration that cannot be expressed in
+// SQL alone, for example rewriting every row. It runs in the migration's
+// transaction after its SQL block and before schema_version is updated, so
+// a failure leaves the database at the previous version. report publishes
+// the progress (done of total work units, e.g. rows) to the caller of
+// Migrate; call it every few thousand units.
 type migrationStep func(ctx context.Context, tx *sql.Tx, report func(done, total int64)) error
 
-// migrationSteps returns the Go steps by schema version (1-based, the
-// version the step establishes). Steps that need store options (the raw
-// trimmers) are closures over s.
-func (s *Store) migrationSteps() map[int]migrationStep {
-	return map[int]migrationStep{5: s.migrateRawV5}
+// migrationSteps holds the Go part of the migrations that have one, keyed
+// by version; each entry builds the step for the store that migrates, so a
+// step can use the store's options (migration 5: the raw trimmers). Most
+// migrations are SQL only and have no entry.
+var migrationSteps = map[int]func(s *Store) migrationStep{
+	5: func(s *Store) migrationStep { return s.migrateRawV5 },
 }
 
 // eventsIndexSQL creates the indexes and the full-text triggers of events.

@@ -145,6 +145,7 @@ func newRoot(app *App) (*cobra.Command, *env) {
 		e.backupCmd(),
 		e.restoreCmd(),
 		e.maintenanceCmd(),
+		e.migrateCmd(),
 		e.hooksCmd(),
 		e.doctorCmd(),
 		e.configCmd(),
@@ -162,6 +163,9 @@ type env struct {
 	// jsonErrors is set by a read command that resolved a JSON format:
 	// Main then reports an error as JSON on stdout too.
 	jsonErrors bool
+	// schemaOutdated is set by openRead when the archive has an older
+	// schema than this binary: query errors then carry the migrate hint.
+	schemaOutdated bool
 }
 
 // loadConfig loads the effective configuration with the global flags. Its

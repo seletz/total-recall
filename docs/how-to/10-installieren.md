@@ -70,6 +70,26 @@ CGO_ENABLED=0 go install github.com/seletz/total-recall/cmd/total-recall@latest
 
 Die Version zeigt dann `dev`, weil sie beim Release-Build gesetzt wird.
 
+## Aktualisieren
+
+Ein neues Binary einspielen wie beim Installieren (`brew upgrade --cask total-recall`, Release-Archiv oder Build). Dann prüfen, ob die neue Version ein neues Datenbankschema bringt:
+
+```sh
+total-recall status
+```
+
+Steht in der Zeile `schema` ein `MIGRATION PENDING`, migriert nichts von selbst: Die Hooks schreiben nichts mehr (eine `WARN`-Zeile im Log, einmal am Tag), bis du migriert hast; lesende Befehle und die TUI laufen weiter, soweit sie das alte Schema erlauben, die TUI zeigt `migration pending` in der Kopfzeile. Es geht nichts verloren, der erste Hook nach der Migration liest alles nach. In dieser Reihenfolge:
+
+```sh
+total-recall backup          # 1. sichern
+total-recall migrate         # 2. Plan ansehen, bestätigen, migrieren
+total-recall status          # 3. prüfen: schema ohne Hinweis
+```
+
+`migrate` zeigt vorher, was es tut: die Versionen, jede ausstehende Migration mit einer Zeile Beschreibung, wo die Kopie `archive.db.pre-v<N>.bak` liegt und wie viel Platz frei sein muss. `--dry-run` zeigt nur den Plan, `--yes` fragt nicht nach. Bei einer langen Migration läuft eine Fortschrittsanzeige; Hooks, die währenddessen feuern, überspringen ihren Lauf und holen danach nach. Referenz: [`migrate`](../reference/10-befehle.md#migrate). Was sich je Version ändert und ob ein Update migrieren muss, steht in den [Änderungen](../reference/90-aenderungen.md).
+
+Die Kopie neben der Datenbank ist die Rückfalloption: Läuft nach der Migration alles, kann sie weg. Wer zurück will, kopiert sie über die Datenbank und installiert das alte Binary.
+
 ## Nächste Schritte
 
 1. [Hooks einrichten](20-hooks-einrichten.md) und einmal alles nachlesen: `total-recall ingest --all`.

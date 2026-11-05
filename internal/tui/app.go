@@ -394,6 +394,8 @@ func (a App) reloadStatus() string {
 		return ""
 	case a.reloadErr != nil:
 		return a.th.Error.Render(ansi.Truncate("reload: "+a.reloadErr.Error(), max(a.width/2, 1), "…"))
+	case a.opts.Store.MigrationPending():
+		return a.th.Error.Render(ansi.Truncate("migration pending: total-recall migrate", max(a.width/2, 1), "…"))
 	}
 	return a.th.Muted.Render("updated " + a.updated.In(a.opts.Location).Format("15:04:05"))
 }

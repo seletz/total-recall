@@ -8,12 +8,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.2.0 (unveröffentlicht)
 
-Dieses Release hebt die Datenbank auf **Schema v5**: Die Rohzeilen (`events.raw`) werden zu einem entschlackten, komprimierten Auszug, und Events verweisen auf ihre Quelldatei per ID. Das Archiv wird dadurch etwa 60 % kleiner. Die Migration schreibt jedes Event einmal um und läuft nicht mehr von selbst.
+Ab dieser Version **migriert kein Befehl die Datenbank mehr von selbst**, auch kein Hook. Bringt ein Update ein neues Schema, zeigt `total-recall status` in der Zeile `schema` ein `MIGRATION PENDING`; die Hooks schreiben dann nichts (eine `WARN`-Zeile im Log am Tag), bis du migriert hast, lesende Befehle und die TUI laufen weiter. Es geht nichts verloren.
+
+Dieses Release bringt so ein neues Schema, **v5**: Die Rohzeilen (`events.raw`) werden zu einem entschlackten, komprimierten Auszug, und Events verweisen auf ihre Quelldatei per ID. Das Archiv wird dadurch etwa 60 % kleiner; die Migration schreibt dafür jedes Event einmal um.
 
 **Nach dem Update einmal, in dieser Reihenfolge:**
 
 1. `total-recall backup`: Sicherung vor allem anderen.
-2. `total-recall migrate`: zeigt die ausstehende Migration an und führt sie nach Bestätigung aus; vorher legt sie `archive.db.pre-v4.bak` neben die Datenbank. Dauer: rund eine Minute je 100 000 Events, Platz: etwa das Doppelte der Dateigröße neben der Datenbank (Sicherung und WAL). Bis dahin schreiben die Hooks nichts (eine `WARN`-Zeile im Log) und lesen danach ab dem gespeicherten Lesestand weiter; nichts geht verloren.
+2. `total-recall migrate`: zeigt die Versionen und jede ausstehende Migration, fragt nach, legt `archive.db.pre-v<N>.bak` neben die Datenbank und migriert; der erste Hook danach liest alles nach. Für v5: rund eine Minute je 100 000 Events; frei sein muss etwa das Dreifache der Dateigröße neben der Datenbank (Kopie und WAL), `migrate` prüft das vorher. Rezept: [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 3. `total-recall maintenance`: baut die Datei neu auf. Direkt nach der Migration ist sie **größer** als vorher (die alten Seiten stehen auf der Freiliste); erst der Neuaufbau macht sie klein, auf einer Kopie eines echten Archivs von 1,1 GiB auf 435 MiB.
 
 ### Archiv
@@ -23,6 +25,13 @@ Dieses Release hebt die Datenbank auf **Schema v5**: Die Rohzeilen (`events.raw`
 - **`events.source_id` statt `source_path`**: Events verweisen auf `sources.id`, der Pfad steht einmal je Datei. Eigene Abfragen holen ihn mit `JOIN sources s ON s.id = e.source_id`.
 - [`status`](10-befehle.md#status) zeigt in der Zeile `raw` die komprimierte Größe aller Rohzeilen, die Zahl der Events mit und ohne `raw` und das Kompressionsverhältnis (geschätzt aus einer Stichprobe, nichts wird entpackt); JSON: `raw_rows`, `raw_bytes`, `raw_truncated`, `raw_ratio`.
 - Für Entwickler: `mise run dict:train` trainiert das Wörterbuch neu (nur aus dem Demo-Archiv und generierten Zeilen), `go run ./tools/rawdict measure -db …` misst die Kompression eines Archivs in Zahlen.
+
+### Behoben
+
+- **Flackern beim Blättern durch die Zeit in der Aktivität.** Jeder Tagesschritt (++up++/++down++, Mausrad) zeichnete bis zur Antwort seiner Abfrage einen Ladezustand ohne Zeilen, Kopfzeile und Kennzahlen; jetzt bleibt der alte Inhalt stehen, bis das neue Fenster vollständig da ist, die Tage werden einzeln gecacht und mit einer Periode (mindestens sieben Tagen) Vorlauf und Nachlauf abgefragt, Schritte innerhalb der laufenden Abfrage warten auf deren Antwort, und eine Antwort von vor einem Neuladen wird verworfen ([#147](https://github.com/seletz/total-recall/issues/147)).
+### Neu in der CLI
+
+- **Neuer Befehl [`migrate`](10-befehle.md#migrate), Schema-Migrationen laufen nicht mehr automatisch.** Bisher migrierte der erste schreibende Befehl nach einem Update die Datenbank unbemerkt, auch ein Hook. Eine Migration kann aber alle Events umschreiben und Minuten dauern; das entscheidet jetzt der Nutzer. `migrate` zeigt die Version der Datenbank und des Programms, je ausstehender Migration eine Beschreibung, den Pfad der Kopie und den nötigen freien Platz, fragt nach (`--yes` für Skripte, `--dry-run` zeigt nur), prüft den Platz, sperrt das Archiv wie `maintenance` gegen Hooks, schreibt wie bisher `archive.db.pre-v<N>.bak` und migriert mit Fortschrittsanzeige; `--json` für Skripte. Eine neue, leere Datenbank entsteht weiterhin direkt in der neuesten Version. Bei einer älteren Datenbank schreiben `ingest`, `reindex` und `maintenance` nichts und nennen den Weg (`total-recall backup`, dann `total-recall migrate`); im Hook ist das kein Fehler, sondern eine `WARN`-Zeile im Log, einmal am Tag, der Lesestand bleibt, der erste Hook nach der Migration liest nach. `backup` funktioniert ohne Migration. Lesende Befehle warnen auf stderr und laufen, soweit das Schema reicht; `status` zeigt `MIGRATION PENDING` und `migration_pending` im JSON, `doctor` meldet die ausstehende Migration als Befund, die [TUI](30-tui.md) zeigt `migration pending` in der Kopfzeile ([#145](https://github.com/seletz/total-recall/issues/145)).
 
 ### TUI
 
