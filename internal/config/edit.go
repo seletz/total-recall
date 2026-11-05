@@ -190,6 +190,10 @@ func FormatDuration(d time.Duration) string {
 	return s
 }
 
+// Reload loads the configuration again with the options it was loaded
+// with, after the file was edited by other means.
+func (c *Config) Reload() (*Config, error) { return load(c.opts, nil) }
+
 // Default returns the built-in value of key as Entries formats it, "" for
 // an unknown key.
 func (c *Config) Default(key string) string {

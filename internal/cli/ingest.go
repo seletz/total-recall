@@ -132,12 +132,7 @@ func (e *env) runIngest(ctx context.Context, cfg *config.Config, paths []string,
 	}
 	out := e.out(cfg)
 	if len(paths) > 0 || all {
-		rewritten := ""
-		if fl.rewriteRaw {
-			rewritten = fmt.Sprintf(", %d raw rewritten", total.RawRewritten)
-		}
-		_, _ = fmt.Fprintf(out, "scanned %d files: %d changed, %d unchanged, %d locked; %d new events%s, %d sessions touched (%s)\n",
-			total.Scanned, total.Changed, total.Unchanged, total.Locked, total.Events, rewritten, total.Sessions, total.Duration.Round(time.Millisecond))
+		_, _ = fmt.Fprintln(out, ops.FormatIngest(total, fl.rewriteRaw))
 	}
 	if regit {
 		rs, err := ingest.Regit(ctx, d)
