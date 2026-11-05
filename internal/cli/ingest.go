@@ -129,11 +129,24 @@ func adapters(cfg *config.Config) []harness.Adapter {
 
 // openWrite opens the archive read-write (migrating it if needed) and holds
 // the shared maintenance lock until Close: while `maintenance` rebuilds the
-// archive, it fails with store.ErrMaintenance.
+// archive, it fails with store.ErrMaintenance. The raw trimmers of the
+// adapters go along for migration 5.
 func openWrite(cfg *config.Config, log *logger) (*store.Store, error) {
 	return store.Open(cfg.DB, store.WithLocation(cfg.Location()),
 		store.WithLockDir(lockDir(cfg)),
+		store.WithRawTrimmers(rawTrimmers(adapters(cfg))),
 		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) }))
+}
+
+// rawTrimmers collects the raw trimmers of the adapters by harness name.
+func rawTrimmers(as []harness.Adapter) map[string]store.RawTrimFunc {
+	m := map[string]store.RawTrimFunc{}
+	for _, a := range as {
+		if t, ok := a.(harness.RawTrimmer); ok {
+			m[a.Name()] = t.TrimRaw
+		}
+	}
+	return m
 }
 
 // ingestFlags are the mode flags of `ingest`.

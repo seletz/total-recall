@@ -191,9 +191,16 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		}
 	}
 
+	if src.Path != "" {
+		if err := putSource(ctx, tx, src, s.now); err != nil {
+			return res, err
+		}
+	}
+
 	if len(events) > 0 {
+		sources := map[string]int64{}
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO events
-			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset, raw, raw_truncated)
+			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_id, source_offset, raw, raw_truncated)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
@@ -212,7 +219,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		}
 		for _, e := range events {
 			if rewrite != nil {
-				r, err := rewrite.ExecContext(ctx, nullStr(e.Raw), e.RawTruncated, e.ID)
+				r, err := rewrite.ExecContext(ctx, rawBlob(e.Raw), e.RawTruncated, e.ID)
 				if err != nil {
 					return res, fmt.Errorf("store: rewrite raw of event %s: %w", e.ID, err)
 				}
@@ -229,9 +236,21 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			if tsv == nil {
 				tsv = ""
 			}
+			var srcID any
+			if e.SourcePath != "" {
+				id, ok := sources[e.SourcePath]
+				if !ok {
+					h, _ := splitID(e.SessionID)
+					if id, err = sourceID(ctx, tx, e.SourcePath, h); err != nil {
+						return res, err
+					}
+					sources[e.SourcePath] = id
+				}
+				srcID = id
+			}
 			r, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
-				nullInt(e.TokensOut), nullStr(e.SourcePath), e.SourceOffset, nullStr(e.Raw), e.RawTruncated)
+				nullInt(e.TokensOut), srcID, e.SourceOffset, rawBlob(e.Raw), e.RawTruncated)
 			if err != nil {
 				return res, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}
@@ -241,23 +260,39 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		}
 	}
 
-	if src.Path != "" {
-		at := src.IngestedAt
-		if at.IsZero() {
-			at = s.now()
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO sources (path, harness, size, mtime, "offset", ingested_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT(path) DO UPDATE SET harness = excluded.harness, size = excluded.size,
-				mtime = excluded.mtime, "offset" = excluded."offset", ingested_at = excluded.ingested_at`,
-			src.Path, src.Harness, src.Size, formatTime(src.MTime), src.Offset, formatTime(at)); err != nil {
-			return res, fmt.Errorf("store: update source: %w", err)
-		}
-	}
 	if err := tx.Commit(); err != nil {
 		return res, fmt.Errorf("store: commit: %w", err)
 	}
 	return res, nil
+}
+
+// putSource upserts the ingest state of src.Path.
+func putSource(ctx context.Context, tx *sql.Tx, src SourceState, now func() time.Time) error {
+	at := src.IngestedAt
+	if at.IsZero() {
+		at = now()
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO sources (path, harness, size, mtime, "offset", ingested_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(path) DO UPDATE SET harness = excluded.harness, size = excluded.size,
+			mtime = excluded.mtime, "offset" = excluded."offset", ingested_at = excluded.ingested_at`,
+		src.Path, src.Harness, src.Size, formatTime(src.MTime), src.Offset, formatTime(at)); err != nil {
+		return fmt.Errorf("store: update source: %w", err)
+	}
+	return nil
+}
+
+// sourceID returns the id of the sources row for path, creating a bare row
+// (harness, offset 0) for a path that is not an ingested source yet.
+func sourceID(ctx context.Context, tx *sql.Tx, path, harness string) (int64, error) {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO sources (path, harness) VALUES (?, ?) ON CONFLICT(path) DO NOTHING`, path, harness); err != nil {
+		return 0, fmt.Errorf("store: source %s: %w", path, err)
+	}
+	var id int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM sources WHERE path = ?`, path).Scan(&id); err != nil {
+		return 0, fmt.Errorf("store: source %s: %w", path, err)
+	}
+	return id, nil
 }
 
 type queryer interface {

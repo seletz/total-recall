@@ -52,6 +52,9 @@ type Store struct {
 	version  int    // schema version found at open (read-only stores)
 	lockDir  string // WithLockDir: shared maintenance lock held until Close
 	unlock   func()
+	// rawTrimmers reduce a stored raw line of a harness to the fields the
+	// harness needs again (migration 5); key = harness name.
+	rawTrimmers map[string]RawTrimFunc
 	// Poll state (read-only stores): the file identity at open, the pinned
 	// connection with the data_version it last saw. watchMu also orders
 	// Reopen against Poll.
@@ -75,6 +78,17 @@ func WithLogf(f func(format string, args ...any)) Option { return func(s *Store)
 
 // WithClock sets the clock used for ingested_at. Default time.Now.
 func WithClock(now func() time.Time) Option { return func(s *Store) { s.now = now } }
+
+// RawTrimFunc reduces a raw transcript line to the fields its harness needs
+// to read it again (harness.RawTrimmer). An error keeps the line as it is.
+type RawTrimFunc func(raw []byte) ([]byte, error)
+
+// WithRawTrimmers sets the trimmers migration 5 applies to the stored raw
+// lines, by harness name. Lines of a harness without a trimmer are only
+// compressed.
+func WithRawTrimmers(m map[string]RawTrimFunc) Option {
+	return func(s *Store) { s.rawTrimmers = m }
+}
 
 func newStore(opts []Option) *Store {
 	s := &Store{now: time.Now, logf: func(string, ...any) {}}
@@ -233,6 +247,7 @@ func (s *Store) migrateTo(ctx context.Context, target int) error {
 			return err
 		}
 	}
+	steps := s.migrationSteps()
 	for i := v; i < target; i++ {
 		tx, err := s.db().BeginTx(ctx, nil)
 		if err != nil {
@@ -241,6 +256,12 @@ func (s *Store) migrateTo(ctx context.Context, target int) error {
 		if _, err := tx.ExecContext(ctx, migrations[i]); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("store: migration %d: %w", i+1, err)
+		}
+		if step := steps[i+1]; step != nil {
+			if err := step(ctx, tx, s.progressLogger(i+1)); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("store: migration %d: %w", i+1, err)
+			}
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM schema_version"); err != nil {
 			_ = tx.Rollback()
@@ -255,6 +276,20 @@ func (s *Store) migrateTo(ctx context.Context, target int) error {
 		}
 	}
 	return nil
+}
+
+// progressLogger returns a report function for a migration step that logs
+// the progress at most every two seconds and at the end.
+func (s *Store) progressLogger(version int) func(done, total int64) {
+	var last time.Time
+	return func(done, total int64) {
+		now := time.Now()
+		if done < total && now.Sub(last) < 2*time.Second {
+			return
+		}
+		last = now
+		s.logf("store: migration %d: %d/%d rows rewritten", version, done, total)
+	}
 }
 
 // formatTime returns the storage form of t, or NULL for the zero time.

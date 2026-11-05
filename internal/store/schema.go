@@ -1,5 +1,10 @@
 package store
 
+import (
+	"context"
+	"database/sql"
+)
+
 // migrations are applied in order, each in its own transaction; the index+1
 // is the schema version recorded in schema_version. Forward-only: never edit
 // a released migration, append a new one.
@@ -157,4 +162,98 @@ ALTER TABLE sessions ADD COLUMN organization_id TEXT;
 CREATE INDEX sessions_continued_in ON sessions(continued_in);
 CREATE INDEX sessions_account_id ON sessions(account_id);
 `,
+	// 5: raw as a trimmed, zstd-compressed BLOB and the source as a foreign
+	// key (#132). sources gets an integer primary key (path stays unique);
+	// events is rebuilt as events_v5 with source_id instead of source_path
+	// and raw as BLOB. The SQL here only prepares the tables; the rows are
+	// copied by migrationSteps[5] (migrateRawV5), which trims and compresses
+	// raw, keeps seq (the rowid of the external-content FTS index, so the
+	// index stays valid), swaps the tables and recreates indexes and
+	// triggers (eventsIndexSQL). Events whose source_path has no sources row
+	// get one with offset 0: the path is not read by anyone, the row only
+	// keeps the reference.
+	`
+CREATE TABLE sources_v5 (
+	id          INTEGER PRIMARY KEY,
+	path        TEXT NOT NULL UNIQUE,
+	harness     TEXT NOT NULL,
+	size        INTEGER NOT NULL DEFAULT 0,
+	mtime       TEXT,
+	"offset"    INTEGER NOT NULL DEFAULT 0,
+	ingested_at TEXT
+);
+INSERT INTO sources_v5 (path, harness, size, mtime, "offset", ingested_at)
+	SELECT path, harness, size, mtime, "offset", ingested_at FROM sources ORDER BY rowid;
+INSERT OR IGNORE INTO sources_v5 (path, harness)
+	SELECT e.source_path,
+	       COALESCE(MIN(s.harness), substr(e.session_id, 1, instr(e.session_id, ':') - 1))
+	FROM events e LEFT JOIN sessions s ON s.id = e.session_id
+	WHERE e.source_path IS NOT NULL AND e.source_path <> ''
+	  AND e.source_path NOT IN (SELECT path FROM sources_v5)
+	GROUP BY e.source_path;
+DROP TABLE sources;
+ALTER TABLE sources_v5 RENAME TO sources;
+
+CREATE TABLE events_v5 (
+	seq           INTEGER PRIMARY KEY,
+	id            TEXT NOT NULL UNIQUE,
+	session_id    TEXT NOT NULL REFERENCES sessions(id),
+	ts            TEXT NOT NULL,
+	ts_local      TEXT,
+	kind          TEXT NOT NULL,
+	role          TEXT,
+	actor         TEXT,
+	text          TEXT,
+	tool_name     TEXT,
+	model         TEXT,
+	tokens_in     INTEGER,
+	tokens_out    INTEGER,
+	source_id     INTEGER REFERENCES sources(id),
+	source_offset INTEGER,
+	raw           BLOB,
+	raw_truncated INTEGER NOT NULL DEFAULT 0
+);
+`,
 }
+
+// migrationNotes describe each migration for `total-recall migrate`, one
+// line per entry of migrations (same index). They name what changes and,
+// for long ones, duration and disk space.
+var migrationNotes = []string{
+	"initial schema: sources, sessions, events, dirs, full-text index, views",
+	"sessions.ai_title and display_name",
+	"events.raw_truncated",
+	"sessions.continued_in, account_id, organization_id",
+	"events.raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), events.source_id instead of source_path; " +
+		"rewrites every event: about a minute per 100,000 events, needs free disk space of about twice the archive size (WAL plus the backup)",
+}
+
+// migrationStep is Go code run inside the transaction of a migration,
+// after its SQL block and before schema_version is set. report receives
+// the progress (rows done of total) every batch.
+type migrationStep func(ctx context.Context, tx *sql.Tx, report func(done, total int64)) error
+
+// migrationSteps returns the Go steps by schema version (1-based, the
+// version the step establishes). Steps that need store options (the raw
+// trimmers) are closures over s.
+func (s *Store) migrationSteps() map[int]migrationStep {
+	return map[int]migrationStep{5: s.migrateRawV5}
+}
+
+// eventsIndexSQL creates the indexes and the full-text triggers of events.
+// Migration 1 created the same objects; a rebuild of the table (migration
+// 5) recreates them with this.
+const eventsIndexSQL = `
+CREATE INDEX events_session_ts ON events(session_id, ts);
+CREATE INDEX events_ts ON events(ts);
+CREATE TRIGGER events_fts_ai AFTER INSERT ON events BEGIN
+	INSERT INTO events_fts(rowid, text) VALUES (new.seq, new.text);
+END;
+CREATE TRIGGER events_fts_ad AFTER DELETE ON events BEGIN
+	INSERT INTO events_fts(events_fts, rowid, text) VALUES ('delete', old.seq, old.text);
+END;
+CREATE TRIGGER events_fts_au AFTER UPDATE OF text ON events BEGIN
+	INSERT INTO events_fts(events_fts, rowid, text) VALUES ('delete', old.seq, old.text);
+	INSERT INTO events_fts(rowid, text) VALUES (new.seq, new.text);
+END;
+`
