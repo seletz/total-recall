@@ -12,6 +12,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **Einstellungen wirken sofort.** Die Seite [Settings](30-tui.md#settings) der Ansicht Config übernimmt mehr Werte ohne Neustart: die Tastenbelegung `[keys]` (Tasten, Fußzeile und Hilfe aller Ansichten), `day_start` und die Tabelle `[work]` (Kernzeiten, Ziel und Grenzen zeichnen die Aktivität neu; Tagesgrenze und Bundesland laden das Fenster neu und markieren die Feiertage der Statistik neu; `count` schaltet die Zählweise um) sowie `tui.activity_projects`. Fenster, Markierung, Scrollposition und Eingabe bleiben dabei erhalten, wie schon bei `reload`, `mouse` und den Projektdefinitionen. Die Zeile `default` sagt zu jedem Schlüssel, was eine Änderung tut: `applied at once`, `takes effect at the next start` (`db`, `timezone` und die Startzustände der Ansichten) oder `used by the next command or action` (alles, was die TUI nicht selbst nutzt); die Meldung nach dem Schreiben wiederholt es. Eine im Editor geänderte Tabelle mit einem Fehler lässt die bisherigen Werte in Kraft ([#165](https://github.com/seletz/total-recall/issues/165)).
 
+### Neu in der CLI
+
+- **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
+
+### Backup
+
+- **Backups sind zstd-komprimiert** (`archive-YYYY-MM-DD.db.zst` statt `.db.gz`). Seit Schema v5 sind die Rohzeilen schon zstd-Blöcke, an denen gzip nichts mehr spart; auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in 6,3 s, zstd 220 MiB in rund 2 s, und das Entpacken dauert 0,4 statt 2 s. Alte `.db.gz` bleiben lesbar (`restore` erkennt das Format an der Endung) und zählen bei der Aufbewahrung weiter mit; `status`, `backup --if-older` und die Config-Seite der TUI nehmen die neueste Kopie in jedem Format. Rezept: [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen) ([#163](https://github.com/seletz/total-recall/issues/163)).
+
 ### Installation
 
 - Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).

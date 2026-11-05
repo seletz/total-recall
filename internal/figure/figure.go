@@ -27,6 +27,10 @@ type Options struct {
 	// Period is the range the figure shows, appended to the title ("October
 	// 2026", "2026-10-01 – 2026-10-15"); see PeriodName.
 	Period string
+	// Title replaces the heading, including the period, when set.
+	Title string
+	// Lang is the language of the labels; empty is EN.
+	Lang Lang
 	// NoTitle leaves the heading out, NoLegend the legend.
 	NoTitle, NoLegend bool
 	// Transparent leaves the background out; the default is white.
@@ -143,17 +147,18 @@ func AssignColors(names []string, fixed map[string]string) map[string]color.NRGB
 	return out
 }
 
-// PeriodName names a range [since, until) for a title: a whole calendar
-// month as "October 2026", any other range as "2026-10-01 – 2026-10-15"
-// (the last day included). A zero bound is open ("… – 2026-10-15").
-func PeriodName(since, until time.Time, loc *time.Location) string {
+// PeriodName names a range [since, until) for a title in lang: a whole
+// calendar month as "October 2026" ("Oktober 2026"), any other range as
+// "2026-10-01 – 2026-10-15" ("01.10.2026 – 15.10.2026", the last day
+// included). A zero bound is open ("… – 2026-10-15").
+func PeriodName(since, until time.Time, loc *time.Location, lang Lang) string {
 	if loc == nil {
 		loc = time.UTC
 	}
 	if m, ok := wholeMonth(since, until, loc); ok {
-		return m.Format("January 2006")
+		return lang.monthName(m)
 	}
-	return dayRange(since, until, loc, " – ")
+	return dayRange(since, until, loc, " – ", lang.day)
 }
 
 // PeriodSlug names a range for a file name: "2026-10" for a whole month,
@@ -165,7 +170,7 @@ func PeriodSlug(since, until time.Time, loc *time.Location) string {
 	if m, ok := wholeMonth(since, until, loc); ok {
 		return m.Format("2006-01")
 	}
-	return dayRange(since, until, loc, "_")
+	return dayRange(since, until, loc, "_", func(t time.Time) string { return t.Format("2006-01-02") })
 }
 
 // wholeMonth reports whether [since, until) is a calendar month in loc,
@@ -186,25 +191,29 @@ func wholeMonth(since, until time.Time, loc *time.Location) (time.Time, bool) {
 	return first, true
 }
 
-// dayRange formats the first and the last local day of [since, until).
-func dayRange(since, until time.Time, loc *time.Location, sep string) string {
+// dayRange formats the first and the last local day of [since, until)
+// with day.
+func dayRange(since, until time.Time, loc *time.Location, sep string, day func(time.Time) string) string {
 	a, b := "…", "…"
 	if !since.IsZero() {
-		a = since.In(loc).Format("2006-01-02")
+		a = day(since.In(loc))
 	}
 	if !until.IsZero() {
-		b = until.In(loc).Add(-time.Second).Format("2006-01-02")
+		b = day(until.In(loc).Add(-time.Second))
 	}
 	return a + sep + b
 }
 
 // heading adds the title line and returns the height it takes (0 without
-// a title).
+// a title). Options.Title replaces the default title and the period.
 func heading(s *canvas.Scene, o Options, title string) float64 {
 	if o.NoTitle {
 		return 0
 	}
-	if o.Period != "" {
+	switch {
+	case o.Title != "":
+		title = o.Title
+	case o.Period != "":
 		title += " · " + o.Period
 	}
 	s.Add(canvas.Text{X: 0, Y: 16, Text: title, Size: titleSize, Bold: true, Fill: TextColor})
@@ -236,11 +245,6 @@ func cut(s string, n int) string {
 // itoa formats an integer.
 func itoa(n int) string { return strconv.Itoa(n) }
 
-// hours formats a duration in hours with at most one decimal ("7.5h").
-func hours(h float64) string {
-	return strconv.FormatFloat(math.Round(h*10)/10, 'f', -1, 64) + "h"
-}
-
 // percent formats a share as "12 %".
 func percent(v, total int) string {
 	if total == 0 {
@@ -248,6 +252,3 @@ func percent(v, total int) string {
 	}
 	return fmt.Sprintf("%d %%", int(math.Round(100*float64(v)/float64(total))))
 }
-
-// Weekdays are the row labels, Monday first.
-var Weekdays = [7]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}

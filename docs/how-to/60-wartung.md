@@ -37,6 +37,25 @@ total-recall maintenance
 
 Der Befehl schreibt zuerst ein Backup wie [`backup`](../reference/10-befehle.md#backup), baut dann die Kopie, prüft sie (`PRAGMA integrity_check`, gleiche Zeilenzahlen) und tauscht die Datei atomar aus. Jeder Fehler vorher lässt das Archiv unverändert, auch ein `Ctrl-C`. Danach zeigt `status` die neue Seitengröße ohne Hinweis.
 
+## Backup wiederherstellen { #backup-wiederherstellen }
+
+`backup` schreibt seit v1.3.0 `archive-YYYY-MM-DD.db.zst` (zstd); bis v1.2 schrieben `archive-YYYY-MM-DD.db.gz` (gzip), Vorabversionen davor unkomprimierte `archive-YYYY-MM-DD.db`. Alle drei liest [`restore`](../reference/10-befehle.md#restore), alle drei zählen bei der Aufbewahrung (`keep_daily`, `keep_monthly`) gleich, und `status`, `backup --if-older` und die Config-Seite der TUI nehmen die jeweils neueste Kopie, egal in welchem Format. Alte `.db.gz` musst du also weder umwandeln noch löschen; sie fallen mit der Zeit aus der Aufbewahrung.
+
+Erst neben die laufende Datenbank, dann ansehen:
+
+```sh
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.zst --to /tmp/archive.db
+total-recall --db /tmp/archive.db status
+```
+
+Die laufende Datenbank ersetzen (vorher TUI und Hooks beenden, kein `ingest` darf laufen):
+
+```sh
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.zst --force
+```
+
+`restore` prüft die Kopie (Schema-Version, `PRAGMA quick_check`), bevor es das Ziel anfasst. Ohne das Programm geht es auch, etwa auf einem Rechner ohne total-recall: `zstd -d archive-2026-11-01.db.zst -o archive.db` (Homebrew: `brew install zstd`), für eine alte Kopie `gunzip -k archive-2026-11-01.db.gz`. Heraus kommt jeweils eine gewöhnliche SQLite-Datei.
+
 ## Wenn es nicht klappt
 
 | Meldung | Bedeutung |

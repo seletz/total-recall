@@ -24,11 +24,11 @@ func (e *env) backupCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "backup",
 		Short: "Write a compressed, consistent copy of the archive and prune old copies",
-		Long: `Write dir/archive-YYYY-MM-DD.db.gz (date in the configured time zone): a
-VACUUM INTO copy, gzip-compressed. Then keep the newest backup.keep_daily copies
+		Long: `Write dir/archive-YYYY-MM-DD.db.zst (date in the configured time zone): a
+VACUUM INTO copy, zstd-compressed. Then keep the newest backup.keep_daily copies
 plus the newest copy of each month (backup.keep_monthly months, 0 = all).
-Uncompressed copies (archive-YYYY-MM-DD.db) from older versions count alike.
-Restore a copy with "total-recall restore".`,
+Copies from older versions (archive-YYYY-MM-DD.db.gz, archive-YYYY-MM-DD.db)
+count alike. Restore a copy with "total-recall restore".`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := e.loadConfig()
@@ -96,7 +96,7 @@ func (e *env) restoreCmd() *cobra.Command {
 	var force bool
 	c := &cobra.Command{
 		Use:   "restore BACKUP_FILE",
-		Short: "Restore a backup copy (.db.gz or .db) into a database file",
+		Short: "Restore a backup copy (.db.zst, .db.gz or .db) into a database file",
 		Long: `Decompress BACKUP_FILE into a database file: --to PATH, default the
 configured database. An existing target is never replaced unless --force is
 given; then its -wal/-shm files are removed too, so stop running ingests first.

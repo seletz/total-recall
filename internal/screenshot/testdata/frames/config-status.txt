@@ -11,7 +11,7 @@
  events                21896
  sources               929
  last ingest (claude)  2026-11-02 10:00  0s ago
- last backup           ~/Documents/total-recall/archive-2026-11-02.db.gz  7h00m ago
+ last backup           ~/Documents/total-recall/archive-2026-11-02.db.zst  7h00m ago
  log                   ~/.local/share/total-recall/total-recall.log
  config                ~/.config/total-recall/config.toml  loaded
 

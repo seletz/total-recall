@@ -131,6 +131,7 @@ legend = true                    # Legende (--no-legend)
 transparent = false              # true = ohne weißen Hintergrund (--transparent)
 top = 12                         # Projekte in `chart projects`, Rest als other; 0 = alle (--top)
 heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]   # Stufen des Kalenders, hell nach dunkel
+lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 
 [keys]
 # Tastenbelegung der TUI, Aktion = Taste oder Liste; siehe TUI, „Tastenbelegung anpassen“
@@ -157,10 +158,10 @@ heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]   # Stufen des Kalenders,
 ### `[backup]`
 
 `dir`
-:   Zielordner für Backups. Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
+:   Zielordner für Backups (`archive-YYYY-MM-DD.db.zst`). Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
 
 `keep_daily`
-:   So viele Tageskopien bleiben erhalten. Default: 7.
+:   So viele Tageskopien bleiben erhalten. Default: 7. Kopien älterer Versionen (`.db.gz`, `.db`) zählen mit.
 
 `keep_monthly`
 :   So viele Monatskopien bleiben erhalten. Eine Monatskopie ist die letzte Kopie eines Monats. `0` heißt: alle behalten.
@@ -382,6 +383,9 @@ Defaults für [`total-recall chart`](10-befehle.md#chart), die Grafiken für Mon
 
 `heatmap`
 :   Farbstufen des Kalenders von hell nach dunkel, je Stufe ein Palettenname oder `#rrggbb`, mindestens eine; die Zahl der Einträge ist die Zahl der Stufen. Default: `["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]`.
+
+`lang`
+:   Sprache der Beschriftungen: `en` oder `de` (Titel, Legende, Achsen, Wochentage, Monatsnamen, Datums- und Zahlenformat). Die Dateinamen bleiben gleich. Override: `--lang`. Default: `en`.
 
 ### `[keys]` { #keys }
 

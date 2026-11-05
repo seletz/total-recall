@@ -44,7 +44,7 @@ func TestMaintenance(t *testing.T) {
 
 	// The real thing: backup, progress lines, before/after table.
 	out := e.mustRun(t, "maintenance")
-	for _, want := range []string{"backup written: " + filepath.Join(e.backups, "archive-2026-10-20.db.gz"), "rebuilding with page size 16384", "archive replaced: " + e.db, "page size", "4096", "16384", "events"} {
+	for _, want := range []string{"backup written: " + filepath.Join(e.backups, "archive-2026-10-20.db.zst"), "rebuilding with page size 16384", "archive replaced: " + e.db, "page size", "4096", "16384", "events"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("maintenance output lacks %q:\n%s", want, out)
 		}
@@ -52,7 +52,7 @@ func TestMaintenance(t *testing.T) {
 	if e.count(t, "PRAGMA page_size") != 16384 || e.count(t, "SELECT count(*) FROM events") != events {
 		t.Error("archive not rebuilt or data lost")
 	}
-	if _, err := os.Stat(filepath.Join(e.backups, "archive-2026-10-20.db.gz")); err != nil {
+	if _, err := os.Stat(filepath.Join(e.backups, "archive-2026-10-20.db.zst")); err != nil {
 		t.Error(err)
 	}
 	st = decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
