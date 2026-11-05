@@ -48,6 +48,10 @@ run = "scripts/tool-versions-check.sh"
 description = "Create a new release (interactive semver bump, pushes the tag)"
 run = "scripts/release.sh"
 
+[tasks."release:notes:check"]
+description = "Test scripts/release-notes.sh against the synthetic changelog in scripts/testdata (part of `go test ./...`, so CI runs it)"
+run = "go test ./scripts"
+
 [tasks."release:snapshot"]
 description = "Build a snapshot release into dist/ with goreleaser: archives, SBOMs and checksums as the release workflow would, nothing published"
 # The SBOM generator is pinned here, not under [tools]: only the release

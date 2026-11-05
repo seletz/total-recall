@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # Print the release notes of one version from docs/reference/90-aenderungen.md: the
-# section that starts with "## <tag>" up to the next "## " heading, with the
-# heading itself dropped. Used by the release workflow as the header of the
-# GitHub release body (goreleaser --release-header); the commit changelog
-# that goreleaser generates follows below it.
+# section whose heading is exactly "## <tag>" up to the next "## " heading,
+# with the heading itself dropped. A heading with a suffix, such as
+# "## v1.3.0 (unveröffentlicht)", is not a release yet and fails like a
+# missing section. Used by the release workflow as the header of the GitHub
+# release body (goreleaser --release-header); the commit changelog that
+# goreleaser generates follows below it. scripts/release_notes_test.go runs
+# it against scripts/testdata/changelog.md (`mise run release:notes:check`).
 #
 # Usage: scripts/release-notes.sh v0.2.0 [docs/reference/90-aenderungen.md]
 
@@ -13,12 +16,19 @@ TAG="${1:?usage: $0 TAG [FILE]}"
 FILE="${2:-$(dirname "$0")/../docs/reference/90-aenderungen.md}"
 
 NOTES=$(awk -v tag="$TAG" '
-    /^## / { in_section = ($2 == tag) ; if (in_section) next }
+    /^## / { in_section = ($0 == "## " tag) ; if (in_section) next }
     in_section { print }
 ' "$FILE")
 
 if [ -z "${NOTES//[[:space:]]/}" ]; then
-    echo "no section \"## $TAG\" in $FILE" >&2
+    # A heading that starts with the tag but goes on ("## v1.3.0 (unveröffentlicht)")
+    # is the usual reason: the section exists but is not marked released.
+    HEADING=$(grep -m1 -F "## $TAG " "$FILE" || true)
+    if [ -n "$HEADING" ]; then
+        echo "section \"$HEADING\" in $FILE is not released yet; make the heading \"## $TAG\"" >&2
+    else
+        echo "no section \"## $TAG\" in $FILE" >&2
+    fi
     exit 1
 fi
 
