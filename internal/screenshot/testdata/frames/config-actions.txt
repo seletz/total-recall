@@ -12,7 +12,7 @@
   ingest all                read every transcript of every harness from the stored offset
   doctor                    check the transcripts for format drift; reads only
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- backup: write archive-2026-11-02.db.zst to ~/Documents/total-recall and prune older copies
+ backup: write archive-2026-11-02-1000.db.zst to ~/Documents/total-recall and prune older copies
  y confirms, esc cancels
 
 

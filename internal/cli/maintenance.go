@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -69,8 +70,12 @@ size next to the database.
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		opts := ops.MaintainOptions(cfg, e.app.Now(), pageSize, dryRun, wait)
-		if !o.format.IsJSON() {
-			opts.Logf = func(f string, a ...any) { _, _ = fmt.Fprintf(o.w, f+"\n", a...) }
+		log := logfile.New(cfg.LogPath(), e.app.Now)
+		opts.Logf = func(f string, a ...any) {
+			log.Infof(f, a...)
+			if !o.format.IsJSON() {
+				_, _ = fmt.Fprintf(o.w, f+"\n", a...)
+			}
 		}
 		res, err := store.Maintain(ctx, cfg.DB, opts)
 		if err != nil {

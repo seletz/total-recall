@@ -29,7 +29,7 @@ log = ""
 # Target directory for `total-recall backup` (zstd-compressed archive-YYYY-MM-DD.db.zst).
 # Override: --backup-dir, TOTAL_RECALL_BACKUP_DIR.
 dir = "~/Documents/total-recall"
-# Number of most recent daily copies to keep.
+# Number of most recent days whose copies are all kept.
 keep_daily = 7
 # Number of monthly copies (newest file per month) to keep; 0 = keep all.
 keep_monthly = 0

@@ -392,7 +392,7 @@ func TestBackupRetention(t *testing.T) {
 	if strings.Join(names, " ") != strings.Join(want, " ") {
 		t.Errorf("kept:\n got %v\nwant %v", names, want)
 	}
-	// Second backup on the same day replaces the file.
+	// A second backup on the same day is a further copy.
 	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 7, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +400,7 @@ func TestBackupRetention(t *testing.T) {
 	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:30:00Z"), 2, 2); err != nil {
 		t.Fatal(err)
 	}
-	want = []string{"archive-2026-10-31.db.zst", "archive-2026-11-01.db.zst"}
+	want = []string{"archive-2026-10-31.db.zst", "archive-2026-11-01-2200.db.zst", "archive-2026-11-01-2230.db.zst", "archive-2026-11-01.db.zst"}
 	if got := listBackups(t, dir); strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("kept with keep_monthly=2:\n got %v\nwant %v", got, want)
 	}
@@ -419,7 +419,7 @@ func TestBackupRetention(t *testing.T) {
 		t.Errorf("search in backup: %v %v", hits, err)
 	}
 	p, mt, err := LastBackup(dir)
-	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.zst" || mt.IsZero() {
+	if err != nil || filepath.Base(p) != "archive-2026-11-01-2230.db.zst" || mt.IsZero() {
 		t.Errorf("LastBackup = %q %v %v", p, mt, err)
 	}
 	if p, _, err := LastBackup(filepath.Join(t.TempDir(), "none")); err != nil || p != "" {
@@ -440,12 +440,12 @@ func TestBackupLegacyFormats(t *testing.T) {
 	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.gz" {
 		t.Errorf("LastBackup with legacy files = %q %v", p, err)
 	}
-	// Today's zstd backup replaces today's legacy copies; retention counts
-	// all formats alike.
+	// Today's legacy copies stay next to today's zstd backup; retention
+	// counts all formats alike.
 	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 2, 0); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"archive-2026-09-30.db", "archive-2026-10-31.db.gz", "archive-2026-11-01.db.zst", "notes.txt"}
+	want := []string{"archive-2026-09-30.db", "archive-2026-10-31.db.gz", "archive-2026-11-01-2200.db.zst", "archive-2026-11-01.db", "archive-2026-11-01.db.gz", "notes.txt"}
 	if got := listBackups(t, dir); strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("kept:\n got %v\nwant %v", got, want)
 	}
@@ -454,7 +454,7 @@ func TestBackupLegacyFormats(t *testing.T) {
 			t.Errorf("temp files left: %v", m)
 		}
 	}
-	if p, _, err := LastBackup(dir); err != nil || filepath.Base(p) != "archive-2026-11-01.db.zst" {
+	if p, _, err := LastBackup(dir); err != nil || filepath.Base(p) != "archive-2026-11-01-2200.db.zst" {
 		t.Errorf("LastBackup = %q %v", p, err)
 	}
 }

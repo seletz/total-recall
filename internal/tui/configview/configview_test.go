@@ -325,6 +325,33 @@ func TestSettingsOverride(t *testing.T) {
 	}
 }
 
+// TestActionsBackupSameDay: with a copy of the day the action asks for and
+// writes a further one, and leaves the first alone.
+func TestActionsBackupSameDay(t *testing.T) {
+	h := newTestEnv(t, "")
+	if err := os.MkdirAll(h.cfg.Backup.Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first := filepath.Join(h.cfg.Backup.Dir, "archive-2026-10-20.db.gz")
+	if err := os.WriteFile(first, []byte("the copy of the morning"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := drive(t, New(h.options(t)), "tab", "tab", "tab")
+	next, err := store.NextBackupName(h.cfg.Backup.Dir, m.opts.Now().In(h.cfg.Location()))
+	if err != nil || !strings.HasPrefix(next, "archive-2026-10-20-") {
+		t.Fatalf("NextBackupName = %q %v", next, err)
+	}
+	m = press(t, m, "enter")
+	requireContains(t, frame(m), "backup: write "+next+" to ~/Documents/total-recall")
+	m = press(t, m, "y")
+	requireContains(t, frame(m), "backup: backup written: "+next)
+	if b, err := os.ReadFile(first); err != nil || string(b) != "the copy of the morning" {
+		t.Errorf("first copy: %q %v", b, err)
+	}
+	m = press(t, m, "shift+tab", "shift+tab", "shift+tab")
+	requireRow(t, frame(m), "last backup", "~/Documents/total-recall/"+next)
+}
+
 // TestActionsConfirm: a writing action asks first, esc cancels and
 // nothing is written, y runs it; a reading one runs right away.
 func TestActionsConfirm(t *testing.T) {

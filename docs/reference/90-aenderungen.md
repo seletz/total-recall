@@ -6,6 +6,13 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.3.1 (unveröffentlicht)
+
+### Behoben
+
+- **`backup` ersetzt kein vorhandenes Backup mehr** ([#200](https://github.com/seletz/total-recall/issues/200)). Seit v1.3.0 löschte ein zweites Backup am selben Tag die `.db.gz` oder `.db` dieses Tages, frühere Versionen überschrieben die Kopie des Tages. Jetzt bleiben alle Kopien liegen: Hat der Tag schon eine, bekommt die neue die Uhrzeit in den Namen (`archive-YYYY-MM-DD-HHMM.db.zst`), in derselben Minute zusätzlich eine laufende Nummer. Das gilt auch für parallele Läufe und für das Backup von `maintenance`. `restore`, `status`, `backup --if-older`, die Config-Seite und das Setup der TUI kennen die neuen Namen.
+- **Aufbewahrung nachvollziehbar.** Gelöscht wird nur noch über `keep_daily` und `keep_monthly`, die ältesten Kopien zuerst, und jede gelöschte Kopie steht als `backup: pruned …` im Log, auch beim Lauf von `maintenance`. `keep_daily` zählt jetzt Tage statt Dateien: Von den letzten sieben Tagen mit Backup bleiben alle Kopien, mehrere Backups an einem Tag verdrängen keine älteren Tage. Im Backup-Ordner können daher mehr Dateien liegen als `keep_daily` angibt.
+
 ## v1.3.0
 
 ### Was dieses Update mit dem Archiv macht
