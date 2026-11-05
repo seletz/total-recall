@@ -538,6 +538,7 @@ func TestSettingsEffect(t *testing.T) {
 		{"backup.dir", "used by the next command or action"},
 		{"redact.enabled", "used by the next command or action"},
 		{"chart.scale", "used by the next command or action"},
+		{"chart.lang", "used by the next command or action"},
 		{"worktime.max_gap", "used by the next command or action"},
 		{"accounts", "used by the next command or action"},
 	}
