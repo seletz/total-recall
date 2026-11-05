@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -219,6 +220,39 @@ func TestMigrateCommand(t *testing.T) {
 		}
 		e.mustRun(t, "ingest", "--all")
 	})
+	t.Run("v4 archive: raw trimmed through the adapter", func(t *testing.T) {
+		e := newTestEnv(t)
+		_ = os.Remove(e.db)
+		if err := store.CreateAtVersion(e.db, 4); err != nil {
+			t.Fatal(err)
+		}
+		db, err := sql.Open("sqlite", "file:"+e.db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, q := range []string{
+			`INSERT INTO sessions (id, harness, native_id, cwd, started_at) VALUES ('claude:s1', 'claude', 's1', '/w', '2026-10-01T10:00:00.000Z')`,
+			`INSERT INTO events (id, session_id, ts, kind, role, actor, text, source_path, source_offset, raw)
+				VALUES ('claude:e1', 'claude:s1', '2026-10-01T10:00:00.000Z', 'message', 'user', 'human', 'hi', '/p/a.jsonl', 0,
+				'{"type":"user","uuid":"e1","sessionId":"s1","cwd":"/w","gitBranch":"main","message":{"role":"user","content":"hi","usage":{"input_tokens":3}}}')`,
+		} {
+			if _, err := db.Exec(q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+		_ = db.Close()
+		if r := e.run(t, "", "ingest", "--all"); r.code == 0 {
+			t.Fatal("ingest migrated a v4 archive")
+		}
+		e.mustRun(t, "migrate", "--yes")
+		if v := e.schemaVersion(t); v != latest {
+			t.Fatalf("version after migrate = %d", v)
+		}
+		want := `{"type":"user","uuid":"e1","message":{"content":"hi"}}`
+		if n := e.count(t, "SELECT count(*) FROM events e JOIN sources s ON s.id = e.source_id WHERE e.id = 'claude:e1' AND s.path = '/p/a.jsonl' AND typeof(e.raw) = 'blob' AND raw_text(e.raw) = '"+want+"'"); n != 1 {
+			t.Errorf("trimmed raw after migrate: %d rows match, want 1 (%s)", n, want)
+		}
+	})
 	t.Run("--yes --json", func(t *testing.T) {
 		e := newTestEnv(t)
 		e.outdatedDB(t)
@@ -261,6 +295,9 @@ func TestOutdatedReadCommands(t *testing.T) {
 	}
 	if !strings.Contains(r.stdout, "v1 (binary supports v"+itoa(latest)+")  MIGRATION PENDING: run `total-recall backup`, then `total-recall migrate`") {
 		t.Errorf("status lacks the pending hint:\n%s", r.stdout)
+	}
+	if !strings.Contains(r.stdout, "raw          unknown until the migration ran") {
+		t.Errorf("status raw line on an outdated archive:\n%s", r.stdout)
 	}
 	if !strings.Contains(r.stderr, "warning: database schema v1 is older") {
 		t.Errorf("status stderr: %s", r.stderr)

@@ -228,7 +228,7 @@ var scrubSQL = []string{
 	   agent_name = CASE WHEN agent_name IS NULL OR agent_name = '' THEN agent_name ELSE 'subagent' END,
 	   account_id = (SELECT 'account-' || a.rank FROM accountmap a WHERE a.account_id = sessions.account_id),
 	   organization_id = (SELECT 'org-' || o.rank FROM orgmap o WHERE o.organization_id = sessions.organization_id)`,
-	`UPDATE events SET text = NULL, raw = NULL, raw_truncated = 0, tool_name = NULL, source_path = NULL`,
+	`UPDATE events SET text = NULL, raw = NULL, raw_truncated = 0, tool_name = NULL, source_id = NULL`,
 	`INSERT INTO events_fts(events_fts) VALUES ('rebuild')`,
 	`DELETE FROM sources`,
 	`DELETE FROM dirs`,

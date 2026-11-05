@@ -68,7 +68,7 @@ func TestAnonymizeRemovesOriginals(t *testing.T) {
 		t.Errorf("original data left in %s", hit)
 	}
 	for _, q := range []string{
-		"SELECT count(*) FROM events WHERE text IS NOT NULL OR raw IS NOT NULL OR raw_truncated <> 0 OR tool_name IS NOT NULL OR source_path IS NOT NULL",
+		"SELECT count(*) FROM events WHERE text IS NOT NULL OR raw IS NOT NULL OR raw_truncated <> 0 OR tool_name IS NOT NULL OR source_id IS NOT NULL",
 		"SELECT count(*) FROM sessions WHERE name IS NOT NULL OR ai_title IS NOT NULL",
 		"SELECT count(*) FROM sources",
 		"SELECT count(*) FROM dirs",

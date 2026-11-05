@@ -266,7 +266,7 @@ func TestRedactionAndStoreRaw(t *testing.T) {
 				tf.User(sid, "u1", "2026-10-01T10:00:00Z", "/w/x", "my token is "+secret).JSON())
 			run(t, e, p)
 			text := e.str(t, "SELECT text FROM events")
-			raw := e.str(t, "SELECT raw FROM events")
+			raw := e.str(t, "SELECT raw_text(raw) FROM events")
 			if tt.redact == strings.Contains(text, secret) {
 				t.Errorf("text = %q", text)
 			}
@@ -398,7 +398,7 @@ func TestRawMaxBytes(t *testing.T) {
 			if got := e.str(t, "SELECT text FROM events"); got != long {
 				t.Errorf("text changed: %d bytes", len(got))
 			}
-			raw := e.str(t, "SELECT raw FROM events")
+			raw := e.str(t, "SELECT raw_text(raw) FROM events")
 			if (raw != "") != tt.wantRaw {
 				t.Errorf("raw = %q, want present=%v", raw, tt.wantRaw)
 			}
@@ -474,7 +474,7 @@ func TestSessionOwnerSetsAccount(t *testing.T) {
 	if sum.Events != 2 {
 		t.Errorf("events ingested = %d, want 2: %+v", sum.Events, sum)
 	}
-	if n := e.count(t, `SELECT count(*) FROM events WHERE raw LIKE '%session-owner%' OR raw LIKE '%acc00000%'`); n != 0 {
+	if n := e.count(t, `SELECT count(*) FROM events WHERE raw_text(raw) LIKE '%session-owner%' OR raw_text(raw) LIKE '%acc00000%'`); n != 0 {
 		t.Errorf("%d events carry session-owner data in raw", n)
 	}
 	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`' AND account_id = '`+tf.Account1+`' AND organization_id = '`+tf.Organization1+`'`); n != 1 {
@@ -498,7 +498,7 @@ func TestContinuedInLinksSession(t *testing.T) {
 	if sum.Events != 2 {
 		t.Errorf("events ingested = %d, want 2: %+v", sum.Events, sum)
 	}
-	if n := e.count(t, `SELECT count(*) FROM events WHERE raw LIKE '%continued-in%' OR raw LIKE '%`+next+`%'`); n != 0 {
+	if n := e.count(t, `SELECT count(*) FROM events WHERE raw_text(raw) LIKE '%continued-in%' OR raw_text(raw) LIKE '%`+next+`%'`); n != 0 {
 		t.Errorf("%d events carry continued-in data in raw", n)
 	}
 	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`' AND continued_in = 'claude:`+next+`'
@@ -599,7 +599,7 @@ func TestRereadRewriteRaw(t *testing.T) {
 	if got := counts(); got != before {
 		t.Errorf("counts = %v, want %v", got, before)
 	}
-	raw := e.str(t, "SELECT raw FROM events WHERE id = 'claude:a4'")
+	raw := e.str(t, "SELECT raw_text(raw) FROM events WHERE id = 'claude:a4'")
 	if !strings.Contains(raw, "thanks, now count the lines") || strings.Contains(raw, "high_entropy") {
 		t.Errorf("raw after rewrite = %q", raw)
 	}

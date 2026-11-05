@@ -191,7 +191,14 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 	}
 	sess := p.session(&r, ts)
 	rec := &model.Record{Session: sess}
-	raw := string(line)
+	// raw is the trimmed line (TrimRaw): the archive keeps an extract, the
+	// transcript stays the source. The line parsed as a record, so it is an
+	// object and trimming cannot fail.
+	trimmed, err := TrimRaw(line)
+	if err != nil {
+		trimmed = line
+	}
+	raw := string(trimmed)
 	base := model.Event{SessionID: sess.ID, TS: ts, SourcePath: p.path, SourceOffset: offset, Raw: raw}
 	nativeID := r.UUID
 	if nativeID == "" {

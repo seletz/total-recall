@@ -103,8 +103,8 @@ func TestSynthetic(t *testing.T) {
 	if n := count(t, db, "SELECT count(*) FROM sources WHERE path NOT LIKE ?", demo.Projects+"/%"); n != 0 {
 		t.Errorf("%d sources outside %s", n, demo.Projects)
 	}
-	if n := count(t, db, "SELECT count(*) FROM events WHERE source_path NOT LIKE ?", demo.Projects+"/%"); n != 0 {
-		t.Errorf("%d events with a source outside %s", n, demo.Projects)
+	if n := count(t, db, "SELECT count(*) FROM events e LEFT JOIN sources s ON s.id = e.source_id WHERE s.path IS NULL OR s.path NOT LIKE ?", demo.Projects+"/%"); n != 0 {
+		t.Errorf("%d events without a source or with one outside %s", n, demo.Projects)
 	}
 	if n := count(t, db, "SELECT count(*) FROM sessions WHERE display_name IS NULL"); n != 0 {
 		t.Errorf("%d sessions without a title", n)

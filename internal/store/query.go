@@ -199,11 +199,16 @@ func (s *Store) FindSession(ctx context.Context, ref string) (SessionInfo, error
 }
 
 // eventCols are the columns the read paths (Events, EventWindow, Search)
-// load. raw is deliberately absent: no read command outputs it and it is by
-// far the largest column, so loading it made show of a large session ten
-// times slower (#131). Paths that need raw query it themselves
-// (UserMessages for reindex --actors; backup copies the file).
-const eventCols = `id, session_id, ts, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_path, source_offset`
+// load, from events aliased e joined with sources aliased src (eventFrom).
+// raw is deliberately absent: no read command outputs it and it is by far
+// the largest column, so loading it made show of a large session ten times
+// slower (#131). Paths that need raw query it themselves (UserMessages for
+// reindex --actors; backup copies the file).
+const eventCols = `e.id, e.session_id, e.ts, e.kind, e.role, e.actor, e.text, e.tool_name, e.model, e.tokens_in, e.tokens_out, src.path, e.source_offset`
+
+// eventFrom is the FROM clause eventCols read from: the source path lives
+// in sources since schema v5 (events.source_id).
+const eventFrom = `events e LEFT JOIN sources src ON src.id = e.source_id`
 
 func scanEvent(sc scanner, extra ...any) (model.Event, error) {
 	var e model.Event
@@ -250,17 +255,17 @@ func (s *Store) Events(ctx context.Context, sessionID string, all bool) ([]model
 // EventWindow returns the events of a session in order (ts, then ingest
 // order) that match f.
 func (s *Store) EventWindow(ctx context.Context, sessionID string, f EventFilter) ([]model.Event, error) {
-	q := "SELECT " + eventCols + " FROM events WHERE session_id = ?"
+	q := "SELECT " + eventCols + " FROM " + eventFrom + " WHERE e.session_id = ?"
 	args := []any{sessionID}
 	if !f.All {
-		q += " AND kind = 'message' AND actor IN ('human', 'agent', 'peer')"
+		q += " AND e.kind = 'message' AND e.actor IN ('human', 'agent', 'peer')"
 	}
 	if !f.Since.IsZero() {
-		q += " AND ts >= ?"
+		q += " AND e.ts >= ?"
 		args = append(args, formatTime(f.Since))
 	}
 	if !f.Until.IsZero() {
-		q += " AND ts < ?"
+		q += " AND e.ts < ?"
 		args = append(args, formatTime(f.Until))
 	}
 	if f.FromEvent != "" {
@@ -271,10 +276,10 @@ func (s *Store) EventWindow(ctx context.Context, sessionID string, f EventFilter
 		if n == 0 {
 			return nil, ErrNotFound
 		}
-		q += " AND (ts, seq) >= (SELECT ts, seq FROM events WHERE id = ?)"
+		q += " AND (e.ts, e.seq) >= (SELECT ts, seq FROM events WHERE id = ?)"
 		args = append(args, f.FromEvent)
 	}
-	q += " ORDER BY ts, seq"
+	q += " ORDER BY e.ts, e.seq"
 	if f.Limit > 0 || f.Offset > 0 {
 		limit := f.Limit
 		if limit <= 0 {
@@ -340,10 +345,11 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 		return nil, nil
 	}
 	cond, args := f.where(query)
-	q := "SELECT " + prefixed(eventCols, "e") + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
+	q := "SELECT " + eventCols + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
 		repoExpr + `, snippet(events_fts, 0, ?, ?, '…', 16), bm25(events_fts)
 		FROM events_fts
 		JOIN events e ON e.seq = events_fts.rowid
+		LEFT JOIN sources src ON src.id = e.source_id
 		JOIN sessions s ON s.id = e.session_id
 		WHERE ` + strings.Join(cond, " AND ") + `
 		ORDER BY bm25(events_fts), e.ts DESC`

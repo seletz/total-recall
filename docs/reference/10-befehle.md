@@ -63,7 +63,7 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 | `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
 | `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--reread` | die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an lesen statt ab dem gespeicherten Lesestand. Events sind idempotent (nichts wird doppelt), Sessions werden zusammengeführt; so bekommen Sessions nachträglich, was ältere Versionen noch nicht gespeichert haben, etwa Fortsetzung und Account (Schema v4). Nur mit `PATH…` oder `--all` |
-| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene und neu maskierte ersetzen. `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Repariert Archive, in denen frühere Versionen ganze Werte in `raw` maskiert haben ([#130](https://github.com/seletz/total-recall/issues/130)). Braucht `ingest.store_raw = true`, sonst Fehler |
+| `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene, neu maskierte ersetzen (seit Schema v5 als komprimierter [Auszug](40-schema.md#raw)). `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Repariert Archive, in denen frühere Versionen ganze Werte in `raw` maskiert haben ([#130](https://github.com/seletz/total-recall/issues/130)). Braucht `ingest.store_raw = true`, sonst Fehler |
 | `--detach` | als losgelöster Hintergrundprozess weiterlaufen und sofort zurückkehren. Ausgabe und Fehler gehen ins Log |
 
 Ausgabe:
@@ -87,7 +87,7 @@ total-recall backup
 total-recall ingest --all --reread --rewrite-raw
 ```
 
-Danach enthält `raw` wieder die vollständige, nur tokenweise maskierte Zeile und ist etwa doppelt so groß wie vorher. Transkripte, die es nicht mehr gibt, bleiben wie sie sind.
+Danach enthält `raw` wieder die nur tokenweise maskierte Zeile (seit Schema v5 als Auszug, komprimiert). Transkripte, die es nicht mehr gibt, bleiben wie sie sind.
 
 Mehr dazu: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
@@ -134,6 +134,7 @@ schema                v2 (binary supports v2)
 sessions              274
 events                158203
 sources               280
+raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
 last ingest (claude)  2026-11-01 14:59  (2m ago)
 last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.gz  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
@@ -145,7 +146,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
@@ -691,18 +692,20 @@ total-recall migrate --json
 ```
 
 ```text
-database  /Users/me/Library/Application Support/total-recall/archive.db  (738.1 MiB)
+database  /Users/me/Library/Application Support/total-recall/archive.db  (1145.6 MiB)
 schema    v4 -> v5, 1 pending migration:
-  v5   events: …
+  v5    events: raw trimmed to the fields needed for re-reading and zstd-compressed (BLOB), source_id instead of source_path; rewrites every event, about a minute per 100,000 events, and needs free disk space of about twice the archive size next to it (copy and WAL)
 backup    /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
-space     about 1660.7 MiB free needed next to the database (copy and migration)
+space     about 2004.8 MiB free needed next to the database (copy and migration)
 Migrate now? Hooks that run meanwhile skip and catch up afterwards. [y/N] y
 store: schema v4 -> v5: backup written to /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak
-migration v5: 120000/220295 (54 %)
-migration v5: 220295/220295 (100 %)
-store: migration v5 applied (3m12.4s)
-migrated v4 -> v5 (3m14.1s); the copy /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak can be removed once everything works
+migration v5: 209000/233198 (89 %)
+migration v5: 233198/233198 (100 %)
+store: migration v5 applied (25.077s)
+migrated v4 -> v5 (27.15s); the copy /Users/me/Library/Application Support/total-recall/archive.db.pre-v4.bak can be removed once everything works
 ```
+
+Die Zahlen stammen von einer Kopie eines echten Archivs mit 233 198 Events (1,1 GiB). Die Migration auf v5 schreibt jedes Event neu ([`raw`](40-schema.md#raw) als komprimierter Auszug, `source_id`); danach ist die Datei zunächst **größer** als vorher (1,5 GiB, die alten Seiten stehen auf der Freiliste), erst [`maintenance`](#maintenance) baut sie klein (438 MiB). Deshalb nach `migrate` einmal `maintenance`, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 
 | Option | Bedeutung |
 |---|---|
@@ -715,7 +718,7 @@ Ablauf, jeder Schritt bricht bei einem Fehler ab:
 
 1. Plan: Version der Datenbank und des Programms, je ausstehender Migration eine Zeile. Ist die Datenbank aktuell, endet der Befehl hier (`is current, nothing to migrate`).
 2. Nachfrage, sofern nicht `--yes`. Alles außer `y` oder `yes` bricht ab (`migration cancelled, the archive is unchanged`, Exit 1).
-3. Prüfen, ob neben der Datenbank genug frei ist: die Kopie (etwa Dateigröße), dazu der Platzbedarf der größten Migration (als Faktor der Dateigröße; eine Migration, die alle Events umschreibt, braucht noch einmal etwa die Dateigröße für die WAL) und ein Viertel Reserve.
+3. Prüfen, ob neben der Datenbank genug frei ist: die Kopie (etwa Dateigröße), dazu der Platzbedarf der größten Migration (als Faktor der Dateigröße für die WAL; v5 deklariert 0,5, gemessen wächst sie auf gut ein Drittel der Datei) und ein Viertel Reserve. Für v5 also knapp das Doppelte der Dateigröße.
 4. Exklusives Lock gegen Hooks wie bei [`maintenance`](#maintenance): Hält ein `ingest` oder `backup` das Archiv noch offen, wartet der Befehl bis `--wait` und bricht dann mit `writers active` ab. Hooks, die währenddessen starten, überspringen ihren Lauf und lesen danach nach. Die TUI darf offen bleiben; sie zeigt die Migration nach der nächsten Prüfung.
 5. Kopie `archive.db.pre-v<N>.bak` neben der Datenbank (N = bisherige Version), per `VACUUM INTO`.
 6. Die Migrationen, jede in eigener Transaktion, danach ein WAL-Checkpoint. Bei langen Migrationen zeigt der Befehl den Fortschritt, höchstens alle zwei Sekunden.
