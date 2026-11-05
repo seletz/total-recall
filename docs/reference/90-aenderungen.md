@@ -21,6 +21,8 @@ total-recall maintenance                          # Platz der ersetzten Zeilen f
 
 Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber nur aus Transkripten, die es noch gibt. Was Claude Code schon gelöscht hat, bleibt beim Auszug von v1.2; deshalb bald nach dem Update. Der Lauf lässt sich abbrechen und wiederholen.
 
+Neu festgelegt ist, was bei total-recall im Sinne von Semantic Versioning stabil ist: Befehle, Flags, JSON-Ausgabe, Config-Schlüssel, Exit-Codes und Hooks. Schema, Views, `raw`, Backup-Format und TUI sind es nicht, und ein neues Schema ist eine Minor-Version, weil die Migration nur von Hand läuft; v1.2.0 hielt sich bereits daran. Die Seite [Versionierung](60-versionierung.md) sagt, was das für eigene Skripte heißt ([#190](https://github.com/seletz/total-recall/issues/190)).
+
 ### Archiv
 
 - **Rohzeilen wieder vollständig, ohne Limit** ([#180](https://github.com/seletz/total-recall/issues/180)). `events.raw` ist die ganze Transkriptzeile, nicht mehr der Auszug von v1.2.0 (der Buchhaltung, Token-Zahlen und Diffs wegließ), und `ingest.raw_max_bytes` ist jetzt `0` (keine Grenze; bis v1.2 wurden Zeilen über 16 KiB ganz verworfen). Dafür gibt es ein zweites Kompressions-Wörterbuch, trainiert auf vollständigen Zeilen; Archive mit dem alten bleiben lesbar. Migration 5 beschneidet die Zeilen eines v4-Archivs nicht mehr.
@@ -46,7 +48,7 @@ Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber
 
 ### Backup
 
-- **Backups sind zstd-komprimiert** (`archive-YYYY-MM-DD.db.zst` statt `.db.gz`). Seit Schema v5 sind die Rohzeilen schon zstd-Blöcke, an denen gzip nichts mehr spart; auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in 6,3 s, zstd 220 MiB in rund 2 s, und das Entpacken dauert 0,4 statt 2 s. Alte `.db.gz` bleiben lesbar (`restore` erkennt das Format an der Endung) und zählen bei der Aufbewahrung weiter mit; `status`, `backup --if-older` und die Config-Seite der TUI nehmen die neueste Kopie in jedem Format. Rezept: [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen) ([#163](https://github.com/seletz/total-recall/issues/163)).
+- **Backups sind zstd-komprimiert** (`archive-YYYY-MM-DD.db.zst` statt `.db.gz`). Seit Schema v5 sind die Rohzeilen schon zstd-Blöcke, an denen gzip nichts mehr spart; auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in 6,3 s, zstd 220 MiB in rund 2 s, und das Entpacken dauert 0,4 statt 2 s. Alte `.db.gz` bleiben lesbar (`restore` erkennt das Format an der Endung) und zählen bei der Aufbewahrung weiter mit; `status`, `backup --if-older` und die Config-Seite der TUI nehmen die neueste Kopie in jedem Format. **Eigene Skripte, die das neueste Backup suchen oder mit `gunzip` entpacken, müssen angepasst werden**: auf `archive-*.db.zst` statt `archive-*.db.gz`, zum Entpacken `restore` oder `zstd -d`. Name und Format der Backups gehören nicht zur stabilen Schnittstelle ([Versionierung](60-versionierung.md)). Rezept: [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen) ([#163](https://github.com/seletz/total-recall/issues/163)).
 
 ### Installation
 

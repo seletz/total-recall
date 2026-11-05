@@ -72,7 +72,7 @@ Die Version zeigt dann `dev`, weil sie beim Release-Build gesetzt wird.
 
 ## Aktualisieren
 
-Ein neues Binary einspielen wie beim Installieren (`brew upgrade --cask total-recall`, Release-Archiv oder Build). Dann prüfen, ob die neue Version ein neues Datenbankschema bringt:
+Ein neues Binary einspielen wie beim Installieren (`brew upgrade --cask total-recall`, Release-Archiv oder Build). Innerhalb einer Major-Version bleiben Befehle, Flags, JSON-Ausgabe, Config-Schlüssel und Hooks gültig; ein neues Datenbankschema kann auch eine Minor-Version bringen, weil die Migration ohnehin nur von Hand läuft ([Versionierung](../reference/60-versionierung.md)). Deshalb nach jedem Update prüfen, ob eines anliegt:
 
 ```sh
 total-recall status

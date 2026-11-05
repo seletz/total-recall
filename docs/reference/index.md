@@ -14,4 +14,5 @@ In diesem Abschnitt:
 - [TUI](30-tui.md): Ansichten, Tasten, Maus, Farben, Grafikmodi.
 - [Schema](40-schema.md): Tabellen, Views, `actor` und Zeiten für eigene SQL-Abfragen.
 - [Release-Assets](50-release.md): Archive, Checksummen, SBOMs und die macOS-Signatur eines Releases, wie man sie prüft und wie ein Release entsteht.
+- [Versionierung](60-versionierung.md): was im Sinne von Semantic Versioning stabil ist und was nicht, warum ein neues Schema eine Minor-Version ist, was das für Skripte heißt.
 - [Änderungen](90-aenderungen.md): was sich je Version geändert hat; der Abschnitt eines Tags wird der Kopf der Release Notes auf GitHub.
