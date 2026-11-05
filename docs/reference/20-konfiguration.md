@@ -122,6 +122,7 @@ stats_period = "day"             # Statistik beim Start: day, week, month
 stats_dimension = "project"      # project, agent, directory
 activity_window = "week"         # Aktivität beim Start: day, week, month
 activity_projects = false        # Balken der Aktivität beim Start in Projektfarben (p)
+activity_newest = "bottom"       # neuester Tag der Aktivität unten oder oben (o)
 reload = "5s"                    # Archiv auf Änderungen prüfen und neu laden; "0" = aus (--reload)
 
 [chart]
@@ -362,6 +363,9 @@ Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansich
 
 `activity_projects`
 :   `true`: die Aktivität je Tag startet mit den Balken in [Projektfarben](30-tui.md#aktivitat) statt nach Kernzeit; `p` schaltet in beide Richtungen. Die Farben sind die der Statistik: `color` aus [`[[project]]`](#project), sonst die Reihenfarben in der Reihenfolge des ersten Auftretens. Default: `false`.
+
+`activity_newest`
+:   Wo die Aktivität je Tag den neuesten Tag zeigt: `bottom` (die Tage laufen von oben nach unten, wie ein Protokoll) oder `top`; `o` schaltet in beide Richtungen, siehe [Reihenfolge](30-tui.md#aktivitat). Default: `bottom`.
 
 `reload`
 :   Intervall, in dem die TUI das Archiv auf Änderungen prüft und die sichtbare Ansicht neu lädt, siehe [Neuladen](30-tui.md#neuladen). Eine Dauer wie `"5s"` oder `"1m"`, mindestens `"1s"`; `"0"` schaltet das Neuladen ab (`R` lädt dann noch von Hand). Override: `--reload`. Default: `"5s"`.

@@ -12,8 +12,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/search"
@@ -280,15 +282,19 @@ func (a App) setBusy(on bool) (tea.Model, tea.Cmd) {
 	return a, tea.Batch(cmd, a.poll())
 }
 
-// configChanged applies what the app takes from the configuration: the
-// reload interval (a reload that was off starts) and the mouse.
+// configChanged applies what the running TUI takes from the configuration
+// (see configview.Changed): the reload interval (a reload that was off
+// starts), the mouse, the project definitions, the working time and the
+// start modes of the activity view, and the key bindings. A table with a
+// problem keeps the values the app started with.
 func (a App) configChanged(msg configview.Changed) (tea.Model, tea.Cmd) {
 	cfg := msg.Config
 	wasOff := a.opts.Reload <= 0
 	a.opts.Reload = cfg.TUI.Reload.Duration
 	a.opts.NoMouse = !cfg.TUI.Mouse
 	_, cmd := a.broadcastModel(msg)
-	cmds := []tea.Cmd{cmd, a.setProjects(cfg)}
+	cmds := []tea.Cmd{cmd, a.setProjects(cfg), a.setWork(cfg)}
+	a.setKeys(cfg)
 	if wasOff && a.opts.Reload > 0 {
 		cmds = append(cmds, a.tick())
 	}
@@ -321,6 +327,70 @@ func (a *App) setProjects(cfg *config.Config) tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 	return tea.Batch(cmds...)
+}
+
+// workView is the activity view: it applies the day boundary, the working
+// time, the holidays and its start modes itself. holidaysView is the
+// stats view, which marks the holidays on its day axis.
+type (
+	workView interface {
+		SetSettings(activity.Settings) (tea.Model, tea.Cmd)
+	}
+	holidaysView interface {
+		SetHolidays(store.Holidays) (tea.Model, tea.Cmd)
+	}
+)
+
+// setWork hands day_start, [work], tui.activity_projects and
+// tui.activity_newest to the views that use them; a view decides what a change needs (a redraw, a reload or
+// a mode switch) and ignores what did not change. A [work] table with a
+// problem keeps the values the app started with.
+func (a *App) setWork(cfg *config.Config) tea.Cmd {
+	work, err := ops.WorkHours(cfg)
+	if err != nil {
+		return nil
+	}
+	s := activity.Settings{DayStart: cfg.DayStartOffset(), Work: work, Holidays: ops.Holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), ByProject: cfg.TUI.ActivityProjects, Newest: cfg.TUI.ActivityNewest}
+	a.opts.DayStart, a.opts.Work, a.opts.Holidays, a.opts.HumanOnly, a.opts.ActivityProjects, a.opts.ActivityNewest = s.DayStart, s.Work, s.Holidays, s.HumanOnly, s.ByProject, s.Newest
+	var cmds []tea.Cmd
+	for i, v := range a.views {
+		var m tea.Model
+		var cmd tea.Cmd
+		switch v := v.(type) {
+		case workView:
+			m, cmd = v.SetSettings(s)
+		case holidaysView:
+			m, cmd = v.SetHolidays(s.Holidays)
+		default:
+			continue
+		}
+		a.views = a.replace(i, m)
+		cmds = append(cmds, cmd)
+	}
+	return tea.Batch(cmds...)
+}
+
+// keysView is a view that takes over changed key bindings itself.
+type keysView interface {
+	SetKeys(keys.Map) tea.Model
+}
+
+// setKeys hands a changed [keys] table to the app shell, every view and
+// the detail, so the footer, the help and the keys themselves follow at
+// once. A table with a problem keeps the bindings in effect.
+func (a *App) setKeys(cfg *config.Config) {
+	km, err := cfg.KeyMap()
+	if err != nil || km.Equal(a.opts.Keys) {
+		return
+	}
+	a.opts.Keys = km
+	a.keys = newKeyMap(km)
+	for i, v := range a.views {
+		if kv, ok := v.(keysView); ok {
+			a.views = a.replace(i, kv.SetKeys(km))
+		}
+	}
+	a.detail = a.detail.SetKeys(km).(session.Model)
 }
 
 // broadcastModel is broadcast on a value receiver.

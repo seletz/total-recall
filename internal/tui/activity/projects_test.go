@@ -173,8 +173,8 @@ func TestProjectSharedColors(t *testing.T) {
 	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, DayStart: 4 * time.Hour, Work: work, Colors: colors})
 	m = drive(t, m, "p", "m", "l")
 	p := m.projectLayout()
-	if len(p.styles) != 3 {
-		t.Fatalf("%d projects, want 3", len(p.styles))
+	if len(p.keys) != 3 {
+		t.Fatalf("%d projects, want 3", len(p.keys))
 	}
 	// Alpha leads last month but took the third colour.
 	for i, want := range []color.Color{chart.Palette[2], chart.Palette[1], chart.Palette[0]} {
@@ -348,15 +348,16 @@ func TestProjectScrollKeepsContent(t *testing.T) {
 		name  string
 		setup []string // keys driven to completion first
 		msgs  []tea.Msg
-		rows  int // day rows on screen
+		rows  int // day rows on screen: the body's 26 lines less the chrome and the legend
 	}{
-		{"keys", []string{"p"}, tuitest.Keys(repeat("k", 10)...), 7},
-		{"wheel", []string{"p"}, wheel(up, 10), 7},
-		{"periods", []string{"p"}, tuitest.Keys("[", "[", "[", "]", "k", "k"), 7},
+		{"keys", []string{"p"}, tuitest.Keys(repeat("k", 10)...), 17},
+		{"wheel", []string{"p"}, wheel(up, 10), 17},
+		{"periods", []string{"p"}, tuitest.Keys("[", "[", "[", "]", "k", "k"), 17},
 		{"month", []string{"p", "m"}, wheel(up, 35), 17},
-		{"single day", []string{"p", "d"}, tuitest.Keys(repeat("k", 10)...), 1},
-		{"on and off while scrolling", []string{"p"}, tuitest.Keys("[", "[", "p", "k", "p", "k", "h", "p"), 7},
-		{"turning on", []string{"[", "["}, tuitest.Keys("p"), 7},
+		{"single day", []string{"p", "d"}, tuitest.Keys(repeat("k", 10)...), 21},
+		{"on and off while scrolling", []string{"p"}, tuitest.Keys("[", "[", "p", "k", "p", "k", "h", "p"), 17},
+		// The rows stay those without the legend until the project days are in.
+		{"turning on", []string{"[", "["}, tuitest.Keys("p"), 18},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

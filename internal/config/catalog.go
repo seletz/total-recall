@@ -96,6 +96,7 @@ var Catalog = []Key{
 	{"tui.stats_dimension", KindEnum, TUIDimensions, "Dimension the stats view starts with"},
 	{"tui.activity_window", KindEnum, TUIPeriods, "Window the activity view starts with"},
 	{"tui.activity_projects", KindBool, nil, "Activity view starts with the bars in project colours"},
+	{"tui.activity_newest", KindEnum, TUINewest, "Where the activity view puts the newest day"},
 	{"tui.reload", KindDuration, nil, "How often the TUI checks the archive for changes; 0 = off, at least 1s"},
 	{"chart.format", KindEnum, ChartFormats, "Output format of chart"},
 	{"chart.scale", KindFloat, nil, "Multiplier of the natural size of a figure"},

@@ -16,6 +16,7 @@ type KeyMap struct {
 	Human            key.Binding
 	Figures          key.Binding
 	Projects         key.Binding
+	Order            key.Binding
 	Up, Down         key.Binding
 	// Footer groups.
 	Period, Range, Quick key.Binding
@@ -33,6 +34,7 @@ func newKeyMap(m keys.Map) KeyMap {
 		Human:    m.Binding(keys.ActivityHuman),
 		Figures:  m.Binding(keys.ActivityFigures),
 		Projects: m.Binding(keys.ActivityProjects),
+		Order:    m.Binding(keys.ActivityOrder),
 		Up:       m.Binding(keys.ActivityUp),
 		Down:     m.Binding(keys.ActivityDown),
 		Period:   m.Group("period", keys.ActivityDay, keys.ActivityWeek, keys.ActivityMonth),
@@ -43,7 +45,7 @@ func newKeyMap(m keys.Map) KeyMap {
 
 // ShortHelp returns the grouped bindings for the footer.
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Period, k.Range, k.Quick, k.Human, k.Figures, k.Projects}
+	return []key.Binding{k.Period, k.Range, k.Quick, k.Human, k.Figures, k.Projects, k.Order}
 }
 
 // FullHelp returns every binding for the help overlay, in three columns.
@@ -51,6 +53,6 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Day, k.Week, k.Month, k.Human},
 		{k.Earlier, k.Later, k.Current, k.Last},
-		{k.Figures, k.Projects, k.Up, k.Down},
+		{k.Figures, k.Projects, k.Order, k.Up, k.Down},
 	}
 }

@@ -106,6 +106,19 @@ func TestFrames(t *testing.T) {
 		{"LaterFromLastWeekDays", []string{"l", "k", "k", "]"}},
 		{"CurrentAfterDays", []string{"k", "k", "k", "c"}},
 		{"PeriodSwitchAfterDays", []string{"k", "k", "d"}},
+		// o puts the newest day at the top; ↑/↓ still show the row above
+		// and below, so ↓ now goes back in time and ↑ on, not past this
+		// week. Flipping twice keeps the rows on screen.
+		{"NewestTop", []string{"o"}},
+		{"NewestTopDayBack", []string{"o", "j", "j"}},
+		{"NewestTopUpStopsAtThisWeek", []string{"o", "k"}},
+		{"NewestTopBackForth", []string{"o", "j", "j", "k"}},
+		{"NewestTopMonthScroll", []string{"m", "l", "o", "j", "j"}},
+		{"NewestTopMonthScrollEnd", append([]string{"m", "l", "o"}, repeat("j", 14)...)},
+		{"NewestTopMonthUpShifts", []string{"m", "l", "o", "k"}},
+		{"NewestTopFlipKeepsRows", []string{"m", "l", "j", "j", "o", "o"}},
+		{"NewestTopFlipScrolled", []string{"m", "l", "j", "j", "o"}},
+		{"NewestTopDay", []string{"d", "o"}},
 	}
 	st, _ := fixturedb.Activity(t)
 	for _, tt := range tests {
@@ -370,7 +383,9 @@ func TestCache(t *testing.T) {
 		{"seven days back come from the margin", repeat("k", 7), 1},
 		{"held key fetches once per margin", repeat("k", 14), 2},
 		{"held key over three margins", repeat("k", 21), 3},
-		{"single day steps a week back", append([]string{"d"}, repeat("k", 7)...), 1},
+		// A single day wants 21 lead days, more than the week's query fetched
+		// in front of it.
+		{"single day steps a week back", append([]string{"d"}, repeat("k", 7)...), 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -384,7 +399,7 @@ func TestCache(t *testing.T) {
 }
 
 // dayRow matches a day row of the frame.
-var dayRow = regexp.MustCompile(`(?m)^ (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} `)
+var dayRow = regexp.MustCompile(`(?m)^[ ▎](Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} `)
 
 // wheel repeats the wheel message n times.
 func wheel(msg tea.MouseWheelMsg, n int) []tea.Msg {
@@ -411,16 +426,18 @@ func TestScrollKeepsContent(t *testing.T) {
 		name  string
 		setup []string // keys driven to completion first
 		msgs  []tea.Msg
-		rows  int // day rows on screen
+		rows  int // day rows on screen: the body's 26 lines less the chrome
 	}{
-		{"keys", nil, tuitest.Keys(repeat("k", 10)...), 7},
-		{"arrows", nil, tuitest.Keys(repeat("up", 16)...), 7},
-		{"wheel", nil, wheel(up, 10), 7},
-		{"wheel back and forth", nil, append(wheel(up, 9), wheel(down, 4)...), 7},
-		{"periods", nil, tuitest.Keys("[", "[", "[", "]", "k", "k"), 7},
+		{"keys", nil, tuitest.Keys(repeat("k", 10)...), 18},
+		{"arrows", nil, tuitest.Keys(repeat("up", 16)...), 18},
+		{"wheel", nil, wheel(up, 10), 18},
+		{"wheel back and forth", nil, append(wheel(up, 9), wheel(down, 4)...), 18},
+		{"periods", nil, tuitest.Keys("[", "[", "[", "]", "k", "k"), 18},
 		{"month", []string{"m"}, wheel(up, 35), 18},
 		{"month scrolled to the end", []string{"m", "l"}, append(tuitest.Keys(repeat("j", 13)...), wheel(down, 20)...), 18},
-		{"single day", []string{"d"}, tuitest.Keys(repeat("k", 10)...), 1},
+		{"single day", []string{"d"}, tuitest.Keys(repeat("k", 10)...), 22},
+		{"newest at the top", []string{"o"}, tuitest.Keys(repeat("j", 10)...), 18},
+		{"newest at the top, month", []string{"m", "o"}, append(tuitest.Keys(repeat("j", 13)...), wheel(down, 20)...), 18},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -244,6 +244,9 @@ type TUI struct {
 	// ActivityProjects starts the activity view with the bars coloured by
 	// project (the key p switches).
 	ActivityProjects bool `toml:"activity_projects"`
+	// ActivityNewest is where the activity view puts the newest day:
+	// bottom or top (the key o switches).
+	ActivityNewest string `toml:"activity_newest"`
 	// Reload is how often the TUI checks the archive for changes and
 	// reloads the visible view when there are any (--reload); 0 switches
 	// the reload off, anything else is at least MinReload.
@@ -328,6 +331,7 @@ var (
 	TUIViews      = []string{"search", "stats", "activity", "config"}
 	TUIGraphics   = []string{"auto", "text", "kitty"}
 	TUIPeriods    = []string{"day", "week", "month"}
+	TUINewest     = []string{"bottom", "top"}
 	TUIDimensions = []string{"project", "agent", "directory"}
 )
 
@@ -502,6 +506,7 @@ var fields = []struct {
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
 	{"tui.activity_window", func(c *Config) string { return c.TUI.ActivityWindow }},
 	{"tui.activity_projects", func(c *Config) string { return strconv.FormatBool(c.TUI.ActivityProjects) }},
+	{"tui.activity_newest", func(c *Config) string { return c.TUI.ActivityNewest }},
 	{"tui.reload", func(c *Config) string { return c.TUI.Reload.String() }},
 	{"chart.format", func(c *Config) string { return c.Chart.Format }},
 	{"chart.scale", func(c *Config) string { return strconv.FormatFloat(c.Chart.Scale, 'f', -1, 64) }},
@@ -602,7 +607,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		MaxGap: Duration{DefaultWorktimeMaxGap}, MinCredit: Duration{DefaultWorktimeMinCredit}, Grid: Duration{DefaultWorktimeGrid},
 		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
-	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", Reload: Duration{DefaultReload}}
+	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{DefaultReload}}
 	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Heatmap: slices.Clone(figure.DefaultHeatmap), Lang: DefaultChartLang}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
@@ -910,6 +915,7 @@ func (c *Config) ValidateTUI() error {
 		{"tui.stats_period", c.TUI.StatsPeriod, TUIPeriods},
 		{"tui.stats_dimension", c.TUI.StatsDimension, TUIDimensions},
 		{"tui.activity_window", c.TUI.ActivityWindow, TUIPeriods},
+		{"tui.activity_newest", c.TUI.ActivityNewest, TUINewest},
 	} {
 		if !slices.Contains(v.allowed, v.value) {
 			return fmt.Errorf("config: %s %q: use %s", v.key, v.value, orList(v.allowed))

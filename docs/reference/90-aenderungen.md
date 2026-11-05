@@ -27,6 +27,14 @@ Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber
 - **Bilder und Dokumente als Blobs** ([#181](https://github.com/seletz/total-recall/issues/181)). Screenshots, die du in eine Session einfügst, und Bilder oder PDFs, die ein Werkzeug liest, kommen einmal je Inhalt (SHA-256) in die neue Tabelle `blobs`; in der Rohzeile steht an ihrer Stelle ein Verweis mit dem Hash, aus beidem lässt sich die Zeile Byte für Byte wiederherstellen ([Schema](40-schema.md#blobs)). PNG und JPEG liegen wie geliefert, PDF und Text zstd-komprimiert. `ingest.store_blobs = false` schaltet das ab. Bilder werden **nicht maskiert** ([Datenschutz](../explanation/datenschutz.md)).
 - Eingefügte Bilder sind jetzt ein Event mit Platzhalter (`[image image/png 84.3 KiB]`), auch im Text eines Tool-Ergebnisses; frühere Versionen übersprangen diese Blöcke, `--reread` legt die Events nach.
 
+### Behoben
+
+- **Geheimnisse in JSON-Arrays wurden in `raw` nicht erkannt.** Ein String in einem Array hat keinen eigenen Schlüssel und bekam deshalb nur die Textregeln, nicht die Prüfung auf ein ganzes hochentropisches Token; ein Geheimnis ohne bekanntes Format hinter `"--api-key"` in einer Argumentliste blieb stehen. Jetzt gilt für Array-Elemente dieselbe Prüfung wie für Objektwerte, mit dem Schlüssel des Arrays: unter `"passwords": [...]` wird jedes Element maskiert, ein einzelnes hochentropisches Token ≥ 32 Zeichen wird `«redacted:high_entropy»` (nicht unter Bezeichner-Schlüsseln wie `messageIds`), und steht davor eine Option mit sensiblem Namen (`--token`, `--api-key`, `--password`, …), wird das Element auch dann `«redacted:secret»`, wenn es kurz ist. Prosa, Befehle, Pfade, Diffs, SHAs, UUIDs und Werkzeugnamen wie `mcp__server__tool` in Arrays bleiben erhalten; auf den Rohzeilen echter Transkripte änderte sich ein winziger Bruchteil der Array-Elemente, im gespeicherten Auszug praktisch keines. `text` war nie betroffen. Bestehende Archive bekommen die neu maskierten Rohzeilen mit dem Lauf `ingest --all --reread --rewrite-raw`, der ohnehin zu den Update-Schritten dieser Version gehört ([#179](https://github.com/seletz/total-recall/issues/179), siehe [`ingest`](10-befehle.md#ingest)); Transkripte, die inzwischen gelöscht sind, behalten ihre alte Rohzeile ([#162](https://github.com/seletz/total-recall/issues/162), [Design](../explanation/design.md#redaction)).
+
+### TUI
+
+- **Einstellungen wirken sofort.** Die Seite [Settings](30-tui.md#settings) der Ansicht Config übernimmt mehr Werte ohne Neustart: die Tastenbelegung `[keys]` (Tasten, Fußzeile und Hilfe aller Ansichten), `day_start` und die Tabelle `[work]` (Kernzeiten, Ziel und Grenzen zeichnen die Aktivität neu; Tagesgrenze und Bundesland laden das Fenster neu und markieren die Feiertage der Statistik neu; `count` schaltet die Zählweise um) sowie `tui.activity_projects`. Fenster, Markierung, Scrollposition und Eingabe bleiben dabei erhalten, wie schon bei `reload`, `mouse` und den Projektdefinitionen. Die Zeile `default` sagt zu jedem Schlüssel, was eine Änderung tut: `applied at once`, `takes effect at the next start` (`db`, `timezone` und die Startzustände der Ansichten) oder `used by the next command or action` (alles, was die TUI nicht selbst nutzt); die Meldung nach dem Schreiben wiederholt es. Eine im Editor geänderte Tabelle mit einem Fehler lässt die bisherigen Werte in Kraft ([#165](https://github.com/seletz/total-recall/issues/165)).
+
 ### Neu in der CLI
 
 - **`blob HASH [--out DATEI]`** gibt ein Bild oder Dokument aus dem Archiv aus, `--json` nur die Metadaten samt Events; Binärdaten nie auf ein Terminal ([`blob`](10-befehle.md#blob)).
@@ -43,6 +51,10 @@ Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber
 ### Installation
 
 - Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).
+
+### TUI
+
+- **Die Aktivität je Tag füllt die Höhe.** Bisher zeigte die Ansicht genau die Tage der Periode, sieben bei einer Woche, und ließ den Rest des Bildschirms leer. Jetzt stehen immer so viele Tageszeilen, wie zwischen Kopf- und Fußzeile passen: vor der Periode die Tage davor, gedämpft, die Tage der Periode mit `▎` markiert. `d`, `w` und `m` bestimmen nur noch, welche Tage Kopfzeile, Soll, Saldo, Kennzahlen und Legende zusammenfassen; nach einer Größenänderung passt sich die Liste sofort an, ist die Periode länger als der Platz, scrollt sie wie bisher. Neu ist `o`: der neueste Tag unten (Default, wie ein Protokoll) oder oben, auch per Klick auf `day` im Spaltenkopf, dessen Pfeil die Richtung zeigt; ++up++ und ++down++ zeigen immer die Zeile darüber bzw. darunter. Start mit `activity_newest` in [`[tui]`](20-konfiguration.md#tui) ([Aktivität](30-tui.md#aktivitat), [#173](https://github.com/seletz/total-recall/issues/173)).
 
 ### Intern
 

@@ -287,17 +287,37 @@ func (p settingsPage) commit(m *Model, text string) (page, tea.Cmd) {
 	}
 	p.editing = false
 	p.input.Blur()
-	p.notice, p.bad = r.key+" written to "+m.tilde(cfg.Path)+effect(r.key), false
+	p.notice, p.bad = r.key+" written to "+m.tilde(cfg.Path)+" · "+effect(r.key), false
 	return p, func() tea.Msg { return Changed{Config: cfg} }
 }
 
-// effect says when a changed key takes effect.
+// What a change of a key does, as the page words it in the notice after a
+// write and on the default line of the marked key.
+const (
+	// effectNow: the running TUI takes the value at once.
+	effectNow = "applied at once"
+	// effectStart: the TUI reads the value at its start only.
+	effectStart = "takes effect at the next start"
+	// effectCommand: the TUI never reads the value; the hooks, the
+	// commands and the actions of this view load the file when they run.
+	effectCommand = "used by the next command or action"
+)
+
+// effect says what a change of key does. The app applies the reload
+// interval, the mouse, the key bindings, the project definitions, the day
+// boundary, the working time and the modes of the activity view (project
+// colours, place of the newest day) at once (see tui.App); the archive, the time zone, the view shown first,
+// the chart mode and the start states of the stats view and the activity
+// window are read at the start only. Everything else is for the commands.
 func effect(key string) string {
-	switch key {
-	case "tui.reload", "tui.mouse":
-		return " · applied"
+	switch {
+	case key == "day_start", key == "project", key == "tui.mouse", key == "tui.reload", key == "tui.activity_projects", key == "tui.activity_newest",
+		strings.HasPrefix(key, "work."), strings.HasPrefix(key, "keys."):
+		return effectNow
+	case key == "db", key == "timezone", strings.HasPrefix(key, "tui."):
+		return effectStart
 	}
-	return " · takes effect at the next start"
+	return effectCommand
 }
 
 // reset removes the marked key from the file.
@@ -319,7 +339,7 @@ func (p settingsPage) reset(m *Model) (page, tea.Cmd) {
 		p.notice, p.bad = r.key+" is not set in the file", false
 		return p, nil
 	}
-	p.notice, p.bad = r.key+" reset to the default"+effect(r.key), false
+	p.notice, p.bad = r.key+" reset to the default · "+effect(r.key), false
 	return p, func() tea.Msg { return Changed{Config: cfg} }
 }
 
@@ -439,7 +459,7 @@ func (p settingsPage) view(m *Model, width, height int) string {
 	lines = append(lines, m.line(" "+help, width))
 	def := ""
 	if r.key != "" {
-		def = m.th.Muted.Render("default: " + display(r.desc, m.opts.Config.Default(r.key), m))
+		def = m.th.Muted.Render("default: " + display(r.desc, m.opts.Config.Default(r.key), m) + " · change: " + effect(r.key))
 	}
 	lines = append(lines, m.line(" "+def, width))
 	switch {

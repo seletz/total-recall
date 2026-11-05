@@ -297,3 +297,41 @@ func TestShown(t *testing.T) {
 		})
 	}
 }
+
+func TestEqual(t *testing.T) {
+	quit, err := Resolve(map[string][]string{GlobalQuit: {"X"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	quitAgain, _ := Resolve(map[string][]string{GlobalQuit: {"X"}})
+	tests := []struct {
+		name string
+		a, b Map
+		want bool
+	}{
+		{"nil is the defaults", nil, Defaults(), true},
+		{"resolved defaults", Defaults(), mustResolve(t, nil), true},
+		{"same override", quit, quitAgain, true},
+		{"override differs from the defaults", quit, nil, false},
+		{"different overrides", quit, mustResolve(t, map[string][]string{GlobalQuit: {"Q"}}), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.a.Equal(tt.b); got != tt.want {
+				t.Errorf("Equal = %v, want %v", got, tt.want)
+			}
+			if got := tt.b.Equal(tt.a); got != tt.want {
+				t.Errorf("Equal (swapped) = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func mustResolve(t *testing.T, overrides map[string][]string) Map {
+	t.Helper()
+	m, err := Resolve(overrides)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}

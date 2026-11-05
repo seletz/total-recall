@@ -17,6 +17,7 @@ import (
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/model"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -918,7 +919,7 @@ messages: the values are a lower bound.`,
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "stats: --human-only is deprecated: human messages are counted by default, --all-events counts everything")
 			}
 			humanOnly = (cfg.Work.HumanOnly() || humanOnly) && !allEvents
-			work, err := workHours(cfg)
+			work, err := ops.WorkHours(cfg)
 			if err != nil {
 				return err
 			}
@@ -931,7 +932,7 @@ messages: the values are a lower bound.`,
 				return err
 			}
 			defer func() { _ = st.Close() }()
-			cal := holidays(cfg)
+			cal := ops.Holidays(cfg)
 			days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
 				Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal,
 			})

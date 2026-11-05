@@ -60,12 +60,12 @@ Für Skripte liefert `--json` dieselben Werte mit Zeiten in UTC und Dauern in Se
 total-recall tui activity
 ```
 
-- `d`, `w` und `m` zeigen einen Tag, eine Woche oder einen Monat; ++left++ und ++right++ blättern, `c` springt in die aktuelle Periode, `l` in die vorige.
+- Die Zeilen füllen den Bildschirm: so viele Tage, wie passen, der neueste unten. `d`, `w` und `m` wählen die Periode, die Kopfzeile und Kennzahlen zusammenfassen (ein Tag, eine Woche, ein Monat); ihre Tage sind links mit `▎` markiert, die Tage davor gedämpft. ++left++ und ++right++ blättern um eine Periode, `c` springt in die aktuelle, `l` in die vorige.
 - Die Kernzeit liegt als Band auf der Zeitachse jedes Werktags. Der Balken ist innerhalb der Kernzeit blau, davor und danach orange, nach Mitternacht rot.
 - Die Kopfzeile von Woche und Monat nennt Arbeitszeit, Soll, Saldo und Feiertage; `s` blendet Median, Mittelwert, Minimum und Maximum ein und aus.
 - `h` zählt für diesen Lauf auch Agent-Events mit, wie `--all-events`.
 - `p` färbt die Balken nach Projekt statt nach Kernzeit, mit einer Legende der Projekte der Woche; die Farben sind die aus [`[[project]]`](67-projekte-definieren.md).
-- ++up++ und ++down++ (`k`/`j`, auch das Mausrad) blättern tageweise durch die Zeit; Woche und Monat werden so zu einem gleitenden Fenster, `c` richtet wieder am Kalender aus.
+- ++up++ und ++down++ (`k`/`j`, auch das Mausrad) blättern tageweise durch die Zeit; Woche und Monat werden so zu einem gleitenden Fenster, `c` richtet wieder am Kalender aus. `o` stellt den neuesten Tag nach oben (`activity_newest` in der Konfiguration).
 
 Alle Tasten, Farben und Kennzahlen: [Aktivität](../reference/30-tui.md#aktivitat).
 

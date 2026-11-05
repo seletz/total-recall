@@ -102,6 +102,7 @@ const (
 	ActivityHuman    = "activity_human"
 	ActivityFigures  = "activity_figures"
 	ActivityProjects = "activity_projects"
+	ActivityOrder    = "activity_order"
 	ActivityUp       = "activity_up"
 	ActivityDown     = "activity_down"
 
@@ -178,8 +179,9 @@ var Actions = []Action{
 	{ActivityHuman, Activity, []string{"h"}, "human/all events"},
 	{ActivityFigures, Activity, []string{"s"}, "summary figures"},
 	{ActivityProjects, Activity, []string{"p"}, "by project"},
-	{ActivityUp, Activity, []string{"up", "k"}, "day back (scroll)"},
-	{ActivityDown, Activity, []string{"down", "j"}, "day forward (scroll)"},
+	{ActivityOrder, Activity, []string{"o"}, "newest top/bottom"},
+	{ActivityUp, Activity, []string{"up", "k"}, "row above (scroll)"},
+	{ActivityDown, Activity, []string{"down", "j"}, "row below (scroll)"},
 
 	{ConfigNext, Config, []string{"tab", "right"}, "next page"},
 	{ConfigPrev, Config, []string{"shift+tab", "left"}, "previous page"},
@@ -531,4 +533,15 @@ func Shown(b key.Binding) []string {
 		rest = strings.TrimPrefix(after, "/")
 	}
 	return out
+}
+
+// Equal reports whether m and o bind the same keys to every action; a nil
+// Map counts as the defaults.
+func (m Map) Equal(o Map) bool {
+	for _, a := range Actions {
+		if !slices.Equal(m.Keys(a.Name), o.Keys(a.Name)) {
+			return false
+		}
+	}
+	return true
 }
