@@ -31,7 +31,8 @@ var (
 		"attachment", "api-request", "api-request-blob", "api-request-shape", "last-prompt", "mode",
 		"permission-mode", "atis-latch", "pr-link", "queue-operation", "bridge-session",
 		"file-history-snapshot", "file-history-delta", "cost-state", "tools-used",
-		"started", "result", // workflow journal.jsonl
+		"history-suppression", // cause and account a history suppression was vetoed against; ts, no timestamp
+		"started", "result",   // workflow journal.jsonl
 	}
 	handledUserBlocks      = []string{"text", "tool_result"}
 	ignoredUserBlocks      = []string{"image", "document"}
@@ -42,14 +43,15 @@ var (
 	toolResultBlocks = []string{"text", "image", "document", "tool_reference"}
 	// expectedFields are the top-level fields every record of a type should have.
 	expectedFields = map[string][]string{
-		"user":          {"timestamp", "sessionId", "uuid", "cwd"},
-		"assistant":     {"timestamp", "sessionId", "uuid", "cwd"},
-		"system":        {"timestamp", "sessionId", "uuid", "cwd"},
-		"custom-title":  {"sessionId"},
-		"ai-title":      {"sessionId"},
-		"agent-name":    {"sessionId"},
-		"session-owner": {"sessionId"},
-		"continued-in":  {"timestamp", "sessionId", "continuedInSessionId"},
+		"user":                {"timestamp", "sessionId", "uuid", "cwd"},
+		"assistant":           {"timestamp", "sessionId", "uuid", "cwd"},
+		"system":              {"timestamp", "sessionId", "uuid", "cwd"},
+		"custom-title":        {"sessionId"},
+		"ai-title":            {"sessionId"},
+		"agent-name":          {"sessionId"},
+		"session-owner":       {"sessionId"},
+		"continued-in":        {"timestamp", "sessionId", "continuedInSessionId"},
+		"history-suppression": {"sessionId"},
 	}
 )
 
