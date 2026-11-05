@@ -39,7 +39,7 @@ Ab v1.0.0 kommt `total-recall` als Cask aus dem Tap `seletz/homebrew-tap`:
 brew install --cask seletz/tap/total-recall
 ```
 
-Der Cask installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert. Er entfernt beim Installieren zusätzlich das Quarantäne-Attribut; für die signierten Binaries ab v1.0.2 ist das nicht mehr nötig und bleibt vorerst als Absicherung drin.
+Der Cask installiert die Shell-Vervollständigung für bash, zsh und fish und wird mit jedem Release aktualisiert. Er verlässt sich auf die Signatur und Notarisierung des Binarys: Das Quarantäne-Attribut, das Homebrew beim Laden setzt, bleibt stehen, und Gatekeeper startet das Binary trotzdem ohne Dialog. Bis v1.2.1 entfernte der Cask das Attribut beim Installieren zusätzlich; das war die Übergangslösung aus der Zeit vor der Signatur.
 
 ```sh
 brew upgrade --cask total-recall

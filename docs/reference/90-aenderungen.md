@@ -12,6 +12,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **Backups sind zstd-komprimiert** (`archive-YYYY-MM-DD.db.zst` statt `.db.gz`). Seit Schema v5 sind die Rohzeilen schon zstd-Blöcke, an denen gzip nichts mehr spart; auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in 6,3 s, zstd 220 MiB in rund 2 s, und das Entpacken dauert 0,4 statt 2 s. Alte `.db.gz` bleiben lesbar (`restore` erkennt das Format an der Endung) und zählen bei der Aufbewahrung weiter mit; `status`, `backup --if-older` und die Config-Seite der TUI nehmen die neueste Kopie in jedem Format. Rezept: [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen) ([#163](https://github.com/seletz/total-recall/issues/163)).
 
+### Installation
+
+- Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).
+
+### Intern
+
+- `scripts/release-notes.sh`, das den Kopf der GitHub-Release-Notes aus dieser Seite baut, hat einen Test gegen einen synthetischen Changelog: Abschnitt finden, relative Links und Anker auf die veröffentlichte Doku umschreiben, fehlende Version abweisen. Neu abgewiesen wird auch ein Abschnitt, der noch „(unveröffentlicht)“ heißt; bisher nahm das Skript ihn als Release Notes an. `mise run release:notes:check`, in der CI über `go test` ([#164](https://github.com/seletz/total-recall/issues/164)).
+
 ## v1.2.1
 
 ### Behoben
