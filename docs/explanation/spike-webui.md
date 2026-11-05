@@ -2,6 +2,7 @@
 title: "Spike: Web-UI mit Svelte"
 icon: lucide/flask-conical
 ---
+
 # Spike: Web-UI mit Svelte
 
 Spike zum Epic [#170](https://github.com/seletz/total-recall/issues/170) (Sub-Issue [#171](https://github.com/seletz/total-recall/issues/171)): Lässt sich zusätzlich zur TUI eine Web-Oberfläche mit Svelte bauen, die im statischen Go-Binary mitkommt und nur lokal läuft? Stand der Untersuchung: 5. November 2026. Die Entscheidung, ob es weitergeht, ist offen; der Prototyp ist deshalb ein eigenes Unterkommando `total-recall serve`, das sich wieder entfernen lässt ([Entfernungsanleitung](#entfernungsanleitung)).
@@ -86,12 +87,12 @@ Die Seite liest das Token aus dem Fragment der Start-URL, legt es im `sessionSto
 
 ### API
 
-| Route | Antwort | Entspricht |
-|---|---|---|
-| `GET /api/status` | Version, Sessions, Events, Quellen, letzter Ingest je Harness, Schema, Zeitzone | `status` (Auszug) |
-| `GET /api/search?q=&actor=&raw=1&limit=&since=&until=` | `[HitJSON]` | `search --json` |
-| `GET /api/activity?period=&by=&top=&since=&until=` | `ActivitySeriesJSON` | `stats --period --by --top --json` |
-| `GET /api/events` | `text/event-stream`, ein Event `change` je Änderung | `tui --reload` |
+| Route                                                  | Antwort                                                                         | Entspricht                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------- |
+| `GET /api/status`                                      | Version, Sessions, Events, Quellen, letzter Ingest je Harness, Schema, Zeitzone | `status` (Auszug)                  |
+| `GET /api/search?q=&actor=&raw=1&limit=&since=&until=` | `[HitJSON]`                                                                     | `search --json`                    |
+| `GET /api/activity?period=&by=&top=&since=&until=`     | `ActivitySeriesJSON`                                                            | `stats --period --by --top --json` |
+| `GET /api/events`                                      | `text/event-stream`, ein Event `change` je Änderung                             | `tui --reload`                     |
 
 Fehler kommen als `{"error":{"kind","message"}}` wie `ErrorJSON` der CLI; Parameterfehler mit 400, Host/Origin mit 403, Token mit 401. Datumsangaben ohne Uhrzeit werden in der konfigurierten Zeitzone gelesen wie `--since` der CLI. Ohne `since`/`until` nimmt die Statistik 28 Tage, 16 Wochen oder 12 Monate bis heute.
 
@@ -107,16 +108,16 @@ Ein Poller im Server ruft `store.Poll` im Intervall `--poll` (Default 2 s); `Mod
 
 Das Archiv enthält private Inhalte; die Guards sitzen vor jeder Route (`internal/web/server.go`, `guard`):
 
-| Maßnahme | Wie | Schützt vor |
-|---|---|---|
-| Bindung an `127.0.0.1` | `net.Listen("tcp", "127.0.0.1:port")`, nicht konfigurierbar | Zugriff aus dem Netz |
-| Host-Prüfung | `Host` muss `localhost`, `127.0.0.1` oder `::1` sein (Port egal), sonst 403 | DNS-Rebinding: eine fremde Seite lässt `evil.example.com` auf 127.0.0.1 zeigen |
-| Origin-Prüfung | ein vorhandener `Origin` muss ein Loopback-Host sein, sonst 403; `null` und fehlend passieren | Aufrufe aus fremden Seiten (CSRF) |
-| Fetch-Metadata | `Sec-Fetch-Site`, falls gesendet, muss `same-origin` oder `none` sein | Cross-Site-Requests moderner Browser, auch ohne Origin |
-| Token | 128 Bit Zufall je Lauf, `Authorization: Bearer`, konstantzeitiger Vergleich, Pflicht unter `/api/`, sonst 401 | andere lokale Prozesse und Seiten, die die Guards oben passieren |
-| CSP | `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; …; frame-ancestors 'none'` | externe Assets, Inline-Skripte, Einbettung in fremde Seiten |
-| Weitere Header | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cache-Control: no-store` unter `/api/` | MIME-Sniffing, Referrer-Leck, Caching der Daten |
-| Keine Daten an Dritte | kein Font, kein CDN, kein Telemetrie-Skript; die CSP würde es blocken | |
+| Maßnahme               | Wie                                                                                                                                 | Schützt vor                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Bindung an `127.0.0.1` | `net.Listen("tcp", "127.0.0.1:port")`, nicht konfigurierbar                                                                         | Zugriff aus dem Netz                                                           |
+| Host-Prüfung           | `Host` muss `localhost`, `127.0.0.1` oder `::1` sein (Port egal), sonst 403                                                         | DNS-Rebinding: eine fremde Seite lässt `evil.example.com` auf 127.0.0.1 zeigen |
+| Origin-Prüfung         | ein vorhandener `Origin` muss ein Loopback-Host sein, sonst 403; `null` und fehlend passieren                                       | Aufrufe aus fremden Seiten (CSRF)                                              |
+| Fetch-Metadata         | `Sec-Fetch-Site`, falls gesendet, muss `same-origin` oder `none` sein                                                               | Cross-Site-Requests moderner Browser, auch ohne Origin                         |
+| Token                  | 128 Bit Zufall je Lauf, `Authorization: Bearer`, konstantzeitiger Vergleich, Pflicht unter `/api/`, sonst 401                       | andere lokale Prozesse und Seiten, die die Guards oben passieren               |
+| CSP                    | `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; …; frame-ancestors 'none'`      | externe Assets, Inline-Skripte, Einbettung in fremde Seiten                    |
+| Weitere Header         | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cache-Control: no-store` unter `/api/` | MIME-Sniffing, Referrer-Leck, Caching der Daten                                |
+| Keine Daten an Dritte  | kein Font, kein CDN, kein Telemetrie-Skript; die CSP würde es blocken                                                               |                                                                                |
 
 Alles in Tabellen getestet (`TestGuard`, `TestLoopback`). Nicht umgesetzt: das Token steht beim Start einmal auf stdout und im URL-Fragment, also im Terminal-Scrollback und bis zum ersten Laden in der Adresszeile; nach dem Laden entfernt es die Seite aus der Adresse. Ein neues Token je Lauf begrenzt das. Mit `--token` kann man es fest setzen; das ist bewusst für die Entwicklung und steht so in der Hilfe.
 
@@ -124,15 +125,15 @@ Die statischen Dateien (Seite, JS, CSS) sind ohne Token abrufbar: sie sind Progr
 
 ## Build, CI und Release
 
-| Frage | Antwort |
-|---|---|
-| Node zur Laufzeit? | Nein. `npm run build` schreibt `internal/web/dist/`, Go bettet es ein. |
+| Frage                       | Antwort                                                                                                                                                                                                                                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node zur Laufzeit?          | Nein. `npm run build` schreibt `internal/web/dist/`, Go bettet es ein.                                                                                                                                                                                                                                          |
 | `go build` ohne gebaute UI? | Funktioniert: `dist/.gitkeep` ist eingecheckt, `go:embed all:dist` findet das Verzeichnis. `serve` liefert dann eine Platzhalterseite (503) mit dem Hinweis auf `mise run web:build`; die API funktioniert trotzdem. Kein Build-Tag nötig, also keine zweite Build-Variante, die Tests und CI abdecken müssten. |
-| `mise` | `web:install` (`npm ci`), `web:build`, `web:check` (svelte-check, vitest), `web:dev` (Vite mit Proxy auf `serve`), `serve:demo` (UI gegen das Demo-Archiv, Token `demo`). `build` bleibt wie es ist; `mise run web:build && mise run build` ergibt das Binary mit UI. |
-| CI | Job `test`: `actions/setup-node` (Node 26, npm-Cache über `web/package-lock.json`), dann `npm ci`, `check`, `test`, `build`, danach wie bisher `go test` mit eingebetteter UI. Job `release-snapshot` und `release.yml`: `setup-node`, weil die goreleaser-Hooks die UI bauen. |
-| goreleaser | Zwei `before.hooks`: `npm ci --prefix web`, `npm run build --prefix web`. Die UI wird einmal gebaut, alle vier Binaries betten dieselben Dateien ein. `mise run sbom:check` (Snapshot-Release aller vier Plattformen samt SBOM-Prüfung) läuft durch, 28 s. |
-| `CGO_ENABLED=0` | Unverändert: `net/http`, `embed`, `crypto/rand` sind reines Go. |
-| Dev-Modus | `total-recall serve --token dev` plus `mise run web:dev`, dann `http://127.0.0.1:5173/#token=dev`. Vite proxyt `/api` mit `changeOrigin: false`; die Host-Prüfung sieht `127.0.0.1:5173`, die Origin-Prüfung `http://127.0.0.1:5173`, beides Loopback. |
+| `mise`                      | `web:install` (`npm ci`), `web:build`, `web:check` (svelte-check, vitest), `web:dev` (Vite mit Proxy auf `serve`), `serve:demo` (UI gegen das Demo-Archiv, Token `demo`). `build` bleibt wie es ist; `mise run web:build && mise run build` ergibt das Binary mit UI.                                           |
+| CI                          | Job `test`: `actions/setup-node` (Node 26, npm-Cache über `web/package-lock.json`), dann `npm ci`, `check`, `test`, `build`, danach wie bisher `go test` mit eingebetteter UI. Job `release-snapshot` und `release.yml`: `setup-node`, weil die goreleaser-Hooks die UI bauen.                                  |
+| goreleaser                  | Zwei `before.hooks`: `npm ci --prefix web`, `npm run build --prefix web`. Die UI wird einmal gebaut, alle vier Binaries betten dieselben Dateien ein. `mise run sbom:check` (Snapshot-Release aller vier Plattformen samt SBOM-Prüfung) läuft durch, 28 s.                                                      |
+| `CGO_ENABLED=0`             | Unverändert: `net/http`, `embed`, `crypto/rand` sind reines Go.                                                                                                                                                                                                                                                 |
+| Dev-Modus                   | `total-recall serve --token dev` plus `mise run web:dev`, dann `http://127.0.0.1:5173/#token=dev`. Vite proxyt `/api` mit `changeOrigin: false`; die Host-Prüfung sieht `127.0.0.1:5173`, die Origin-Prüfung `http://127.0.0.1:5173`, beides Loopback.                                                          |
 
 Node ist in `mise.toml` als `node = "26"` gepinnt (Major), die Pakete exakt in `web/package.json` (`save-exact=true` in `.npmrc`) und vollständig in `web/package-lock.json`; `npm ci` installiert nichts anderes.
 
@@ -145,12 +146,12 @@ Node ist in `mise.toml` als `node = "26"` gepinnt (Major), die Pakete exakt in `
 
 ## Tests
 
-| Ebene | Technik | Was |
-|---|---|---|
-| `internal/web` | `httptest` gegen Fake-Handler und `fstest.MapFS`, Tabellen | Loopback-Erkennung, jede Guard-Regel, Parameter der Routen, 400/401/403/404/405, SPA-Fallback und Cache-Header, Platzhalter ohne Build, SSE-Frames bei `Modified`/`Replaced` mit `Reopen`, Start und Stop über den Kontext |
-| `internal/cli` | `serve` in-process mit `App.Context`, gegen die kleine Fixture | `--help`, ungültige Flags, fehlendes Archiv, die drei Routen mit Token, 401 ohne, Stop über den Kontext; Fensterberechnung der Statistik |
-| `web/` | vitest, reine Module | SSE-Parser, Snippet-Teilung (auch `<script>` bleibt Text), Chart-Layout (Stapel, leere Perioden, Ticks, Metriken) |
-| `web/` | svelte-check | Typen in `.svelte` und `.ts`, a11y-Warnungen |
+| Ebene          | Technik                                                        | Was                                                                                                                                                                                                                        |
+| -------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/web` | `httptest` gegen Fake-Handler und `fstest.MapFS`, Tabellen     | Loopback-Erkennung, jede Guard-Regel, Parameter der Routen, 400/401/403/404/405, SPA-Fallback und Cache-Header, Platzhalter ohne Build, SSE-Frames bei `Modified`/`Replaced` mit `Reopen`, Start und Stop über den Kontext |
+| `internal/cli` | `serve` in-process mit `App.Context`, gegen die kleine Fixture | `--help`, ungültige Flags, fehlendes Archiv, die drei Routen mit Token, 401 ohne, Stop über den Kontext; Fensterberechnung der Statistik                                                                                   |
+| `web/`         | vitest, reine Module                                           | SSE-Parser, Snippet-Teilung (auch `<script>` bleibt Text), Chart-Layout (Stapel, leere Perioden, Ticks, Metriken)                                                                                                          |
+| `web/`         | svelte-check                                                   | Typen in `.svelte` und `.ts`, a11y-Warnungen                                                                                                                                                                               |
 
 Nicht vorhanden: ein Browser-Test (Playwright) gegen das Binary. Für zwei Ansichten reicht die Kombination aus Go-Tests der API und Unit-Tests der reinen Module; wächst die UI, ist ein Playwright-Lauf gegen `serve:demo` der nächste Schritt (das Vorbild macht es so).
 
@@ -160,15 +161,15 @@ Die Bilder zeigen den Prototyp gegen das Demo-Archiv (`mise run demo:db`, erfund
 
 ![Suche: Eingabe mit Actor-Filter, Trefferliste mit Zeit, Session, Repo, Actor und hervorgehobenem Snippet](../assets/webui/webui-search-light.png)
 
-*Suche nach „release“ im Demo-Archiv: Treffer mit Zeit, Session-Name, Repo, Actor und Snippet; die Suche läuft 150 ms nach dem letzten Tastendruck.*
+_Suche nach „release“ im Demo-Archiv: Treffer mit Zeit, Session-Name, Repo, Actor und Snippet; die Suche läuft 150 ms nach dem letzten Tastendruck._
 
 ![Statistik: Umschalter für Periode, Dimension und Kennzahl, gestapelte Balken je Woche und Projekt, Legende und Tabelle](../assets/webui/webui-stats-light.png)
 
-*Statistik: 16 Wochen × Projekt, Kennzahl Events; Legende, Tabelle mit Anteil. Dieselben Zahlen wie `stats --period week --by project --top 6`.*
+_Statistik: 16 Wochen × Projekt, Kennzahl Events; Legende, Tabelle mit Anteil. Dieselben Zahlen wie `stats --period week --by project --top 6`._
 
 ![Statistik im dunklen Design des Betriebssystems](../assets/webui/webui-stats-dark.png)
 
-*Dasselbe mit `prefers-color-scheme: dark`; die Farben kommen aus CSS-Variablen, Chart und Legende teilen eine Palette.*
+_Dasselbe mit `prefers-color-scheme: dark`; die Farben kommen aus CSS-Variablen, Chart und Legende teilen eine Palette._
 
 ## Messwerte
 
@@ -176,11 +177,11 @@ Alle Messungen auf darwin/arm64, Go 1.27.3, `CGO_ENABLED=0`, `-s -w`, gegen das 
 
 **Binärgröße**
 
-| Build | Größe | Differenz |
-|---|---|---|
-| `develop` ohne `serve` | 17,78 MiB | |
+| Build                                      | Größe     | Differenz                                    |
+| ------------------------------------------ | --------- | -------------------------------------------- |
+| `develop` ohne `serve`                     | 17,78 MiB |                                              |
 | mit `serve`, UI nicht gebaut (Platzhalter) | 21,71 MiB | +3,93 MiB: `net/http` samt TLS, HTTP/2, MIME |
-| mit `serve` und eingebetteter UI | 21,77 MiB | +66 KiB für die UI |
+| mit `serve` und eingebetteter UI           | 21,77 MiB | +66 KiB für die UI                           |
 
 Die Oberfläche selbst ist der kleinste Posten. Den Preis macht der HTTP-Stack der Standardbibliothek; er fällt einmal an und wächst mit weiteren Ansichten nicht.
 
@@ -188,14 +189,14 @@ Die Oberfläche selbst ist der kleinste Posten. Den Preis macht der HTTP-Stack d
 
 **Server**
 
-| Messung | Wert |
-|---|---|
-| Prozessstart bis `/api/status` antwortet | 42 ms |
-| `/api/search?q=test&limit=100` (100 Treffer, Demo) | 17 ms |
-| `/api/search?q=release` (4 Treffer) | 2 bis 4 ms |
-| `/api/activity?period=day&by=project&top=6` (28 Tage) | 9 ms |
-| `/api/activity?period=week&by=project&top=6` (16 Wochen) | 26 bis 41 ms |
-| Änderung im Archiv bis Event im Stream | ≤ Poll-Intervall (2 s), gemessen ~1 s |
+| Messung                                                  | Wert                                  |
+| -------------------------------------------------------- | ------------------------------------- |
+| Prozessstart bis `/api/status` antwortet                 | 42 ms                                 |
+| `/api/search?q=test&limit=100` (100 Treffer, Demo)       | 17 ms                                 |
+| `/api/search?q=release` (4 Treffer)                      | 2 bis 4 ms                            |
+| `/api/activity?period=day&by=project&top=6` (28 Tage)    | 9 ms                                  |
+| `/api/activity?period=week&by=project&top=6` (16 Wochen) | 26 bis 41 ms                          |
+| Änderung im Archiv bis Event im Stream                   | ≤ Poll-Intervall (2 s), gemessen ~1 s |
 
 Gegen ein echtes Archiv (180.000 Events) gelten die Zahlen des [TUI-Spikes](spike-tui.md#messwerte): Suche 100 bis 350 ms, `ActivitySeries` 0,3 bis 0,45 s. Die Web-UI ruft dieselben Funktionen; der HTTP-Overhead ist lokal unter einer Millisekunde.
 
@@ -203,14 +204,14 @@ Gegen ein echtes Archiv (180.000 Events) gelten die Zahlen des [TUI-Spikes](spik
 
 ## Optionen: Svelte oder SvelteKit
 
-| | Svelte 5 + Vite (Prototyp) | SvelteKit 3 + `adapter-static` (Vorbild) |
-|---|---|---|
-| Routing | von Hand (`history.pushState`, ein `switch`), serverseitig `index.html`-Fallback | Dateirouten `src/routes/**/+page.svelte`, `fallback: 'index.html'`, `ssr = false` |
-| Daten laden | `fetch` in der Komponente | `+page.ts`-`load` ohne SSR, dasselbe `fetch`, aber mit Konventionen für Fehler und Redirects |
-| Generiertes | nichts | `.svelte-kit/` (Typen, Manifest), `svelte-kit sync` vor `check` |
-| Abhängigkeiten | 7 direkt, 87 im Lockfile | zusätzlich `@sveltejs/kit` (17 eigene Abhängigkeiten) und `adapter-static`; grob +30 bis 60 Pakete (nicht gemessen) |
-| Bundle | 54 KiB JS | größer durch Router und Client-Runtime von Kit; beim Vorbild einige hundert KiB mit vielen Seiten |
-| Wann richtig | 2 bis 5 Ansichten, eine Seite, keine Unterseiten mit Parametern | ab etwa 5 Ansichten mit Parametern (`/session/[id]`), Layouts, Fehlerseiten, Preloading |
+|                | Svelte 5 + Vite (Prototyp)                                                       | SvelteKit 3 + `adapter-static` (Vorbild)                                                                            |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Routing        | von Hand (`history.pushState`, ein `switch`), serverseitig `index.html`-Fallback | Dateirouten `src/routes/**/+page.svelte`, `fallback: 'index.html'`, `ssr = false`                                   |
+| Daten laden    | `fetch` in der Komponente                                                        | `+page.ts`-`load` ohne SSR, dasselbe `fetch`, aber mit Konventionen für Fehler und Redirects                        |
+| Generiertes    | nichts                                                                           | `.svelte-kit/` (Typen, Manifest), `svelte-kit sync` vor `check`                                                     |
+| Abhängigkeiten | 7 direkt, 87 im Lockfile                                                         | zusätzlich `@sveltejs/kit` (17 eigene Abhängigkeiten) und `adapter-static`; grob +30 bis 60 Pakete (nicht gemessen) |
+| Bundle         | 54 KiB JS                                                                        | größer durch Router und Client-Runtime von Kit; beim Vorbild einige hundert KiB mit vielen Seiten                   |
+| Wann richtig   | 2 bis 5 Ansichten, eine Seite, keine Unterseiten mit Parametern                  | ab etwa 5 Ansichten mit Parametern (`/session/[id]`), Layouts, Fehlerseiten, Preloading                             |
 
 Für den Spike war Svelte ohne Kit die richtige Wahl: weniger Teile, nichts Generiertes, der Router ist zehn Zeilen. Kommt die Web-UI mit Sessions-Detail (`/session/<id>`), Aktivität und Config, lohnt Kit; der Umstieg ist mechanisch (Komponenten bleiben, Routing und `fetch` wandern in Routen und `load`), solange die Komponenten keine eigene Router-Logik ansammeln. Entscheidung: **Svelte ohne Kit, solange es unter fünf Ansichten sind; Umstieg als eigenes Issue, sobald die Session-Detailseite kommt.**
 
@@ -218,16 +219,16 @@ Paketmanager: npm statt Bun, weil `package-lock.json` von jedem SBOM-Werkzeug un
 
 ## Risiken
 
-| Risiko | Folge | Umgang |
-|---|---|---|
-| Zweite Oberfläche neben der TUI | jede Funktion zweimal, Doku zweimal, Screenshots zweimal | Umfang klein halten (siehe Empfehlung); Daten und Vertrag teilen (JSON-Typen der CLI), nur die Darstellung ist doppelt |
-| Zweite Toolchain (Node, npm, 87 Pakete) | Updates, Audits, Breaking Changes von Vite/Svelte-Majors | Pins, Renovate-Gruppe „JavaScript“, `npm audit` als CI-Gate mit Level `high` |
-| Token im Terminal und in der Start-URL | lesbar im Scrollback und Verlauf bis zum ersten Laden | neues Token je Lauf; die Seite entfernt es aus der Adresse; `--open` statt Kopieren |
-| Alle lokalen Prozesse erreichen `127.0.0.1` | ein lokaler Angreifer könnte den Port scannen | ohne Token keine Daten; Konstantzeit-Vergleich; kein Rate-Limit (lokal verzichtbar) |
-| Browser-Verhalten ändert sich (Fetch-Metadata, CSP) | Guards zu streng oder zu lax | Prüfungen sind additiv und einzeln getestet; `Sec-Fetch-Site` nur geprüft, wenn gesendet |
-| `net/http` + 3,9 MiB | größeres Release für alle, auch wer `serve` nie nutzt | akzeptieren oder Build-Tag `noweb`; Tag nur, wenn die Größe stört |
-| Screenshots von Hand | veralten unbemerkt | Playwright-Skript gegen `serve:demo` (Sub-Issue), oder in der Doku als „Stand vom …“ markieren |
-| `Poll` für einen Aufrufer | TUI und `serve` dürfen nicht denselben Store teilen | sie tun es nicht (eigener Prozess); im Server gibt es genau einen Poller |
+| Risiko                                              | Folge                                                    | Umgang                                                                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Zweite Oberfläche neben der TUI                     | jede Funktion zweimal, Doku zweimal, Screenshots zweimal | Umfang klein halten (siehe Empfehlung); Daten und Vertrag teilen (JSON-Typen der CLI), nur die Darstellung ist doppelt |
+| Zweite Toolchain (Node, npm, 87 Pakete)             | Updates, Audits, Breaking Changes von Vite/Svelte-Majors | Pins, Renovate-Gruppe „JavaScript“, `npm audit` als CI-Gate mit Level `high`                                           |
+| Token im Terminal und in der Start-URL              | lesbar im Scrollback und Verlauf bis zum ersten Laden    | neues Token je Lauf; die Seite entfernt es aus der Adresse; `--open` statt Kopieren                                    |
+| Alle lokalen Prozesse erreichen `127.0.0.1`         | ein lokaler Angreifer könnte den Port scannen            | ohne Token keine Daten; Konstantzeit-Vergleich; kein Rate-Limit (lokal verzichtbar)                                    |
+| Browser-Verhalten ändert sich (Fetch-Metadata, CSP) | Guards zu streng oder zu lax                             | Prüfungen sind additiv und einzeln getestet; `Sec-Fetch-Site` nur geprüft, wenn gesendet                               |
+| `net/http` + 3,9 MiB                                | größeres Release für alle, auch wer `serve` nie nutzt    | akzeptieren oder Build-Tag `noweb`; Tag nur, wenn die Größe stört                                                      |
+| Screenshots von Hand                                | veralten unbemerkt                                       | Playwright-Skript gegen `serve:demo` (Sub-Issue), oder in der Doku als „Stand vom …“ markieren                         |
+| `Poll` für einen Aufrufer                           | TUI und `serve` dürfen nicht denselben Store teilen      | sie tun es nicht (eigener Prozess); im Server gibt es genau einen Poller                                               |
 
 ## Sackgassen
 
@@ -244,7 +245,7 @@ Was ausprobiert wurde und nicht trägt:
 
 Der Prototyp ist bewusst schlicht: Systemschrift, ein Akzent, eine Palette. Soll die Web-UI bleiben, dann soll sie **hübsch** sein und **stylbar**, also mit einem Aussehen, das sich ohne Codeänderung umstellen lässt. Das Vorbild zeigt, woran das hängt; nicht an einer Bibliothek, sondern an drei Gewohnheiten:
 
-1. **Tokens mit Rollen, an einer Stelle.** Jede Farbe, jeder Radius, jeder Schatten, jede Schrift ist eine benannte CSS-Variable in einer Datei; Komponenten verwenden nur die Namen, nie Hex-Werte. Ein Dokument sagt, wofür jedes Token *ist* (Seitengrund, Fläche, erhöhte Fläche, Rand, Text, gedämpfter Text, Primär, Akzent, Fehler, Erfolg) und welche Fallen dahinterstecken. Dunkles Design definiert dieselben Namen neu. `web/src/app.css` hat davon eine kleine Fassung; der Schritt ist, die Rollen sauber zu benennen und die Regeln aufzuschreiben, damit jede spätere Ansicht das Aussehen erbt, statt sich eines auszudenken.
+1. **Tokens mit Rollen, an einer Stelle.** Jede Farbe, jeder Radius, jeder Schatten, jede Schrift ist eine benannte CSS-Variable in einer Datei; Komponenten verwenden nur die Namen, nie Hex-Werte. Ein Dokument sagt, wofür jedes Token _ist_ (Seitengrund, Fläche, erhöhte Fläche, Rand, Text, gedämpfter Text, Primär, Akzent, Fehler, Erfolg) und welche Fallen dahinterstecken. Dunkles Design definiert dieselben Namen neu. `web/src/app.css` hat davon eine kleine Fassung; der Schritt ist, die Rollen sauber zu benennen und die Regeln aufzuschreiben, damit jede spätere Ansicht das Aussehen erbt, statt sich eines auszudenken.
 2. **Eine typografische Stimme.** Das Vorbild paart eine Display-Serife mit einer ruhigen Sans, beide selbst gehostet über fontsource-Pakete; nichts kommt aus dem Netz. Das geht auch unter unserer CSP (`font-src 'self'`): die Schriften werden Dateien im Binary. Für ein Archiv von Coding-Sessions passt eher das Gegenteil einer Rezepte-App: eine ruhige Sans für die Oberfläche, eine gute Monospace für Session-IDs, Snippets und Code, Tabellenziffern in jeder Tabelle. Zwei variable Schriften kosten etwa 300 KiB im Binary, neben dem HTTP-Stack unerheblich.
 3. **Regeln, die aus Fehlern kamen.** Die Liste des Vorbilds ist konkret: eine Aktion ist nie nackter Text, ein Knopf bricht nie um, ein Titel bricht um und wird nie abgeschnitten, Trennlinien stehen zwischen Zeilen und nie nach der letzten, Hover tönt mit der eigenen Farbe des Elements, `prefers-reduced-motion` schaltet jede Bewegung ab, 44 px Ziele auf dem Telefon. Das meiste kostet nichts, wenn man es von Anfang an macht, und ist das, was eine Oberfläche fertig wirken lässt.
 
@@ -278,17 +279,17 @@ Das hält jede Runde billig (ein Token-Satz, ein Screenshot-Lauf), macht Vorschl
 
 Grob, in Arbeitstagen, aufbauend auf dem Prototyp:
 
-| Schritt | Aufwand |
-|---|---|
-| Prototyp aufräumen und übernehmen: JSON-Typen in ein Paket heben, `serve` in Doku und Design, Changelog | 1 |
-| npm-SBOM im Release (zweite Datei, `tools/sbom check` erweitern), `npm audit`-Gate | 1 |
-| Session-Detailansicht (Events einer Session, Sprung aus dem Treffer, Tools ein-/ausblenden) | 1 bis 2 |
-| Aktivität je Tag (Arbeitszeit, Kernzeit, Soll, Feiertage) als Kalender | 2 |
-| Config-Ansicht lesend (Status, Herkunft je Wert); schreibend mit denselben Locks wie die TUI | 1 lesend, 2 bis 3 schreibend |
-| Playwright-Screenshots gegen `serve:demo`, in `docs:screenshots` eingehängt | 1 |
-| Umstieg auf SvelteKit, falls die Ansichten das brauchen | 1 |
-| Gestaltung: Token-Rollen, Schriftpaar, Themes, `user.css`, Screenshot-Skript je Variante, Design-Seite; zwei bis drei Runden Vorschläge | 2 bis 3 |
-| Tastaturbedienung, Kopieren von IDs/Snippets | 1 |
+| Schritt                                                                                                                                 | Aufwand                      |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Prototyp aufräumen und übernehmen: JSON-Typen in ein Paket heben, `serve` in Doku und Design, Changelog                                 | 1                            |
+| npm-SBOM im Release (zweite Datei, `tools/sbom check` erweitern), `npm audit`-Gate                                                      | 1                            |
+| Session-Detailansicht (Events einer Session, Sprung aus dem Treffer, Tools ein-/ausblenden)                                             | 1 bis 2                      |
+| Aktivität je Tag (Arbeitszeit, Kernzeit, Soll, Feiertage) als Kalender                                                                  | 2                            |
+| Config-Ansicht lesend (Status, Herkunft je Wert); schreibend mit denselben Locks wie die TUI                                            | 1 lesend, 2 bis 3 schreibend |
+| Playwright-Screenshots gegen `serve:demo`, in `docs:screenshots` eingehängt                                                             | 1                            |
+| Umstieg auf SvelteKit, falls die Ansichten das brauchen                                                                                 | 1                            |
+| Gestaltung: Token-Rollen, Schriftpaar, Themes, `user.css`, Screenshot-Skript je Variante, Design-Seite; zwei bis drei Runden Vorschläge | 2 bis 3                      |
+| Tastaturbedienung, Kopieren von IDs/Snippets                                                                                            | 1                            |
 
 Bis zur Parität mit der TUI (Suche, Session, Statistik, Aktivität, Config) also etwa 10 bis 14 Tage; der abgespeckte Umfang unten mit Gestaltung etwa 6 bis 8.
 
