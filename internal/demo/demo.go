@@ -112,6 +112,7 @@ func Build(ctx context.Context, path string) (Summary, error) {
 		Store:      st,
 		Adapters:   []harness.Adapter{claude.New(projects)},
 		StoreRaw:   true,
+		StoreBlobs: true,
 		ResolveGit: true,
 		GitResolve: func(_ context.Context, cwd string) (gitinfo.Info, error) {
 			if info, ok := git[cwd]; ok {

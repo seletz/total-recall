@@ -57,6 +57,7 @@ func (m Model) statusView(width, height int) string {
 		}
 		add("schema", schema)
 		add("raw", rawCell(s, m.th.Muted.Render))
+		add("blobs", blobCell(s, m.th.Muted.Render))
 		add("sessions", strconv.Itoa(s.status.Sessions))
 		add("events", strconv.Itoa(s.status.Events))
 		add("sources", strconv.Itoa(s.status.Sources))
@@ -154,6 +155,18 @@ func rawCell(s state, muted func(...string) string) string {
 		cell += "  " + muted(fmt.Sprintf("%d without raw: line too long", s.raw.Truncated))
 	}
 	return cell
+}
+
+// blobCell is the blobs row: the number of stored attachments and their
+// size as delivered; "unknown" while the migration is pending.
+func blobCell(s state, muted func(...string) string) string {
+	if s.pending() {
+		return muted("unknown until the migration ran")
+	}
+	if s.blobs.Count == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d attachments, %s", s.blobs.Count, mib(s.blobs.Bytes))
 }
 
 // sortStrings sorts in place (a tiny wrapper, so the page reads without

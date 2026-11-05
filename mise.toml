@@ -21,7 +21,7 @@ description = "Build the synthetic demo archive (build/demo.db): the shared fixt
 run = "go run ./tools/demo -out build/demo.db"
 
 [tasks."dict:train"]
-description = "Train the zstd dictionary for events.raw from synthetic lines (demo archive plus generated records) and write it to internal/store/rawz/dict/raw-v1.zdict"
+description = "Train the zstd dictionary for events.raw from synthetic lines (demo archive plus generated records) and write it to internal/store/rawz/dict/raw-v2.zdict (a new dictionary gets a new ID and file; old ones stay for old rows)"
 run = "go run ./tools/rawdict train"
 
 [tasks.test]

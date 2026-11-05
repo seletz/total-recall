@@ -144,6 +144,11 @@ type WriteResult struct {
 	// RawRewritten is the number of existing events whose raw was replaced
 	// (only with WriteOptions.RewriteRaw).
 	RawRewritten int
+	// Blobs is the number of attachments newly stored (an attachment that
+	// was already there under its hash does not count), BlobBytes their
+	// size as delivered.
+	Blobs     int
+	BlobBytes int64
 }
 
 // WriteBatchOpts is WriteBatch with options and counts.
@@ -217,6 +222,8 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			}
 			defer func() { _ = rewrite.Close() }()
 		}
+		blobs := newBlobWriter(ctx, tx)
+		defer blobs.close()
 		for _, e := range events {
 			if rewrite != nil {
 				r, err := rewrite.ExecContext(ctx, rawBlob(e.Raw), e.RawTruncated, e.ID)
@@ -225,6 +232,10 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 				}
 				if n, _ := r.RowsAffected(); n > 0 {
 					res.RawRewritten += int(n)
+					// The new raw line references its own attachments.
+					if err := blobs.replace(e, &res); err != nil {
+						return res, err
+					}
 					continue
 				}
 			}
@@ -254,8 +265,11 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			if err != nil {
 				return res, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}
-			if n, err := r.RowsAffected(); err == nil {
+			if n, err := r.RowsAffected(); err == nil && n > 0 {
 				res.Inserted += int(n)
+				if err := blobs.add(e, &res); err != nil {
+					return res, err
+				}
 			}
 		}
 	}

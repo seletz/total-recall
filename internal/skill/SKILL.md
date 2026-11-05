@@ -100,7 +100,7 @@ LIMIT 50"
 ## Cost notes
 
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
-- `events.text` of tool results is truncated to 4 KiB. `events.raw` is a compressed extract of the original JSON line (NULL above 16 KiB, then `raw_truncated = 1`); read it with `raw_text(raw)`, and never select it in a list query.
+- `events.text` of tool results is truncated to 4 KiB. `events.raw` is the whole original JSON line, redacted and zstd-compressed, with the data of images and documents replaced by `blob:sha256:<hash>` references; read it with `raw_text(raw)`, and never select it in a list query. `blobs.data` is the attachment data: never select it in a list query either, `total-recall blob HASH --out FILE` writes one.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
 - `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
@@ -189,8 +189,25 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `tokens_out` | output tokens, NULL if unknown |
 | `source_id` | `sources.id` of the transcript file the line came from (`JOIN sources s ON s.id = e.source_id` for the path) |
 | `source_offset` | byte offset of the line in that file |
-| `raw` | extract of the original JSON line as a zstd-compressed BLOB (since schema v5): record type, ids, time stamp, classifier flags, `message` (`content`, `model`) and `toolUseResult` without diffs; redacted. `raw_text(raw)` gives the JSON text. NULL above `ingest.raw_max_bytes` (default 16 KiB) or with `store_raw = false` |
+| `raw` | the whole original JSON line as a zstd-compressed BLOB, redacted; the base64 data of images and documents is replaced by `blob:sha256:<hash>` (table `blobs`). `raw_text(raw)` gives the JSON text. NULL with `store_raw = false`, above `ingest.raw_max_bytes` (default 0 = no limit), or for lines archives before v1.3.0 dropped for their size; archives from before v1.3.0 hold an extract (type, ids, `message`, `toolUseResult`) until `ingest --all --reread --rewrite-raw` ran |
 | `raw_truncated` | 1 if `raw` was dropped because of its size (`text` is still filled) |
+
+#### `blobs` and `event_blobs`
+
+Attachments (images and documents pasted by the user or returned by tools), once per content hash, since schema v6.
+
+| column | meaning |
+|---|---|
+| `blobs.sha256` | hex SHA-256 of the data, primary key; `event_blobs.sha256` and the `blob:sha256:<hash>` references in `raw` point here |
+| `blobs.media_type` | e.g. `image/png`, `application/pdf` |
+| `blobs.bytes` | size as delivered |
+| `blobs.encoding` | `''` (stored as delivered: PNG, JPEG, …) or `zstd` (PDF, text, …); `total-recall blob` decodes |
+| `blobs.data` | the bytes; never select it in a list query |
+| `event_blobs.event_id` | `events.id` of the event whose line carried the attachment |
+| `event_blobs.position` | order of the references in that line |
+| `event_blobs.sha256` | the blob |
+
+The event's `text` has a placeholder like `[image image/png 34.2 KiB]`; `show --json` lists `attachments` per event; `total-recall blob HASH --out FILE` writes the data.
 
 #### `events_fts`
 
@@ -248,7 +265,8 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall status --json` | DB path, size, page size, schema version (`migration_pending` when the archive is older than the binary: ingestion is paused until the user migrates), counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
-| `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit |
+| `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit; every event lists its `attachments` |
+| `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices); `--json` prints type, size and the events that refer to it. Only when the user asks for the picture or document itself |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
@@ -319,6 +337,7 @@ One object per session.
 | `model` | `null` for human events |
 | `tokens_in` | `null` if unknown |
 | `tokens_out` | `null` if unknown |
+| `attachments` | images and documents of the event's line: objects with `sha256` (for `total-recall blob`), `media_type`, `bytes` (as delivered), `position`; `[]` without |
 
 #### `search --json`
 
@@ -367,6 +386,9 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `raw_bytes` | compressed size of all `raw` lines |
 | `raw_truncated` | events whose `raw` line was dropped for its size |
 | `raw_ratio` | uncompressed over compressed size of `raw`, estimated from a sample of rows; 0 if unknown |
+| `blobs` | number of stored attachments (images, documents) |
+| `blob_bytes` | their size as delivered |
+| `blob_stored_bytes` | their size in the archive (PDF and text are zstd-compressed) |
 | `last_ingest` | object harness → time (UTC) |
 | `backup_dir` | |
 | `last_backup` | path of the last backup, `null` if none |

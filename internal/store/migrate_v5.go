@@ -14,11 +14,12 @@ const migrateBatch = 1000
 
 // migrateRawV5 is the Go part of migration 5 (see the SQL block in
 // migrations and migrationNotes): it copies events into events_v5 in
-// batches, trimming raw with the harness's RawTrimFunc (WithRawTrimmers)
-// and compressing it (rawz), and mapping source_path to sources.id. seq is
-// kept, so events_fts (external content keyed by seq) stays valid. Then it
-// swaps the tables, recreates indexes and triggers and checks the
-// full-text index against the new table.
+// batches, compressing raw (rawz) and mapping source_path to sources.id.
+// seq is kept, so events_fts (external content keyed by seq) stays valid.
+// Then it swaps the tables, recreates indexes and triggers and checks the
+// full-text index against the new table. Until #180 the step also trimmed
+// raw to an extract with the harness's trimmer; the archive keeps whole
+// lines now, so the line is only compressed.
 func (s *Store) migrateRawV5(ctx context.Context, tx *sql.Tx, report func(done, total int64)) error {
 	codec, err := rawz.Default()
 	if err != nil {
@@ -87,18 +88,9 @@ func (s *Store) migrateRawV5(ctx context.Context, tx *sql.Tx, report func(done, 
 				}
 				sourceID = id
 			}
-			var blob []byte
+			blob := r.raw
 			if len(r.raw) > 0 && !rawz.IsFrame(r.raw) {
-				line := r.raw
-				harness, _ := splitID(r.sessionID)
-				if trim := s.rawTrimmers[harness]; trim != nil {
-					if t, err := trim(line); err == nil {
-						line = t
-					}
-				}
-				blob = codec.Encode(string(line))
-			} else {
-				blob = r.raw
+				blob = codec.Encode(string(r.raw))
 			}
 			if _, err := ins.ExecContext(ctx, r.seq, r.id, r.sessionID, r.ts, r.tsLocal, r.kind, r.role, r.actor, r.text, r.toolName, r.model,
 				r.tokensIn, r.tokensOut, sourceID, r.sourceOffset, blob, r.rawTruncated); err != nil {

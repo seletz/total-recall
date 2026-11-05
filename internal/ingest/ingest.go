@@ -27,6 +27,12 @@ const NegativeDirTTL = 7 * 24 * time.Hour
 // DefaultBatchSize is the number of events written per transaction.
 const DefaultBatchSize = 500
 
+// DefaultBatchBytes is the attachment data a batch holds before it is
+// written even if it is shorter than BatchSize: a batch of 500 tool
+// results with screenshots would otherwise sit in memory with their
+// pictures.
+const DefaultBatchBytes = 64 << 20
+
 // Deps are the collaborators of an ingest run.
 type Deps struct {
 	// Store is the open (read-write) archive.
@@ -38,8 +44,13 @@ type Deps struct {
 	// StoreRaw keeps Event.Raw; false drops it.
 	StoreRaw bool
 	// RawMaxBytes drops Event.Raw of lines longer than this many bytes and
-	// sets Event.RawTruncated instead; 0 = no limit.
+	// sets Event.RawTruncated instead; 0 = no limit (the default since
+	// #180: the archive keeps whole lines).
 	RawMaxBytes int
+	// StoreBlobs keeps Event.Attachments (images and documents of a line,
+	// stored once per hash); false drops the data, raw keeps the
+	// reference.
+	StoreBlobs bool
 	// ResolveGit enables git info resolution for session working directories.
 	ResolveGit bool
 	// GitResolve resolves a cwd; default gitinfo.Resolve.
@@ -48,6 +59,9 @@ type Deps struct {
 	LockDir string
 	// BatchSize is the number of events per transaction; default DefaultBatchSize.
 	BatchSize int
+	// BatchBytes is the attachment data after which a batch is written
+	// early; default DefaultBatchBytes.
+	BatchBytes int64
 	// Reread reads every source from the beginning instead of from its
 	// stored offset. Events are idempotent, sessions merge: a reread adds
 	// what earlier versions did not store (ingest --reread).
@@ -76,9 +90,13 @@ type Summary struct {
 	Events    int // events newly inserted
 	// RawRewritten counts existing events whose raw was replaced (Deps.RewriteRaw).
 	RawRewritten int
-	Sessions     int // distinct sessions touched by new records
-	Errors       []FileError
-	Duration     time.Duration
+	// Blobs counts attachments newly stored, BlobBytes their size as
+	// delivered (an attachment the archive already had does not count).
+	Blobs     int
+	BlobBytes int64
+	Sessions  int // distinct sessions touched by new records
+	Errors    []FileError
+	Duration  time.Duration
 }
 
 // runner is the state of one Run/All call.
@@ -87,6 +105,7 @@ type runner struct {
 	sessions map[string]bool
 	dirs     map[string]store.DirInfo // per-run cwd cache (also negative results)
 	sum      Summary
+	err      error // the failure of the current file's add, if any
 }
 
 func newRun(d Deps) *runner {
@@ -95,6 +114,9 @@ func newRun(d Deps) *runner {
 	}
 	if d.BatchSize <= 0 {
 		d.BatchSize = DefaultBatchSize
+	}
+	if d.BatchBytes <= 0 {
+		d.BatchBytes = DefaultBatchBytes
 	}
 	if d.Logf == nil {
 		d.Logf = func(string, ...any) {}
@@ -190,6 +212,7 @@ func (r *runner) file(ctx context.Context, a harness.Adapter, path string) {
 	}
 	defer unlock()
 
+	r.err = nil
 	changed, err := r.ingestFile(ctx, a, path)
 	if changed {
 		r.sum.Changed++
@@ -228,6 +251,7 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	src := store.SourceState{Path: path, Harness: a.Name(), MTime: fi.ModTime()}
 	var sessions []model.Session
 	var events []model.Event
+	var pending int64 // attachment bytes in events
 	flush := func(off int64) error {
 		src.Offset = off
 		src.Size = max(fi.Size(), off)
@@ -237,19 +261,22 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 		}
 		r.sum.Events += res.Inserted
 		r.sum.RawRewritten += res.RawRewritten
-		sessions, events = sessions[:0], events[:0]
+		r.sum.Blobs += res.Blobs
+		r.sum.BlobBytes += res.BlobBytes
+		sessions, events, pending = sessions[:0], events[:0], 0
 		return nil
 	}
 
 	end, perr := a.Parse(ctx, path, offset, func(rec model.Record) error {
 		// Flush before a record that starts a new line, so the stored offset
 		// always sits on a line boundary whose predecessors are all written.
-		if len(events) >= r.deps.BatchSize && len(rec.Events) > 0 {
+		if (len(events) >= r.deps.BatchSize || pending >= r.deps.BatchBytes) && len(rec.Events) > 0 {
 			if err := flush(rec.Events[0].SourceOffset); err != nil {
 				return err
 			}
 		}
-		return r.add(ctx, rec, &sessions, &events)
+		pending += r.add(ctx, rec, &sessions, &events)
+		return r.err
 	})
 	// Lines before end were fully emitted: persist them even if Parse failed.
 	if err := flush(end); err != nil {
@@ -258,15 +285,18 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 	return true, perr
 }
 
-// add prepares one record (git info, redaction) and appends it to the batch.
-func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Session, events *[]model.Event) error {
+// add prepares one record (git info, redaction) and appends it to the
+// batch. It returns the attachment bytes it added; a failure is left in
+// r.err.
+func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Session, events *[]model.Event) int64 {
 	s := rec.Session
 	if s.ID != "" {
 		r.sessions[s.ID] = true
 		if s.Cwd != "" && r.deps.ResolveGit {
 			d, err := r.dir(ctx, s.Cwd)
 			if err != nil {
-				return err
+				r.err = err
+				return 0
 			}
 			s.GitRoot, s.GitRemoteURL = d.GitRoot, d.GitRemoteURL
 		}
@@ -274,6 +304,7 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 	}
 	// Events of one record usually share the raw line: redact it once.
 	var rawIn, rawOut string
+	var added int64
 	for _, e := range rec.Events {
 		r.sessions[e.SessionID] = true
 		switch {
@@ -281,6 +312,12 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 			e.Raw = ""
 		case r.deps.RawMaxBytes > 0 && len(e.Raw) > r.deps.RawMaxBytes:
 			e.Raw, e.RawTruncated = "", true
+		}
+		if !r.deps.StoreBlobs {
+			e.Attachments = nil
+		}
+		for _, a := range e.Attachments {
+			added += int64(len(a.Data))
 		}
 		if rd := r.deps.Redactor; rd != nil {
 			e.Text = rd.Text(e.Text)
@@ -295,7 +332,7 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 		}
 		*events = append(*events, e)
 	}
-	return nil
+	return added
 }
 
 // dir returns git info for cwd: per-run cache, then the store's dirs table,

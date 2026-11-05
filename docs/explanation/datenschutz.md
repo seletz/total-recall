@@ -20,13 +20,14 @@ Je **Event** (Nachricht, Tool-Aufruf, Tool-Ergebnis):
 - Zeitpunkt, Art, Rolle, Actor,
 - der lesbare Text. Tool-Ergebnisse werden auf 4 KiB gekürzt.
 - Tool-Name, Modell, Token-Zahlen,
-- ein Auszug der Original-JSON-Zeile (`raw`: Typ, IDs, Zeitstempel, Klassifikations-Flags, Nachrichteninhalt, Tool-Ergebnis ohne Diffs; Buchhaltung der Harness, `cwd` und Token-Zahlen fehlen), ebenfalls maskiert und komprimiert gespeichert ([Schema](../reference/40-schema.md#raw)). Abschaltbar mit `ingest.store_raw = false`; Auszüge über `ingest.raw_max_bytes` (Default 16 KiB) werden ohnehin nicht als `raw` gespeichert.
+- die vollständige Original-JSON-Zeile (`raw`), ebenfalls maskiert und komprimiert gespeichert ([Schema](../reference/40-schema.md#raw)); seit v1.3.0 ohne Größengrenze, damit das Archiv ohne die Transkripte auskommt. Abschaltbar mit `ingest.store_raw = false`, begrenzbar mit `ingest.raw_max_bytes`.
+- Bilder und Dokumente, die du in eine Session einfügst oder die ein Werkzeug liest (Screenshots, PDFs), als [Blobs](../reference/40-schema.md#blobs), einmal je Inhalt. **Sie werden nicht maskiert**: Ein Bild lässt sich nicht nach Geheimnissen durchsuchen, ohne es zu zerstören. Ein Screenshot mit einem Passwort oder Token darin liegt also unverändert im Archiv. Abschaltbar mit `ingest.store_blobs = false`; dann bleibt nur der Hash als Verweis.
 
-Nicht gespeichert werden technische Records wie Anhänge, API-Requests oder Datei-Snapshots.
+Nicht gespeichert werden technische Records wie API-Requests oder Datei-Snapshots.
 
 ## Maskierung von Geheimnissen
 
-Vor dem Schreiben werden `text` und `raw` durchsucht. Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:
+Vor dem Schreiben werden `text` und `raw` durchsucht (die Blobs nicht, siehe oben). Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:
 
 - private Schlüssel (PEM-Blöcke),
 - Tokens von AWS, GitHub, Slack, OpenAI, Anthropic,

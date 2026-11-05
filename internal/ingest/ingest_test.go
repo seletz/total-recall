@@ -3,7 +3,9 @@ package ingest
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/gitinfo"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/harness/claude"
@@ -636,5 +639,167 @@ func TestHistorySuppressionIsNotStored(t *testing.T) {
 	}
 	if n := e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`'`); n != 1 {
 		t.Errorf("sessions = %d, want 1", n)
+	}
+}
+
+// imageLine is a user record that pastes a small synthetic image.
+func imageLine(uuid, ts string, img []byte) tf.Line {
+	l := tf.User(sid, uuid, ts, "/w/x", "")
+	l["message"] = map[string]any{"role": "user", "content": []any{
+		map[string]any{"type": "text", "text": "see the picture"},
+		map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": base64.StdEncoding.EncodeToString(img)}},
+	}}
+	return l
+}
+
+// TestAttachmentsAreStoredOnce: the data of pasted images leaves raw and
+// is kept once per hash (#181); the references survive redaction; with
+// StoreBlobs off nothing but the reference is kept.
+func TestAttachmentsAreStoredOnce(t *testing.T) {
+	img := []byte("\x89PNG\r\n\x1a\nsynthetic picture for the ingest test")
+	for _, storeBlobs := range []bool{true, false} {
+		t.Run(fmt.Sprintf("store_blobs=%v", storeBlobs), func(t *testing.T) {
+			e := newEnv(t)
+			r, err := redact.New(redact.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.deps.Redactor, e.deps.StoreBlobs = r, storeBlobs
+			p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl",
+				imageLine("u1", "2026-10-01T10:00:00Z", img).JSON()+imageLine("u2", "2026-10-01T10:00:01Z", img).JSON())
+			sum := run(t, e, p)
+			if sum.Events != 4 {
+				t.Errorf("events = %d, want 4 (text and image per line)", sum.Events)
+			}
+			h := blobref.Hash(img)
+			raw := e.str(t, "SELECT raw_text(raw) FROM events WHERE id = 'claude:u1#1'")
+			if !strings.Contains(raw, `"data":"blob:sha256:`+h+`"`) || strings.Contains(raw, base64.StdEncoding.EncodeToString(img)) {
+				t.Errorf("raw = %q", raw)
+			}
+			if got := e.str(t, "SELECT text FROM events WHERE id = 'claude:u2#1'"); got != "[image image/png 45 B]" {
+				t.Errorf("placeholder = %q", got)
+			}
+			want := map[string]int{"SELECT count(*) FROM blobs": 1, "SELECT count(*) FROM event_blobs": 2, "SELECT count(*) FROM event_blobs WHERE sha256 = '" + h + "'": 2}
+			if !storeBlobs {
+				want = map[string]int{"SELECT count(*) FROM blobs": 0, "SELECT count(*) FROM event_blobs": 0}
+			}
+			for q, n := range want {
+				if got := e.count(t, q); got != n {
+					t.Errorf("%s = %d, want %d", q, got, n)
+				}
+			}
+			if sum.Blobs != len(want)-2 || (storeBlobs && sum.BlobBytes != int64(len(img))) {
+				t.Errorf("summary blobs = %d (%d bytes)", sum.Blobs, sum.BlobBytes)
+			}
+			if storeBlobs {
+				line, err := e.st.RawLine(ctx, "claude:u1#1")
+				if err != nil || line != strings.TrimSuffix(imageLine("u1", "2026-10-01T10:00:00Z", img).JSON(), "\n") {
+					t.Errorf("RawLine = %q, %v", line, err)
+				}
+			}
+		})
+	}
+}
+
+// TestRewriteRawFillsBlobsAndMissingRaw: `ingest --all --reread
+// --rewrite-raw` brings an archive from before #180/#181 up to date:
+// events without raw get the line, lines with attachments get their
+// blobs; a second run changes nothing more; a source whose transcript is
+// gone keeps what it has.
+func TestRewriteRawFillsBlobsAndMissingRaw(t *testing.T) {
+	img := []byte("\x89PNG\r\n\x1a\nanother synthetic picture")
+	e := newEnv(t)
+	e.deps.StoreBlobs = true
+	tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl",
+		tf.User(sid, "u0", "2026-10-01T09:59:00Z", "/w/x", "hello").JSON()+imageLine("u1", "2026-10-01T10:00:00Z", img).JSON())
+	gone := tf.WriteFile(t, e.projects, "-w-y/"+tf.SmallSession2+".jsonl",
+		tf.User(tf.SmallSession2, "g1", "2026-10-02T10:00:00Z", "/w/y", "I stay as I am").JSON())
+	if sum, err := All(ctx, e.deps); err != nil || sum.Events != 4 {
+		t.Fatalf("first run: %+v, %v", sum, err)
+	}
+	// Simulate the old archive: no raw for u0 (dropped for its size), an
+	// extract without the image event for u1, no blobs.
+	db, err := sql.Open("sqlite", "file:"+e.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`UPDATE events SET raw = NULL, raw_truncated = 1 WHERE id = 'claude:u0'`,
+		`DELETE FROM event_blobs`, `DELETE FROM blobs`,
+		`DELETE FROM events WHERE id = 'claude:u1#1'`,
+		`UPDATE events SET raw = NULL WHERE id = 'claude:g1'`,
+	} {
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	_ = db.Close()
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	e.deps.Reread, e.deps.RewriteRaw = true, true
+	sum, err := All(ctx, e.deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Events != 1 || sum.RawRewritten != 2 || sum.Blobs != 1 || sum.Changed != 1 {
+		t.Errorf("rewrite run = %+v, want 1 new event, 2 raw rewritten, 1 blob, 1 changed", sum)
+	}
+	for q, want := range map[string]int{
+		"SELECT count(*) FROM events WHERE raw IS NULL":                                                1, // g1: transcript gone
+		"SELECT count(*) FROM events WHERE id = 'claude:u0' AND raw IS NOT NULL AND raw_truncated = 0": 1,
+		"SELECT count(*) FROM events WHERE id = 'claude:u1#1'":                                         1,
+		"SELECT count(*) FROM blobs":                                                                   1,
+		"SELECT count(*) FROM event_blobs WHERE event_id = 'claude:u1#1'":                              1,
+		"SELECT count(*) FROM events":                                                                  4,
+	} {
+		if got := e.count(t, q); got != want {
+			t.Errorf("%s = %d, want %d", q, got, want)
+		}
+	}
+	// A second run is idempotent: the same rewrites, no new rows.
+	again, err := All(ctx, e.deps)
+	if err != nil || again.Events != 0 || again.RawRewritten != 3 || again.Blobs != 0 || e.count(t, "SELECT count(*) FROM event_blobs") != 1 {
+		t.Errorf("second run = %+v, %v", again, err)
+	}
+}
+
+// TestRewriteRawCancelKeepsOffsetsConsistent: a cancelled rewrite leaves
+// whole lines written and the run can be repeated.
+func TestRewriteRawCancelKeepsOffsetsConsistent(t *testing.T) {
+	e := newEnv(t)
+	var lines []tf.Line
+	for i := 0; i < 30; i++ {
+		lines = append(lines, tf.User(sid, fmt.Sprintf("u%02d", i), fmt.Sprintf("2026-10-01T10:00:%02dZ", i), "/w/x", "line"))
+	}
+	p := tf.WriteFile(t, e.projects, "-w-x/"+sid+".jsonl", tf.Join(lines...))
+	run(t, e, p)
+	e.deps.BatchSize = 5
+	e.deps.Reread, e.deps.RewriteRaw = true, true
+	cctx, cancel := context.WithCancel(ctx)
+	n := 0
+	e.deps.Logf = func(string, ...any) {}
+	// Cancel after the first batches were written: wrap the store? Simpler:
+	// cancel from a goroutine is racy, so cancel through the git resolver,
+	// which is called per record with a cwd.
+	e.deps.GitResolve = func(c context.Context, cwd string) (gitinfo.Info, error) {
+		n++
+		if n == 12 {
+			cancel()
+		}
+		return gitinfo.Info{}, gitinfo.ErrNotRepo
+	}
+	e.deps.ResolveGit = true
+	// The dirs cache answers after the first call; force fresh lookups.
+	e.git.infos = map[string]gitinfo.Info{}
+	_, err := Run(cctx, e.deps, []string{p})
+	if err == nil {
+		// Cancellation may land after the file was done when the cache
+		// short-circuits the resolver; the run is then simply complete.
+		t.Log("run completed before the cancel")
+	}
+	sum := run(t, e, p)
+	if sum.RawRewritten != 30 || sum.Events != 0 || e.count(t, "SELECT count(*) FROM events") != 30 {
+		t.Errorf("after repeat = %+v", sum)
 	}
 }

@@ -8,7 +8,31 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.3.0 (unveröffentlicht)
 
+Dieses Release bringt ein neues Schema, **v6**, und ändert, was im Archiv liegt: Die Rohzeilen sind wieder vollständig, und Bilder und Dokumente aus den Sessions werden gespeichert. Das Archiv soll ohne die Transkripte auskommen, die Claude Code nach einigen Wochen löscht; „lässt sich aus dem Transkript neu schreiben“ gilt nicht mehr als Sicherheitsnetz.
+
+**Nach dem Update einmal, in dieser Reihenfolge** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+
+```sh
+total-recall backup
+total-recall migrate                              # Sekunden: legt nur zwei Tabellen an
+total-recall ingest --all --reread --rewrite-raw  # Rohzeilen und Bilder aus den Transkripten nachtragen
+total-recall maintenance                          # Platz der ersetzten Zeilen freigeben
+```
+
+Der dritte Schritt holt für den Altbestand nach, was v1.2 weggelassen hat, aber nur aus Transkripten, die es noch gibt. Was Claude Code schon gelöscht hat, bleibt beim Auszug von v1.2; deshalb bald nach dem Update. Der Lauf lässt sich abbrechen und wiederholen.
+
+### Archiv
+
+- **Rohzeilen wieder vollständig, ohne Limit** ([#180](https://github.com/seletz/total-recall/issues/180)). `events.raw` ist die ganze Transkriptzeile, nicht mehr der Auszug von v1.2.0 (der Buchhaltung, Token-Zahlen und Diffs wegließ), und `ingest.raw_max_bytes` ist jetzt `0` (keine Grenze; bis v1.2 wurden Zeilen über 16 KiB ganz verworfen). Dafür gibt es ein zweites Kompressions-Wörterbuch, trainiert auf vollständigen Zeilen; Archive mit dem alten bleiben lesbar. Migration 5 beschneidet die Zeilen eines v4-Archivs nicht mehr.
+- **Bilder und Dokumente als Blobs** ([#181](https://github.com/seletz/total-recall/issues/181)). Screenshots, die du in eine Session einfügst, und Bilder oder PDFs, die ein Werkzeug liest, kommen einmal je Inhalt (SHA-256) in die neue Tabelle `blobs`; in der Rohzeile steht an ihrer Stelle ein Verweis mit dem Hash, aus beidem lässt sich die Zeile Byte für Byte wiederherstellen ([Schema](40-schema.md#blobs)). PNG und JPEG liegen wie geliefert, PDF und Text zstd-komprimiert. `ingest.store_blobs = false` schaltet das ab. Bilder werden **nicht maskiert** ([Datenschutz](../explanation/datenschutz.md)).
+- Eingefügte Bilder sind jetzt ein Event mit Platzhalter (`[image image/png 84.3 KiB]`), auch im Text eines Tool-Ergebnisses; frühere Versionen übersprangen diese Blöcke, `--reread` legt die Events nach.
+
 ### Neu in der CLI
+
+- **`blob HASH [--out DATEI]`** gibt ein Bild oder Dokument aus dem Archiv aus, `--json` nur die Metadaten samt Events; Binärdaten nie auf ein Terminal ([`blob`](10-befehle.md#blob)).
+- **`show`** nennt unter jedem Event seine Anhänge mit Hash, Typ und Größe, im JSON `attachments` je Event. **`status`** zeigt Anzahl und Größe der Blobs (JSON `blobs`, `blob_bytes`, `blob_stored_bytes`), die TUI auf der Seite *status* ebenso. `ingest` meldet neue Anhänge (`N attachments (X MiB)`).
+- **`ingest --all --reread --rewrite-raw`** schreibt jetzt auch Rohzeilen für Events, die bisher keine hatten, und trägt die Blobs nach; abbrechbar, wiederholbar, idempotent.
+- Gemessen auf einer Kopie eines echten Archivs (TODO-NUMBERS).
 
 - **Deutsche Beschriftungen in `chart`.** `--lang de` bzw. `lang = "de"` in `[chart]` schaltet Titel, Legende, Achsen, Wochentage und Monatsnamen der Grafiken auf Deutsch um, samt Datums- und Zahlenformat (`KW 41`, `05.10.2026`, `7,5 h`, `Sonstige` statt `other`); die Dateinamen bleiben gleich. `--title TEXT` setzt eine eigene Überschrift statt `<Grafik> · <Zeitraum>`. Rezept: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md#deutsche-beschriftung-eigener-titel) ([#160](https://github.com/seletz/total-recall/issues/160)).
 

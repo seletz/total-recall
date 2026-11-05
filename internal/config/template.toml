@@ -51,7 +51,11 @@ tool_result_max_bytes = 4096
 store_raw = true
 # Lines longer than this many bytes are not kept as raw JSON (raw = NULL,
 # raw_truncated = 1); the event text is stored as usual. 0 = no limit.
-raw_max_bytes = 16384
+raw_max_bytes = 0
+# Keep the images and documents of the lines as blobs, once per hash
+# (`total-recall blob`). They cannot be redacted; false keeps only a
+# reference in raw.
+store_blobs = true
 
 [harness.claude]
 enabled = true

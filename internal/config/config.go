@@ -49,9 +49,10 @@ const (
 //go:embed template.toml
 var Template string
 
-// DefaultRawMaxBytes is the default of ingest.raw_max_bytes: longer raw lines
-// are not stored (the event's text is kept).
-const DefaultRawMaxBytes = 16384
+// DefaultRawMaxBytes is the default of ingest.raw_max_bytes: 0, no limit.
+// The archive keeps every line whole since #180; the option stays for
+// archives that must stay small.
+const DefaultRawMaxBytes = 0
 
 // Origin says where an effective configuration value came from.
 type Origin string
@@ -401,6 +402,7 @@ type Ingest struct {
 	ToolResultMaxBytes int  `toml:"tool_result_max_bytes"`
 	RawMaxBytes        int  `toml:"raw_max_bytes"`
 	StoreRaw           bool `toml:"store_raw"`
+	StoreBlobs         bool `toml:"store_blobs"`
 }
 
 // Claude configures the Claude Code adapter.
@@ -470,6 +472,7 @@ var fields = []struct {
 	{"ingest.tool_result_max_bytes", func(c *Config) string { return strconv.Itoa(c.Ingest.ToolResultMaxBytes) }},
 	{"ingest.raw_max_bytes", func(c *Config) string { return strconv.Itoa(c.Ingest.RawMaxBytes) }},
 	{"ingest.store_raw", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreRaw) }},
+	{"ingest.store_blobs", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreBlobs) }},
 	{"harness.claude.enabled", func(c *Config) string { return strconv.FormatBool(c.Harness.Claude.Enabled) }},
 	{"harness.claude.projects_dir", func(c *Config) string { return c.Harness.Claude.ProjectsDir }},
 	{"harness.claude.skip_record_types", func(c *Config) string { return formatList(c.Harness.Claude.SkipRecordTypes) }},
@@ -577,7 +580,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	}
 	c.Backup = Backup{Dir: filepath.Join(home, "Documents", "total-recall"), KeepDaily: 7, MinInterval: Duration{24 * time.Hour}}
 	c.Redact = Redact{Enabled: true, ExtraPatterns: []string{}, Allow: []string{}}
-	c.Ingest = Ingest{ToolResultMaxBytes: 4096, RawMaxBytes: DefaultRawMaxBytes, StoreRaw: true}
+	c.Ingest = Ingest{ToolResultMaxBytes: 4096, RawMaxBytes: DefaultRawMaxBytes, StoreRaw: true, StoreBlobs: true}
 	claudeDir := getenv("CLAUDE_CONFIG_DIR")
 	if claudeDir == "" {
 		claudeDir = filepath.Join(home, ".claude")

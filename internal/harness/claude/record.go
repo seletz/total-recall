@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/model"
 )
 
@@ -34,8 +35,10 @@ var (
 		"history-suppression", // cause and account a history suppression was vetoed against; ts, no timestamp
 		"started", "result",   // workflow journal.jsonl
 	}
-	handledUserBlocks      = []string{"text", "tool_result"}
-	ignoredUserBlocks      = []string{"image", "document"}
+	// image and document blocks become events with a placeholder text;
+	// their data goes to the blobs (see attachments.go).
+	handledUserBlocks      = []string{"text", "tool_result", "image", "document"}
+	ignoredUserBlocks      = []string{}
 	handledAssistantBlocks = []string{"text", "tool_use"}
 	ignoredAssistantBlocks = []string{"thinking", "redacted_thinking"}
 	// toolResultBlocks may appear in a tool_result's content array: text is
@@ -141,6 +144,7 @@ type rawBlock struct {
 	Input   json.RawMessage `json:"input"`
 	Content json.RawMessage `json:"content"`
 	IsError bool            `json:"is_error"`
+	Source  json.RawMessage `json:"source"` // image, document
 }
 
 // fileInfo is what the transcript path tells about its session.
@@ -178,6 +182,9 @@ func newParser(a *Adapter, path string) *parser {
 // parseLine maps one JSONL line. It returns the record (nil if skipped), the
 // record type, and ok=false if the line is not a JSON object.
 func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bool) {
+	// Attachments leave the line first: what the record parser and the
+	// events see is the line with references, which is what raw stores.
+	line, atts := extractAttachments(line)
 	var r rawRecord
 	if err := json.Unmarshal(line, &r); err != nil {
 		return nil, "", false
@@ -193,15 +200,10 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 	}
 	sess := p.session(&r, ts)
 	rec := &model.Record{Session: sess}
-	// raw is the trimmed line (TrimRaw): the archive keeps an extract, the
-	// transcript stays the source. The line parsed as a record, so it is an
-	// object and trimming cannot fail.
-	trimmed, err := TrimRaw(line)
-	if err != nil {
-		trimmed = line
-	}
-	raw := string(trimmed)
-	base := model.Event{SessionID: sess.ID, TS: ts, SourcePath: p.path, SourceOffset: offset, Raw: raw}
+	// raw is the whole line (#180): the archive stands on its own when
+	// the transcript is gone. Only attachment data is referenced, not
+	// inlined (#181).
+	base := model.Event{SessionID: sess.ID, TS: ts, SourcePath: p.path, SourceOffset: offset, Raw: string(line)}
 	nativeID := r.UUID
 	if nativeID == "" {
 		nativeID = fmt.Sprintf("%s:%d", p.pathHash, offset)
@@ -233,7 +235,8 @@ func (p *parser) parseLine(line []byte, offset int64) (*model.Record, string, bo
 		}
 		rec.Events = append(rec.Events, e)
 	case "user":
-		rec.Events = p.userEvents(&r, base, evID)
+		rec.Events = p.userEvents(&r, base, evID, atts)
+		attach(rec.Events, atts)
 	case "assistant":
 		rec.Events = p.assistantEvents(&r, base, evID)
 		if r.Message != nil && r.Message.Model != "" && r.Message.Model != "<synthetic>" {
@@ -269,7 +272,7 @@ func (p *parser) session(r *rawRecord, ts time.Time) model.Session {
 	return s
 }
 
-func (p *parser) userEvents(r *rawRecord, base model.Event, evID string) []model.Event {
+func (p *parser) userEvents(r *rawRecord, base model.Event, evID string, atts []blobref.Attachment) []model.Event {
 	if r.Message == nil {
 		return nil
 	}
@@ -294,6 +297,7 @@ func (p *parser) userEvents(r *rawRecord, base model.Event, evID string) []model
 	if err := json.Unmarshal(r.Message.Content, &blocks); err != nil {
 		return nil
 	}
+	sizes := attachmentSizes(atts)
 	var out []model.Event
 	for i, b := range blocks {
 		var e model.Event
@@ -303,12 +307,16 @@ func (p *parser) userEvents(r *rawRecord, base model.Event, evID string) []model
 		case "tool_result":
 			e = base
 			e.Kind, e.Role, e.Actor = model.KindToolResult, "tool", model.ActorTool
-			t := resultText(b.Content)
+			t := resultText(b.Content, sizes)
 			if b.IsError {
 				t = "[error] " + t
 			}
 			e.Text = truncate(t, p.a.toolResultMax)
-		default: // images, documents: nothing searchable
+		case "image", "document":
+			// A pasted image or document: an event of its own, so the
+			// line and its blob are archived; the text is a placeholder.
+			e = text(placeholder(b, sizes))
+		default:
 			continue
 		}
 		e.ID = fmt.Sprintf("%s#%d", evID, i)
@@ -382,8 +390,9 @@ func toolInputText(in json.RawMessage) string {
 	return buf.String()
 }
 
-// resultText extracts readable text from tool_result content (string or block array).
-func resultText(c json.RawMessage) string {
+// resultText extracts readable text from tool_result content (string or
+// block array); images and documents become placeholders.
+func resultText(c json.RawMessage, sizes map[string]int) string {
 	if s, ok := asString(c); ok {
 		return s
 	}
@@ -397,6 +406,8 @@ func resultText(c json.RawMessage) string {
 		case "text":
 			parts = append(parts, b.Text)
 		case "":
+		case "image", "document":
+			parts = append(parts, placeholder(b, sizes))
 		default:
 			parts = append(parts, "["+b.Type+"]")
 		}
