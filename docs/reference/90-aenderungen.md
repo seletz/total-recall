@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.2.0 (unveröffentlicht)
+## v1.2.0
 
 Ab dieser Version **migriert kein Befehl die Datenbank mehr von selbst**, auch kein Hook. Bringt ein Update ein neues Schema, zeigt `total-recall status` in der Zeile `schema` ein `MIGRATION PENDING`; die Hooks schreiben dann nichts (eine `WARN`-Zeile im Log am Tag), bis du migriert hast, lesende Befehle und die TUI laufen weiter. Es geht nichts verloren.
 
