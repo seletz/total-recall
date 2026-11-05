@@ -330,7 +330,7 @@ func TestActionsConfirm(t *testing.T) {
 	m := drive(t, New(h.options(t)), "tab", "tab", "tab")
 	requireContains(t, frame(m), "▸ backup", "write a compressed copy to ~/Documents/total-recall, keep 7 daily and 0")
 	m = press(t, m, "enter")
-	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.gz to ~/Documents/total-recall and prune older copies", "y confirms, esc cancels")
+	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.zst to ~/Documents/total-recall and prune older copies", "y confirms, esc cancels")
 	m = press(t, m, "esc")
 	requireContains(t, frame(m), "backup: cancelled")
 	if _, err := os.Stat(h.cfg.Backup.Dir); err == nil {
@@ -338,8 +338,8 @@ func TestActionsConfirm(t *testing.T) {
 	}
 	m = press(t, m, "enter", "y")
 	f := frame(m)
-	requireContains(t, f, "backup: backup written: archive-2026-10-20.db.gz", "writing archive-2026-10-20.db.gz")
-	if _, err := os.Stat(filepath.Join(h.cfg.Backup.Dir, "archive-2026-10-20.db.gz")); err != nil {
+	requireContains(t, f, "backup: backup written: archive-2026-10-20.db.zst", "writing archive-2026-10-20.db.zst")
+	if _, err := os.Stat(filepath.Join(h.cfg.Backup.Dir, "archive-2026-10-20.db.zst")); err != nil {
 		t.Errorf("no backup: %v", err)
 	}
 	if m.busy {
@@ -347,7 +347,7 @@ func TestActionsConfirm(t *testing.T) {
 	}
 	// The status knows the backup now.
 	m = press(t, m, "shift+tab", "shift+tab", "shift+tab")
-	requireRow(t, frame(m), "last backup", "~/Documents/total-recall/archive-2026-10-20.db.gz")
+	requireRow(t, frame(m), "last backup", "~/Documents/total-recall/archive-2026-10-20.db.zst")
 	// A dry run needs no confirmation.
 	m = press(t, m, "tab", "tab", "tab", "down", "enter")
 	requireContains(t, frame(m), "maintenance (dry run): would be rebuilt:", "page size 4096 → 16384")

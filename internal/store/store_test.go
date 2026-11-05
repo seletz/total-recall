@@ -1,6 +1,8 @@
 package store
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"errors"
@@ -378,14 +380,14 @@ func TestBackupRetention(t *testing.T) {
 		}
 		last = p
 	}
-	if filepath.Base(last) != "archive-2026-11-01.db.gz" {
+	if filepath.Base(last) != "archive-2026-11-01.db.zst" {
 		t.Errorf("last backup = %s", last)
 	}
 	names := listBackups(t, dir)
 	want := []string{
-		"archive-2026-08-31.db.gz", "archive-2026-09-30.db.gz",
-		"archive-2026-10-26.db.gz", "archive-2026-10-27.db.gz", "archive-2026-10-28.db.gz", "archive-2026-10-29.db.gz",
-		"archive-2026-10-30.db.gz", "archive-2026-10-31.db.gz", "archive-2026-11-01.db.gz",
+		"archive-2026-08-31.db.zst", "archive-2026-09-30.db.zst",
+		"archive-2026-10-26.db.zst", "archive-2026-10-27.db.zst", "archive-2026-10-28.db.zst", "archive-2026-10-29.db.zst",
+		"archive-2026-10-30.db.zst", "archive-2026-10-31.db.zst", "archive-2026-11-01.db.zst",
 	}
 	if strings.Join(names, " ") != strings.Join(want, " ") {
 		t.Errorf("kept:\n got %v\nwant %v", names, want)
@@ -398,13 +400,13 @@ func TestBackupRetention(t *testing.T) {
 	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:30:00Z"), 2, 2); err != nil {
 		t.Fatal(err)
 	}
-	want = []string{"archive-2026-10-31.db.gz", "archive-2026-11-01.db.gz"}
+	want = []string{"archive-2026-10-31.db.zst", "archive-2026-11-01.db.zst"}
 	if got := listBackups(t, dir); strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("kept with keep_monthly=2:\n got %v\nwant %v", got, want)
 	}
 	// A backup restores to a valid, complete database.
 	restored := filepath.Join(t.TempDir(), "restored.db")
-	if err := Restore(ctx, filepath.Join(dir, "archive-2026-11-01.db.gz"), restored, false); err != nil {
+	if err := Restore(ctx, filepath.Join(dir, "archive-2026-11-01.db.zst"), restored, false); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 	b, err := OpenReadOnly(restored)
@@ -417,7 +419,7 @@ func TestBackupRetention(t *testing.T) {
 		t.Errorf("search in backup: %v %v", hits, err)
 	}
 	p, mt, err := LastBackup(dir)
-	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.gz" || mt.IsZero() {
+	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.zst" || mt.IsZero() {
 		t.Errorf("LastBackup = %q %v %v", p, mt, err)
 	}
 	if p, _, err := LastBackup(filepath.Join(t.TempDir(), "none")); err != nil || p != "" {
@@ -425,24 +427,25 @@ func TestBackupRetention(t *testing.T) {
 	}
 }
 
-func TestBackupLegacyUncompressed(t *testing.T) {
+func TestBackupLegacyFormats(t *testing.T) {
 	s, _ := openTestStore(t)
 	dir := t.TempDir()
-	for _, n := range []string{"archive-2026-09-30.db", "archive-2026-10-30.db", "archive-2026-10-31.db", "archive-2026-11-01.db", "notes.txt"} {
+	// Uncompressed copies (pre-release builds) and gzip copies (up to v1.2).
+	for _, n := range []string{"archive-2026-09-30.db", "archive-2026-10-29.db", "archive-2026-10-30.db.gz", "archive-2026-10-31.db.gz", "archive-2026-11-01.db", "archive-2026-11-01.db.gz", "notes.txt"} {
 		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	p, _, err := LastBackup(dir)
-	if err != nil || filepath.Base(p) != "archive-2026-11-01.db" {
+	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.gz" {
 		t.Errorf("LastBackup with legacy files = %q %v", p, err)
 	}
-	// Today's compressed backup replaces today's legacy copy; retention
-	// counts legacy and compressed copies alike.
+	// Today's zstd backup replaces today's legacy copies; retention counts
+	// all formats alike.
 	if _, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 2, 0); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"archive-2026-09-30.db", "archive-2026-10-31.db", "archive-2026-11-01.db.gz", "notes.txt"}
+	want := []string{"archive-2026-09-30.db", "archive-2026-10-31.db.gz", "archive-2026-11-01.db.zst", "notes.txt"}
 	if got := listBackups(t, dir); strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("kept:\n got %v\nwant %v", got, want)
 	}
@@ -450,6 +453,9 @@ func TestBackupLegacyUncompressed(t *testing.T) {
 		if m, _ := filepath.Glob(filepath.Join(dir, "*"+n)); len(m) > 0 {
 			t.Errorf("temp files left: %v", m)
 		}
+	}
+	if p, _, err := LastBackup(dir); err != nil || filepath.Base(p) != "archive-2026-11-01.db.zst" {
+		t.Errorf("LastBackup = %q %v", p, err)
 	}
 }
 
@@ -460,17 +466,24 @@ func TestRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	gz, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 7, 0)
+	zst, err := s.Backup(ctx, dir, ts("2026-11-01T22:00:00Z"), 7, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A legacy uncompressed copy restores too.
+	// Legacy copies restore too: uncompressed (pre-release builds) and gzip
+	// (up to v1.2).
 	legacy := filepath.Join(dir, "archive-2026-10-01.db")
 	if _, err := s.db().ExecContext(ctx, "VACUUM INTO ?", legacy); err != nil {
 		t.Fatal(err)
 	}
-	notDB := filepath.Join(dir, "garbage.db.gz")
-	if err := os.WriteFile(notDB, []byte("this is not a gzip file at all"), 0o644); err != nil {
+	gz := filepath.Join(dir, "archive-2026-10-02.db.gz")
+	gzipFileForTest(t, legacy, gz)
+	notDB := filepath.Join(dir, "garbage.db.zst")
+	if err := os.WriteFile(notDB, []byte("this is not a zstd file at all"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	notGz := filepath.Join(dir, "garbage.db.gz")
+	if err := os.WriteFile(notGz, []byte("this is not a gzip file at all"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	existing := filepath.Join(t.TempDir(), "existing.db")
@@ -484,13 +497,15 @@ func TestRestore(t *testing.T) {
 		force   bool
 		wantErr string
 	}{
-		{"gzip to new path", gz, filepath.Join(t.TempDir(), "a", "new.db"), false, ""},
+		{"zstd to new path", zst, filepath.Join(t.TempDir(), "a", "new.db"), false, ""},
+		{"gzip to new path", gz, filepath.Join(t.TempDir(), "new.db"), false, ""},
 		{"legacy to new path", legacy, filepath.Join(t.TempDir(), "new.db"), false, ""},
-		{"existing target refused", gz, existing, false, "exists"},
-		{"live database refused", gz, dbPath, false, "exists"},
-		{"not a backup", notDB, filepath.Join(t.TempDir(), "x.db"), false, "gzip"},
-		{"missing source", filepath.Join(dir, "nope.db.gz"), filepath.Join(t.TempDir(), "y.db"), false, "no such file"},
-		{"force replaces", gz, existing, true, ""},
+		{"existing target refused", zst, existing, false, "exists"},
+		{"live database refused", zst, dbPath, false, "exists"},
+		{"not a zstd backup", notDB, filepath.Join(t.TempDir(), "x.db"), false, "magic number"},
+		{"not a gzip backup", notGz, filepath.Join(t.TempDir(), "x.db"), false, "gzip"},
+		{"missing source", filepath.Join(dir, "nope.db.zst"), filepath.Join(t.TempDir(), "y.db"), false, "no such file"},
+		{"force replaces", zst, existing, true, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -521,6 +536,27 @@ func TestRestore(t *testing.T) {
 				t.Errorf("events = %d", n)
 			}
 		})
+	}
+}
+
+// gzipFileForTest writes src gzip-compressed to dst, the backup format of
+// up to v1.2.
+func gzipFileForTest(t *testing.T, src, dst string) {
+	t.Helper()
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(b); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

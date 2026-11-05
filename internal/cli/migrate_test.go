@@ -74,7 +74,7 @@ func TestNoAutoMigration(t *testing.T) {
 		e := newTestEnv(t)
 		e.outdatedDB(t)
 		out := e.mustRun(t, "backup")
-		if !strings.Contains(out, "backup written: "+filepath.Join(e.backups, "archive-2026-10-20.db.gz")) {
+		if !strings.Contains(out, "backup written: "+filepath.Join(e.backups, "archive-2026-10-20.db.zst")) {
 			t.Errorf("backup output: %s", out)
 		}
 		if v := e.schemaVersion(t); v != 1 {

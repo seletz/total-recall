@@ -136,7 +136,7 @@ events                158203
 sources               280
 raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
 last ingest (claude)  2026-11-01 14:59  (2m ago)
-last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.gz  (5h12m ago)
+last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.zst  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
 
 recent errors (last 24h, since 2026-10-31 15:01): 1
@@ -637,7 +637,9 @@ Schema: [Schema](40-schema.md); Beispiele: [Archiv auswerten](../how-to/30-auswe
 
 ## `backup` { #backup }
 
-Schreibt eine konsistente, mit gzip komprimierte Kopie der Datenbank nach `<backup.dir>/archive-YYYY-MM-DD.db.gz`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt, auch eine unkomprimierte `archive-YYYY-MM-DD.db` älterer Versionen. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt; komprimierte und alte unkomprimierte Kopien zählen dabei gleich.
+Schreibt eine konsistente, mit zstd komprimierte Kopie der Datenbank nach `<backup.dir>/archive-YYYY-MM-DD.db.zst`. Das Datum ist in der konfigurierten Zeitzone. Eine Kopie vom selben Tag wird ersetzt, auch eine `archive-YYYY-MM-DD.db.gz` (bis v1.2) oder eine unkomprimierte `archive-YYYY-MM-DD.db` noch älterer Versionen. Danach werden alte Kopien nach den Regeln in `[backup]` aufgeräumt; `.db.zst`, `.db.gz` und `.db` zählen dabei gleich.
+
+zstd statt gzip seit v1.3.0: Auf einer Kopie eines echten Archivs (444 MiB) schrieb gzip 245 MiB in gut 6 Sekunden, zstd 220 MiB in rund 2; das Entpacken dauert 0,4 statt 2 Sekunden. Die Stufe ist fest (`SpeedBetterCompression`, höchstens 4 Threads, etwa 30 MiB Arbeitsspeicher).
 
 Die Kopie entsteht per `VACUUM INTO` zuerst als Temporärdatei neben der Datenbank (nicht im Backup-Ordner, der von iCloud synchronisiert wird), wird dann komprimiert und erst zum Schluss unter ihrem endgültigen Namen abgelegt. Im Backup-Ordner liegt also nie eine halbe Kopie unter dem richtigen Namen.
 
@@ -648,7 +650,7 @@ total-recall backup --if-older 24h --detach   # aus einem Hook
 ```
 
 ```text
-backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.gz
+backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.zst
 ```
 
 | Option | Bedeutung |
@@ -658,16 +660,16 @@ backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.gz
 
 ## `restore` { #restore }
 
-Stellt eine Backup-Kopie wieder her: entpackt `archive-YYYY-MM-DD.db.gz` (oder kopiert eine alte, unkomprimierte `.db`) in eine Datenbankdatei.
+Stellt eine Backup-Kopie wieder her: entpackt `archive-YYYY-MM-DD.db.zst` (oder eine `.db.gz` von bis v1.2, oder kopiert eine alte, unkomprimierte `.db`) in eine Datenbankdatei. Das Format erkennt der Befehl an der Endung.
 
 ```sh
-total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.gz --to /tmp/archive.db
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.zst --to /tmp/archive.db
 total-recall --db /tmp/archive.db sessions --limit 5     # Inhalt ansehen
-total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.gz --force   # laufende DB ersetzen
+total-recall restore ~/Documents/total-recall/archive-2026-11-01.db.zst --force   # laufende DB ersetzen
 ```
 
 ```text
-restored /Users/me/Documents/total-recall/archive-2026-11-01.db.gz to /tmp/archive.db
+restored /Users/me/Documents/total-recall/archive-2026-11-01.db.zst to /tmp/archive.db
 ```
 
 | Option | Bedeutung |
@@ -675,7 +677,7 @@ restored /Users/me/Documents/total-recall/archive-2026-11-01.db.gz to /tmp/archi
 | `--to PFAD` | Ziel; Default ist die konfigurierte Datenbank |
 | `--force` | eine bestehende Zieldatei ersetzen (samt `-wal`/`-shm`) |
 
-Ein bestehendes Ziel wird ohne `--force` nie überschrieben. Die Daten landen zuerst in einer Temporärdatei neben dem Ziel und werden geprüft (Schema-Version, `PRAGMA quick_check`); erst dann wird das Ziel ersetzt. Vor `--force` auf die laufende Datenbank: sicherstellen, dass gerade kein `ingest` läuft. Was seit dem Backup dazukam, liest das nächste `ingest --all` wieder ein, solange die Transkripte noch da sind.
+Ein bestehendes Ziel wird ohne `--force` nie überschrieben. Die Daten landen zuerst in einer Temporärdatei neben dem Ziel und werden geprüft (Schema-Version, `PRAGMA quick_check`); erst dann wird das Ziel ersetzt. Vor `--force` auf die laufende Datenbank: sicherstellen, dass gerade kein `ingest` läuft. Was seit dem Backup dazukam, liest das nächste `ingest --all` wieder ein, solange die Transkripte noch da sind. Ohne das Programm: `zstd -d archive-2026-11-01.db.zst -o archive.db` (für `.db.gz`: `gunzip -k`), siehe [Backup wiederherstellen](../how-to/60-wartung.md#backup-wiederherstellen).
 
 ## `maintenance` { #maintenance }
 
@@ -689,7 +691,7 @@ total-recall maintenance --json
 ```
 
 ```text
-backup written: /Users/me/Documents/total-recall/archive-2026-11-04.db.gz
+backup written: /Users/me/Documents/total-recall/archive-2026-11-04.db.zst
 rebuilding with page size 16384 into /Users/me/Library/Application Support/total-recall/archive.db.maint-2199473120
 archive replaced: /Users/me/Library/Application Support/total-recall/archive.db
                 BEFORE     AFTER
