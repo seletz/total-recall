@@ -72,6 +72,7 @@ Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespe
 
 - **Letztes Backup nach Zeitpunkt statt nach Dateiname** ([#209](https://github.com/seletz/total-recall/issues/209)). Lagen an einem Tag `archive-YYYY-MM-DD-1505.db.gz` (15:05) und ein späteres `archive-YYYY-MM-DD.db.zst` (22:03), galt das ältere als neuestes. `status`, Config-Seite, Setup, `backup --if-older` und die Aufbewahrung (die letzte Kopie eines Monats) bestimmen den Zeitpunkt jetzt einheitlich, in jedem Format: Datum und Uhrzeit aus dem Namen, ohne Uhrzeit im Namen die Änderungszeit der Datei. Liegt sie nicht auf dem Tag des Namens, etwa nach dem Kopieren auf einen neuen Rechner, zählt der Beginn dieses Tages. Dateien mit unmöglichem Datum im Namen (`archive-2026-13-01.db.zst`) gelten nicht mehr als Backup; die Aufbewahrung lässt sie liegen.
 - **Text der Aktion `backup`** in der Config-Ansicht: Er nennt jetzt die Backups, und `keep_monthly = 0` heißt dort richtig `all monthly backups` statt `0 monthly`, denn `0` behält alle Monatskopien.
+- **Markierte Zeile auf Settings, Actions und Setup** ([#216](https://github.com/seletz/total-recall/issues/216)). Der Hintergrund reißt hinter farbigem oder fettem Text nicht mehr ab, sondern läuft über die ganze Zeile, und farbige Schrift auf der Markierung bleibt lesbar.
 
 ## v1.3.1
 
