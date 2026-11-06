@@ -30,7 +30,8 @@ func memEnv(t *testing.T) *env {
 	if err := e.st.WriteBatch(ctx, store.SourceState{}, []model.Session{{ID: "claude:a1", Harness: "claude", NativeID: "a1", Cwd: "/w/alpha"}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	e.memFile(t, "-w-alpha", "MEMORY.md", "# Memory\n- [Deploy](deploy.md)\n", "2026-10-01T08:00:00Z")
+	// Real file systems keep nanoseconds, the store milliseconds.
+	e.memFile(t, "-w-alpha", "MEMORY.md", "# Memory\n- [Deploy](deploy.md)\n", "2026-10-01T08:00:00.123456789Z")
 	e.memFile(t, "-w-alpha", "deploy.md", "Deploy with token "+memToken+" from the vault.\n", "2026-10-01T09:00:00Z")
 	e.memFile(t, "-w-beta", "notes.md", "beta lighthouse notes\n", "2026-10-02T08:00:00Z")
 	if err := os.WriteFile(filepath.Join(e.projects, "-w-beta", "b1.jsonl"), []byte(`{"type":"user","cwd":"/w/beta"}`+"\n"), 0o644); err != nil {

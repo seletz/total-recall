@@ -86,7 +86,9 @@ func (r *runner) memoryOf(ctx context.Context, h string, ms harness.MemorySource
 		onDisk := make(map[string]bool, len(p.Files))
 		for _, f := range p.Files {
 			onDisk[f.Path] = true
-			if old, ok := known.Files[f.Path]; ok && old.SHA256 != "" && old.Size == f.Size && old.MTime.Equal(f.MTime) {
+			// The store keeps mtimes to the millisecond (store.TimeFormat),
+			// file systems to the nanosecond.
+			if old, ok := known.Files[f.Path]; ok && old.SHA256 != "" && old.Size == f.Size && old.MTime.Equal(f.MTime.Truncate(time.Millisecond)) {
 				continue
 			}
 			data, err := os.ReadFile(f.Abs)
