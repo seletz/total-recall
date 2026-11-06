@@ -46,8 +46,11 @@ type Server struct {
 	MaxBytes int
 }
 
-// DefaultMaxBytes is the default bound of one tool result.
-const DefaultMaxBytes = 64 * 1024
+// DefaultMaxBytes is the default bound of the first content item of one tool
+// result: 32 KiB. Claude Code accepts about 25,000 tokens per MCP result;
+// JSON with ids and paths costs up to about 2 bytes per token, so 32 KiB
+// stays near 16,000 tokens even in that worst case, with room for the hint.
+const DefaultMaxBytes = 32 * 1024
 
 type request struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -210,7 +213,7 @@ func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) tool
 	if max <= 0 {
 		max = DefaultMaxBytes
 	}
-	first, hint := truncate(strings.TrimSpace(out), max, t.offset(rawArgs), t.Offset != "")
+	first, hint := truncate(strings.TrimSpace(out), max, t.offset(rawArgs), t.Offset != "", t.Narrow)
 	res := toolResult{Content: []content{text(first)}}
 	if hint != nil {
 		b, _ := json.Marshal(hint)

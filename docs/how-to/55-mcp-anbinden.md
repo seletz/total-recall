@@ -55,13 +55,19 @@ Es gibt bewusst keine Tools zum Schreiben, Migrieren, Sichern oder für `sql`: W
 
 ## Begrenzte Ausgabe
 
-Ein Tool-Ergebnis ist höchstens 64 KiB groß. Der erste Inhalt ist **immer genau die CLI-Ausgabe**. Ist sie größer, wird die Liste (oder bei `show` die Liste `events`) nach ganzen Einträgen gekürzt und bleibt gültiges JSON. Dann steht in einem zweiten Text-Inhalt, was passiert ist:
+Der erste Inhalt eines Tool-Ergebnisses ist höchstens **32 KiB** groß, bei **jedem** Tool. Die Grenze liegt mit Abstand unter dem, was Clients annehmen: Claude Code begrenzt MCP-Antworten auf etwa 25 000 Tokens, und JSON mit IDs und Pfaden kostet bis zu etwa 2 Bytes je Token, 32 KiB sind also im ungünstigen Fall rund 16 000 Tokens. Der erste Inhalt ist **die CLI-Ausgabe**, gültiges JSON mit denselben Feldern. Ist sie größer als die Grenze, wird zuerst die Einrückung entfernt (derselbe Inhalt, kompakt); reicht das nicht, wird gekürzt, und ein zweiter Text-Inhalt sagt, was fehlt.
+
+Wie gekürzt wird:
+
+1. **Listen** (`search`, `sessions`) und die Liste `events` von `show`: nach ganzen Einträgen, vom Ende her. Bei `show` steht in `next.offset`, wo es weitergeht.
+2. **Verschachtelte Listen** in Objekten wie `stats`: die tiefsten Listen zuerst, jeweils die größte, Eintrag für Eintrag vom Ende her, bis es passt. Bei `stats` mit `worktime` und `sessions` sind das die Sessions je Tag und Kategorie; Minuten, Tage und Summen bleiben erhalten. Erst wenn die tiefste Ebene leer ist und es immer noch nicht passt, kommt die nächste Ebene dran.
+3. **Lange Texte** (zum Beispiel Dateiinhalte aus `memory`): die längsten werden mit `…` gekürzt.
 
 ```json
-{"truncated":true,"next":{"offset":120},"hint":"output cut after 120 of 200 items; call again with offset=120 to continue, or narrow the window (since, until, limit)"}
+{"truncated":true,"cut":[{"path":"worktime.days[].categories[].sessions","lists":80,"kept":18,"total":2400}],"hint":"output cut: worktime.days[].categories[].sessions: kept 18 of 2400 entries in 80 lists; narrow the query to see the rest: drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top"}
 ```
 
-`next.offset` gibt es dort, wo das Tool `offset` kennt (`show`). Bei den anderen Tools engt der Agent mit `since`, `until` oder einem kleineren `limit` ein. Die Zeilenzahl begrenzen außerdem `limit` und sein Maximum; `show` ohne `limit` liefert höchstens 200 Ereignisse. `stats` ist ein Objekt und lässt sich nicht kürzen; ein sehr großes Ergebnis kommt unverändert zurück, dann hilft ein engerer Zeitraum.
+`cut` nennt je Pfad (`[]` steht für jede Listenebene), wie viele Listen es sind und wie viele Einträge davon übrig blieben; `shortened_strings` zählt gekürzte Texte. `next.offset` gibt es dort, wo das Tool `offset` kennt (`show`). Sonst engt der Agent ein: kleinerer Zeitraum (`month`, `since`, `until`, `range`), `sessions` oder `summary` weglassen, `limit` verkleinern. `show` ohne `limit` liefert höchstens 200 Ereignisse. Ein kompaktes Format für `stats` mit je Session nur ID, Titel und Minuten gibt es nicht: Es wäre eine Ausgabeform, die die CLI nicht kennt.
 
 ## Fehler
 

@@ -1,0 +1,152 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+)
+
+// statsDoc builds a stats-like object: days with categories, each with a
+// list of sessions.
+func statsDoc(days, cats, sessions int) string {
+	var d []string
+	for i := 0; i < days; i++ {
+		var c []string
+		for j := 0; j < cats; j++ {
+			var s []string
+			for k := 0; k < sessions; k++ {
+				s = append(s, fmt.Sprintf(`{"id":"claude:%08d-aaaa-bbbb","title":"session %d title","minutes":%d}`, k, k, k+1))
+			}
+			c = append(c, fmt.Sprintf(`{"category":"c%d","minutes":%d,"sessions":[%s]}`, j, j*10, strings.Join(s, ",")))
+		}
+		d = append(d, fmt.Sprintf(`{"day":"2026-10-%02d","minutes":480,"categories":[%s]}`, i+1, strings.Join(c, ",")))
+	}
+	return `{"worktime":{"from":"2026-10-01","days":[` + strings.Join(d, ",") + `],"total_minutes":9999}}`
+}
+
+func TestTruncateObjectNestedLists(t *testing.T) {
+	doc := statsDoc(20, 4, 30)
+	const max = 6000
+	if len(doc) < 4*max {
+		t.Fatalf("fixture too small: %d", len(doc))
+	}
+	got, h := truncate(doc, max, 0, false, "sessions:false or a smaller range")
+	if len(got) > max {
+		t.Errorf("got %d bytes, max %d", len(got), max)
+	}
+	var v struct {
+		Worktime struct {
+			From string
+			Days []struct {
+				Day        string
+				Categories []struct {
+					Category string
+					Sessions []json.RawMessage
+				}
+			}
+			Total int `json:"total_minutes"`
+		}
+	}
+	if err := json.Unmarshal([]byte(got), &v); err != nil {
+		t.Fatalf("not valid JSON: %v\n%s", err, got)
+	}
+	if len(v.Worktime.Days) != 20 || v.Worktime.Total != 9999 {
+		t.Errorf("structure lost: %d days, total %d (nested lists go first)", len(v.Worktime.Days), v.Worktime.Total)
+	}
+	if !strings.HasPrefix(got, `{"worktime":{"from"`) {
+		t.Errorf("key order lost: %.40s", got)
+	}
+	if h == nil || !h.Truncated || h.Next != nil || len(h.Cut) == 0 {
+		t.Fatalf("hint = %+v", h)
+	}
+	c := h.Cut[0]
+	if c.Path != "worktime.days[].categories[].sessions" || c.Total != 20*4*30 || c.Kept >= c.Total || c.Lists != 80 {
+		t.Errorf("cut = %+v", c)
+	}
+	if !strings.Contains(h.Hint, "sessions:false or a smaller range") || !strings.Contains(h.Hint, c.Path) {
+		t.Errorf("hint text = %q", h.Hint)
+	}
+}
+
+func TestTruncateObjectIndentedFitsCompact(t *testing.T) {
+	// Pretty-printed output over the bound that fits once compacted: no cut.
+	var buf strings.Builder
+	var v any
+	_ = json.Unmarshal([]byte(statsDoc(2, 2, 3)), &v)
+	b, _ := json.MarshalIndent(v, "", "    ")
+	buf.Write(b)
+	got, h := truncate(buf.String(), len(b)/2, 0, false, "")
+	if h != nil || len(got) > len(b)/2 || !json.Valid([]byte(got)) {
+		t.Errorf("hint %+v, %d bytes, valid %v", h, len(got), json.Valid([]byte(got)))
+	}
+}
+
+func TestTruncateObjectShortensStrings(t *testing.T) {
+	doc := `{"content":"` + strings.Repeat("ä", 5000) + `","n":1}`
+	got, h := truncate(doc, 1000, 0, false, "")
+	if len(got) > 1000 || !json.Valid([]byte(got)) {
+		t.Fatalf("%d bytes, valid %v", len(got), json.Valid([]byte(got)))
+	}
+	if h == nil || h.Shortened != 1 || !strings.Contains(h.Hint, "shortened") {
+		t.Errorf("hint = %+v", h)
+	}
+}
+
+func TestTruncateObjectNothingToCut(t *testing.T) {
+	// Leaves that cannot shrink below the floor: returned as far as cut, still valid.
+	var parts []string
+	for i := 0; i < 400; i++ {
+		parts = append(parts, fmt.Sprintf(`"k%d":%d`, i, i))
+	}
+	doc := "{" + strings.Join(parts, ",") + "}"
+	got, _ := truncate(doc, 100, 0, false, "")
+	if !json.Valid([]byte(got)) {
+		t.Errorf("not valid: %.60s", got)
+	}
+}
+
+func TestTruncateEventsThenNested(t *testing.T) {
+	// One huge event with a nested list: the paged list keeps its count
+	// (next.offset stays right), the nested list inside gives way.
+	big := make([]string, 200)
+	for i := range big {
+		big[i] = `"` + strings.Repeat("x", 20) + `"`
+	}
+	doc := `{"session":{"id":"a"},"events":[{"id":1,"blocks":[` + strings.Join(big, ",") + `]},{"id":2}]}`
+	got, h := truncate(doc, 500, 10, true, "")
+	var v struct{ Events []json.RawMessage }
+	if err := json.Unmarshal([]byte(got), &v); err != nil || len(got) > 500 {
+		t.Fatalf("%v, %d bytes", err, len(got))
+	}
+	if h == nil || h.Next == nil || h.Next.Offset != 10+len(v.Events) {
+		t.Errorf("hint = %+v, kept %d", h, len(v.Events))
+	}
+	if len(h.Cut) != 1 || h.Cut[0].Path != "events[].blocks" {
+		t.Errorf("cut = %+v", h.Cut)
+	}
+}
+
+func TestTruncateNotJSON(t *testing.T) {
+	out := strings.Repeat("plain text ", 100)
+	got, h := truncate(out, 50, 0, false, "")
+	if got != out || h != nil {
+		t.Errorf("non-JSON must pass through unchanged")
+	}
+}
+
+func TestDefaultBoundOnLargeStats(t *testing.T) {
+	doc := statsDoc(31, 6, 40) // about the 160,000 characters of the bug report and more
+	if len(doc) < 160000 {
+		t.Fatalf("fixture %d bytes", len(doc))
+	}
+	s := testServer(func(context.Context, []string) (string, bool) { return doc, false })
+	s.MaxBytes = 0
+	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"x"}}}`)
+	c := m["result"].(map[string]any)["content"].([]any)
+	first := c[0].(map[string]any)["text"].(string)
+	if len(c) != 2 || len(first) > DefaultMaxBytes || !json.Valid([]byte(first)) {
+		t.Errorf("%d items, first %d bytes, valid %v", len(c), len(first), json.Valid([]byte(first)))
+	}
+}

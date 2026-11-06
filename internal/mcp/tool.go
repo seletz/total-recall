@@ -40,6 +40,9 @@ type Tool struct {
 	// Paged says the result can be continued with the offset parameter
 	// (Offset names it); truncated results then carry next.offset.
 	Offset string
+	// Narrow tells the model how to ask for less when a result was cut,
+	// e.g. "sessions:false or a smaller range".
+	Narrow string
 	// Defaults are flags added when the argument is absent: name -> value.
 	Defaults map[string]int
 }
