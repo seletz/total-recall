@@ -357,19 +357,18 @@ func (p actionsPage) view(m *Model, width, height int) string {
 		if i == p.row {
 			mark = m.th.Mark.Render("▸")
 		}
-		name := pad(a.name, nameW)
-		summary := a.summary
+		st := newRowStyle(m.th, i == p.row)
+		name := st.text.Render(pad(a.name, nameW))
+		summary := st.text.Render(a.summary)
 		switch {
 		case a.disabled != "":
-			name, summary = m.th.Muted.Render(name), m.th.Muted.Render(summary+" · "+a.disabled)
+			name = st.muted.Render(pad(a.name, nameW))
+			summary = st.muted.Render(a.summary + " · " + a.disabled)
 		case a.writes:
-			name = m.th.Strong.Render(name)
+			name = st.strong.Render(pad(a.name, nameW))
 		}
-		line := name + "  " + summary
-		if i == p.row {
-			line = m.th.Selected.Render(pad(line, width-2))
-		}
-		lines = append(lines, m.line(mark+" "+line, width))
+		line := name + st.text.Render("  ") + summary
+		lines = append(lines, m.line(mark+" "+st.fill(m.line(line, width-2), width-2), width))
 	}
 	lines = append(lines, m.th.Rule.Render(strings.Repeat("─", width)))
 	status := m.th.Muted.Render("enter runs the marked action; actions that write ask first")

@@ -428,21 +428,17 @@ func (p settingsPage) view(m *Model, width, height int) string {
 		if i == p.row {
 			mark = m.th.Mark.Render("▸")
 		}
-		value := r.value
+		st := newRowStyle(m.th, i == p.row)
+		value := st.text.Render(pad(m.line(r.value, valueW), valueW))
 		if r.value == "" {
-			value = m.th.Muted.Render(`""`)
+			value = st.muted.Render(pad(`""`, valueW))
 		}
-		origin := string(r.origin)
+		origin := st.muted.Render(string(r.origin))
 		if r.origin != config.OriginDefault {
-			origin = m.th.AccentText.Render(origin)
-		} else {
-			origin = m.th.Muted.Render(origin)
+			origin = st.on(m.th.Accent).Render(string(r.origin))
 		}
-		line := pad(r.label, keyW) + "  " + pad(m.line(value, valueW), valueW) + "  " + origin
-		if i == p.row {
-			line = m.th.Selected.Render(line)
-		}
-		lines = append(lines, m.line(mark+" "+line, width))
+		line := st.text.Render(pad(r.label, keyW)+"  ") + value + st.text.Render("  ") + origin
+		lines = append(lines, m.line(mark+" "+st.fill(m.line(line, width-2), width-2), width))
 	}
 	for len(lines) < height-bottomRows {
 		lines = append(lines, "")
