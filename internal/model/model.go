@@ -102,15 +102,15 @@ func (s Session) DisplayName() string {
 
 // Event is one normalized entry of a session transcript.
 type Event struct {
-	ID           string // "<harness>:<native event id>[#<block>]"
-	SessionID    string
-	TS           time.Time
-	Kind         Kind
-	Role         string // user, assistant, system, tool
-	Actor        Actor
-	Text         string
-	ToolName     string
-	Model        string
+	ID        string // "<harness>:<native event id>[#<block>]"
+	SessionID string
+	TS        time.Time
+	Kind      Kind
+	Role      string // user, assistant, system, tool
+	Actor     Actor
+	Text      string
+	ToolName  string
+	Model     string
 	// TokensIn is the whole input of the model call: fresh input plus
 	// cache writes plus cache reads. TokensCacheRead and TokensCacheWrite
 	// are the two cached parts of it (0 for none or unknown); fresh input
@@ -119,8 +119,8 @@ type Event struct {
 	TokensCacheRead  int64
 	TokensCacheWrite int64
 	TokensOut        int64
-	SourcePath   string
-	SourceOffset int64
+	SourcePath       string
+	SourceOffset     int64
 	// Raw is the original JSON line (redacted before storing), with the
 	// data of every attachment replaced by a blobref reference. It is set
 	// by the adapters on ingest; the store's read queries leave it empty.

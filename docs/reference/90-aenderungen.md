@@ -67,6 +67,10 @@ Schritt 2 lässt sich abbrechen und wiederholen. Ein späterer Reread verliert n
 
 Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespeichert (zstd). 638 Kopien in 12 Transkripten waren schon gelöscht; ihre Records bleiben ohne Verweis, je Transkript steht eine Zeile im Log. Keine Kopie lag über der Grenze von 16 MiB. Die Zahlen enthalten auch, was seit dem letzten Ingest des Archivs neu war (345 Events, 1 648 Meta-Records).
 
+### Agenten
+
+- **MCP-Server `total-recall mcp`** ([#219](https://github.com/seletz/total-recall/issues/219)). Ein lokaler MCP-Server über stdio, den Claude Code als Unterprozess startet (kein Port, kein Daemon, nur lesend). Tools: `search` (mit `type` und `project` wie [`search`](10-befehle.md#search), `limit` gilt je Typ), `sessions`, `show`, `stats`, `memory`, `status`; jedes liefert die `--json`-Ausgabe des gleichnamigen Befehls, Fehler als dasselbe Fehlerobjekt mit `isError`. Die Ausgabe ist auf 64 KiB begrenzt: der erste Inhalt bleibt gültiges CLI-JSON, ein zweiter nennt die Kürzung und `next.offset`. Jeder Aufruf öffnet das Archiv neu, schreibgeschützt; ein älteres Schema meldet den Hinweis auf `migrate`, eine mit `maintenance` ausgetauschte Datei braucht keinen Neustart. Die Umsetzung ist klein und ohne neue Abhängigkeit. [`mcp print`](10-befehle.md#mcp) gibt den Eintrag aus (JSON oder die Zeile `claude mcp add`), die Seite Setup der TUI prüft ihn und zeigt ihn, geschrieben wird nichts. `llm --skill` beschreibt den Server. Die Tool-Namen und Parameter sind Teil der [stabilen Schnittstelle](60-versionierung.md). Anleitung: [Archiv per MCP anbinden](../how-to/55-mcp-anbinden.md), [Datenschutz](../explanation/datenschutz.md#mcp).
+
 ### Archiv
 
 - **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.
@@ -84,6 +88,7 @@ Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespe
 
 ### TUI
 
+- **Setup-Zeile `mcp`** ([#219](https://github.com/seletz/total-recall/issues/219)). Die Seite Setup der Ansicht Config prüft, ob der MCP-Server bei Claude Code eingetragen ist (Schlüssel `mcpServers` in `~/.claude.json` und `.mcp.json`, nur gelesen), und zeigt bei markierter Zeile den Befehl und den JSON-Eintrag; ++c++ kopiert den Befehl. Die Taste heißt jetzt „copy hook or MCP block“.
 - **Projektnamen in der Projektfarbe** ([#210](https://github.com/seletz/total-recall/issues/210)). Die Seite Projects der Ansicht Config zeigt die Namen in Liste und Formular in derselben Farbe wie Statistik und Aktivität: die konfigurierte Farbe, sonst die automatische. Die markierte Zeile hat ihren Hintergrund jetzt über die ganze Breite, und zu dunkle oder zu helle Farben bleiben auf ihm lesbar. Ohne Farben (`NO_COLOR`) bleibt der Name normal.
 
 ### Behoben

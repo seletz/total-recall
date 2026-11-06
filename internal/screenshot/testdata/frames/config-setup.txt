@@ -5,6 +5,7 @@
  CHECK        STATE
 ▸ config      √ ~/.config/total-recall/config.toml loaded
   hooks       √ ~/.claude/settings.json: SessionStart, Stop, SubagentStop, SessionEnd
+  mcp         √ ~/.claude.json: total-recall mcp
   binary      √ ~/.local/bin/total-recall on PATH, this version (1.2.0)
   backups     √ ~/Documents/total-recall exists, last backup 7h00m ago
   transcripts √ ~/.claude/projects
@@ -31,6 +32,5 @@
          {
            "hooks": [
              {
-               "type": "command",
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- tab page • ↑/↓ move • enter edit / run • c copy hook block • 1 search • 2 stats • 3 activity • ? help • q quit
+ tab page • ↑/↓ move • enter edit / run • c copy hook or MCP block • 1 search • 2 stats • 3 activity • ? help • q quit

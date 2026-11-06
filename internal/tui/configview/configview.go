@@ -69,6 +69,13 @@ type Options struct {
 	// setup page checks; empty means $CLAUDE_CONFIG_DIR/settings.json or
 	// ~/.claude/settings.json.
 	SettingsFile string
+	// ClaudeJSON is the file whose "mcpServers" key the setup page reads
+	// for the MCP entry (only that key, never written); empty means
+	// $CLAUDE_CONFIG_DIR/.claude.json or ~/.claude.json.
+	ClaudeJSON string
+	// ProjectDir is the directory whose .mcp.json the setup page reads
+	// as well; empty means the working directory.
+	ProjectDir string
 	// LookPath finds the binary on PATH; nil means exec.LookPath.
 	LookPath func(file string) (string, error)
 	// Executable is the path of the running binary; nil means
@@ -116,6 +123,16 @@ func (o *Options) defaults() {
 			dir = filepath.Join(o.Home, ".claude")
 		}
 		o.SettingsFile = filepath.Join(dir, "settings.json")
+	}
+	if o.ClaudeJSON == "" {
+		if dir := o.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+			o.ClaudeJSON = filepath.Join(dir, ".claude.json")
+		} else {
+			o.ClaudeJSON = filepath.Join(o.Home, ".claude.json")
+		}
+	}
+	if o.ProjectDir == "" {
+		o.ProjectDir, _ = os.Getwd()
 	}
 }
 
