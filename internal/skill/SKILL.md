@@ -516,6 +516,7 @@ One object per memory file whose current content matches, best first.
 | `by_day` | per local day: `day`, `sessions`, `human`, `agent` |
 | `by_repo` | per repo: `repo`, `sessions`, `human`, `agent` |
 | `by_weekday_hour` | all 7x24 cells: `weekday` (0 = Monday), `day`, `hour`, `sessions`, `human`, `agent` |
+| `tokens` | token counts of the range: `events`, `input` (= `fresh` + `cache_read` + `cache_write` + `unsplit`), `output` (incl. thinking), and `by_day` / `by_model` with the same counts; `unsplit` is input of events archived without raw (split unknown). Cache reads cost a fraction of fresh input, so do not price `input` as one number |
 
 #### `stats --json --period`
 
