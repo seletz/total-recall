@@ -67,6 +67,12 @@ total        15h53m  16h45m   4
 
 `ROUNDED` ist der Wert für den Stundenzettel, `RAW` die Summe der Gutschriften. Ein Tag ohne Nachrichten erscheint mit `-`: Urlaub, Meeting-Tag oder vergessen, das weiß das Archiv nicht.
 
+## Die Woche als Grafik
+
+`total-recall chart worktime --month 2026-10 --lang de` zeichnet dieselben gerundeten Zeiten je ISO-Woche und Kategorie als gestapelte Balken, mit dem Wochensoll als Linie; die Tabelle oben bleibt die Quelle für den Stundenzettel, die Grafik der Überblick für den Monatsbericht ([Grafiken](47-monatsbericht.md)).
+
+![Arbeitszeit je Woche und Kategorie, aus dem Demo-Archiv](../assets/charts/de/2026-10-worktime.svg)
+
 ## Buchungstexte aus den Sessions
 
 `--sessions` listet je Tag und Kategorie die Sessions mit ihrem Titel; Tage ohne Aktivität entfallen:

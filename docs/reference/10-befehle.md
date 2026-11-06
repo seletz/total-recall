@@ -640,6 +640,18 @@ total-recall chart <calendar|projects|punchcard|worktime|workday|all> [--month Y
 | `worktime` | gestapelte Balken je ISO-Woche und Kategorie aus [`--worktime`](#stats-worktime) (gerundete Zeit), Strich je Woche beim Soll: Tagessoll aus [`[work]`](20-konfiguration.md#work) × Arbeitstage der Woche im Zeitraum (Mo–Fr ohne Feiertag, bis heute) | 560 × 260 |
 | `workday` | die Arbeitstage der TUI: eine Zeile je Tag mit Wochentag und Datum, Balken von der ersten bis zur letzten Aktivität auf einer Zeitachse ab `day_start` (blau in der Kernzeit, orange davor und danach, dunkleres Orange nach Mitternacht mit `(+1)` im Text), Kernzeit als Band, Soll als gestrichelte Linie, Wochenende grau, Feiertage rot mit Namen; rechts erste und letzte Aktivität, Spanne und Abweichung vom Soll; Kopf mit Summe, Soll und Saldo. Zählweise und Grenzen wie [`stats --workday`](#stats) (`[work]`) | 720 × (60 + 17 je Tag) |
 
+Die Beispiele zeigen jede Grafik für Oktober 2026, gerendert aus dem synthetischen Demo-Archiv (`mise run docs:charts`):
+
+![calendar](../assets/charts/2026-10-calendar.svg)
+
+![projects](../assets/charts/2026-10-projects.svg)
+
+![punchcard](../assets/charts/2026-10-punchcard.svg)
+
+![worktime](../assets/charts/2026-10-worktime.svg)
+
+![workday](../assets/charts/2026-10-workday.svg)
+
 Der Zeitraum ist der laufende Monat, `--month YYYY-MM`, `--since`/`--until` (ein Datum schließt den Tag ein) oder `--range today|this-week|last-week|this-month|last-month`. Gezählt wird wie bei [`stats`](#stats): eigene Nachrichten sind Events mit `actor = human`, Aufträge anderer Agenten (`peer`) und Automatisches zählen nicht; `calendar`, `projects` und `punchcard` nehmen Kalendertage ab Mitternacht, `worktime` und `workday` die Tagesgrenze `day_start` wie `stats --worktime` bzw. `stats --workday`.
 
 Der Hintergrund ist transparent, die Grafik passt in Notizen mit hellem und dunklem Grund; `--background #rrggbb` setzt eine Farbe, `--transparent` erzwingt keine. Jedes Element trägt seine Werte als Tooltip (`<title>`).
