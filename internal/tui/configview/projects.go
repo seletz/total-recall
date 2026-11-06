@@ -15,7 +15,6 @@ import (
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
-	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
 )
 
@@ -843,52 +842,6 @@ func last(m *Model, t time.Time) string {
 		return "unknown"
 	}
 	return age(m.now(), t)
-}
-
-// rowStyle draws one row of the list or the form. A marked row sets its
-// background on every segment: a styled segment ends with a reset, so a
-// style around the finished row would stop at the first one.
-type rowStyle struct {
-	th     theme.Theme
-	marked bool
-	// text is the plain text of the row, muted its secondary text.
-	text, muted lipgloss.Style
-}
-
-func newRowStyle(th theme.Theme, marked bool) rowStyle {
-	if marked {
-		return rowStyle{th: th, marked: true, text: th.Selected, muted: th.Selected.Bold(false).Faint(true)}
-	}
-	return rowStyle{th: th, text: lipgloss.NewStyle(), muted: th.Muted}
-}
-
-// name is the style of a project name in colour c, toned for the
-// background and legible on a marked row; nil is the plain text.
-func (s rowStyle) name(c color.Color) lipgloss.Style {
-	if c == nil {
-		return s.text
-	}
-	if s.marked {
-		return s.text.Foreground(s.th.OnSelection(s.th.Tone(c)))
-	}
-	return s.text.Foreground(s.th.Tone(c))
-}
-
-// swatch is the colour field of a definition: a block in its colour c
-// when one is configured, a dot for the automatic colour.
-func (s rowStyle) swatch(configured string, c color.Color) string {
-	if hex, err := project.ParseColor(configured); err != nil || hex == "" {
-		return s.muted.Render("·")
-	}
-	return s.name(c).Render("■")
-}
-
-// fill pads a row to width in the style of the row.
-func (s rowStyle) fill(line string, width int) string {
-	if !s.marked {
-		return line
-	}
-	return line + s.text.Render(strings.Repeat(" ", max(width-lipgloss.Width(line), 0)))
 }
 
 // pinColors pins the configured colours in the shared chart.Colors before

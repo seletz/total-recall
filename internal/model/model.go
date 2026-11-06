@@ -111,8 +111,14 @@ type Event struct {
 	Text         string
 	ToolName     string
 	Model        string
-	TokensIn     int64
-	TokensOut    int64
+	// TokensIn is the whole input of the model call: fresh input plus
+	// cache writes plus cache reads. TokensCacheRead and TokensCacheWrite
+	// are the two cached parts of it (0 for none or unknown); fresh input
+	// is TokensIn minus both.
+	TokensIn         int64
+	TokensCacheRead  int64
+	TokensCacheWrite int64
+	TokensOut        int64
 	SourcePath   string
 	SourceOffset int64
 	// Raw is the original JSON line (redacted before storing), with the
