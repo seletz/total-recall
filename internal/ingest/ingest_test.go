@@ -926,10 +926,10 @@ func TestMetaRecords(t *testing.T) {
 				if raw := e.str(t, "SELECT raw_text(raw) FROM session_meta WHERE id = 'claude:ps-1'"); !strings.Contains(raw, `"systemPrompt":"blob:sha256:`+sha+`"`) {
 					t.Errorf("raw = %s", raw)
 				}
-				// Reread with rewrite: idempotent (the repeated shape line
-				// rewrites its record a second time, that is all).
+				// Reread with rewrite: idempotent; the repeated shape line is
+				// written again but stays one row.
 				e.deps.Reread, e.deps.RewriteRaw = true, true
-				if again, err := All(ctx, e.deps); err != nil || again.Meta != 0 || again.Blobs != 0 || again.RawRewritten != 5 || e.count(t, "SELECT count(*) FROM meta_blobs") != 4 {
+				if again, err := All(ctx, e.deps); err != nil || again.Meta != 0 || again.Blobs != 0 || again.RawRewritten != 4 || e.count(t, "SELECT count(*) FROM meta_blobs") != 4 {
 					t.Errorf("reread = %+v, %v", again, err)
 				}
 			})
@@ -1071,4 +1071,104 @@ func TestFileHistory(t *testing.T) {
 			t.Errorf("records with blobs = %d, want 2", got)
 		}
 	})
+}
+
+// TestSummaryMatchesTables checks the summary against the tables (#201):
+// a record that comes by several times (a mode written every round, a line
+// a resumed session copied, an event in a later batch) is one row and
+// counts once, as new if this run inserted it, else as rewritten. A line
+// with several blocks is one row per block.
+func TestSummaryMatchesTables(t *testing.T) {
+	s1, s2 := tf.SmallSession1, tf.SmallSession2
+	const cwd = "/w/x"
+	multi := tf.Assistant(s1, "m1", "2026-10-01T10:00:03Z", cwd, "two blocks")
+	multi["message"].(map[string]any)["content"] = []any{
+		map[string]any{"type": "text", "text": "first"},
+		map[string]any{"type": "text", "text": "second"},
+	}
+	copied := tf.User(s1, "u1", "2026-10-01T10:00:00Z", cwd, "hello")
+	first := tf.Join(
+		tf.PermissionMode(s1, "auto"),
+		copied,
+		tf.Attachment(s1, "att-1", "2026-10-01T10:00:01Z", cwd, "instructions", "rules"),
+		tf.PRLink(s1, "2026-10-01T10:00:02Z", 7),
+		multi,
+		tf.PermissionMode(s1, "auto"),
+		tf.PRLink(s1, "2026-10-01T10:00:04Z", 7),
+		tf.Assistant(s1, "a1", "2026-10-01T10:00:05Z", cwd, "done"),
+		tf.PermissionMode(s1, "auto"),
+	)
+	second := tf.Join(
+		copied,
+		tf.PermissionMode(s2, "auto"),
+		tf.Assistant(s2, "a2", "2026-10-01T11:00:00Z", cwd, "resumed"),
+		tf.PermissionMode(s2, "auto"),
+	)
+	// Rows: u1, m1#0, m1#1, a1, a2; meta: att-1, the PR link and one mode
+	// per session.
+	const wantEvents, wantMeta = 5, 4
+	counts := func(t *testing.T, e *env) (events, metas int) {
+		t.Helper()
+		return e.count(t, "SELECT count(*) FROM events"), e.count(t, "SELECT count(*) FROM session_meta")
+	}
+	for _, batch := range []int{1, 2, 500} {
+		t.Run(fmt.Sprintf("batch=%d", batch), func(t *testing.T) {
+			e := newEnv(t)
+			e.deps.BatchSize = batch
+			tf.WriteFile(t, e.projects, "-w-x/"+s1+".jsonl", first)
+			tf.WriteFile(t, e.projects, "-w-x/"+s2+".jsonl", second)
+
+			sum, err := All(ctx, e.deps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, metas := counts(t, e)
+			if events != wantEvents || metas != wantMeta {
+				t.Fatalf("tables = %d events, %d meta records, want %d, %d", events, metas, wantEvents, wantMeta)
+			}
+			if sum.Events != events || sum.Meta != metas || sum.RawRewritten != 0 || sum.MetaRewritten != 0 {
+				t.Errorf("first ingest = %+v, want %d events, %d meta records", sum, events, metas)
+			}
+
+			// Reread only: nothing new, nothing rewritten.
+			e.deps.Reread = true
+			if sum, err = All(ctx, e.deps); err != nil || sum.Events != 0 || sum.Meta != 0 || sum.RawRewritten != 0 {
+				t.Errorf("reread = %+v, %v", sum, err)
+			}
+
+			// Every row of the tables is rewritten exactly once, twice in a row.
+			e.deps.RewriteRaw = true
+			for i := range 2 {
+				sum, err = All(ctx, e.deps)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if sum.Events != 0 || sum.Meta != 0 || sum.RawRewritten != events+metas || sum.MetaRewritten != metas {
+					t.Errorf("rewrite %d = %+v, want %d rows, %d of them meta records", i+1, sum, events+metas, metas)
+				}
+			}
+
+			// The update to v1.3.0: the meta records and one event are not in
+			// the archive yet. What this run inserts is new, even when it
+			// comes by again; the rest of the events is rewritten.
+			db, err := sql.Open("sqlite", e.dbPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = db.Close() }()
+			if _, err := db.ExecContext(ctx, `DELETE FROM session_meta; DELETE FROM events WHERE id = 'claude:u1'`); err != nil {
+				t.Fatal(err)
+			}
+			sum, err = All(ctx, e.deps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sum.Events != 1 || sum.Meta != metas || sum.RawRewritten != events-1 || sum.MetaRewritten != 0 {
+				t.Errorf("update run = %+v, want 1 new event, %d meta records, %d rewritten", sum, metas, events-1)
+			}
+			if gotE, gotM := counts(t, e); gotE != events || gotM != metas {
+				t.Errorf("tables after update run = %d, %d, want %d, %d", gotE, gotM, events, metas)
+			}
+		})
+	}
 }

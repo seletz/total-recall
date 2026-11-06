@@ -229,3 +229,46 @@ func TestMetaBlobKindsAndKeptRefs(t *testing.T) {
 		t.Errorf("rewrite with the copy = %+v, %v", res, err)
 	}
 }
+
+// TestWrittenRowsCountOncePerRun: a row written again in a later batch of
+// the run counts once, a row the run inserted does not count as rewritten,
+// and a batch that rolled back leaves nothing behind (#201).
+func TestWrittenRowsCountOncePerRun(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess := "claude:s1"
+	ev := func(id string) model.Event {
+		return model.Event{ID: id, SessionID: sess, Kind: model.KindMessage, Raw: `{"a":1}`}
+	}
+	meta := func(id string) model.Meta {
+		return model.Meta{ID: id, SessionID: sess, Type: "mode", Raw: `{"m":1}`}
+	}
+	write := func(w *WrittenRows, evs []model.Event, ms ...model.Meta) WriteResult {
+		t.Helper()
+		res, err := s.WriteBatchOpts(ctx, SourceState{}, nil, evs, WriteOptions{RewriteRaw: true, Meta: ms, Written: w})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	write(nil, []model.Event{ev("claude:e1")}, meta("claude:m1"))
+
+	w := NewWrittenRows()
+	if res := write(w, []model.Event{ev("claude:e1"), ev("claude:e1"), ev("claude:e2")}, meta("claude:m1"), meta("claude:m1"), meta("claude:m2")); res.RawRewritten != 2 || res.MetaRewritten != 1 || res.Inserted != 1 || res.MetaInserted != 1 {
+		t.Errorf("first batch = %+v", res)
+	}
+	if res := write(w, []model.Event{ev("claude:e1"), ev("claude:e2")}, meta("claude:m1"), meta("claude:m2")); res.RawRewritten != 0 || res.MetaRewritten != 0 {
+		t.Errorf("second batch = %+v, want nothing counted", res)
+	}
+
+	// The attachment fails after e3 was counted: the retry counts it.
+	w = NewWrittenRows()
+	write(nil, []model.Event{ev("claude:e3")})
+	bad := ev("claude:e3")
+	bad.Attachments = []model.Attachment{{SHA256: "00", MediaType: "image/png", Data: []byte("x")}}
+	if _, err := s.WriteBatchOpts(ctx, SourceState{}, nil, []model.Event{bad}, WriteOptions{RewriteRaw: true, Written: w}); err == nil {
+		t.Fatal("hash mismatch not refused")
+	}
+	if res := write(w, []model.Event{ev("claude:e3")}); res.RawRewritten != 1 {
+		t.Errorf("retry = %+v, want the row counted", res)
+	}
+}

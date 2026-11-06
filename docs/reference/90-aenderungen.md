@@ -6,7 +6,16 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.3.0 (unveröffentlicht)
+## v1.3.1 (unveröffentlicht)
+
+### Behoben
+
+- [`ingest`](10-befehle.md#ingest) meldet Meta-Records wieder richtig: Die Zusammenfassung zeigte immer `0 meta records`, die Records selbst wurden gespeichert ([#201](https://github.com/seletz/total-recall/issues/201)).
+- `ingest --reread --rewrite-raw` zählt Zeilen der Tabellen statt Vorkommen im Transkript und trennt Events von Meta-Records: `N events and M meta records raw rewritten` statt `N raw rewritten`. Bisher zählte jeder Zustands-Record, den Claude Code jede Runde neu schreibt, bei jedem Vorkommen, auch wenn derselbe Lauf die Zeile eben erst angelegt hatte ([#201](https://github.com/seletz/total-recall/issues/201)).
+- **`backup` ersetzt kein vorhandenes Backup mehr** ([#200](https://github.com/seletz/total-recall/issues/200)). Seit v1.3.0 löschte ein zweites Backup am selben Tag die `.db.gz` oder `.db` dieses Tages, frühere Versionen überschrieben die Kopie des Tages. Jetzt bleiben alle Kopien liegen: Hat der Tag schon eine, bekommt die neue die Uhrzeit in den Namen (`archive-YYYY-MM-DD-HHMM.db.zst`), in derselben Minute zusätzlich eine laufende Nummer. Das gilt auch für parallele Läufe und für das Backup von `maintenance`. `restore`, `status`, `backup --if-older`, die Config-Seite und das Setup der TUI kennen die neuen Namen.
+- **Aufbewahrung nachvollziehbar.** Gelöscht wird nur noch über `keep_daily` und `keep_monthly`, die ältesten Kopien zuerst, und jede gelöschte Kopie steht als `backup: pruned …` im Log, auch beim Lauf von `maintenance`. `keep_daily` zählt jetzt Tage statt Dateien: Von den letzten sieben Tagen mit Backup bleiben alle Kopien, mehrere Backups an einem Tag verdrängen keine älteren Tage. Im Backup-Ordner können daher mehr Dateien liegen als `keep_daily` angibt.
+
+## v1.3.0
 
 ### Was dieses Update mit dem Archiv macht
 
@@ -64,6 +73,8 @@ Neu festgelegt ist, was bei total-recall im Sinne von Semantic Versioning stabil
 
 - **Einstellungen wirken sofort.** Die Seite [Settings](30-tui.md#settings) der Ansicht Config übernimmt mehr Werte ohne Neustart: die Tastenbelegung `[keys]` (Tasten, Fußzeile und Hilfe aller Ansichten), `day_start` und die Tabelle `[work]` (Kernzeiten, Ziel und Grenzen zeichnen die Aktivität neu; Tagesgrenze und Bundesland laden das Fenster neu und markieren die Feiertage der Statistik neu; `count` schaltet die Zählweise um) sowie `tui.activity_projects`. Fenster, Markierung, Scrollposition und Eingabe bleiben dabei erhalten, wie schon bei `reload`, `mouse` und den Projektdefinitionen. Die Zeile `default` sagt zu jedem Schlüssel, was eine Änderung tut: `applied at once`, `takes effect at the next start` (`db`, `timezone` und die Startzustände der Ansichten) oder `used by the next command or action` (alles, was die TUI nicht selbst nutzt); die Meldung nach dem Schreiben wiederholt es. Eine im Editor geänderte Tabelle mit einem Fehler lässt die bisherigen Werte in Kraft ([#165](https://github.com/seletz/total-recall/issues/165)).
 
+- **Die Aktivität je Tag füllt die Höhe.** Bisher zeigte die Ansicht genau die Tage der Periode, sieben bei einer Woche, und ließ den Rest des Bildschirms leer. Jetzt stehen immer so viele Tageszeilen, wie zwischen Kopf- und Fußzeile passen: vor der Periode die Tage davor, gedämpft, die Tage der Periode mit `▎` markiert. `d`, `w` und `m` bestimmen nur noch, welche Tage Kopfzeile, Soll, Saldo, Kennzahlen und Legende zusammenfassen; nach einer Größenänderung passt sich die Liste sofort an, ist die Periode länger als der Platz, scrollt sie wie bisher. Neu ist `o`: der neueste Tag unten (Default, wie ein Protokoll) oder oben, auch per Klick auf `day` im Spaltenkopf, dessen Pfeil die Richtung zeigt; ++up++ und ++down++ zeigen immer die Zeile darüber bzw. darunter. Start mit `activity_newest` in [`[tui]`](20-konfiguration.md#tui) ([Aktivität](30-tui.md#aktivitat), [#173](https://github.com/seletz/total-recall/issues/173)).
+
 ### Neu in der CLI
 
 - **`blob HASH [--out DATEI]`** gibt ein Bild oder Dokument aus dem Archiv aus, `--json` nur die Metadaten samt Events; Binärdaten nie auf ein Terminal ([`blob`](10-befehle.md#blob)).
@@ -80,10 +91,6 @@ Neu festgelegt ist, was bei total-recall im Sinne von Semantic Versioning stabil
 ### Installation
 
 - Der Homebrew-Cask entfernt das Quarantäne-Attribut nicht mehr. Die macOS-Binaries sind seit v1.0.2 signiert und notarisiert, Gatekeeper startet sie auch mit gesetztem Attribut ohne Dialog; der `postflight`-Schritt war die Übergangslösung bis zur ersten verifizierten Notarisierung ([Installation](../how-to/10-installieren.md#mit-homebrew), [#161](https://github.com/seletz/total-recall/issues/161)).
-
-### TUI
-
-- **Die Aktivität je Tag füllt die Höhe.** Bisher zeigte die Ansicht genau die Tage der Periode, sieben bei einer Woche, und ließ den Rest des Bildschirms leer. Jetzt stehen immer so viele Tageszeilen, wie zwischen Kopf- und Fußzeile passen: vor der Periode die Tage davor, gedämpft, die Tage der Periode mit `▎` markiert. `d`, `w` und `m` bestimmen nur noch, welche Tage Kopfzeile, Soll, Saldo, Kennzahlen und Legende zusammenfassen; nach einer Größenänderung passt sich die Liste sofort an, ist die Periode länger als der Platz, scrollt sie wie bisher. Neu ist `o`: der neueste Tag unten (Default, wie ein Protokoll) oder oben, auch per Klick auf `day` im Spaltenkopf, dessen Pfeil die Richtung zeigt; ++up++ und ++down++ zeigen immer die Zeile darüber bzw. darunter. Start mit `activity_newest` in [`[tui]`](20-konfiguration.md#tui) ([Aktivität](30-tui.md#aktivitat), [#173](https://github.com/seletz/total-recall/issues/173)).
 
 ### Intern
 

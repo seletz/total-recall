@@ -15,12 +15,12 @@ import (
 // FormatIngest renders the summary line of an ingest run, e.g.
 // "scanned 3 files: 1 changed, 2 unchanged, 0 locked; 12 new events, 4
 // meta records, 2 attachments (1.3 MiB), 1 sessions touched (0.2s)";
-// rewriteRaw adds the rewritten raw lines, attachments appear when some
-// were stored.
+// rewriteRaw adds the rows whose raw line was replaced ("240 events and 75
+// meta records raw rewritten"), attachments appear when some were stored.
 func FormatIngest(s ingest.Summary, rewriteRaw bool) string {
 	rewritten := ""
 	if rewriteRaw {
-		rewritten = fmt.Sprintf(", %d raw rewritten", s.RawRewritten)
+		rewritten = fmt.Sprintf(", %d events and %d meta records raw rewritten", s.RawRewritten-s.MetaRewritten, s.MetaRewritten)
 		if s.MetaKept > 0 {
 			rewritten += fmt.Sprintf(" (%d meta records kept: they refer to data no longer on disk)", s.MetaKept)
 		}

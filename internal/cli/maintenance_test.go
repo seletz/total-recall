@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -118,4 +119,31 @@ func TestMaintenanceLockSkipsHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mustRun(t, "ingest", "--all")
+}
+
+// TestMaintenanceLogsPruned: the backup of maintenance prunes like backup and
+// leaves the same lines in the log file, with --json too.
+func TestMaintenanceLogsPruned(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if err := os.MkdirAll(e.backups, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for d := 1; d <= 8; d++ {
+		p := filepath.Join(e.backups, fmt.Sprintf("archive-2026-10-%02d.db.gz", d))
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.mustRun(t, "maintenance", "--json")
+	log, err := os.ReadFile(e.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []int{1, 2} {
+		want := "pruned " + filepath.Join(e.backups, fmt.Sprintf("archive-2026-10-%02d.db.gz", d))
+		if !strings.Contains(string(log), want) {
+			t.Errorf("log misses %q:\n%s", want, log)
+		}
+	}
 }

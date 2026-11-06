@@ -39,7 +39,9 @@ Der Befehl schreibt zuerst ein Backup wie [`backup`](../reference/10-befehle.md#
 
 ## Backup wiederherstellen { #backup-wiederherstellen }
 
-`backup` schreibt seit v1.3.0 `archive-YYYY-MM-DD.db.zst` (zstd); bis v1.2 schrieben `archive-YYYY-MM-DD.db.gz` (gzip), Vorabversionen davor unkomprimierte `archive-YYYY-MM-DD.db`. Alle drei liest [`restore`](../reference/10-befehle.md#restore), alle drei zählen bei der Aufbewahrung (`keep_daily`, `keep_monthly`) gleich, und `status`, `backup --if-older` und die Config-Seite der TUI nehmen die jeweils neueste Kopie, egal in welchem Format. Alte `.db.gz` musst du also weder umwandeln noch löschen; sie fallen mit der Zeit aus der Aufbewahrung.
+`backup` schreibt seit v1.3.0 `archive-YYYY-MM-DD.db.zst` (zstd); bis v1.2 schrieben `archive-YYYY-MM-DD.db.gz` (gzip), Vorabversionen davor unkomprimierte `archive-YYYY-MM-DD.db`. Alle drei liest [`restore`](../reference/10-befehle.md#restore), alle drei zählen bei der Aufbewahrung (`keep_daily`, `keep_monthly`) gleich, und `status`, `backup --if-older`, die Config-Seite und das Setup der TUI nehmen die jeweils neueste Kopie, egal in welchem Format. Alte `.db.gz` musst du also weder umwandeln noch löschen; sie fallen mit der Zeit aus der Aufbewahrung.
+
+Ein neues Backup ersetzt nie ein vorhandenes. Hat der Tag schon eine Kopie, egal in welchem Format, bekommt die neue die Uhrzeit in den Namen: `archive-YYYY-MM-DD-HHMM.db.zst`, in derselben Minute zusätzlich eine laufende Nummer (`archive-YYYY-MM-DD-HHMM-2.db.zst`). Gelöscht wird nur über die [Aufbewahrung](../reference/20-konfiguration.md#backup), die ältesten Kopien zuerst; jede gelöschte Kopie steht als `INFO`-Zeile `backup: pruned …` im Log.
 
 Erst neben die laufende Datenbank, dann ansehen:
 
