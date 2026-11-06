@@ -218,22 +218,20 @@ func (p setupPage) view(m *Model, width, height int) string {
 		if i == p.row {
 			mark = m.th.Mark.Render("▸")
 		}
-		sign := m.th.Error.Render(signFail)
+		st := newRowStyle(m.th, i == p.row)
+		sign := st.on(m.th.Warn).Render(signFail)
 		switch {
 		case c.ok && c.warn:
-			sign = m.th.Error.Render(signWarn)
+			sign = st.on(m.th.Warn).Render(signWarn)
 		case c.ok:
-			sign = m.th.AccentText.Render(signOK)
+			sign = st.on(m.th.Accent).Render(signOK)
 		}
-		text := c.text
+		text := st.text.Render(c.text)
 		if c.fix != "" {
-			text += "  " + m.th.AccentText.Render("enter: "+c.fix)
+			text += st.text.Render("  ") + st.on(m.th.Accent).Render("enter: "+c.fix)
 		}
-		line := pad(c.name, 11) + " " + sign + " " + text
-		if i == p.row {
-			line = m.th.Selected.Render(pad(line, width-2))
-		}
-		lines = append(lines, m.line(mark+" "+line, width))
+		line := st.text.Render(pad(c.name, 11)+" ") + sign + st.text.Render(" ") + text
+		lines = append(lines, m.line(mark+" "+st.fill(m.line(line, width-2), width-2), width))
 	}
 	lines = append(lines, m.th.Rule.Render(strings.Repeat("─", width)))
 	switch {
