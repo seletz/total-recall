@@ -88,11 +88,12 @@ match = "https://git.invalid/mara/fahrtenbuch"
 // schema version v.
 func newHome(home, dbPath string, v int) (*Env, error) {
 	paths := map[string]string{
-		"config":   filepath.Join(home, ".config", "total-recall", "config.toml"),
-		"db":       filepath.Join(home, ".local", "share", "total-recall", "archive.db"),
-		"settings": filepath.Join(home, ".claude", "settings.json"),
-		"backup":   filepath.Join(home, "Documents", "total-recall", store.BackupFileName(backupAt)),
-		"binary":   filepath.Join(home, ".local", "bin", "total-recall"),
+		"config":     filepath.Join(home, ".config", "total-recall", "config.toml"),
+		"db":         filepath.Join(home, ".local", "share", "total-recall", "archive.db"),
+		"settings":   filepath.Join(home, ".claude", "settings.json"),
+		"claudejson": filepath.Join(home, ".claude.json"),
+		"backup":     filepath.Join(home, "Documents", "total-recall", store.BackupFileName(backupAt)),
+		"binary":     filepath.Join(home, ".local", "bin", "total-recall"),
 	}
 	for _, p := range paths {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -119,6 +120,9 @@ func newHome(home, dbPath string, v int) (*Env, error) {
 	if err := os.WriteFile(paths["settings"], settingsJSON(), 0o644); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
+	if err := os.WriteFile(paths["claudejson"], claudeJSON(paths["binary"]), 0o644); err != nil {
+		return nil, fmt.Errorf("screenshot: %w", err)
+	}
 	if err := os.WriteFile(paths["backup"], []byte("not a real backup"), 0o644); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
@@ -141,6 +145,8 @@ func newHome(home, dbPath string, v int) (*Env, error) {
 		View: configview.Options{
 			Version:      Version,
 			SettingsFile: paths["settings"],
+			ClaudeJSON:   paths["claudejson"],
+			ProjectDir:   home,
 			Getenv:       func(string) string { return "" },
 			LookPath:     func(string) (string, error) { return paths["binary"], nil },
 			Executable:   func() (string, error) { return paths["binary"], nil },
@@ -161,6 +167,15 @@ func (e *Env) Close() error {
 // settingsJSON is a Claude Code settings file with the hook block.
 func settingsJSON() []byte {
 	b, err := json.MarshalIndent(map[string]any{"theme": "dark", "hooks": ops.ClaudeHooks("total-recall")["hooks"]}, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+// claudeJSON is a ~/.claude.json with the MCP server entry of total-recall.
+func claudeJSON(binary string) []byte {
+	b, err := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{ops.MCPServerName: ops.ClaudeMCPServer(binary)}}, "", "  ")
 	if err != nil {
 		panic(err)
 	}

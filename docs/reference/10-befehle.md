@@ -947,6 +947,27 @@ total-recall hooks print --binary "$(command -v total-recall)"   # mit absolutem
 
 Den Block und was jeder Hook tut: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
 
+## `mcp` { #mcp }
+
+Startet den lesenden MCP-Server auf stdin/stdout. Claude Code startet ihn als Unterprozess; du rufst ihn selten selbst auf. Kein Port, kein Daemon, nur lesend. Einrichten und Tools: [Archiv per MCP anbinden](../how-to/55-mcp-anbinden.md).
+
+```sh
+total-recall mcp
+total-recall mcp print                       # der Eintrag als JSON
+total-recall mcp print --command             # die Zeile `claude mcp add …`
+total-recall mcp print --binary "$(command -v total-recall)"
+```
+
+Der Server bietet die Tools `search`, `sessions`, `show`, `stats`, `memory` und `status`. Jedes führt den gleichnamigen Befehl mit `--json` aus; Ausgabe und [Fehlerobjekt](#ausgabe) sind die der CLI. Ein Ergebnis ist auf 64 KiB begrenzt: der erste Inhalt ist die (gekürzte) CLI-Ausgabe, ein zweiter nennt die Kürzung und, wo möglich, `next.offset`. Jeder Aufruf öffnet das Archiv neu und schreibgeschützt. Die persistenten Optionen `--config`, `--db` und `--tz` gelten auch für die Tools.
+
+| `mcp print` | Bedeutung |
+|---|---|
+| `--harness NAME` | derzeit nur `claude` (Default) |
+| `--binary BEFEHL` | Befehl im Eintrag, Default `total-recall` |
+| `--command` | statt des JSON die Zeile `claude mcp add --scope user total-recall -- BEFEHL mcp` |
+
+`mcp print` schreibt nichts in die Einstellungen von Claude Code.
+
 ## `llm --skill` { #llm }
 
 Gibt die eingebettete Anleitung für Agenten aus (`SKILL.md`). Siehe [Agenten anbinden](../how-to/50-agenten-anbinden.md).

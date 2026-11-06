@@ -1,0 +1,220 @@
+// Package mcp is a small Model Context Protocol server for stdio: newline
+// delimited JSON-RPC 2.0 with initialize, ping, tools/list and tools/call.
+// It serves read-only tools only. The package knows nothing about the
+// archive: a Tool maps its arguments to command-line arguments and the
+// Runner executes them.
+package mcp
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"slices"
+	"strings"
+)
+
+// ProtocolVersions are the protocol revisions this server speaks, newest
+// first. initialize answers with the client's version when it is in the
+// list, else with the newest one.
+var ProtocolVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
+
+// JSON-RPC error codes.
+const (
+	codeParse          = -32700
+	codeInvalidRequest = -32600
+	codeMethodNotFound = -32601
+	codeInvalidParams  = -32602
+)
+
+// Runner executes a command line (without the program name) and returns its
+// stdout and whether it failed.
+type Runner func(ctx context.Context, argv []string) (stdout string, failed bool)
+
+// Server is one MCP server. Zero MaxBytes uses DefaultMaxBytes.
+type Server struct {
+	// Name and Version identify the server in initialize.
+	Name, Version string
+	// Instructions is shown to the model by clients that support it.
+	Instructions string
+	Tools        []Tool
+	Run          Runner
+	// MaxBytes bounds the size of the first content item of a tool result.
+	MaxBytes int
+}
+
+// DefaultMaxBytes is the default bound of one tool result.
+const DefaultMaxBytes = 64 * 1024
+
+type request struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type response struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  any             `json:"result,omitempty"`
+	Error   *rpcError       `json:"error,omitempty"`
+}
+
+// Serve reads messages from r and writes responses to w until r ends. It
+// returns nil at end of input; only a write error or a read error ends it
+// with an error.
+func (s *Server) Serve(ctx context.Context, r io.Reader, w io.Writer) error {
+	br := bufio.NewReader(r)
+	for {
+		line, err := br.ReadBytes('\n')
+		if len(bytes.TrimSpace(line)) > 0 {
+			if out := s.Handle(ctx, line); out != nil {
+				if _, werr := w.Write(append(out, '\n')); werr != nil {
+					return werr
+				}
+			}
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+	}
+}
+
+// Handle processes one message and returns the response, or nil for a
+// notification.
+func (s *Server) Handle(ctx context.Context, msg []byte) []byte {
+	msg = bytes.TrimSpace(msg)
+	if len(msg) > 0 && msg[0] == '[' {
+		return marshal(response{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{codeInvalidRequest, "batches are not supported"}})
+	}
+	var req request
+	if err := json.Unmarshal(msg, &req); err != nil {
+		return marshal(response{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{codeParse, "parse error: " + err.Error()}})
+	}
+	isNotification := req.ID == nil
+	if req.JSONRPC != "2.0" || req.Method == "" {
+		if isNotification {
+			return nil
+		}
+		return marshal(response{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{codeInvalidRequest, "not a JSON-RPC 2.0 request"}})
+	}
+	if isNotification {
+		return nil // notifications/initialized, notifications/cancelled, ...
+	}
+	result, rerr := s.dispatch(ctx, req)
+	if rerr != nil {
+		return marshal(response{JSONRPC: "2.0", ID: req.ID, Error: rerr})
+	}
+	return marshal(response{JSONRPC: "2.0", ID: req.ID, Result: result})
+}
+
+func marshal(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		b, _ = json.Marshal(response{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{-32603, err.Error()}})
+	}
+	return b
+}
+
+func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
+	switch req.Method {
+	case "initialize":
+		var p struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+		if len(req.Params) > 0 {
+			if err := json.Unmarshal(req.Params, &p); err != nil {
+				return nil, &rpcError{codeInvalidParams, "invalid params: " + err.Error()}
+			}
+		}
+		v := ProtocolVersions[0]
+		if slices.Contains(ProtocolVersions, p.ProtocolVersion) {
+			v = p.ProtocolVersion
+		}
+		res := map[string]any{
+			"protocolVersion": v,
+			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+			"serverInfo":      map[string]any{"name": s.Name, "version": s.Version},
+		}
+		if s.Instructions != "" {
+			res["instructions"] = s.Instructions
+		}
+		return res, nil
+	case "ping":
+		return map[string]any{}, nil
+	case "tools/list":
+		tools := make([]map[string]any, 0, len(s.Tools))
+		for _, t := range s.Tools {
+			tools = append(tools, t.descriptor())
+		}
+		return map[string]any{"tools": tools}, nil
+	case "tools/call":
+		var p struct {
+			Name      string          `json:"name"`
+			Arguments json.RawMessage `json:"arguments"`
+		}
+		if err := json.Unmarshal(req.Params, &p); err != nil || p.Name == "" {
+			return nil, &rpcError{codeInvalidParams, "tools/call needs a tool name"}
+		}
+		i := slices.IndexFunc(s.Tools, func(t Tool) bool { return t.Name == p.Name })
+		if i < 0 {
+			return nil, &rpcError{codeInvalidParams, fmt.Sprintf("unknown tool %q", p.Name)}
+		}
+		return s.call(ctx, s.Tools[i], p.Arguments), nil
+	}
+	return nil, &rpcError{codeMethodNotFound, "method not found: " + req.Method}
+}
+
+type content struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type toolResult struct {
+	Content []content `json:"content"`
+	IsError bool      `json:"isError"`
+}
+
+func text(s string) content { return content{Type: "text", Text: s} }
+
+// errorResult is a tool failure in the shape of the CLI's JSON error.
+func errorResult(kind, msg string) toolResult {
+	b, _ := json.Marshal(map[string]any{"error": map[string]string{"kind": kind, "message": msg}})
+	return toolResult{Content: []content{text(string(b))}, IsError: true}
+}
+
+func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) toolResult {
+	argv, err := t.argv(rawArgs)
+	if err != nil {
+		return errorResult("usage", err.Error())
+	}
+	out, failed := s.Run(ctx, argv)
+	if failed {
+		return toolResult{Content: []content{text(strings.TrimSpace(out))}, IsError: true}
+	}
+	max := s.MaxBytes
+	if max <= 0 {
+		max = DefaultMaxBytes
+	}
+	first, hint := truncate(strings.TrimSpace(out), max, t.offset(rawArgs), t.Offset != "")
+	res := toolResult{Content: []content{text(first)}}
+	if hint != nil {
+		b, _ := json.Marshal(hint)
+		res.Content = append(res.Content, text(string(b)))
+	}
+	return res
+}

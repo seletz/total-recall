@@ -15,6 +15,7 @@ Ein Bruch an einer dieser Stellen bedeutet eine neue Major-Version:
 - **Typen der Suche.** Die Namen der [Typen](10-befehle.md#search-types) (`event`, `session`, `memory` und die reservierten `attachment`, `meta`, `file`), das Flag `--type` mit dem Default `event` und das Feld `type` jedes Treffers. Je Typ gelten seine Felder wie oben: immer vorhanden, neue nur dazu. Ein neuer Typ oder ein reservierter, der durchsuchbar wird, ist Minor; Skripte sollten Treffer eines unbekannten `type` überspringen. Welche Filter für welchen Typ gelten, kann in einer Minor-Version nur wachsen.
 - **Config-Schlüssel.** Ein Schlüssel in der [Konfiguration](20-konfiguration.md) wird nicht umbenannt oder entfernt und ändert seine Bedeutung nicht; eine bestehende Datei lädt mit jeder späteren Version derselben Major-Version. Neue Schlüssel sind Minor, ein geänderter Default steht in den Änderungen.
 - **Exit-Codes.** `0` Erfolg, `1` Fehler, `2` Befunde bei `doctor`; Hooks enden immer mit `0`.
+- **MCP-Server.** Die Namen der Tools von [`total-recall mcp`](10-befehle.md#mcp) (`search`, `sessions`, `show`, `stats`, `memory`, `status`), ihre Parameter und das Ergebnis, das exakt die `--json`-Ausgabe des Befehls ist, einschließlich des Fehlerobjekts. Neue Tools und neue Parameter sind Minor; ein Tool oder Parameter verschwindet nicht. Auch was `mcp print` ausgibt, bleibt gültig.
 - **Hooks.** Was [`hooks print`](10-befehle.md#hooks-print) ausgibt, bleibt gültig: Ein eingetragener Hook-Block funktioniert mit jeder späteren Version derselben Major-Version weiter.
 
 ## Nicht stabil

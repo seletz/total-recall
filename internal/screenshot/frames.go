@@ -128,6 +128,8 @@ var Shots = []Shot{
 		Caption: "Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung"},
 	{Name: "config-setup", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab"},
 		Caption: "Config, Seite Setup: Prüfungen der Installation und der Hook-Block"},
+	{Name: "config-setup-mcp", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "j", "j"},
+		Caption: "Config, Seite Setup: die Zeile mcp markiert; darunter der Eintrag für den MCP-Server von Claude Code"},
 }
 
 // workHours mirrors the defaults of the [work] config table.

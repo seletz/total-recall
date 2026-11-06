@@ -7,7 +7,7 @@ description: Query the local archive of past coding-agent sessions (Claude Code 
 
 `total-recall` is a local SQLite archive of every coding-agent session on this machine, across all repositories. It holds the **conversation**: what the human asked, what the agent answered, which tools ran, with time stamps. This is how an agent in session A learns what was decided in session B, even when B ran in a repository that A cannot see.
 
-Start with `total-recall search --by-session --json` for the sessions of a topic, then `total-recall sql --json` with full-text search (FTS5) for everything that needs grouping, counting or joining: `search` returns hits, `sql` returns answers. Always pass `--json` and parse stdout only.
+Start with `total-recall search --by-session --json` for the sessions of a topic, then `total-recall sql --json` with full-text search (FTS5) for everything that needs grouping, counting or joining: `search` returns hits, `sql` returns answers. Always pass `--json` and parse stdout only. If this session has the MCP tools of `total-recall` (see *MCP server*), call those instead of running the commands.
 
 The commands and their JSON fields (`search`, `sessions`, `show`, `stats`, `status` with `--json`) are the stable interface: they only gain fields within a major version. The database schema, the views and the format of `raw` are **not** stable and may change in a minor version; `sql` is the flexible path, not the durable one. The schema below matches the binary that printed this document (`total-recall llm --skill`), so prefer the commands when both work, and check the live schema (see *Tables and views*) before relying on a column.
 
@@ -98,6 +98,24 @@ LIMIT 50"
 - `--format jsonl` prints one compact object per line without buffering; use it for large reads. `status` and `stats` are then one line; `show --format jsonl` writes only the events, one per line (the session header comes from `sessions`).
 - Time stamps in JSON are UTC (`2026-10-05T21:30:00.000Z`). `--since`/`--until` take local time: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM` or RFC 3339; a date-only `--until` includes that whole day.
 - Session ids look like `claude:7d1e4c20-0001-4000-8000-000000000001` (`<harness>:<native id>`). `show` and `search --session` accept the full id, the native id or a unique prefix.
+
+## MCP server
+
+`total-recall mcp` is a read-only MCP server on stdio; the harness starts it as a child process (no port, no daemon). When the tools `search`, `sessions`, `show`, `stats`, `memory` and `status` of a server named `total-recall` are available in this session, **use them instead of shell commands**: they return exactly the `--json` output of the commands of the same name, so everything above (fields, error kinds, time stamps) applies unchanged. Without the server, use the CLI as described above. `sql`, `blob`, `ingest`, `backup`, `migrate` and every other writing command have no tool; for grouping, counting and joining, `sql` through the CLI stays the way.
+
+| Tool | Arguments (`*` = required) |
+| --- | --- |
+| `search` | `query*`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (default 20, at most 200; per type) |
+| `sessions` | `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (default 50, at most 500) |
+| `show` | `session*`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (default 200, at most 1000) |
+| `stats` | `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
+| `memory` | `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
+| `status` | none |
+
+The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version.
+
+- **Bounded output.** The first content item of a result is always exactly the CLI output. A list or the `events` of `show` that exceeds 64 KiB is cut after whole items and is still valid JSON; then a second text content item says so: `{"truncated":true,"next":{"offset":N},"hint":"..."}`. `next` is present where the tool has `offset` (`show`: call again with that `offset`); otherwise narrow the query (`since`, `until`, a smaller `limit`). The cut has no effect on the data, only on how much you see.
+- **Errors.** A failed call has `isError` set and the CLI's error object as text, `{"error":{"kind":"usage","message":"..."}}`, with the same `kind` values. A `db` error or a message with *migrate* means the archive is missing or has an older schema: tell the user to run `total-recall migrate`; call `status` to see the schema version. The server opens the archive anew on every call, so it keeps working after `maintenance` or `migrate` replaced the file.
 
 ## Cost notes
 
