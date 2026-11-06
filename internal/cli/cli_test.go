@@ -1438,3 +1438,55 @@ func TestShowAttachments(t *testing.T) {
 		t.Errorf("status = %q", out)
 	}
 }
+
+// TestFileHistoryCommand: the backup copy a file-history record names is
+// archived next to projects_dir (file-history), readable with blob (text
+// also on a terminal), counted by status and the ingest summary;
+// store_file_history = false leaves it out.
+func TestFileHistoryCommand(t *testing.T) {
+	const sid = "44444444-4444-4444-8444-444444444444"
+	src := []byte("package demo\n\nfunc Hello() string { return \"hallo\" }\n")
+	setup := func(t *testing.T) *testEnv {
+		e := newTestEnv(t)
+		tf.WriteFile(t, filepath.Join(filepath.Dir(e.projects), "file-history"), sid+"/eeee000000000005@v1", string(src))
+		tf.WriteFile(t, e.projects, "-w-demo/"+sid+".jsonl", tf.Join(
+			tf.User(sid, "f1", "2026-10-04T10:00:00Z", "/w/demo", "edit hello.go"),
+			tf.FileHistorySnapshot("f1", "2026-10-04T10:00:00Z", map[string]string{"/w/demo/hello.go": "eeee000000000005@v1"}),
+		))
+		return e
+	}
+	hash := blobref.Hash(src)
+	t.Run("on", func(t *testing.T) {
+		e := setup(t)
+		e.mustRun(t, "ingest", "--all")
+		e.width = 80 // text goes to a terminal too
+		if out := e.mustRun(t, "blob", hash[:12]); out != string(src) {
+			t.Errorf("blob = %q", out)
+		}
+		e.width = 0
+		b := decode[BlobJSON](t, e.mustRun(t, "blob", hash, "--json"))
+		if b.MediaType != "text/plain" || len(b.MetaRecords) != 1 {
+			t.Errorf("blob --json = %+v", b)
+		}
+		if out := e.mustRun(t, "status"); !strings.Contains(out, "1 files") {
+			t.Errorf("status = %q", out)
+		}
+		st := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
+		if k := st.BlobKinds["files"]; k.Count != 1 || k.Bytes != int64(len(src)) {
+			t.Errorf("status --json blob_kinds = %+v", st.BlobKinds)
+		}
+	})
+	t.Run("off", func(t *testing.T) {
+		e := setup(t)
+		f, err := os.OpenFile(e.configPath, os.O_APPEND|os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.WriteString("\n[ingest]\nstore_file_history = false\n")
+		_ = f.Close()
+		e.mustRun(t, "ingest", "--all")
+		if r := e.run(t, "", "blob", hash, "--json"); r.code != 1 || !strings.Contains(r.stdout, `"kind":"not_found"`) {
+			t.Errorf("blob with store_file_history = false: %+v", r)
+		}
+	})
+}

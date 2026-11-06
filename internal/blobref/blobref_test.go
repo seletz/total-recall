@@ -234,3 +234,63 @@ func TestLift(t *testing.T) {
 		t.Errorf("bad line: %s, %v", out, err)
 	}
 }
+
+// TestAnnotate: a rule that reads the data behind a name in an object
+// (here: a map of synthetic backups) adds a reference member to that
+// object; the rest of the line stays byte for byte, the attachments carry
+// the data, an object the rule declines and a line without such objects
+// stay as they are.
+func TestAnnotate(t *testing.T) {
+	files := map[string][]byte{"a1@v1": []byte("package main\n"), "a1@v2": []byte("package main\n\nfunc main() {}\n")}
+	rule := func(path string, f Fields) (string, string, []byte, bool) {
+		if !strings.HasPrefix(path, "snapshot.backups.") || f["blob"] != "" {
+			return "", "", nil, false
+		}
+		data, ok := files[f["backupFileName"]]
+		if !ok {
+			return "", "", nil, false
+		}
+		return "blob", "text/plain", data, true
+	}
+	line := `{"type":"snap","snapshot":{"backups":{"/w/a.go":{"backupFileName":"a1@v1","version":1}, "/w/b.go": {"backupFileName":"a1@v2", "version": 2},"/w/c.go":{"backupFileName":"gone@v1"},"/w/d.go":{}},"n":1}}`
+	out, atts, err := Annotate([]byte(line), rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h1, h2 := hashOf(files["a1@v1"]), hashOf(files["a1@v2"])
+	want := `{"type":"snap","snapshot":{"backups":{"/w/a.go":{"backupFileName":"a1@v1","version":1,"blob":"blob:sha256:` + h1 + `"}, "/w/b.go": {"backupFileName":"a1@v2", "version": 2,"blob":"blob:sha256:` + h2 + `"},"/w/c.go":{"backupFileName":"gone@v1"},"/w/d.go":{}},"n":1}}`
+	if string(out) != want {
+		t.Errorf("annotated:\n got %s\nwant %s", out, want)
+	}
+	if len(atts) != 2 || atts[0].Path != "snapshot.backups./w/a.go" || atts[0].SHA256 != h1 || atts[0].MediaType != "text/plain" || string(atts[0].Data) != "package main\n" ||
+		atts[1].Path != "snapshot.backups./w/b.go" || atts[1].SHA256 != h2 {
+		t.Errorf("attachments = %+v", atts)
+	}
+	if !json.Valid(out) {
+		t.Error("annotated line is not valid JSON")
+	}
+	// Idempotent: the rule sees the member it added and declines.
+	again, atts2, err := Annotate(out, rule)
+	if err != nil || string(again) != want || len(atts2) != 0 {
+		t.Errorf("second run: %s, %+v, %v", again, atts2, err)
+	}
+	// An empty object gets the member without a leading comma; a line
+	// without matching objects comes back as it is.
+	empty := `{"backup":{}}`
+	out, atts, err = Annotate([]byte(empty), func(path string, f Fields) (string, string, []byte, bool) {
+		if path != "backup" {
+			return "", "", nil, false
+		}
+		return "blob", "text/plain", []byte("x"), true
+	})
+	if err != nil || string(out) != `{"backup":{"blob":"blob:sha256:`+hashOf([]byte("x"))+`"}}` || len(atts) != 1 {
+		t.Errorf("empty object: %s, %+v, %v", out, atts, err)
+	}
+	plain := `{"type":"other","x":[1,2]}`
+	if out, atts, err := Annotate([]byte(plain), rule); err != nil || string(out) != plain || len(atts) != 0 {
+		t.Errorf("plain line: %s, %+v, %v", out, atts, err)
+	}
+	if _, _, err := Annotate([]byte(`{"broken":`), rule); err == nil {
+		t.Error("broken JSON: no error")
+	}
+}

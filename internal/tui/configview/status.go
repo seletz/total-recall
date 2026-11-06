@@ -167,7 +167,11 @@ func blobCell(s state, muted func(...string) string) string {
 	if s.blobs.Count == 0 {
 		return "none"
 	}
-	return fmt.Sprintf("%d attachments, %s", s.blobs.Count, mib(s.blobs.Bytes))
+	cell := fmt.Sprintf("%d blobs, %s", s.blobs.Count, mib(s.blobs.Bytes))
+	if f := s.blobs.Files; f.Count > 0 {
+		cell += "  " + muted(fmt.Sprintf("%d files %s", f.Count, mib(f.Bytes)))
+	}
+	return cell
 }
 
 // metaCell is the meta records row: rows and compressed size of

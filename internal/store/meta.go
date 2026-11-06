@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/seletz/total-recall/internal/blobref"
 	"github.com/seletz/total-recall/internal/model"
 )
 
@@ -20,7 +22,8 @@ import (
 
 // writeMeta inserts the meta records of a batch (existing IDs are
 // skipped) with their attachments and, with rewrite, replaces raw and the
-// attachments of the ones that exist.
+// attachments of the ones that exist, unless the stored line refers to
+// more blobs than the new one (keepsMoreRefs).
 func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, rewrite bool, res *WriteResult) error {
 	ins, err := tx.PrepareContext(ctx, `INSERT INTO session_meta (id, session_id, ts, type, source_id, source_offset, raw)
 		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
@@ -28,19 +31,34 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 		return fmt.Errorf("store: prepare: %w", err)
 	}
 	defer func() { _ = ins.Close() }()
-	var upd *sql.Stmt
+	var upd, cur *sql.Stmt
 	if rewrite {
 		upd, err = tx.PrepareContext(ctx, `UPDATE session_meta SET raw = ? WHERE id = ?`)
 		if err != nil {
 			return fmt.Errorf("store: prepare: %w", err)
 		}
 		defer func() { _ = upd.Close() }()
+		cur, err = tx.PrepareContext(ctx, `SELECT raw FROM session_meta WHERE id = ?`)
+		if err != nil {
+			return fmt.Errorf("store: prepare: %w", err)
+		}
+		defer func() { _ = cur.Close() }()
 	}
 	blobs := newBlobWriter(ctx, tx, "meta_blobs", "meta_id")
 	defer blobs.close()
 	sources := map[string]int64{}
 	for _, m := range metas {
 		blob := rawBlob(m.Raw)
+		if cur != nil {
+			keep, err := keepsMoreRefs(ctx, cur, m)
+			if err != nil {
+				return err
+			}
+			if keep {
+				res.MetaKept++
+				continue
+			}
+		}
 		if upd != nil {
 			r, err := upd.ExecContext(ctx, blob, m.ID)
 			if err != nil {
@@ -78,6 +96,27 @@ func (s *Store) writeMeta(ctx context.Context, tx *sql.Tx, metas []model.Meta, r
 		}
 	}
 	return nil
+}
+
+// keepsMoreRefs reports whether the stored line of meta record m refers
+// to more blobs than its new line: data that is gone from the harness (a
+// backup copy it cleaned up) is no longer in the new line, and a rewrite
+// must not drop what the archive already holds. An unknown record is
+// not kept (it is inserted).
+func keepsMoreRefs(ctx context.Context, cur *sql.Stmt, m model.Meta) (bool, error) {
+	var b []byte
+	err := cur.QueryRowContext(ctx, m.ID).Scan(&b)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("store: meta record %s: %w", m.ID, err)
+	}
+	old, err := rawText(b)
+	if err != nil {
+		return false, fmt.Errorf("store: meta record %s: %w", m.ID, err)
+	}
+	return strings.Count(old, blobref.Prefix) > strings.Count(m.Raw, blobref.Prefix), nil
 }
 
 // MetaStats describes the stored meta records.

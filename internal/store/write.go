@@ -153,6 +153,10 @@ type WriteResult struct {
 	RawRewritten int
 	// MetaInserted is the number of meta records newly inserted.
 	MetaInserted int
+	// MetaKept is the number of existing meta records a rewrite left as
+	// they were because their stored line refers to more blobs than the
+	// new one (data the harness has deleted since).
+	MetaKept int
 	// Blobs is the number of attachments newly stored (an attachment that
 	// was already there under its hash does not count), BlobBytes their
 	// size as delivered.

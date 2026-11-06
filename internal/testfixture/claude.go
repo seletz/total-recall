@@ -237,3 +237,23 @@ func ToolResult(session, uuid, ts, cwd, toolUseUUID, output string) Line {
 		"message": map[string]any{"role": "user",
 			"content": []any{map[string]any{"type": "tool_result", "tool_use_id": "toolu_" + toolUseUUID, "content": output}}}}
 }
+
+// FileHistorySnapshot returns a file-history-snapshot record whose index
+// names one backup file per entry of backups (file path → backup file
+// name), like Claude Code writes before a turn edits files.
+func FileHistorySnapshot(messageID, ts string, backups map[string]string) Line {
+	tracked := map[string]any{}
+	for path, name := range backups {
+		tracked[path] = map[string]any{"backupFileName": name, "version": 1, "backupTime": ts}
+	}
+	return Line{"type": "file-history-snapshot", "messageId": messageID, "isSnapshotUpdate": false,
+		"snapshot": map[string]any{"messageId": messageID, "trackedFileBackups": tracked, "timestamp": ts}}
+}
+
+// FileHistoryDelta returns a file-history-delta record naming one new
+// backup file of path.
+func FileHistoryDelta(session, messageID, ts, path, name string) Line {
+	return Line{"type": "file-history-delta", "messageId": messageID, "snapshotMessageId": messageID, "trackingPath": path,
+		"timestamp": ts, "sessionId": session,
+		"backup": map[string]any{"backupFileName": name, "version": 2, "backupTime": ts, "realParentDir": filepath.Dir(path)}}
+}

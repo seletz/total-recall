@@ -37,6 +37,11 @@ type Adapter struct {
 	toolInputMax  int
 	classifier    Classifier
 	skip          map[string]bool
+	// fileHistory is the directory of the backup copies of edited files
+	// (WithFileHistoryDir); empty leaves them out.
+	fileHistory    string
+	fileHistoryMax int64
+	logf           func(format string, args ...any)
 
 	mu    sync.Mutex
 	stats Stats
@@ -47,6 +52,11 @@ type Stats struct {
 	Lines     int64            // complete, non-blank lines consumed
 	Malformed int64            // lines that were not valid JSON objects (skipped)
 	Records   map[string]int64 // lines per record "type"
+	// Backups counts the backup files of edited files read for the
+	// archive (WithFileHistoryDir), BackupBytes their size;
+	// BackupsMissing the ones a record names that were no longer on disk,
+	// BackupsOversized the ones over the size cap.
+	Backups, BackupBytes, BackupsMissing, BackupsOversized int64
 }
 
 // Option configures an Adapter.
@@ -107,6 +117,9 @@ func New(dir string, opts ...Option) *Adapter {
 		classifier:    DefaultClassifier(),
 		skip:          map[string]bool{},
 		stats:         Stats{Records: map[string]int64{}},
+
+		fileHistoryMax: DefaultFileHistoryMaxBytes,
+		logf:           func(string, ...any) {},
 	}
 	for _, o := range opts {
 		o(a)
@@ -201,6 +214,7 @@ func (a *Adapter) Parse(ctx context.Context, path string, offset int64, emit fun
 		abs = path
 	}
 	p := newParser(a, abs)
+	defer p.finishFileHistory()
 	r := bufio.NewReaderSize(f, 1<<16)
 	for {
 		if err := ctx.Err(); err != nil {

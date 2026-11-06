@@ -254,11 +254,16 @@ type parser struct {
 	file     fileInfo
 	seenMsg  map[string]bool // assistant message ids whose usage was already attributed
 	lastTS   time.Time       // time stamp of the last record that had one (meta records without one borrow it)
+	// backups are the backup file names already read in this call (the
+	// first record that names one carries it); missing and oversized
+	// count the ones that could not be read.
+	backups            map[string]bool
+	missing, oversized int64
 }
 
 func newParser(a *Adapter, path string) *parser {
 	h := sha1.Sum([]byte(path))
-	return &parser{a: a, path: path, pathHash: hex.EncodeToString(h[:]), file: pathInfo(path), seenMsg: map[string]bool{}}
+	return &parser{a: a, path: path, pathHash: hex.EncodeToString(h[:]), file: pathInfo(path), seenMsg: map[string]bool{}, backups: map[string]bool{}}
 }
 
 // parseLine maps one JSONL line. It returns the record (nil if skipped), the
@@ -366,6 +371,15 @@ func (p *parser) metaRecord(r *rawRecord, line []byte, offset int64) *model.Reco
 		m.ID = HarnessName + ":" + r.UUID
 	} else {
 		m.ID = HarnessName + ":" + metaHash(sess.NativeID, r.Type, line)
+	}
+	// The backups of edited files join the record after its ID is fixed:
+	// whether a copy is still on disk must not change which row the
+	// record is.
+	if out, fh := p.fileHistory(r.Type, line); len(fh) > 0 {
+		m.Raw = string(out)
+		for _, a := range fh {
+			m.Attachments = append(m.Attachments, model.Attachment{SHA256: a.SHA256, MediaType: a.MediaType, Data: a.Data})
+		}
 	}
 	return &model.Record{Session: sess, Meta: []model.Meta{m}}
 }

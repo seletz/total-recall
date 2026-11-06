@@ -190,3 +190,42 @@ func TestWriteMetaAttachments(t *testing.T) {
 		t.Errorf("bad hash: %v", err)
 	}
 }
+
+// TestMetaBlobKindsAndKeptRefs: status counts the JSON values and the
+// other data of meta records apart from the event attachments; a rewrite
+// that would drop references (the harness deleted the data) leaves the
+// stored line and its links alone, one with as many references replaces
+// it.
+func TestMetaBlobKindsAndKeptRefs(t *testing.T) {
+	s, _ := openTestStore(t)
+	js := []byte(`{"system":[]}`)
+	file := []byte("package demo\n")
+	jsAtt := model.Attachment{SHA256: blobref.Hash(js), MediaType: "application/json", Data: js}
+	fileAtt := model.Attachment{SHA256: blobref.Hash(file), MediaType: "text/plain", Data: file}
+	withRef := `{"type":"file-history-delta","backup":{"backupFileName":"a@v1","blob":"` + blobref.Ref{SHA256: fileAtt.SHA256}.String() + `"}}`
+	m1 := metaRecord("claude:m1", "claude:s1", "api-request-shape", `{"type":"api-request-shape","shape":"`+blobref.Ref{SHA256: jsAtt.SHA256}.String()+`"}`)
+	m2 := metaRecord("claude:m2", "claude:s1", "file-history-delta", withRef)
+	m1.Attachments, m2.Attachments = []model.Attachment{jsAtt}, []model.Attachment{fileAtt}
+	if _, err := s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{Meta: []model.Meta{m1, m2}}); err != nil {
+		t.Fatal(err)
+	}
+	bs, err := s.BlobStats(ctx)
+	if err != nil || bs.Count != 2 || bs.JSON.Count != 1 || bs.JSON.Bytes != int64(len(js)) || bs.Files.Count != 1 || bs.Files.Bytes != int64(len(file)) || bs.Attachments.Count != 0 {
+		t.Errorf("BlobStats = %+v, %v", bs, err)
+	}
+	// The copy is gone: the new line has no reference. Kept.
+	gone := m2
+	gone.Raw, gone.Attachments = `{"type":"file-history-delta","backup":{"backupFileName":"a@v1"}}`, nil
+	res, err := s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{RewriteRaw: true, Meta: []model.Meta{gone}})
+	if err != nil || res.MetaKept != 1 || res.RawRewritten != 0 {
+		t.Errorf("rewrite without the copy = %+v, %v", res, err)
+	}
+	if m, _, _ := s.metaOf(ctx, "claude:m2"); m.Raw != withRef || countRows(t, s, "SELECT count(*) FROM meta_blobs WHERE meta_id = 'claude:m2'") != 1 {
+		t.Errorf("kept record = %s", m.Raw)
+	}
+	// The same references again: rewritten.
+	res, err = s.WriteBatchOpts(ctx, SourceState{}, nil, nil, WriteOptions{RewriteRaw: true, Meta: []model.Meta{m2}})
+	if err != nil || res.MetaKept != 0 || res.RawRewritten != 1 {
+		t.Errorf("rewrite with the copy = %+v, %v", res, err)
+	}
+}

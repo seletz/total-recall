@@ -179,6 +179,8 @@ func addSummary(a, b ingest.Summary) ingest.Summary {
 	a.Locked += b.Locked
 	a.Events += b.Events
 	a.RawRewritten += b.RawRewritten
+	a.Meta += b.Meta
+	a.MetaKept += b.MetaKept
 	a.Blobs += b.Blobs
 	a.BlobBytes += b.BlobBytes
 	a.Sessions += b.Sessions

@@ -21,6 +21,9 @@ func FormatIngest(s ingest.Summary, rewriteRaw bool) string {
 	rewritten := ""
 	if rewriteRaw {
 		rewritten = fmt.Sprintf(", %d raw rewritten", s.RawRewritten)
+		if s.MetaKept > 0 {
+			rewritten += fmt.Sprintf(" (%d meta records kept: they refer to data no longer on disk)", s.MetaKept)
+		}
 	}
 	blobs := ""
 	if s.Blobs > 0 {
