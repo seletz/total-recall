@@ -3,6 +3,7 @@ package configview
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
 )
 
@@ -755,6 +757,7 @@ func (p projectsPage) view(m *Model, width, height int) string {
 	p.offset = max(0, min(p.offset, max(len(p.rows)-avail, 0)))
 	r, rerr := pageResolver(cfg)
 	as := assign(r, p.ar)
+	p.pinColors(m)
 	nameW, descW := 4, 11
 	for _, d := range cfg.Projects {
 		nameW = max(nameW, lipgloss.Width(d.Name))
@@ -778,6 +781,7 @@ func (p projectsPage) view(m *Model, width, height int) string {
 		if i == p.row {
 			mark = m.th.Mark.Render("▸")
 		}
+		st := newRowStyle(m.th, i == p.row)
 		var line string
 		switch row.kind {
 		case rowHeader:
@@ -790,23 +794,22 @@ func (p projectsPage) view(m *Model, width, height int) string {
 		case rowDef:
 			d := cfg.Projects[row.index]
 			paths, sessions := p.ar.tally(as.byName[d.Name])
-			count := m.th.Muted.Render(pad("", sessW))
+			count := pad("", sessW)
 			if paths > 0 {
 				count = fmt.Sprintf("%*d", sessW, sessions)
 			}
-			line = p.swatch(m, d.Color) + " " + pad(m.line(d.Name, nameW), nameW) + "  " + pad(m.line(d.Description, descW), descW) + "  " + count + "  " + strings.Join(d.Match, ", ")
+			c := p.color(m, d)
+			line = st.swatch(d.Color, c) + st.text.Render(" ") + st.name(c).Render(pad(m.line(d.Name, nameW), nameW)) +
+				st.text.Render("  "+pad(m.line(d.Description, descW), descW)+"  "+count+"  "+strings.Join(d.Match, ", "))
 		case rowKey:
 			k := p.ar.keys[row.index]
-			path := m.tilde(k.Key)
+			line = st.name(m.opts.Colors.Color(k.Key)).Render(pad(m.line(p.ar.name(row.index), nameW), nameW)) +
+				st.text.Render("  "+fmt.Sprintf("%*d", sessW, k.Sessions)+"  "+pad(last(m, k.Last), lastW)+"  "+m.tilde(k.Key))
 			if k.Remote != "" {
-				path += "  " + m.th.Muted.Render(k.Remote)
+				line += st.text.Render("  ") + st.muted.Render(k.Remote)
 			}
-			line = pad(m.line(p.ar.name(row.index), nameW), nameW) + "  " + fmt.Sprintf("%*d", sessW, k.Sessions) + "  " + pad(last(m, k.Last), lastW) + "  " + path
 		}
-		if i == p.row {
-			line = m.th.Selected.Render(pad(m.line(line, width-2), width-2))
-		}
-		lines = append(lines, m.line(mark+" "+line, width))
+		lines = append(lines, m.line(mark+" "+st.fill(m.line(line, width-2), width-2), width))
 	}
 	for len(lines) < height-listBottom {
 		lines = append(lines, "")
@@ -842,14 +845,88 @@ func last(m *Model, t time.Time) string {
 	return age(m.now(), t)
 }
 
-// swatch is the colour field of a definition: a block in its colour, a
-// dot for the automatic colour.
-func (p projectsPage) swatch(m *Model, color string) string {
-	hex, err := project.ParseColor(color)
-	if err != nil || hex == "" {
-		return m.th.Muted.Render("·")
+// rowStyle draws one row of the list or the form. A marked row sets its
+// background on every segment: a styled segment ends with a reset, so a
+// style around the finished row would stop at the first one.
+type rowStyle struct {
+	th     theme.Theme
+	marked bool
+	// text is the plain text of the row, muted its secondary text.
+	text, muted lipgloss.Style
+}
+
+func newRowStyle(th theme.Theme, marked bool) rowStyle {
+	if marked {
+		return rowStyle{th: th, marked: true, text: th.Selected, muted: th.Selected.Bold(false).Faint(true)}
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render("■")
+	return rowStyle{th: th, text: lipgloss.NewStyle(), muted: th.Muted}
+}
+
+// name is the style of a project name in colour c, toned for the
+// background and legible on a marked row; nil is the plain text.
+func (s rowStyle) name(c color.Color) lipgloss.Style {
+	if c == nil {
+		return s.text
+	}
+	if s.marked {
+		return s.text.Foreground(s.th.OnSelection(s.th.Tone(c)))
+	}
+	return s.text.Foreground(s.th.Tone(c))
+}
+
+// swatch is the colour field of a definition: a block in its colour c
+// when one is configured, a dot for the automatic colour.
+func (s rowStyle) swatch(configured string, c color.Color) string {
+	if hex, err := project.ParseColor(configured); err != nil || hex == "" {
+		return s.muted.Render("·")
+	}
+	return s.name(c).Render("■")
+}
+
+// fill pads a row to width in the style of the row.
+func (s rowStyle) fill(line string, width int) string {
+	if !s.marked {
+		return line
+	}
+	return line + s.text.Render(strings.Repeat(" ", max(width-lipgloss.Width(line), 0)))
+}
+
+// pinColors pins the configured colours in the shared chart.Colors before
+// a colour is handed out, so the automatic ones avoid them, as in the
+// stats and the activity view.
+func (p projectsPage) pinColors(m *Model) {
+	for _, d := range m.opts.Config.Projects {
+		if hex, err := project.ParseColor(d.Color); err == nil && hex != "" {
+			m.opts.Colors.Fix(d.Name, lipgloss.Color(hex))
+		}
+	}
+}
+
+// color is the colour of a saved definition: the same as in the stats and
+// the activity view, the key of a definition being its name. Call
+// pinColors first.
+func (p projectsPage) color(m *Model, d config.Project) color.Color {
+	return m.opts.Colors.Color(d.Name)
+}
+
+// draftColor is the colour of the draft: its own, shown before it is
+// saved, or the automatic colour of the saved definition. A draft that
+// drops its colour or has never been saved gets its automatic colour only
+// when it is saved, so it has none yet: nil. Asking the shared Colors for
+// it would use up palette colours for names still being typed.
+func (p projectsPage) draftColor(m *Model) color.Color {
+	f := p.form
+	if hex, err := project.ParseColor(f.draft.Color); err == nil && hex != "" {
+		return lipgloss.Color(hex)
+	}
+	if f.index < 0 {
+		return nil
+	}
+	saved := m.opts.Config.Projects[f.index]
+	if hex, err := project.ParseColor(saved.Color); err == nil && hex != "" {
+		return nil
+	}
+	return p.color(m, saved)
 }
 
 // detail describes the marked row: a definition with its colour, what it
@@ -876,11 +953,11 @@ func (p projectsPage) detail(m *Model, r project.Resolver, as assignment) string
 				what = p.ar.describe(hs)
 			}
 		}
-		return m.th.Label.Render(d.Name) + "  " + m.th.Muted.Render(colour) + "  " + what
+		return m.th.Label.Foreground(m.th.Tone(p.color(m, d))).Render(d.Name) + "  " + m.th.Muted.Render(colour) + "  " + what
 	case rowKey:
 		k := p.ar.keys[row.index]
 		k2 := m.keys
-		return m.th.Label.Render(p.ar.name(row.index)) + "  " + m.th.Muted.Render(fmt.Sprintf("%s, last %s · %s makes it a project, %s adds it to one", plural(k.Sessions, "session"), last(m, k.Last), k2.Add.Help().Key, k2.Pattern.Help().Key))
+		return m.th.Label.Foreground(m.th.Tone(m.opts.Colors.Color(k.Key))).Render(p.ar.name(row.index)) + "  " + m.th.Muted.Render(fmt.Sprintf("%s, last %s · %s makes it a project, %s adds it to one", plural(k.Sessions, "session"), last(m, k.Last), k2.Add.Help().Key, k2.Pattern.Help().Key))
 	}
 	if len(cfg.Projects) == 0 && len(as.unmatched) == 0 && p.ar.loaded {
 		return m.th.Muted.Render("[[project]] gives a project its name, colour and patterns; " + m.keys.Add.Help().Key + " adds one")
@@ -895,53 +972,54 @@ const formBottom = 4
 func (p projectsPage) formView(m *Model, width, height int) string {
 	cfg := m.opts.Config
 	f := p.form
+	p.pinColors(m)
+	draft := p.draftColor(m)
 	lines := make([]string, 0, height)
 	title := " " + m.th.Title.Render("new project")
 	if f.index >= 0 {
-		title = " " + m.th.Title.Render("project "+cfg.Projects[f.index].Name) + "  " + m.th.Muted.Render(fmt.Sprintf("%d of %d · first match wins", f.index+1, len(cfg.Projects)))
+		d := cfg.Projects[f.index]
+		title = " " + m.th.Title.Render("project ") + m.th.Title.Foreground(m.th.Tone(p.color(m, d))).Render(d.Name) + "  " + m.th.Muted.Render(fmt.Sprintf("%d of %d · first match wins", f.index+1, len(cfg.Projects)))
 	}
 	lines = append(lines, m.line(title, width))
 	const labelW = 12
 	for i := 0; i < f.nFields(); i++ {
+		st := newRowStyle(m.th, i == f.field && !f.editing)
 		label, value := "", ""
 		switch {
 		case i == fieldName:
-			label, value = "name", f.draft.Name
-			if value == "" {
-				value = m.th.Muted.Render("required")
+			label, value = "name", st.name(draft).Render(f.draft.Name)
+			if f.draft.Name == "" {
+				value = st.muted.Render("required")
 			}
 		case i == fieldDescription:
-			label, value = "description", f.draft.Description
-			if value == "" {
-				value = m.th.Muted.Render("none")
+			label, value = "description", st.text.Render(f.draft.Description)
+			if f.draft.Description == "" {
+				value = st.muted.Render("none")
 			}
 		case i == fieldColor:
 			label = "color"
 			if hex, err := project.ParseColor(f.draft.Color); err == nil && hex != "" {
-				value = p.swatch(m, f.draft.Color) + " " + f.draft.Color
+				value = st.swatch(f.draft.Color, lipgloss.Color(hex)) + st.text.Render(" "+f.draft.Color)
 				if f.draft.Color != hex {
-					value += " " + m.th.Muted.Render(hex)
+					value += st.text.Render(" ") + st.muted.Render(hex)
 				}
 			} else {
-				value = p.swatch(m, "") + " " + m.th.Muted.Render("automatic")
+				value = st.swatch("", nil) + st.text.Render(" ") + st.muted.Render("automatic")
 			}
 		case f.pattern(i):
-			label, value = "match", f.draft.Match[i-fieldPatterns]
-			if value == "" {
-				value = m.th.Muted.Render("empty")
+			label, value = "match", st.text.Render(f.draft.Match[i-fieldPatterns])
+			if f.draft.Match[i-fieldPatterns] == "" {
+				value = st.muted.Render("empty")
 			}
 		default:
-			value = m.th.Muted.Render("+ pattern")
+			value = st.muted.Render("+ pattern")
 		}
 		mark := " "
 		if i == f.field {
 			mark = m.th.Mark.Render("▸")
 		}
-		line := pad(label, labelW) + "  " + value
-		if i == f.field && !f.editing {
-			line = m.th.Selected.Render(pad(m.line(line, width-2), width-2))
-		}
-		lines = append(lines, m.line(mark+" "+line, width))
+		line := st.text.Render(pad(label, labelW)+"  ") + value
+		lines = append(lines, m.line(mark+" "+st.fill(m.line(line, width-2), width-2), width))
 	}
 	for len(lines) < height-formBottom {
 		lines = append(lines, "")
