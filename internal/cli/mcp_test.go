@@ -21,7 +21,6 @@ type mcpSession struct {
 	e    *testEnv
 	args []string
 	n    int
-	in   strings.Builder
 }
 
 func (s *mcpSession) call(tool string, args any) (content []string, isError bool) {
