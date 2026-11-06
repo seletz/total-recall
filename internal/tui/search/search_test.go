@@ -30,6 +30,7 @@ type probe struct {
 }
 
 type probeState struct {
+	gate    tuitest.Gate
 	mu      sync.Mutex
 	keys    int  // key presses handled
 	results int  // fresh search results applied
@@ -44,7 +45,6 @@ func (p probe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m, cmd := p.Model.Update(msg)
 	p.Model = m.(Model)
 	p.st.mu.Lock()
-	defer p.st.mu.Unlock()
 	if _, ok := msg.(tea.KeyPressMsg); ok {
 		p.st.keys++
 	}
@@ -52,6 +52,8 @@ func (p probe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.st.results++
 	}
 	p.st.ready = p.previewReady()
+	p.st.mu.Unlock()
+	p.st.gate.Notify()
 	return p, cmd
 }
 
@@ -67,17 +69,11 @@ func (m Model) previewReady() bool {
 // the test after the timeout.
 func wait(t *testing.T, st *probeState, keys, results int, preview bool) {
 	t.Helper()
-	deadline := time.Now().Add(tuitest.Timeout)
-	for time.Now().Before(deadline) {
+	st.gate.Wait(t, fmt.Sprintf("view to settle (keys %d, results %d, preview %v)", keys, results, preview), func() bool {
 		st.mu.Lock()
-		ok := st.keys >= keys && st.results >= results && (!preview || st.ready)
-		st.mu.Unlock()
-		if ok {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("view did not settle (keys %d, results %d, preview %v)", keys, results, preview)
+		defer st.mu.Unlock()
+		return st.keys >= keys && st.results >= results && (!preview || st.ready)
+	})
 }
 
 func newModel(t *testing.T, st *store.Store, query string) Model {
