@@ -90,6 +90,7 @@ tool_result_max_bytes = 4096
 raw_max_bytes = 0
 store_raw = true
 store_blobs = true
+store_memory = true
 
 [harness.claude]
 enabled = true
@@ -195,6 +196,9 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 
 `store_blobs`
 :   Bilder und Dokumente aus den Zeilen (eingefügte Screenshots, von Werkzeugen gelesene Bilder) als [Blobs](40-schema.md#blobs) speichern, einmal je Inhalt. Mit `false` werden die Daten verworfen; in `raw` bleibt der Verweis mit dem Hash, im Text der Platzhalter. Bilder werden nicht maskiert, siehe [Datenschutz](../explanation/datenschutz.md). Die JSON-Blobs der [Meta-Records](40-schema.md#session_meta) (System-Prompts, Tool-Definitionen) sind davon **nicht** betroffen: Sie sind maskierter Text und bleiben auch mit `false` erhalten, sonst wäre der Inhalt weg; wer sie nicht will, schließt die Typen mit `skip_record_types` aus. Default: `true`.
+
+`store_memory`
+:   Das [Projekt-Gedächtnis](10-befehle.md#memory) der Harness archivieren (bei Claude Code die Dateien `memory/*.md` jedes Projekts), versioniert und maskiert, bei `ingest --all` und in jedem Hook. Gelesen werden nur Dateien, deren Größe oder Änderungszeit sich geändert hat. Das Gedächtnis enthält oft persönliche Notizen, siehe [Datenschutz](../explanation/datenschutz.md#gedaechtnis). Mit `false` liest total-recall die Dateien nicht; was schon im Archiv liegt, bleibt. Default: `true`.
 
 ### `[harness.claude]`
 

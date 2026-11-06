@@ -27,9 +27,13 @@ Je **Meta-Record** (seit Schema v7, Tabelle [`session_meta`](../reference/40-sch
 
 Nicht gespeichert werden der API-Request-Cache der Harness (`api-request`, `api-request-blob`: wiederholt nur die Nachrichten), `last-prompt` und die Kataloge und Erinnerungen der Harness (sieben Attachment-Subtypen, siehe [Design](design.md#session_meta)).
 
+### Projekt-Gedächtnis { #gedaechtnis }
+
+Das **Projekt-Gedächtnis** der Harness (seit Schema v8, [`memory`](../reference/10-befehle.md#memory)): bei Claude Code die Markdown-Dateien in `~/.claude/projects/<projekt>/memory/`, die der Agent über dich, deine Vorlieben, Korrekturen und die Projekte anlegt. **Sie enthalten oft persönliche Notizen**: wie du arbeitest, wem du was zugesagt hast, Namen von Kollegen und Kunden, Einschätzungen. total-recall archiviert jede Fassung und auch gelöschte Dateien; was der Agent vergessen soll und deshalb löscht, bleibt im Archiv (und in seinen Backups). Der Inhalt wird vor dem Speichern **maskiert** wie der Text der Events, mit denselben Grenzen; ein Passwort in Fließtext erkennt die Maskierung nicht. Durchsuchbar ist nur die aktuelle Fassung (`memory --grep`), ältere bleiben über `memory --history` und `blob` lesbar. Abschaltbar mit `ingest.store_memory = false`; was schon archiviert ist, bleibt dann im Archiv.
+
 ## Maskierung von Geheimnissen
 
-Vor dem Schreiben werden `text` und `raw` durchsucht, auch das `raw` der Meta-Records und ihre JSON-Blobs (die Bilder und Dokumente nicht, siehe oben). Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:
+Vor dem Schreiben werden `text` und `raw` durchsucht, auch das `raw` der Meta-Records und ihre JSON-Blobs sowie der Inhalt der Gedächtnis-Dateien (die Bilder und Dokumente nicht, siehe oben). Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:
 
 - private Schlüssel (PEM-Blöcke),
 - Tokens von AWS, GitHub, Slack, OpenAI, Anthropic,
@@ -70,4 +74,4 @@ Beachte: Damit liegen die Backups auch bei Apple. iCloud Drive ist nur Ende-zu-E
 
 ## Löschen
 
-Es gibt keinen Löschbefehl. Willst du alles entfernen, lösche die Datenbank, das Log und die Backups. `sql` ist nur lesend und kann nichts löschen.
+Es gibt keinen Löschbefehl. Willst du alles entfernen, lösche die Datenbank, das Log und die Backups. Das gilt auch für das Projekt-Gedächtnis: Eine Datei, die du oder der Agent löschst, bleibt mit allen Fassungen im Archiv. `sql` ist nur lesend und kann nichts löschen.

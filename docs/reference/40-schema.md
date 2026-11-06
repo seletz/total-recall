@@ -21,6 +21,7 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `dirs` | Cache: Verzeichnis → Git-Root und Remote |
 | `blobs` | Bilder und Dokumente aus den Transkripten und die großen JSON-Werte der Meta-Records (System-Prompts, Tool-Definitionen), einmal je Inhalt (SHA-256), seit Schema v6; siehe [unten](#blobs) |
 | `event_blobs` | welche Events welche Blobs tragen, in welcher Reihenfolge |
+| `memory_projects`, `memory_files`, `memory_versions`, `memory_fts` | das Projekt-Gedächtnis der Harness, versioniert, seit Schema v8; siehe [unten](#memory) |
 
 Wichtige Spalten in `events`: `seq` (Einfügereihenfolge, Primärschlüssel), `id`, `session_id`, `ts` (UTC) und `ts_local` (Ortszeit mit Offset, für Tagesgrenzen), `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`, `tokens_in`, `tokens_out`. Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`; `source_offset` ist der Byte-Offset der Zeile darin. `raw` und `raw_truncated` beschreibt der nächste Abschnitt.
 
@@ -65,6 +66,23 @@ total-recall sql "SELECT DISTINCT json_extract(raw_text(raw), '$.prUrl') FROM se
 ```
 
 Welche Record-Typen von Claude Code als Meta-Record landen und welche bewusst draußen bleiben, steht im [Design](../explanation/design.md#session_meta).
+
+## Projekt-Gedächtnis { #memory }
+
+Die Gedächtnis-Dateien, die eine Harness je Projekt außerhalb der Transkripte führt (Claude Code: `memory/*.md` in jedem Projektverzeichnis), seit Schema v8 ([#192](https://github.com/seletz/total-recall/issues/192)). Sie sind kein Event, stehen nicht in `events_fts` und zählen in keiner Statistik. Lesen über [`memory`](10-befehle.md#memory); die Tabellen sind für SQL da.
+
+| Tabelle | Spalten |
+|---|---|
+| `memory_projects` | `id`, `harness`, `key` (Projektschlüssel der Harness, bei Claude Code der Verzeichnisname: das Arbeitsverzeichnis mit `-` für jedes Zeichen außer Buchstaben und Ziffern), `cwd` (Arbeitsverzeichnis des Projekts, NULL solange unbekannt; Git-Root über `dirs`) |
+| `memory_files` | `id`, `project_id`, `path` (relativ zum Gedächtnis-Verzeichnis), `sha256` (aktueller Inhalt in `blobs`, NULL wenn gelöscht), `size` und `mtime` (Stand auf der Platte beim letzten Lauf, damit nur geänderte Dateien gelesen werden) |
+| `memory_versions` | `seq`, `file_id`, `ts` (Änderungszeit der Datei, bei einer Löschung die Zeit des Laufs), `observed_at` (der Lauf, der die Fassung aufnahm), `sha256` (Inhalt in `blobs`, NULL bei einer Löschung), `bytes` |
+| `memory_fts` | Volltextindex (FTS5) über den aktuellen Inhalt jeder vorhandenen Datei, `rowid` = `memory_files.id`; getrennt von `events_fts` |
+
+Eine Zeile in `memory_versions` gibt es nur, wenn sich der Inhalt geändert hat oder die Datei verschwunden ist. Der Inhalt ist maskierter Markdown-Text, als Blob (`text/markdown`, zstd) einmal je Inhalt; [`blob HASH`](10-befehle.md#blob) gibt ihn aus. Der Stand zu einem Zeitpunkt ist je Datei die Fassung mit der höchsten `seq` bis dahin:
+
+```sh
+total-recall sql "SELECT p.key, f.path, v.ts, v.sha256 FROM memory_versions v JOIN memory_files f ON f.id = v.file_id JOIN memory_projects p ON p.id = f.project_id ORDER BY v.seq DESC LIMIT 20"
+```
 
 Die Schema-Version steht in `schema_version` und bei [`status`](10-befehle.md#status). Ein Programm-Update migriert nie von selbst; das macht [`migrate`](10-befehle.md#migrate) nach einem Backup, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 

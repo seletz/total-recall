@@ -6,6 +6,39 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.4.0 (unveröffentlicht)
+
+### Was dieses Update mit dem Archiv macht
+
+Dieses Release bringt Schema **v8**, eine kurze Migration ohne Datenbewegung. Neu im Archiv ist das **Projekt-Gedächtnis** von Claude Code: die Markdown-Dateien, die der Agent je Projekt unter `~/.claude/projects/<projekt>/memory/` anlegt, ändert und löscht. Bisher standen sie nirgends im Archiv; wer wissen wollte, was der Agent sich zu einem Projekt gemerkt hatte, sah nur den Stand auf der Platte.
+
+- **Was gespeichert wird:** jede Fassung jeder Gedächtnis-Datei, **maskiert** wie der Text der Events, als Blob einmal je Inhalt; eine Löschung als eigener Eintrag. Nichts davon ist ein Event: Suche, Statistik und Arbeitszeit bleiben, wie sie sind.
+- **Ab wann:** ab dem ersten `ingest --all` (oder Hook) nach der Migration. Frühere Stände gibt es nicht, auch nicht aus den Transkripten.
+- **Datenschutz:** Das Gedächtnis enthält oft persönliche Notizen über dich, deine Arbeit und andere Menschen. Was der Agent löscht, bleibt im Archiv und in den Backups. Abschaltbar mit `ingest.store_memory = false` ([Datenschutz](../explanation/datenschutz.md#gedaechtnis)).
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Stand v7, 803 MB, 35 Projekte mit Gedächtnis, 905 Dateien, 1,9 MiB):
+
+| | `migrate` | erster `ingest --all` | Lauf ohne Änderung |
+|---|---|---|---|
+| Dauer | 0,9 s | 0,63 s für das Gedächtnis | 10 ms je Hook |
+| Datei | + 0,2 MB | + 4,8 MiB | |
+
+Die Inhalte liegen komprimiert mit 1,1 MiB in `blobs`, den Rest belegt der Volltextindex mit seiner Kopie des Texts. In 42 der 905 Dateien hat die Maskierung etwas ersetzt. 11 der 35 Projekte haben keine Transkripte mehr und keine passende Session im Archiv; sie heißen in `memory` wie ihr Verzeichnis bei Claude Code, bis eine Session dafür auftaucht.
+
+**Die Schritte** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+
+```sh
+total-recall backup      # 1. sichern
+total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an
+total-recall ingest --all  # 3. das Gedächtnis aufnehmen, wie es jetzt ist (sonst beim nächsten Hook)
+```
+
+### Neu
+
+- **[`memory`](10-befehle.md#memory)** zeigt das archivierte Projekt-Gedächtnis: je Projekt die Dateien, wie sie jetzt sind oder mit `--at DATUM` waren, mit `--deleted` auch gelöschte; `--history DATEI` listet alle Fassungen einer Datei, `--grep WÖRTER` sucht im aktuellen Inhalt (eigener Volltextindex, getrennt von `search`). `--project` schränkt auf Projekte ein, Namen wie bei `stats --by project`. Den Inhalt einer Fassung gibt [`blob`](10-befehle.md#blob) aus, `blob --json` nennt unter `memory` die Dateien, die ihn hatten ([#192](https://github.com/seletz/total-recall/issues/192)).
+- [`status`](10-befehle.md#status) hat eine Zeile `memory` (Dateien, Projekte, Löschungen, Fassungen, Größe), JSON `memory_projects`, `memory_files`, `memory_deleted`, `memory_versions`, `memory_bytes`, `memory_stored_bytes`. Die [Ingest-Zusammenfassung](10-befehle.md#ingest) meldet `memory: N new versions, M deleted`, wenn sich etwas geändert hat.
+- Neuer Schalter [`ingest.store_memory`](20-konfiguration.md#ingest) (Default `true`).
+
 ## v1.3.1 (unveröffentlicht)
 
 ### Behoben
