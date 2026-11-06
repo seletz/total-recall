@@ -104,7 +104,8 @@ LIMIT 50"
 - Put `LIMIT` on every exploratory query. The archive can hold hundreds of thousands of events, and a single session can have tens of thousands.
 - `events.text` of tool results is truncated to 4 KiB. `events.raw` is the whole original JSON line, redacted and zstd-compressed, with the data of images and documents replaced by `blob:sha256:<hash>` references; read it with `raw_text(raw)`, and never select it in a list query. `blobs.data` is the attachment data: never select it in a list query either, `total-recall blob HASH --out FILE` writes one. The same goes for `session_meta.raw`: filter by `type` and `session_id` first, then `raw_text(raw)` on a few rows.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
-- `search` returns 20 hits by default (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--actor`, `--session`.
+- `search` returns 20 hits by default, per type (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--project`, `--actor`, `--session`.
+- `search --type session,memory WORDS` finds sessions by their title and what the agent noted in its memory; `event` stays the default. Branch on the `type` field of each hit. `attachment`, `meta` and `file` are reserved type names and not searchable yet.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
 
 ## Schema and pitfalls
@@ -312,9 +313,9 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE, or prints a JSON value of a meta record (a system prompt) to stdout; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices) or from `session_meta.raw`; `--json` prints type, size and the events, meta records and memory files (`memory`: `project`, `project_key`, `harness`, `path`, `ts`) that refer to it. Only when the user asks for the picture, document or prompt itself |
 | `total-recall memory --json [--project P] [--at D] [--deleted]` | what the agent remembers: the memory files of every project the harness keeps outside the transcripts (Claude Code: `memory/*.md`), as they are now or were at `D`; `--project` matches the project name, path or harness key (exactly, else as a part); `total-recall blob SHA256` prints a file's content. Use it when the user asks what the agent remembered or noted about a project |
 | `total-recall memory --history FILE --json [--project P]` | the versions of one memory file, oldest first, deletions included (`sha256` null); `--project` when the file name is in several projects |
-| `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; apart from `search`, which only sees conversation |
-| `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
-| `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first |
+| `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; the same as `search --type memory` |
+| `total-recall search WORDS --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets; all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
+| `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first; type `event` only |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory\|account] [--top N]` | time series per period, optionally per key (`account`: configured names, else ids, `unknown` without one) |
 | `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
@@ -387,7 +388,7 @@ One object per session.
 
 #### `search --json`
 
-One object per hit.
+One object per hit, grouped by type in the order of `--type`. Every hit has `type` and the core fields `session_id`, `session_name`, `repo`, `project`, `ts`, `snippet`, `rank`; the other fields depend on the type. This table is the type `event` (the default).
 
 | field | meaning |
 |---|---|
@@ -397,13 +398,51 @@ One object per hit.
 | `event_id` | `events.id` |
 | `ts` | UTC |
 | `actor` | |
-| `kind` | |
+| `kind` | `message`, `tool_use`, `tool_result`, … |
 | `snippet` | matched words in `[…]` |
 | `rank` | FTS5 rank, lower is better |
+| `type` | `event` |
+| `project` | project of the session as in `stats --by project` (a subagent counts with its parent); `null` without a directory |
+
+#### `search --type session --json`
+
+A session whose name, title or agent name contains every word, newest first.
+
+| field | meaning |
+|---|---|
+| `session_id` | |
+| `session_name` | display name of the session |
+| `repo` | as in `sessions --json` |
+| `ts` | start of the session, UTC |
+| `snippet` | the name, title or agent name that matched, words in `[…]` |
+| `rank` | always `0` |
+| `type` | `session` |
+| `project` | as for `event` |
+| `harness` | |
+| `ended_at` | UTC |
+| `events` | number of events |
+
+#### `search --type memory --json`
+
+A memory file whose current content matches, best first; the same files as `memory --grep`.
+
+| field | meaning |
+|---|---|
+| `session_id` | always `null` |
+| `session_name` | always `null` |
+| `repo` | remote URL, git root or working directory of the project; `null` while unknown |
+| `ts` | time of the current version, UTC |
+| `snippet` | matched words in `[…]` |
+| `rank` | FTS5 rank, lower is better |
+| `type` | `memory` |
+| `project` | project name as in `memory --json` |
+| `project_key` | the harness's native key of the project |
+| `path` | file path relative to the memory directory |
+| `sha256` | content hash, for `total-recall blob` |
 
 #### `search --by-session --json`
 
-One object per session, sorted by `first_hit` (`--order hits`: by `hits` descending).
+One object per session, sorted by `first_hit` (`--order hits`: by `hits` descending). The rows are aggregates of event hits, not hits, and have no `type`.
 
 | field | meaning |
 |---|---|
