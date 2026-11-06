@@ -16,6 +16,7 @@ import (
 	"github.com/seletz/total-recall/internal/holiday"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
+	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
 )
@@ -485,6 +486,15 @@ func TestColors(t *testing.T) {
 			m := tuitest.Drive(t, app, msgs...)
 			golden.RequireEqual(t, []byte(m.View().Content))
 		})
+	}
+}
+
+// TestConfigSharesColors checks that the config view gets the app's colour
+// assignment, so a project looks alike there and in stats and activity.
+func TestConfigSharesColors(t *testing.T) {
+	colors := &chart.Colors{}
+	if got := configOptions(Options{}, colors).Colors; got != colors {
+		t.Errorf("Colors = %p, want the shared %p", got, colors)
 	}
 }
 
