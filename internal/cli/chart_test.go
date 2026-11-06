@@ -53,6 +53,12 @@ func TestChartGolden(t *testing.T) {
 		{"Punchcard", []string{"punchcard", "--month", "2026-10"}},
 		{"Worktime", []string{"worktime", "--month", "2026-10"}},
 		{"WorktimeLastMonth", []string{"worktime", "--range", "last-month"}},
+		{"Workday", []string{"workday", "--month", "2026-10"}},
+		{"WorkdayDE", []string{"workday", "--month", "2026-10", "--lang", "de"}},
+		{"WorkdayHoliday", []string{"workday", "--month", "2026-06"}},
+		{"WorkdayWeek", []string{"workday", "--range", "last-week"}},
+		{"WorkdayEmpty", []string{"workday", "--month", "2026-03"}},
+		{"CalendarDark", []string{"calendar", "--month", "2026-10", "--background", "#1e1e1e"}},
 		{"CalendarBare", []string{"calendar", "--month", "2026-10", "--no-title", "--no-legend", "--transparent"}},
 		{"CalendarWeek", []string{"calendar", "--since", "2026-10-05", "--until", "2026-10-11"}},
 		{"CalendarScaled", []string{"calendar", "--month", "2026-10", "--scale", "2"}},
@@ -88,7 +94,7 @@ func TestChartConfig(t *testing.T) {
 	if strings.Contains(r.stdout, "Own messages") || strings.Contains(r.stdout, "total ") {
 		t.Error("title or legend drawn although switched off")
 	}
-	if !strings.Contains(r.stdout, "#59a14f") || strings.Contains(r.stdout, "#9ecae1") {
+	if !strings.Contains(r.stdout, "#59a14f") || strings.Contains(r.stdout, "#ee9a5f") {
 		t.Error("configured heatmap not used")
 	}
 	r = e.run(t, "", "--db", db, "chart", "projects", "--month", "2026-10")
@@ -139,7 +145,7 @@ func TestChartFiles(t *testing.T) {
 	if r.code != 0 {
 		t.Fatalf("exit %d: %s", r.code, r.stderr)
 	}
-	want := []string{"2026-10-calendar.png", "2026-10-projects.png", "2026-10-punchcard.png", "2026-10-worktime.png"}
+	want := []string{"2026-10-calendar.png", "2026-10-projects.png", "2026-10-punchcard.png", "2026-10-worktime.png", "2026-10-workday.png"}
 	lines := strings.Split(strings.TrimSpace(r.stdout), "\n")
 	if len(lines) != len(want) {
 		t.Fatalf("stdout = %q", r.stdout)

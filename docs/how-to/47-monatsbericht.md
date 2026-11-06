@@ -4,21 +4,22 @@ icon: lucide/image
 ---
 # Grafiken für einen Monatsbericht
 
-Wie sah der Monat aus? `total-recall chart` zeichnet vier Grafiken aus dem Archiv, als SVG oder PNG, für den Monatsbericht, das Wochen-Review oder die eigene Notiz: einen Kalender der eigenen Nachrichten je Tag, den Anteil je Projekt, die Uhrzeiten als Punchcard und die Arbeitszeit je Woche und Kategorie. Gezählt wird wie bei [`stats`](../reference/10-befehle.md#stats): eigene Nachrichten sind Events mit `actor = human`; Aufträge anderer Agenten (`peer`) und Automatisches zählen nicht. Die Bilder auf dieser Seite stammen aus dem synthetischen Demo-Archiv.
+Wie sah der Monat aus? `total-recall chart` zeichnet fünf Grafiken aus dem Archiv, als SVG oder PNG, für den Monatsbericht, das Wochen-Review oder die eigene Notiz: einen Kalender der eigenen Nachrichten je Tag, den Anteil je Projekt, die Uhrzeiten als Punchcard, die Arbeitszeit je Woche und Kategorie und die Arbeitstage mit erster und letzter Aktivität. Gezählt wird wie bei [`stats`](../reference/10-befehle.md#stats): eigene Nachrichten sind Events mit `actor = human`; Aufträge anderer Agenten (`peer`) und Automatisches zählen nicht. Die Bilder auf dieser Seite stammen aus dem synthetischen Demo-Archiv.
 
-## Alle vier Grafiken für einen Monat
+## Alle fünf Grafiken für einen Monat
 
 ```sh
 total-recall chart all --month 2026-10 --out berichte/2026-10
 ```
 
-schreibt vier Dateien mit vorhersagbaren Namen und gibt ihre Pfade aus:
+schreibt fünf Dateien mit vorhersagbaren Namen und gibt ihre Pfade aus:
 
 ```text
 berichte/2026-10/2026-10-calendar.svg
 berichte/2026-10/2026-10-projects.svg
 berichte/2026-10/2026-10-punchcard.svg
 berichte/2026-10/2026-10-worktime.svg
+berichte/2026-10/2026-10-workday.svg
 ```
 
 Ohne `--month` ist es der laufende Monat; `--range last-month` nimmt den vorigen, `--since`/`--until` einen beliebigen Zeitraum (die Dateien heißen dann `2026-10-05_2026-10-11-calendar.svg`). Eine einzelne Grafik geht ohne `--out` nach stdout:
@@ -45,9 +46,17 @@ total-recall chart calendar --month 2026-10 > kalender.svg
 
 ![Arbeitszeit je Woche und Kategorie](../assets/charts/2026-10-worktime.svg)
 
+**Arbeitstage.** Die Arbeitstage-Ansicht der TUI als Grafik (`chart workday`): eine Zeile je Tag, der Balken läuft von der ersten bis zur letzten Aktivität auf einer Zeitachse ab `day_start`. Blau ist Aktivität in der Kernzeit, Orange davor und danach, dunkleres Orange nach Mitternacht (im Text mit `(+1)`). Die Kernzeit ist ein Band, das Tagessoll eine gestrichelte Linie ab der ersten Aktivität; Wochenenden sind grau, Feiertage rot mit Namen. Rechts stehen erste und letzte Aktivität, Spanne und Abweichung vom Soll, oben Summe, Soll und Saldo des Zeitraums. Gezählt wird wie bei [`stats --workday`](../reference/10-befehle.md#stats).
+
+![Arbeitstage](../assets/charts/2026-10-workday.svg)
+
+## Helle und dunkle Notizen
+
+Der Hintergrund ist transparent und der Text ein mittleres Grau (`#8b8b8b`), die Grafiken lesen sich auf hellem wie auf dunklem Grund. Jede Zelle, jeder Balken und jeder Kreis trägt seine Zahlen als Tooltip. Wer eine feste Fläche will: `--background "#ffffff"` oder `[chart] background`.
+
 ## Farben einstellen
 
-Kategorien bekommen in [`[[worktime.category]]`](../reference/20-konfiguration.md#worktime) eine Farbe, Projekte in `[[project]]`; ohne Farbe nimmt die Grafik die nächste freie Reihenfarbe. Die Stufen des Kalenders stehen in [`[chart]`](../reference/20-konfiguration.md#chart):
+Kategorien bekommen in [`[[worktime.category]]`](../reference/20-konfiguration.md#worktime) eine Farbe, Projekte in `[[project]]`; ohne Farbe nimmt die Grafik die nächste freie Reihenfarbe. Die Farbfolgen stehen in [`[chart]`](../reference/20-konfiguration.md#chart): `scale_orange` (Kalender, Arbeitstage außerhalb der Kernzeit), `scale_blue` (Arbeitstage in der Kernzeit), `palette` (Projekte und Kategorien ohne eigene Farbe), dazu `text` und `background`:
 
 ```toml
 [[worktime.category]]
@@ -61,7 +70,9 @@ match = ["~/dotfiles", "~/notizen"]
 color = "purple"
 
 [chart]
-heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]
+scale_orange = ["#f6c9a8", "#ee9a5f", "#d9733a", "#a84f1c"]
+scale_blue = ["#b3cde3", "#6a9fcf", "#3b73b0", "#1f4e85"]
+text = "#8b8b8b"
 ```
 
 Erlaubt sind die Namen der Palette (`blue`, `orange`, `green`, `red`, `purple`, `teal`) und `#rrggbb`. So sieht ein Projekt in der TUI, in den Grafiken und in der Kategorie gleich aus.
@@ -71,10 +82,10 @@ Erlaubt sind die Namen der Palette (`blue`, `orange`, `green`, `red`, `purple`, 
 ```sh
 total-recall chart all --month 2026-10 --format png --scale 2 --out berichte/2026-10
 total-recall chart punchcard --month 2026-10 --width 1200 > punchcard.svg
-total-recall chart calendar --month 2026-10 --no-title --no-legend --transparent > kalender.svg
+total-recall chart calendar --month 2026-10 --no-title --no-legend --background "#1e1e1e" > kalender.svg
 ```
 
-SVG ist der Default und skaliert ohne Verlust; PNG rastert das Bild in reinem Go, `--scale 2` für scharfe Bilder auf hochauflösenden Displays. `--width` oder `--height` setzen die Größe in Pixeln, beide zusammen einen Rahmen, in dem die Grafik zentriert sitzt. `--no-title` und `--no-legend` lassen Überschrift und Legende weg, wenn der Bericht sie selbst setzt, `--transparent` den weißen Hintergrund. Die Defaults von Format, Faktor, Titel, Legende und Hintergrund stehen in [`[chart]`](../reference/20-konfiguration.md#chart).
+SVG ist der Default und skaliert ohne Verlust; PNG rastert das Bild in reinem Go, `--scale 2` für scharfe Bilder auf hochauflösenden Displays. `--width` oder `--height` setzen die Größe in Pixeln, beide zusammen einen Rahmen, in dem die Grafik zentriert sitzt. `--no-title` und `--no-legend` lassen Überschrift und Legende weg, wenn der Bericht sie selbst setzt, `--background #rrggbb` eine Hintergrundfarbe. Die Defaults von Format, Faktor, Titel, Legende und Hintergrund stehen in [`[chart]`](../reference/20-konfiguration.md#chart).
 
 ## Deutsche Beschriftung, eigener Titel
 

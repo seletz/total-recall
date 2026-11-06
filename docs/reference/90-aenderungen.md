@@ -56,6 +56,11 @@ Schritt 2 lässt sich abbrechen und wiederholen. Ein späterer Reread verliert n
 
 Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespeichert (zstd). 638 Kopien in 12 Transkripten waren schon gelöscht; ihre Records bleiben ohne Verweis, je Transkript steht eine Zeile im Log. Keine Kopie lag über der Grenze von 16 MiB. Die Zahlen enthalten auch, was seit dem letzten Ingest des Archivs neu war (345 Events, 1 648 Meta-Records).
 
+### Grafiken
+
+- **Neue Optik** ([#213](https://github.com/seletz/total-recall/issues/213)): `total-recall chart` zeichnet mit transparentem Hintergrund und mittelgrauem Text (`#8b8b8b`), kompakter, mit leicht gerundeten Ecken und Werten als Tooltip; die Grafiken passen in helle und dunkle Notizen. Neu in `[chart]`: `background`, `text`, `scale_orange`, `scale_blue`, `palette`; neu `--background`. `heatmap` ist jetzt ein optionaler Override (Default: leer, der Kalender nimmt `scale_orange`). Der Hintergrund ist nicht mehr weiß: wer ihn weiß will, setzt `background = "#ffffff"`.
+- **`chart workday`** ([#214](https://github.com/seletz/total-recall/issues/214)): die Arbeitstage der TUI als Grafik, mit Kernzeit, Soll, Feiertagen und Überlauf nach Mitternacht; auch Teil von `chart all`.
+
 ### Archiv
 
 - **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.

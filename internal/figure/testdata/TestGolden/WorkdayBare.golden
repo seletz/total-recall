@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="724" height="161" viewBox="0 0 724 161" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="690" height="161" viewBox="0 0 690 161" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
 <text x="0" y="12" font-size="11" fill="#8b8b8b">31h05m in 4 days · target 32h00m (4 workdays × 8h00m) · balance -0h55m</text>
 <text x="66" y="30" font-size="10" text-anchor="middle" fill="#8b8b8b">4</text>
 <text x="100" y="30" font-size="10" text-anchor="middle" fill="#8b8b8b">6</text>
@@ -31,30 +31,30 @@
 <rect x="151" y="40" width="136" height="9" rx="2" fill="#3b73b0"><title>Mon 10-05: 08:12 – 17:40, 9h28m, +1h28m</title></rect>
 <rect x="287" y="40" width="11.33" height="9" rx="2" fill="#ee9a5f"><title>Mon 10-05: 08:12 – 17:40, 9h28m, +1h28m</title></rect>
 <line x1="137.4" y1="51" x2="273.4" y2="51" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
-<text x="544" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">08:12</text>
-<text x="614" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">17:40</text>
-<text x="666" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">9h28m</text>
-<text x="724" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">+1h28m</text>
+<text x="520" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">08:12</text>
+<text x="584" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">17:40</text>
+<text x="634" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">9h28m</text>
+<text x="690" y="48" font-size="10" text-anchor="end" fill="#8b8b8b">+1h28m</text>
 <rect x="151" y="54" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
 <text x="0" y="65" font-size="11" fill="#8b8b8b">Tue 10-06</text>
 <rect x="159.5" y="57" width="127.5" height="9" rx="2" fill="#3b73b0"><title>Tue 10-06: 09:30 – 01:20 (+1), 15h50m, +7h50m</title></rect>
 <rect x="287" y="57" width="119" height="9" rx="2" fill="#ee9a5f"><title>Tue 10-06: 09:30 – 01:20 (+1), 15h50m, +7h50m</title></rect>
 <rect x="406" y="57" width="22.67" height="9" rx="2" fill="#d9733a"><title>Tue 10-06: 09:30 – 01:20 (+1), 15h50m, +7h50m</title></rect>
 <line x1="159.5" y1="68" x2="295.5" y2="68" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
-<text x="544" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">09:30</text>
-<text x="614" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">01:20 (+1)</text>
-<text x="666" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">15h50m</text>
-<text x="724" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">+7h50m</text>
+<text x="520" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">09:30</text>
+<text x="584" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">01:20 (+1)</text>
+<text x="634" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">15h50m</text>
+<text x="690" y="65" font-size="10" text-anchor="end" fill="#8b8b8b">+7h50m</text>
 <rect x="151" y="71" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
 <text x="0" y="82" font-size="11" fill="#8b8b8b">Wed 10-07</text>
 <rect x="151" y="88" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
 <text x="0" y="99" font-size="11" fill="#8b8b8b">Thu 10-08</text>
 <rect x="168" y="91" width="85" height="9" rx="2" fill="#3b73b0"><title>Thu 10-08: 10:00 – 15:00, 5h00m, -3h00m</title></rect>
 <line x1="168" y1="102" x2="304" y2="102" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
-<text x="544" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">10:00</text>
-<text x="614" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">15:00</text>
-<text x="666" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">5h00m</text>
-<text x="724" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">-3h00m</text>
+<text x="520" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">10:00</text>
+<text x="584" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">15:00</text>
+<text x="634" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">5h00m</text>
+<text x="690" y="99" font-size="10" text-anchor="end" fill="#8b8b8b">-3h00m</text>
 <rect x="66" y="105" width="408" height="15" rx="2" fill="#e15759" fill-opacity="0.12"/>
 <text x="0" y="116" font-size="11" fill="#8b8b8b">Fri 10-09</text>
 <text x="72" y="116" font-size="10" fill="#e15759">Feiertag</text>
@@ -63,8 +63,8 @@
 <rect x="66" y="139" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
 <text x="0" y="150" font-size="11" fill="#8b8b8b">Sun 10-11</text>
 <rect x="185" y="142" width="25.5" height="9" rx="2" fill="#8b8b8b" fill-opacity="0.55"><title>Sun 10-11: 11:00 – 12:30, 1h30m, +1h30m</title></rect>
-<text x="544" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">11:00</text>
-<text x="614" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">12:30</text>
-<text x="666" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">1h30m</text>
-<text x="724" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">+1h30m</text>
+<text x="520" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">11:00</text>
+<text x="584" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">12:30</text>
+<text x="634" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">1h30m</text>
+<text x="690" y="150" font-size="10" text-anchor="end" fill="#8b8b8b">+1h30m</text>
 </svg>
