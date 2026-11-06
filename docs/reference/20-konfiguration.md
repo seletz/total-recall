@@ -90,6 +90,7 @@ tool_result_max_bytes = 4096
 raw_max_bytes = 0
 store_raw = true
 store_blobs = true
+store_file_history = true
 
 [harness.claude]
 enabled = true
@@ -195,6 +196,9 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 
 `store_blobs`
 :   Bilder und Dokumente aus den Zeilen (eingefügte Screenshots, von Werkzeugen gelesene Bilder) als [Blobs](40-schema.md#blobs) speichern, einmal je Inhalt. Mit `false` werden die Daten verworfen; in `raw` bleibt der Verweis mit dem Hash, im Text der Platzhalter. Bilder werden nicht maskiert, siehe [Datenschutz](../explanation/datenschutz.md). Die JSON-Blobs der [Meta-Records](40-schema.md#session_meta) (System-Prompts, Tool-Definitionen) sind davon **nicht** betroffen: Sie sind maskierter Text und bleiben auch mit `false` erhalten, sonst wäre der Inhalt weg; wer sie nicht will, schließt die Typen mit `skip_record_types` aus. Default: `true`.
+
+`store_file_history`
+:   Die Sicherungskopien bearbeiteter Dateien, die die Harness neben ihren Transkripten ablegt (Claude Code: `file-history` neben `projects_dir`, also `$CLAUDE_CONFIG_DIR/file-history`), als [Blobs](40-schema.md#session_meta) speichern, einmal je Inhalt. Claude Code löscht sie zusammen mit den Transkripten; das Einlesen gehört deshalb zum normalen Ingest. Textdateien werden **maskiert** wie `text` und `raw`, Binärdateien nicht: Sie folgen `store_blobs` wie Bilder. Kopien über 16 MiB bleiben draußen (eine Zeile im Log). Mit `false` bleibt nur der Index in den Meta-Records (Pfad, Version, Zeit), ohne Inhalt; ebenso mit `store_raw = false`. Default: `true`.
 
 ### `[harness.claude]`
 
