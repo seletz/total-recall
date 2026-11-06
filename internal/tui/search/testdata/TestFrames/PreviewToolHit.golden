@@ -1,19 +1,19 @@
  > tag                                                              actor: all  since: all  repo: *
-─────────────────────────────────────────────────┬──────────────────────────────────────────────────
+─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
  2025-12-04 20:30  Beta release             human│ Beta release
   tag the release                                │ claude:b2b2b2b2-0001-4000-8000-000000000…  o/beta
 ▸2025-12-04 20:30  Beta release             agent│ 2025-12-04 20:30 – 20:30 (5s)  main
   git tag v0.2.0                                 │──────────────────────────────────────────────────
-                                                 │── 20:30  human
-                                                 │tag the release
-                                                 │
-                                                 │── 20:30  tool_use Bash ◄
+                                                 │── 20:30:02  tool_use Bash ◄
                                                  │git tag v0.2.0
                                                  │
-                                                 │── 20:30  tool (tool_result)
+                                                 │── 20:30:03  tool (tool_result)
                                                  │
-                                                 │── 20:30  agent
-                                                 │Tagged v0.2.0.
+                                                 │
+                                                 │
+                                                 │
+                                                 │
+                                                 │
                                                  │
                                                  │
                                                  │

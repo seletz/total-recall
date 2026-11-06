@@ -251,9 +251,9 @@ func configOptions(opts Options, colors *chart.Colors) configview.Options {
 // store stays a nil Searcher and Loader, so the view can tell there is no
 // database.
 func searchOptions(opts Options) search.Options {
-	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location, Keys: opts.Keys}
+	so := search.Options{Query: opts.Query, Now: opts.Now, Location: opts.Location, Keys: opts.Keys, Resolver: opts.Projects, Home: opts.Home}
 	if opts.Store != nil {
-		so.Searcher, so.Loader = opts.Store, opts.Store
+		so.Searcher, so.Loader, so.Projects = opts.Store, opts.Store, opts.Store
 	}
 	return so
 }

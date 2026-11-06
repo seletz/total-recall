@@ -828,8 +828,8 @@ first).`,
 		}
 		var scope *store.ProjectScope
 		if projectRef != "" {
-			if scope, err = cat.scope(projectRef); err != nil {
-				return err
+			if scope, err = cat.Scope(projectRef); err != nil {
+				return errKind(ErrKindNotFound, err)
 			}
 		}
 		query := strings.Join(args, " ")

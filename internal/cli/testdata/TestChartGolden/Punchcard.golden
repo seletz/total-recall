@@ -57,7 +57,7 @@
 <line x1="30" y1="100" x2="750" y2="100" stroke="#e6e6e6" stroke-width="1"/>
 <circle cx="285" cy="100" r="6.76" fill="#f28e2b" fill-opacity="0.45"><title>Wed 08–09: 11 agent events</title></circle>
 <circle cx="285" cy="100" r="4.77" fill="#59a14f"><title>Wed 08–09: 3 own messages</title></circle>
-<circle cx="315" cy="100" r="10.11" fill="#f28e2b" fill-opacity="0.45"><title>Wed 09–10: 32 agent events</title></circle>
+<circle cx="315" cy="100" r="10.24" fill="#f28e2b" fill-opacity="0.45"><title>Wed 09–10: 33 agent events</title></circle>
 <circle cx="315" cy="100" r="8.3" fill="#59a14f"><title>Wed 09–10: 13 own messages</title></circle>
 <circle cx="345" cy="100" r="10.72" fill="#f28e2b" fill-opacity="0.45"><title>Wed 10–11: 37 agent events</title></circle>
 <circle cx="345" cy="100" r="7.16" fill="#59a14f"><title>Wed 10–11: 9 own messages</title></circle>

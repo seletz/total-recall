@@ -6,11 +6,11 @@
  size                  10.9 MiB  2781 pages, 0 free
  page size             4096  maintenance rebuilds with 16384 and saves space
  schema                v9, binary v9
- raw                   2.0 MiB in 21896 events
- blobs                 none
+ raw                   2.0 MiB in 21898 events
+ blobs                 6 blobs, 0.0 MiB
  meta records          none
  sessions              929
- events                21896
+ events                21898
  sources               929
  last ingest (claude)  2026-11-02 10:00  0s ago
  last backup           ~/Documents/total-recall/archive-2026-11-02.db.zst  7h00m ago

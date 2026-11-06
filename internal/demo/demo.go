@@ -109,11 +109,12 @@ func Build(ctx context.Context, path string) (Summary, error) {
 	defer func() { _ = st.Close() }()
 	git := Git()
 	deps := ingest.Deps{
-		Store:      st,
-		Adapters:   []harness.Adapter{claude.New(projects)},
-		StoreRaw:   true,
-		StoreBlobs: true,
-		ResolveGit: true,
+		Store:       st,
+		Adapters:    []harness.Adapter{claude.New(projects)},
+		StoreRaw:    true,
+		StoreBlobs:  true,
+		StoreMemory: true,
+		ResolveGit:  true,
 		GitResolve: func(_ context.Context, cwd string) (gitinfo.Info, error) {
 			if info, ok := git[cwd]; ok {
 				return info, nil
@@ -176,6 +177,9 @@ func Write(dir string) (string, error) {
 		if err := writeSession(projects, s); err != nil {
 			return "", err
 		}
+	}
+	if err := writeMemory(projects); err != nil {
+		return "", err
 	}
 	return projects, nil
 }

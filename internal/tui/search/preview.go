@@ -11,33 +11,31 @@ import (
 
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
-	"github.com/seletz/total-recall/internal/tui/session"
+	"github.com/seletz/total-recall/internal/tui/viewer"
 )
 
 // PreviewDebounce is the pause after the marked hit changed before its
-// session is loaded for the preview.
+// object is loaded for the preview.
 const PreviewDebounce = 100 * time.Millisecond
 
-// Loader reads a session and its events for the preview; *store.Store
-// implements it.
+// Loader reads what the viewers show; *store.Store implements it.
 type Loader interface {
 	FindSession(ctx context.Context, ref string) (store.SessionInfo, error)
 	Events(ctx context.Context, sessionID string, all bool) ([]model.Event, error)
+	MemoryContent(ctx context.Context, projectID int64, file string, at time.Time) (store.MemoryVersion, string, error)
 }
 
 // previewTickMsg fires after PreviewDebounce; it loads the marked hit when
 // seq is still the current preview sequence.
 type previewTickMsg struct{ seq uint64 }
 
-// previewMsg is the loaded exchange around one hit; it is applied only when
-// seq is still the current preview sequence.
+// previewMsg is the loaded viewer of one hit; it is applied only when seq
+// is still the current preview sequence.
 type previewMsg struct {
-	seq     uint64
-	eventID string
-	session store.SessionInfo
-	events  []model.Event // the window around the hit
-	hit     int           // index of the hit within events
-	err     error
+	seq  uint64
+	key  string
+	view viewer.Viewer
+	err  error
 }
 
 // preview is the state of the right column: the hit it shows (or failed to
@@ -49,13 +47,11 @@ type preview struct {
 	cancel  context.CancelFunc
 	loading bool
 
-	eventID string // hit of the loaded data, empty before the first result
-	session store.SessionInfo
-	events  []model.Event
-	hit     int
-	err     error
-	// scroll is the first line of the exchange shown once the mouse wheel
-	// has moved it (scrolled); before that the hit is kept in view.
+	key  string // hit of the loaded data (see hitKey), empty before the first result
+	view viewer.Viewer
+	err  error
+	// scroll is the first line of the body shown once the mouse wheel has
+	// moved it (scrolled); before that the hit is kept in view.
 	scrolled bool
 	scroll   int
 }
@@ -69,8 +65,22 @@ func (p *preview) stop() {
 	p.loading = false
 }
 
+// hitKey identifies a hit across searches: the event, the session or the
+// memory file (of its project) it stands for.
+func hitKey(h store.Hit) string {
+	switch {
+	case h.Event != nil:
+		return "event:" + h.Event.Event.ID
+	case h.Session != nil:
+		return "session:" + h.Session.ID
+	case h.Memory != nil:
+		return "memory:" + h.Memory.Harness + ":" + h.Memory.ProjectKey + ":" + h.Memory.Path
+	}
+	return ""
+}
+
 // marked returns the marked hit, nil without hits.
-func (m Model) marked() *store.SearchHit {
+func (m Model) marked() *store.Hit {
 	if len(m.hits) == 0 {
 		return nil
 	}
@@ -91,11 +101,11 @@ func (m *Model) follow() tea.Cmd {
 		*p = preview{seq: p.seq}
 		return nil
 	}
-	if h.Event.ID == p.eventID || m.opts.Loader == nil {
+	if hitKey(*h) == p.key || m.opts.Loader == nil {
 		return nil
 	}
 	seq := p.seq
-	return tea.Tick(PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
+	return tea.Tick(m.opts.PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
 }
 
 // refreshPreview loads the marked hit again without moving the exchange:
@@ -109,10 +119,10 @@ func (m *Model) refreshPreview() tea.Cmd {
 		return nil
 	}
 	seq := p.seq
-	return tea.Tick(PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
+	return tea.Tick(m.opts.PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
 }
 
-// loadPreview starts reading the session of the marked hit.
+// loadPreview starts loading the viewer of the marked hit.
 func (m Model) loadPreview() (tea.Model, tea.Cmd) {
 	h := m.marked()
 	if h == nil {
@@ -122,38 +132,78 @@ func (m Model) loadPreview() (tea.Model, tea.Cmd) {
 	p.stop()
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel, p.loading = cancel, true
-	seq, ld, sessionID, eventID := p.seq, m.opts.Loader, h.Event.SessionID, h.Event.ID
+	seq, ld, hit, project := p.seq, m.opts.Loader, *h, m.projectName(*h)
 	return m, func() tea.Msg {
 		defer cancel()
-		res := previewMsg{seq: seq, eventID: eventID}
-		s, err := ld.FindSession(ctx, sessionID)
-		if err != nil {
-			res.err = err
-			return res
-		}
-		res.session = s
-		events, err := ld.Events(ctx, s.ID, false)
-		if err != nil {
-			res.err = err
-			return res
-		}
-		start, end := window(events, eventID)
-		if start < 0 {
-			// Not among the messages, so probably a tool event: take the
-			// full transcript.
-			if events, err = ld.Events(ctx, s.ID, true); err != nil {
-				res.err = err
-				return res
-			}
-			start, end = window(events, eventID)
-		}
-		if start < 0 {
-			res.err = errors.New("event not found")
-			return res
-		}
-		res.events, res.hit = events[start:end+1], indexOf(events, eventID)-start
+		res := previewMsg{seq: seq, key: hitKey(hit)}
+		res.view, res.err = loadViewer(ctx, ld, hit, project)
 		return res
 	}
+}
+
+// loadViewer reads what the viewer of hit needs, and picks the viewer by
+// the type of the hit: a tool call shows input and output, a message its
+// exchange, a session its first messages, a memory file its content under
+// the name of its project.
+func loadViewer(ctx context.Context, ld Loader, hit store.Hit, project string) (viewer.Viewer, error) {
+	switch {
+	case hit.Event != nil:
+		return loadEvent(ctx, ld, hit.Event.Event)
+	case hit.Session != nil:
+		events, err := ld.Events(ctx, hit.Session.ID, false)
+		if err != nil {
+			return nil, err
+		}
+		return viewer.Session{Info: *hit.Session, First: events[:min(len(events), viewer.FirstMessages)]}, nil
+	case hit.Memory != nil:
+		v, content, err := ld.MemoryContent(ctx, hit.Memory.ProjectID, hit.Memory.Path, time.Time{})
+		if err != nil {
+			return nil, err
+		}
+		return viewer.Memory{Path: hit.Memory.Path, Project: project, Harness: hit.Memory.Harness, Changed: v.TS, Content: content}, nil
+	}
+	return nil, errors.New("no viewer for this hit")
+}
+
+// memoryProject names the project of a memory hit without a catalog: the
+// base name of its raw key, else the harness's native key.
+func memoryProject(h store.Hit) string {
+	if h.Project.Key != "" {
+		return h.Project.Key
+	}
+	return h.Memory.ProjectKey
+}
+
+// loadEvent reads the session of an event hit and picks the viewer: the
+// exchange around a message, call and output of a tool event.
+func loadEvent(ctx context.Context, ld Loader, e model.Event) (viewer.Viewer, error) {
+	s, err := ld.FindSession(ctx, e.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	var events []model.Event
+	if e.Kind == model.KindMessage {
+		if events, err = ld.Events(ctx, s.ID, false); err != nil {
+			return nil, err
+		}
+	}
+	i := indexOf(events, e.ID)
+	if i < 0 {
+		// Not among the messages, so probably a tool event: take the
+		// full transcript.
+		if events, err = ld.Events(ctx, s.ID, true); err != nil {
+			return nil, err
+		}
+		if i = indexOf(events, e.ID); i < 0 {
+			return nil, errors.New("event not found")
+		}
+	}
+	if k := events[i].Kind; k == model.KindToolUse || k == model.KindToolResult {
+		use, result := viewer.PairTool(events, i)
+		return viewer.Tool{Session: s, Use: use, Result: result, HitResult: k == model.KindToolResult}, nil
+	}
+	start, end := window(events, e.ID)
+	return viewer.Exchange{Session: s, Events: events[start : end+1], Hit: i - start}, nil
 }
 
 // previewResult applies a load result.
@@ -163,12 +213,12 @@ func (m Model) previewResult(msg previewMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	p.loading, p.cancel = false, nil
-	if msg.eventID != p.eventID {
+	if msg.key != p.key {
 		// A new hit starts at the automatic position; the same hit loaded
 		// again (reload) keeps the position set with the wheel.
 		p.scrolled, p.scroll = false, 0
 	}
-	p.eventID, p.session, p.events, p.hit, p.err = msg.eventID, msg.session, msg.events, msg.hit, msg.err
+	p.key, p.view, p.err = msg.key, msg.view, msg.err
 	return m, nil
 }
 
@@ -220,136 +270,63 @@ func indexOf(events []model.Event, id string) int {
 	return -1
 }
 
-// markText is appended to the separator of the hit, like in the detail view.
-const markText = " ◄"
-
-// minIDWidth is the narrowest the session ID is shown at in the head.
-const minIDWidth = 12
+// viewEnv is the environment the viewers render with.
+func (m Model) viewEnv() viewer.Env {
+	return viewer.Env{Theme: m.th, Location: m.opts.Location, Terms: terms(m.query, m.filters.raw)}
+}
 
 // previewView renders the right column for width w and rows lines: the
-// session head, a rule, and the exchange around the marked hit with the
-// search terms highlighted and the hit's separator marked.
+// head of the viewer and as much of its body as fits, from the anchor (the
+// hit) unless the wheel has scrolled it.
 func (m Model) previewView(w, rows int) string {
 	p := m.preview
 	h := m.marked()
 	switch {
 	case h == nil || m.opts.Loader == nil || w <= 0:
 		return ""
-	case p.eventID != h.Event.ID:
+	case p.key != hitKey(*h):
 		return " " + m.th.Muted.Render("loading…")
 	case p.err != nil:
 		return " " + m.th.Error.Render(ansi.Truncate("error: "+p.err.Error(), max(w-1, 0), "…"))
 	}
-	head, body, hitLine := m.previewLines(w)
-	if avail := rows - len(head); len(body) > avail && avail > 0 {
-		off, limit := previewOffset(hitLine, len(body), avail)
+	c := p.view.Render(m.viewEnv(), w)
+	if avail := rows - len(c.Head); len(c.Body) > avail && avail > 0 {
+		off, limit := previewOffset(c.Anchor, len(c.Body), avail)
 		if p.scrolled {
 			off = min(p.scroll, limit)
 		}
-		body = body[off:]
+		c.Body = c.Body[off:]
 	}
-	return strings.Join(append(head, body...), "\n")
-}
-
-// previewLines renders the preview for width w as the head lines and the
-// lines of the exchange; hitLine is the index of the hit's separator within
-// the body.
-func (m Model) previewLines(w int) (head, body []string, hitLine int) {
-	p := m.preview
-	head = m.previewHead(w)
-	ms := terms(m.query, m.filters.raw)
-	for i, e := range p.events {
-		if i == p.hit {
-			hitLine = len(body)
-		}
-		body = append(body, m.previewEvent(e, i == p.hit, ms, w)...)
-		if i < len(p.events)-1 {
-			body = append(body, "")
-		}
-	}
-	return head, body, hitLine
+	return strings.Join(append(c.Head, c.Body...), "\n")
 }
 
 // previewOffset returns the automatic first line of a body of n lines in
-// avail rows, which keeps the hit at hitLine in the upper part of the
-// column, and the largest offset that still fills the column.
-func previewOffset(hitLine, n, avail int) (off, limit int) {
+// avail rows, which keeps the anchor line in the upper part of the
+// column, and the largest offset that still fills the column. Without an
+// anchor (< 0) the body starts at the top.
+func previewOffset(anchor, n, avail int) (off, limit int) {
 	limit = max(n-avail, 0)
-	return min(max(hitLine-avail/3, 0), limit), limit
+	return min(max(anchor-avail/3, 0), limit), limit
 }
 
 // scrollPreview moves the preview by delta lines from where it is shown,
-// within the exchange; the first line never leaves the column.
+// within the body; the first line never leaves the column.
 func (m *Model) scrollPreview(delta int) {
 	p := &m.preview
 	h := m.marked()
-	if h == nil || p.eventID != h.Event.ID || p.err != nil {
+	if h == nil || p.key != hitKey(*h) || p.err != nil || p.view == nil {
 		return
 	}
 	_, w := m.columns()
 	rows := max(m.height-chromeRows, 0)
-	head, body, hitLine := m.previewLines(w)
-	avail := rows - len(head)
-	if avail <= 0 || len(body) <= avail {
+	c := p.view.Render(m.viewEnv(), w)
+	avail := rows - len(c.Head)
+	if avail <= 0 || len(c.Body) <= avail {
 		return
 	}
-	off, limit := previewOffset(hitLine, len(body), avail)
+	off, limit := previewOffset(c.Anchor, len(c.Body), avail)
 	if p.scrolled {
 		off = min(p.scroll, limit)
 	}
 	p.scrolled, p.scroll = true, min(max(off+delta, 0), limit)
-}
-
-// previewHead is the session head: the name in the title style, ID and
-// repo muted, time span and branch, then a rule.
-func (m Model) previewHead(w int) []string {
-	s := m.preview.session
-	name := s.DisplayName()
-	if name == "" {
-		name = "(untitled)"
-	}
-	cut := func(str string) string { return ansi.Truncate(str, max(w-1, 0), "…") }
-	// The repo wins over the ID, which is shortened to the room left.
-	second := s.ID
-	if r := session.ShortRepo(s.Repo()); r != "" {
-		room := w - 1 - ansi.StringWidth(r) - 2
-		second = ansi.Truncate(s.ID, max(room, minIDWidth), "…") + "  " + r
-	}
-	third := session.TimeSpan(s.StartedAt, s.EndedAt, m.opts.Location)
-	if s.GitBranch != "" {
-		third += "  " + s.GitBranch
-	}
-	return []string{
-		" " + m.th.Title.Render(cut(name)),
-		" " + m.th.Muted.Render(cut(second)),
-		" " + cut(third),
-		m.th.Rule.Render(strings.Repeat("─", w)),
-	}
-}
-
-// previewEvent renders one event: its separator (time muted, the actor in
-// its colour, the hit marked) and the text wrapped to w with the terms
-// highlighted.
-func (m Model) previewEvent(e model.Event, hit bool, ts []string, w int) []string {
-	sep := session.Separator(m.th, e.TS.In(m.opts.Location).Format("15:04"), e, w)
-	if hit {
-		sep += m.th.Mark.Render(markText)
-	}
-	out := []string{sep}
-	text := strings.ReplaceAll(strings.TrimRight(e.Text, "\n"), "\t", "    ")
-	text = strings.ReplaceAll(text, "\r", "")
-	if text == "" {
-		return out
-	}
-	lines := strings.Split(ansi.Wrap(text, w, ""), "\n")
-	matches := session.Matches(lines, ts)
-	next := 0
-	for i, line := range lines {
-		start := next
-		for next < len(matches) && matches[next].Line == i {
-			next++
-		}
-		out = append(out, session.HighlightLine(line, matches[start:next], -1, session.LineStyles{Match: m.th.Match}))
-	}
-	return out
 }

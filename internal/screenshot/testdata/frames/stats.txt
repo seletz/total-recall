@@ -1,9 +1,9 @@
  total-recall                       updated 12:00:00                        1 search  [2 stats]  3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  period: [day] week month  by: [project] agent directory                                         2026-10-05 – 2026-11-01
- ▎2 344 events  ▎517 human  ▎1 827 agent  ▎154 sessions  ▎21/28 days active
+ ▎2 345 events  ▎517 human  ▎1 828 agent  ▎154 sessions  ▎21/28 days active
  events
- 187 ┤                            ███                                                             ▅▅▅
+ 187 ┤                            ███                                                             ▆▆▆
      │                            ███                                                             ███
      │▂▂▂                         ███                                                             ███
      │███                         ███ ▄▄▄                                                         ███
@@ -26,7 +26,7 @@
  ██ kompass  ██ wetterwarte  ██ fahrtenbuch  ██ /home/mara/notizen  ██ dotfiles
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  project                                                         sessions    session-days      human      agent    share
- kompass                                                               86              86        293      1 004     55 %
+ kompass                                                               86              86        293      1 005     55 %
  wetterwarte                                                           48              48        150        573     30 %
  fahrtenbuch                                                           12              12         42        167      8 %
  /home/mara/notizen                                                     5               5         22         60      3 %
