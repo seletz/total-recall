@@ -63,8 +63,8 @@ type Report struct {
 // and topic-<rank>, titles are dropped, agent names become "subagent".
 // Every event loses its text, raw JSON, tool name and source path; the
 // sources and dirs tables are emptied and the full-text index is rebuilt,
-// so it is empty too. Meta records and every blob (images, documents,
-// system prompts) are deleted.
+// so it is empty too. Meta records, project memory and every blob
+// (images, documents, system prompts, memory contents) are deleted.
 func Anonymize(ctx context.Context, src, dst string) (Report, error) {
 	if err := copyDB(ctx, src, dst); err != nil {
 		return Report{}, err
@@ -233,6 +233,10 @@ var scrubSQL = []string{
 	`INSERT INTO events_fts(events_fts) VALUES ('rebuild')`,
 	`DELETE FROM meta_blobs`,
 	`DELETE FROM session_meta`,
+	`DELETE FROM memory_fts`,
+	`DELETE FROM memory_versions`,
+	`DELETE FROM memory_files`,
+	`DELETE FROM memory_projects`,
 	`DELETE FROM event_blobs`,
 	`DELETE FROM blobs`,
 	`DELETE FROM sources`,

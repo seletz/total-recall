@@ -141,6 +141,7 @@ func newRoot(app *App) (*cobra.Command, *env) {
 		e.sessionsCmd(),
 		e.showCmd(),
 		e.blobCmd(),
+		e.memoryCmd(),
 		e.searchCmd(),
 		e.statsCmd(),
 		e.chartCmd(),

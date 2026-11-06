@@ -16,7 +16,8 @@ import (
 // "scanned 3 files: 1 changed, 2 unchanged, 0 locked; 12 new events, 4
 // meta records, 2 attachments (1.3 MiB), 1 sessions touched (0.2s)";
 // rewriteRaw adds the rows whose raw line was replaced ("240 events and 75
-// meta records raw rewritten"), attachments appear when some were stored.
+// meta records raw rewritten"), attachments appear when some were stored,
+// memory when the project memory changed.
 func FormatIngest(s ingest.Summary, rewriteRaw bool) string {
 	rewritten := ""
 	if rewriteRaw {
@@ -26,8 +27,12 @@ func FormatIngest(s ingest.Summary, rewriteRaw bool) string {
 	if s.Blobs > 0 {
 		blobs = fmt.Sprintf(", %d attachments (%.1f MiB)", s.Blobs, float64(s.BlobBytes)/(1<<20))
 	}
-	return fmt.Sprintf("scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d meta records%s%s, %d sessions touched (%s)",
-		s.Scanned, s.Changed, s.Unchanged, s.Locked, s.Events, s.Meta, rewritten, blobs, s.Sessions, s.Duration.Round(time.Millisecond))
+	memory := ""
+	if s.MemoryVersions > 0 || s.MemoryDeleted > 0 {
+		memory = fmt.Sprintf(", memory: %d new versions, %d deleted", s.MemoryVersions, s.MemoryDeleted)
+	}
+	return fmt.Sprintf("scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d meta records%s%s, %d sessions touched%s (%s)",
+		s.Scanned, s.Changed, s.Unchanged, s.Locked, s.Events, s.Meta, rewritten, blobs, s.Sessions, memory, s.Duration.Round(time.Millisecond))
 }
 
 // FormatReclassify renders one summary line, e.g.

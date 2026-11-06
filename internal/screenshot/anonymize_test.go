@@ -21,6 +21,11 @@ var originals = []string{"alpha", "beta", "gamma", "example.test", "feature", "B
 func anonymized(t *testing.T) (Report, *sql.DB, string) {
 	t.Helper()
 	src, srcPath := fixturedb.Activity(t)
+	// Project memory holds personal notes: the copy must not keep any.
+	if _, err := src.WriteMemory(context.Background(), store.MemoryUpdate{Harness: "claude", Key: "-w-alpha", Cwd: "/w/alpha",
+		Changes: []store.MemoryChange{{Path: "notes.md", Content: []byte("Beta release notes for alpha")}}}); err != nil {
+		t.Fatal(err)
+	}
 	if err := src.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -90,12 +95,17 @@ func TestAnonymizeRemovesOriginals(t *testing.T) {
 		"SELECT count(*) FROM sources",
 		"SELECT count(*) FROM dirs",
 		`SELECT count(*) FROM events_fts WHERE events_fts MATCH '"release"'`,
-		// Attachments, system prompts and meta records hold content the
-		// text scan cannot see (compressed BLOBs): nothing of them stays.
+		// Attachments, system prompts, meta records and project memory
+		// hold content the text scan cannot see (compressed BLOBs):
+		// nothing of them stays.
 		"SELECT count(*) FROM blobs",
 		"SELECT count(*) FROM event_blobs",
 		"SELECT count(*) FROM meta_blobs",
 		"SELECT count(*) FROM session_meta",
+		"SELECT count(*) FROM memory_projects",
+		"SELECT count(*) FROM memory_files",
+		"SELECT count(*) FROM memory_versions",
+		"SELECT count(*) FROM memory_fts",
 	} {
 		if n := count(t, db, q); n != 0 {
 			t.Errorf("%s = %d, want 0", q, n)

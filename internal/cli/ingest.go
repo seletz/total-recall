@@ -40,10 +40,12 @@ func (e *env) ingestCmd() *cobra.Command {
 		Long: `Read transcripts into the archive. Only new, complete lines are read.
 
   ingest PATH...           ingest the given transcript files
-  ingest --all             ingest every source of every enabled harness
+  ingest --all             ingest every source of every enabled harness and
+                           its project memory (ingest.store_memory)
   ingest --hook            read a hook JSON payload from stdin and ingest its
-                           transcript; on SessionStart also --all. Exit code is
-                           always 0, errors go to the log file.
+                           transcript and the project memory; on SessionStart
+                           also --all. Exit code is always 0, errors go to the
+                           log file.
   ingest --regit           re-resolve git root and remote URL for the working
                            directory of every session (bypassing the cache)
                            and update the sessions; combinable with --all
@@ -181,6 +183,9 @@ func addSummary(a, b ingest.Summary) ingest.Summary {
 	a.RawRewritten += b.RawRewritten
 	a.MetaRewritten += b.MetaRewritten
 	a.Meta += b.Meta
+	a.MemoryRead += b.MemoryRead
+	a.MemoryVersions += b.MemoryVersions
+	a.MemoryDeleted += b.MemoryDeleted
 	a.Blobs += b.Blobs
 	a.BlobBytes += b.BlobBytes
 	a.Sessions += b.Sessions
@@ -295,8 +300,12 @@ func (e *env) runHook(ctx context.Context, detach bool, payloadFile string) erro
 	if len(paths) > 0 {
 		report(ingest.Run(ctx, d, paths))
 	}
-	if sessionStart {
-		report(ingest.All(ctx, d))
+	switch {
+	case sessionStart:
+		report(ingest.All(ctx, d)) // includes the memory
+	case d.StoreMemory:
+		// The agent may have changed its memory during the turn.
+		report(ingest.Memory(ctx, d))
 	}
 	return nil
 }

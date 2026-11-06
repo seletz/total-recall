@@ -50,6 +50,7 @@ func Deps(cfg *config.Config, st *store.Store, log *logfile.Logger) (ingest.Deps
 		StoreRaw:    cfg.Ingest.StoreRaw,
 		RawMaxBytes: cfg.Ingest.RawMaxBytes,
 		StoreBlobs:  cfg.Ingest.StoreBlobs,
+		StoreMemory: cfg.Ingest.StoreMemory,
 		ResolveGit:  cfg.Git.Resolve,
 		LockDir:     LockDir(cfg),
 		Logf:        func(f string, a ...any) { log.Infof(f, a...) },

@@ -203,6 +203,10 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM session_meta": 0,
 				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'session_meta_session'": 1,
 				"SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'meta_blobs'":           1,
+				// Migration 8: the memory tables exist, empty, with their indexes.
+				"SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('memory_projects', 'memory_files', 'memory_versions', 'memory_fts')": 4,
+				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name IN ('memory_versions_file', 'memory_versions_sha256')":                   2,
+				"SELECT count(*) FROM memory_versions": 0,
 			}
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
@@ -256,6 +260,18 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			}
 			if n := countRows(t, s, "SELECT count(*) FROM session_meta m JOIN sources src ON src.id = m.source_id WHERE m.type = 'pr-link' AND raw_text(m.raw) LIKE '%prNumber%' AND src.path = '/p/a.jsonl'"); n != 1 {
 				t.Errorf("meta rows after migration = %d", n)
+			}
+			// Migration 8: memory is written, versioned and searchable on the
+			// migrated archive; its content shares the blobs table.
+			if _, err := s.WriteMemory(ctx, MemoryUpdate{Harness: "claude", Key: "-w", Cwd: "/w", Changes: []MemoryChange{
+				{Path: "MEMORY.md", Content: []byte("migration memory"), MTime: ts("2026-10-01T12:00:00Z")}}}); err != nil {
+				t.Fatalf("memory after migration: %v", err)
+			}
+			if hits, err := s.SearchMemory(ctx, "migration", MemorySearchOptions{}); err != nil || len(hits) != 1 {
+				t.Errorf("memory search after migration = %+v, %v", hits, err)
+			}
+			if ps, err := s.MemoryProjects(ctx); err != nil || len(ps) != 1 || ps[0].GitRoot != "/w" {
+				t.Errorf("memory projects after migration = %+v, %v", ps, err)
 			}
 			// Migration 5 reports its progress per batch and at the end
 			// (later migrations only report their start).

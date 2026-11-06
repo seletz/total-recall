@@ -21,13 +21,13 @@
   raw_max_bytes          0                                                                                       file
   store_raw              true                                                                                    file
   store_blobs            true                                                                                    file
+  store_memory           true                                                                                    file
   [harness.claude]
   enabled                true                                                                                    file
   projects_dir           ~/.claude/projects                                                                      default
   skip_record_types      []                                                                                      file
   [harness.claude.actors]
   peer_prefixes          []                                                                                      file
-  peer_paste_headers     []                                                                                      file
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  backup.dir  Directory of the backups (archive-YYYY-MM-DD.db.zst)
  default: ~/Documents/total-recall · change: used by the next command or action

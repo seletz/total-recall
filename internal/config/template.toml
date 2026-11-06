@@ -56,6 +56,9 @@ raw_max_bytes = 0
 # (`total-recall blob`). They cannot be redacted; false keeps only a
 # reference in raw.
 store_blobs = true
+# Archive the project memory of the harness (Claude Code: the memory/*.md
+# files of every project), versioned and redacted (`total-recall memory`).
+store_memory = true
 
 [harness.claude]
 enabled = true

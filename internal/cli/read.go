@@ -57,8 +57,18 @@ type StatusJSON struct {
 	BlobStoredBytes int64 `json:"blob_stored_bytes"`
 	// MetaRows is the number of stored meta records (table session_meta),
 	// MetaBytes their compressed size.
-	MetaRows          int64             `json:"meta_rows"`
-	MetaBytes         int64             `json:"meta_bytes"`
+	MetaRows  int64 `json:"meta_rows"`
+	MetaBytes int64 `json:"meta_bytes"`
+	// MemoryProjects counts the projects with archived memory,
+	// MemoryFiles their existing files, MemoryDeleted the deleted ones,
+	// MemoryVersions all versions; MemoryBytes is the size of the distinct
+	// contents, MemoryStoredBytes their compressed size (part of the blobs).
+	MemoryProjects    int64             `json:"memory_projects"`
+	MemoryFiles       int64             `json:"memory_files"`
+	MemoryDeleted     int64             `json:"memory_deleted"`
+	MemoryVersions    int64             `json:"memory_versions"`
+	MemoryBytes       int64             `json:"memory_bytes"`
+	MemoryStoredBytes int64             `json:"memory_stored_bytes"`
 	LastIngest        map[string]string `json:"last_ingest"`
 	BackupDir         string            `json:"backup_dir"`
 	LastBackup        NullString        `json:"last_backup"`
@@ -107,6 +117,20 @@ func metaCell(ms store.MetaStats, pending bool) string {
 		return "none"
 	}
 	return fmt.Sprintf("%.1f MiB in %d records", float64(ms.Bytes)/(1<<20), ms.Rows)
+}
+
+// memoryCell renders the memory line of status: files, projects,
+// versions and size; "unknown" while the archive still waits for its
+// migration.
+func memoryCell(ms store.MemoryStats, pending bool) string {
+	if pending {
+		return "unknown until the migration ran"
+	}
+	if ms.Projects == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d files in %d projects (%d deleted), %d versions, %s (%s stored)",
+		ms.Files, ms.Projects, ms.Deleted, ms.Versions, sizeLabel(ms.Bytes), sizeLabel(ms.StoredBytes))
 }
 
 // rawCell renders the raw line of status: compressed size, rows and ratio;
@@ -194,7 +218,11 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		var rs store.RawStats
 		var ms store.MetaStats
 		var bs store.BlobStats
+		var mem store.MemoryStats
 		if !st.MigrationPending() {
+			if mem, err = st.MemoryStats(ctx); err != nil {
+				return err
+			}
 			if rs, err = st.RawStats(ctx); err != nil {
 				return err
 			}
@@ -210,6 +238,8 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
 			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes, MetaRows: ms.Rows, MetaBytes: ms.Bytes,
+			MemoryProjects: mem.Projects, MemoryFiles: mem.Files, MemoryDeleted: mem.Deleted, MemoryVersions: mem.Versions,
+			MemoryBytes: mem.Bytes, MemoryStoredBytes: mem.StoredBytes,
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
 			if fi, err := os.Stat(cfg.DB + suffix); err == nil {
@@ -263,6 +293,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			{"raw", rawCell(rs, st.MigrationPending())},
 			{"blobs", blobCell(bs, st.MigrationPending())},
 			{"meta records", metaCell(ms, st.MigrationPending())},
+			{"memory", memoryCell(mem, st.MigrationPending())},
 		}
 		harnesses := make([]string, 0, len(s.LastIngest))
 		for h := range s.LastIngest {
