@@ -3,7 +3,6 @@ package store
 import (
 	"testing"
 	"time"
-
 )
 
 func TestTokenStats(t *testing.T) {

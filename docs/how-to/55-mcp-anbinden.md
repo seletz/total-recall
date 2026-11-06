@@ -42,12 +42,14 @@ Alle Tools sind schreibgeschützt und geben das JSON des gleichnamigen Befehls z
 
 | Tool | Befehl | Parameter (`*` = Pflicht) |
 |---|---|---|
-| `search` | [`search`](../reference/10-befehle.md#search) | `query*`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (Default 20, höchstens 200) |
+| `search` | [`search`](../reference/10-befehle.md#search) | `query*`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (Default 20, höchstens 200; je Typ) |
 | `sessions` | [`sessions`](../reference/10-befehle.md#sessions) | `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (Default 50, höchstens 500) |
 | `show` | [`show`](../reference/10-befehle.md#show) | `session*`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (Default 200, höchstens 1000) |
 | `stats` | [`stats`](../reference/10-befehle.md#stats) | `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | [`memory`](../reference/10-befehle.md#memory) | `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | [`status`](../reference/10-befehle.md#status) | keine |
+
+`type` ist wie `--type` ([`search`](../reference/10-befehle.md#search)): `event` (Default), `session` oder `memory`, als Array oder kommagetrennte Liste. Die Treffer kommen nach Typ gruppiert in der angegebenen Reihenfolge, **`limit` gilt je Typ**, und jeder Treffer hat das Feld `type`. `project` ist `--project`.
 
 Es gibt bewusst keine Tools zum Schreiben, Migrieren, Sichern oder für `sql`: Wer gruppieren, zählen oder verknüpfen will, nimmt dafür die CLI (`total-recall sql`). Der Skill (`total-recall llm --skill`) sagt dem Agenten, wann er welchen Weg nimmt.
 

@@ -12,7 +12,7 @@ import (
 // schema and a command-line flag (Flag, default the name with _ as -).
 type Param struct {
 	Name        string
-	Type        string // "string", "integer" or "boolean"
+	Type        string // "string", "integer", "boolean" or "list"
 	Description string
 	Required    bool
 	// Positional passes the value as an argument after "--" instead of a flag.
@@ -49,7 +49,15 @@ func (t Tool) descriptor() map[string]any {
 	required := []string{}
 	for _, p := range t.Params {
 		m := map[string]any{"type": p.Type, "description": p.Description}
-		if len(p.Enum) > 0 {
+		if p.Type == "list" {
+			// An array of strings, or one comma-separated string.
+			item := map[string]any{"type": "string"}
+			if len(p.Enum) > 0 {
+				item["enum"] = p.Enum
+			}
+			delete(m, "type")
+			m["anyOf"] = []any{map[string]any{"type": "array", "items": item}, map[string]any{"type": "string"}}
+		} else if len(p.Enum) > 0 {
 			m["enum"] = p.Enum
 		}
 		if p.Default != nil {
@@ -140,6 +148,24 @@ func (t Tool) argv(raw json.RawMessage) ([]string, error) {
 				positional = append(positional, s)
 			} else if s != "" {
 				argv = append(argv, "--"+flag+"="+s)
+			}
+		case "list":
+			var items []string
+			if err := json.Unmarshal(v, &items); err != nil {
+				var one string
+				if err := json.Unmarshal(v, &one); err != nil {
+					return nil, fmt.Errorf("argument %q must be an array of strings or a comma-separated string", p.Name)
+				}
+				items = strings.Split(one, ",")
+			}
+			for i, it := range items {
+				items[i] = strings.TrimSpace(it)
+				if len(p.Enum) > 0 && !slices.Contains(p.Enum, items[i]) {
+					return nil, fmt.Errorf("argument %q: %q is not one of %s", p.Name, items[i], strings.Join(p.Enum, ", "))
+				}
+			}
+			if len(items) > 0 {
+				argv = append(argv, "--"+flag+"="+strings.Join(items, ","))
 			}
 		case "integer":
 			var n int

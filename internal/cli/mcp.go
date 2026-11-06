@@ -28,7 +28,7 @@ var (
 
 func withLimit(def, max int, extra ...mcp.Param) []mcp.Param {
 	return append(extra, mcp.Param{Name: "limit", Type: "integer", Max: max, Default: def,
-		Description: fmt.Sprintf("maximum number of results (default %d, at most %d)", def, max)})
+		Description: fmt.Sprintf("maximum number of results (default %d, at most %d); for search per type", def, max)})
 }
 
 // mcpTools is the stable tool interface of `total-recall mcp`: each tool is
@@ -39,10 +39,12 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "search", Title: "Search the archive", Command: []string{"search"}, FixedFlags: []string{"--json"},
 			Description: "Full-text search over the text of past agent sessions. Every word must occur (words are quoted); with raw=true the query is FTS5 syntax (AND, OR, NOT, \"phrase\", prefix*). " +
-				"by_session=true returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`.",
+				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`.",
 			Defaults: map[string]int{"limit": 20},
 			Params: withLimit(20, 200,
 				mcp.Param{Name: "query", Type: "string", Required: true, Positional: true, Description: "words to search for"},
+				mcp.Param{Name: "type", Type: "list", Enum: []string{"event", "session", "memory"}, Description: "what to search: event (default; the text of the conversation), session (names and titles), memory (the project memory files); an array or a comma-separated list. Hits come grouped by type in the order given and limit counts per type; each hit has a type field"},
+				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
 				mcp.Param{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool"}, Description: "only events of this actor; human = what the user said"},
 				mcp.Param{Name: "session", Type: "string", Description: "only this session (full id, native id or unique prefix)"},
 				pSince, pUntil, pRepo,

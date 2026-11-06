@@ -236,8 +236,8 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				// Migration 9: the cache columns are filled from raw where it
 				// has a usage, tokens_in is untouched, the rest stays NULL.
 				"SELECT count(*) FROM events WHERE id = 'claude:e2' AND tokens_in = 100 AND tokens_cache_read IS " + wantCache("70") + " AND tokens_cache_write IS " + wantCache("20"): 1,
-				"SELECT count(*) FROM events WHERE id IN ('claude:e3', 'other:x1', 'claude:e1') AND tokens_cache_read IS NULL AND tokens_cache_write IS NULL": 3,
-				"SELECT count(*) FROM events WHERE id = 'claude:e3' AND tokens_in = 5":                                                                     1,
+				"SELECT count(*) FROM events WHERE id IN ('claude:e3', 'other:x1', 'claude:e1') AND tokens_cache_read IS NULL AND tokens_cache_write IS NULL":                          3,
+				"SELECT count(*) FROM events WHERE id = 'claude:e3' AND tokens_in = 5":                                                                                                 1,
 			}
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {

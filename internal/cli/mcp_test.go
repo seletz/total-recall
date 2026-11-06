@@ -99,6 +99,8 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 	}{
 		{"search", "search", map[string]any{"query": "docs", "limit": 3}, []string{"search", "docs", "--limit=3"}},
 		{"search by session", "search", map[string]any{"query": "docs", "by_session": true, "actor": "human"}, []string{"search", "docs", "--by-session", "--actor=human", "--limit=20"}},
+		{"search types array", "search", map[string]any{"query": "docs", "type": []string{"event", "session", "memory"}, "limit": 2}, []string{"search", "docs", "--type=event,session,memory", "--limit=2"}},
+		{"search types string and project", "search", map[string]any{"query": "docs", "type": "session", "project": "kompass"}, []string{"search", "docs", "--type=session", "--project=kompass", "--limit=20"}},
 		{"sessions", "sessions", map[string]any{"limit": 5}, []string{"sessions", "--limit=5"}},
 		{"show", "show", map[string]any{"session": id, "limit": 3}, []string{"show", id, "--limit=3"}},
 		{"stats", "stats", map[string]any{"since": "2026-01-01", "until": "2026-12-31", "workday": true}, []string{"stats", "--since=2026-01-01", "--until=2026-12-31", "--workday"}},
@@ -145,6 +147,8 @@ func TestMCPErrors(t *testing.T) {
 		{"unknown session", "show", map[string]any{"session": "claude:nope-nope"}, "not_found"},
 		{"bad time", "sessions", map[string]any{"since": "yesterday-ish"}, "usage"},
 		{"bad fts", "search", map[string]any{"query": "AND AND (", "raw": true}, "sql"},
+		{"bad type", "search", map[string]any{"query": "x", "type": []string{"attachment"}}, "usage"},
+		{"type needs by_session event", "search", map[string]any{"query": "x", "type": "session", "by_session": true}, "usage"},
 		{"missing query", "search", map[string]any{}, "usage"},
 		{"flag injection", "search", map[string]any{"query": "x", "db": "/etc/passwd"}, "usage"},
 		{"limit too large", "search", map[string]any{"query": "x", "limit": 100000}, "usage"},

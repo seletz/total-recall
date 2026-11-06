@@ -19,6 +19,7 @@ func testServer(run Runner) *Server {
 				{Name: "actor", Type: "string", Enum: []string{"human", "agent"}},
 				{Name: "limit", Type: "integer", Max: 50},
 				{Name: "by_session", Type: "boolean"},
+				{Name: "type", Type: "list", Enum: []string{"event", "session"}},
 			},
 			Defaults: map[string]int{"limit": 20},
 		}, {
@@ -156,6 +157,29 @@ func TestToolCallArgv(t *testing.T) {
 	c := res["content"].([]any)
 	if len(c) != 1 || c[0].(map[string]any)["text"] != "[]" || c[0].(map[string]any)["type"] != "text" {
 		t.Errorf("content = %v", c)
+	}
+}
+
+func TestListParam(t *testing.T) {
+	var got []string
+	s := testServer(func(_ context.Context, argv []string) (string, bool) { got = argv; return "[]", false })
+	for args, want := range map[string]string{
+		`{"query":"q","type":["event","session"]}`: "--type=event,session",
+		`{"query":"q","type":"session, event"}`:    "--type=session,event",
+	} {
+		rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":`+args+`}}`)
+		if !strings.Contains(strings.Join(got, " "), want) {
+			t.Errorf("%s: argv %v lacks %s", args, got, want)
+		}
+	}
+	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"q","type":["memory"]}}}`)
+	if m["result"].(map[string]any)["isError"] != true {
+		t.Errorf("enum not checked: %v", m)
+	}
+	list := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)["result"].(map[string]any)["tools"].([]any)
+	typ := list[0].(map[string]any)["inputSchema"].(map[string]any)["properties"].(map[string]any)["type"].(map[string]any)
+	if typ["anyOf"] == nil || typ["type"] != nil {
+		t.Errorf("schema of a list = %v", typ)
 	}
 }
 

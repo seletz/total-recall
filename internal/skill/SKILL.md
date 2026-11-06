@@ -105,14 +105,14 @@ LIMIT 50"
 
 | Tool | Arguments (`*` = required) |
 | --- | --- |
-| `search` | `query*`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (default 20, at most 200) |
+| `search` | `query*`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (default 20, at most 200; per type) |
 | `sessions` | `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (default 50, at most 500) |
 | `show` | `session*`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (default 200, at most 1000) |
 | `stats` | `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | none |
 
-The arguments are the flags of the command (`by_session` is `--by-session`). The tool names and arguments are stable like the commands: they only grow within a major version.
+The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version.
 
 - **Bounded output.** The first content item of a result is always exactly the CLI output. A list or the `events` of `show` that exceeds 64 KiB is cut after whole items and is still valid JSON; then a second text content item says so: `{"truncated":true,"next":{"offset":N},"hint":"..."}`. `next` is present where the tool has `offset` (`show`: call again with that `offset`); otherwise narrow the query (`since`, `until`, a smaller `limit`). The cut has no effect on the data, only on how much you see.
 - **Errors.** A failed call has `isError` set and the CLI's error object as text, `{"error":{"kind":"usage","message":"..."}}`, with the same `kind` values. A `db` error or a message with *migrate* means the archive is missing or has an older schema: tell the user to run `total-recall migrate`; call `status` to see the schema version. The server opens the archive anew on every call, so it keeps working after `maintenance` or `migrate` replaced the file.
