@@ -105,7 +105,7 @@ func (m *Model) follow() tea.Cmd {
 		return nil
 	}
 	seq := p.seq
-	return tea.Tick(PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
+	return tea.Tick(m.opts.PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
 }
 
 // refreshPreview loads the marked hit again without moving the exchange:
@@ -119,7 +119,7 @@ func (m *Model) refreshPreview() tea.Cmd {
 		return nil
 	}
 	seq := p.seq
-	return tea.Tick(PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
+	return tea.Tick(m.opts.PreviewDebounce, func(time.Time) tea.Msg { return previewTickMsg{seq: seq} })
 }
 
 // loadPreview starts loading the viewer of the marked hit.

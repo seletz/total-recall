@@ -68,6 +68,9 @@ type Options struct {
 	Location *time.Location
 	// Debounce is the pause before a search starts; 0 means DefaultDebounce.
 	Debounce time.Duration
+	// PreviewDebounce is the pause before the marked hit is loaded for the
+	// preview; 0 means the PreviewDebounce constant.
+	PreviewDebounce time.Duration
 	// Keys are the effective key bindings; nil means the defaults.
 	Keys keys.Map
 }
@@ -81,6 +84,9 @@ func (o *Options) defaults() {
 	}
 	if o.Debounce <= 0 {
 		o.Debounce = DefaultDebounce
+	}
+	if o.PreviewDebounce <= 0 {
+		o.PreviewDebounce = PreviewDebounce
 	}
 }
 

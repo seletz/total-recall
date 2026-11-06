@@ -20,7 +20,7 @@ func demoModel(t *testing.T, query string) Model {
 	t.Helper()
 	st, _ := fixturedb.Demo(t)
 	m := New(Options{Searcher: st, Loader: st, Projects: st, Resolver: project.Resolver{}, Query: query,
-		Now: func() time.Time { return demo.Now }, Location: demo.Location, Debounce: time.Millisecond})
+		Now: func() time.Time { return demo.Now }, Location: demo.Location, Debounce: time.Nanosecond, PreviewDebounce: time.Nanosecond})
 	return start(t, m, tea.WindowSizeMsg{Width: 120, Height: 30})
 }
 
@@ -303,7 +303,7 @@ func TestProjectPicker(t *testing.T) {
 // error.
 func TestFiltersPerType(t *testing.T) {
 	f := &fakeSearcher{}
-	m := New(Options{Searcher: f, Now: tuitest.Clock, Debounce: time.Millisecond})
+	m := New(Options{Searcher: f, Now: tuitest.Clock, Debounce: time.Nanosecond, PreviewDebounce: time.Nanosecond})
 	m = start(t, m, tea.WindowSizeMsg{Width: 100, Height: 20}, tuitest.Key("x"), tuitest.Key("tab"),
 		tuitest.Key("s"), tuitest.Key("m"), tuitest.Key("a"), tuitest.Key("a"), tuitest.Key("ctrl+r"))
 	byType := map[store.HitType]store.TypedQuery{}
