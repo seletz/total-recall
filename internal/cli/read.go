@@ -55,6 +55,11 @@ type StatusJSON struct {
 	Blobs           int64 `json:"blobs"`
 	BlobBytes       int64 `json:"blob_bytes"`
 	BlobStoredBytes int64 `json:"blob_stored_bytes"`
+	// BlobKinds splits the blobs: "attachments" (images and documents of
+	// events), "json" (system prompts and tool definitions of meta
+	// records), "files" (other data of meta records: backup copies of
+	// edited files).
+	BlobKinds map[string]BlobKindJSON `json:"blob_kinds"`
 	// MetaRows is the number of stored meta records (table session_meta),
 	// MetaBytes their compressed size.
 	MetaRows          int64             `json:"meta_rows"`
@@ -132,8 +137,21 @@ func rawCell(rs store.RawStats, pending bool) string {
 	return cell
 }
 
+// BlobKindJSON is one kind of blob in status --json.
+type BlobKindJSON struct {
+	Count       int64 `json:"count"`
+	Bytes       int64 `json:"bytes"`
+	StoredBytes int64 `json:"stored_bytes"`
+}
+
+func blobKinds(bs store.BlobStats) map[string]BlobKindJSON {
+	k := func(b store.BlobKind) BlobKindJSON { return BlobKindJSON{b.Count, b.Bytes, b.StoredBytes} }
+	return map[string]BlobKindJSON{"attachments": k(bs.Attachments), "json": k(bs.JSON), "files": k(bs.Files)}
+}
+
 // blobCell renders the blobs line of status: count and size of the
-// attachments; "unknown" while the archive still waits for its migration.
+// blobs, split by kind when there is more than the attachments of
+// events; "unknown" while the archive still waits for its migration.
 func blobCell(bs store.BlobStats, pending bool) string {
 	if pending {
 		return "unknown until the migration ran"
@@ -141,7 +159,19 @@ func blobCell(bs store.BlobStats, pending bool) string {
 	if bs.Count == 0 {
 		return "none"
 	}
-	return fmt.Sprintf("%d attachments, %s (%s stored)", bs.Count, sizeLabel(bs.Bytes), sizeLabel(bs.StoredBytes))
+	if bs.JSON.Count == 0 && bs.Files.Count == 0 {
+		return fmt.Sprintf("%d attachments, %s (%s stored)", bs.Count, sizeLabel(bs.Bytes), sizeLabel(bs.StoredBytes))
+	}
+	var parts []string
+	for _, k := range []struct {
+		name string
+		b    store.BlobKind
+	}{{"attachments", bs.Attachments}, {"JSON values", bs.JSON}, {"files", bs.Files}} {
+		if k.b.Count > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s %s", k.b.Count, k.name, sizeLabel(k.b.StoredBytes)))
+		}
+	}
+	return fmt.Sprintf("%d blobs, %s (%s stored): %s", bs.Count, sizeLabel(bs.Bytes), sizeLabel(bs.StoredBytes), strings.Join(parts, ", "))
 }
 
 // statusErrorWindow is the age up to which status lists log errors. A
@@ -209,7 +239,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
-			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes, MetaRows: ms.Rows, MetaBytes: ms.Bytes,
+			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes, BlobKinds: blobKinds(bs), MetaRows: ms.Rows, MetaBytes: ms.Bytes,
 			BackupDir: cfg.Backup.Dir, Log: cfg.LogPath(), RecentErrors: []StatusError{}}
 		for _, suffix := range []string{"", "-wal"} {
 			if fi, err := os.Stat(cfg.DB + suffix); err == nil {

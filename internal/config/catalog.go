@@ -67,6 +67,7 @@ var Catalog = []Key{
 	{"ingest.raw_max_bytes", KindInt, nil, "Longer raw lines are not kept (raw = NULL, raw_truncated = 1); 0 = no limit (default)"},
 	{"ingest.store_raw", KindBool, nil, "Keep the (redacted) original JSON line of every event"},
 	{"ingest.store_blobs", KindBool, nil, "Keep images and documents of the lines as blobs (once per hash); they cannot be redacted"},
+	{"ingest.store_file_history", KindBool, nil, "Keep the backup copies of edited files the harness writes (Claude Code: file-history) as blobs; text is redacted"},
 	{"harness.claude.enabled", KindBool, nil, "Read Claude Code transcripts"},
 	{"harness.claude.projects_dir", KindPath, nil, "Transcript directory; default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects"},
 	{"harness.claude.skip_record_types", KindList, nil, "Record types to skip in addition to the built-in exclusions; attachment/<subtype> skips one attachment subtype"},
