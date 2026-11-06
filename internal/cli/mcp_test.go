@@ -15,6 +15,10 @@ import (
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
 
+// TestMain builds the demo archive once for the package (the MCP tests
+// share it); with TOTAL_RECALL_DEMO_DB set it uses the prebuilt one.
+func TestMain(m *testing.M) { os.Exit(fixturedb.DemoMain(m)) }
+
 // mcpSession drives `total-recall mcp` over its stdio in-process.
 type mcpSession struct {
 	t    *testing.T
