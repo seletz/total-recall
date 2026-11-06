@@ -53,7 +53,7 @@ func TestRenderAll(t *testing.T) {
 	latest := store.LatestSchemaVersion()
 	markers := map[string][]string{
 		"search":                  {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
-		"search-types":            {"[1 search]", "─ [event] [session] [memory] ", "project: all", " event  12", " session  0", " memory  1", "release-process.md", "event 12, session 0, memory 1"},
+		"search-types":            {"[1 search]", "─ [event] [session] [memory] ", "project: all", " event  10", " session  0", " memory  1", "release-process.md", "event 10, session 0, memory 1"},
 		"search-memory":           {"─ event session [memory] ", "kompass  release-process.md", "kompass  claude", "A release is a signed tag on main.", "1. Update the changelog", "1 hit (0 ms)"},
 		"search-tool":             {"> cask generated", "tool_use Bash", "brew info --cask --json=v2 mara/tap/kompass", "tool (tool_result) ◄", `  "casks": [`, `"token": "kompass"`},
 		"search-pin":              {"project: kompass ✕", "─ [event] [session] [memory] ", "◄", "event 195, session 22, memory 1"},

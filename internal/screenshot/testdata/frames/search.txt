@@ -8,29 +8,29 @@
   Richte den Homebrew-Tap ein, damit goreleaser den Cask d…│────────────────────────────────────────────────────────────
  2026-10-28 09:05  CI pipeline                        agent│── 22:14  human ◄
   goreleaser needs HOMEBREW_TAP_GITHUB_TOKEN in the workfl…│Lade den Homebrew-Cask mit goreleaser in den Tap hoch.
- 2026-10-29 14:20  Cask im Tap prüfen                 human│
-  Prüf, ob der Cask im Tap angekommen ist und was goreleas…│── 22:16  agent
- 2026-10-28 09:02  CI pipeline                        human│goreleaser skips the cask upload when the tap token is
-  can we build the cask in goreleaser and push it to the t…│missing. I added a check that fails the release early
- 2026-10-15 11:12  Homebrew-Tap einrichten            agent│instead, so a missing HOMEBREW_TAP_GITHUB_TOKEN no longer
-  …goreleaser publishes the cask there; users install it w…│leaves a half-published release.
- 2026-10-12 15:45  Packaging                          agent│
-  …the binary to kompass and set the cask name. goreleaser…│
+ 2026-10-28 09:02  CI pipeline                        human│
+  can we build the cask in goreleaser and push it to the t…│── 22:16  agent
+ 2026-10-15 11:12  Homebrew-Tap einrichten            agent│goreleaser skips the cask upload when the tap token is
+  …goreleaser publishes the cask there; users install it w…│missing. I added a check that fails the release early
+ 2026-10-12 15:45  Packaging                          agent│instead, so a missing HOMEBREW_TAP_GITHUB_TOKEN no longer
+  …the binary to kompass and set the cask name. goreleaser…│leaves a half-published release.
  2026-10-22 17:34  Signierte Releases                 agent│
   Yes: goreleaser signs the checksums file with cosign aft…│
- 2026-10-29 14:23  Cask im Tap prüfen                 agent│
-  The cask is in the tap at version 0.2.1; goreleaser wrot…│
  2026-10-31 22:20  Release v0.3.0                     agent│
   …The release workflow is running; goreleaser builds the …│
  2026-10-31 22:16  Release v0.3.0                     agent│
   goreleaser skips the cask upload when the tap token is m…│
- 2026-10-29 14:20  Cask im Tap prüfen                  tool│
+ 2026-10-28 09:02  CI pipeline                         tool│
   …kompass_0.2.1_darwin_arm64.tar.gz","note":"cask generat…│
                                                            │
                                                            │
                                                            │
                                                            │
                                                            │
- 12 hits (0 ms)
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ 10 hits (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  tab list • enter open • ^r raw fts • ^c quit

@@ -153,7 +153,7 @@ func TestGroupedList(t *testing.T) {
 	if strings.Join(headers, ",") != "event,session,memory" {
 		t.Fatalf("headers = %v, want one per type", headers)
 	}
-	for _, want := range []string{" event  12", " session  0"} {
+	for _, want := range []string{" event  10", " session  0"} {
 		if !strings.Contains(f, want) {
 			t.Errorf("frame lacks %q:\n%s", want, f)
 		}
