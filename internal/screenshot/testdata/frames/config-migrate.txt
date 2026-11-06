@@ -12,11 +12,11 @@
   ingest all                read every transcript of every harness from the stored offset · migrate first
   doctor                    check the transcripts for format drift; reads only
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- migrate: migrate from schema v7 to v8 after a copy (archive.db.pre-v7.bak)
+ migrate: migrate from schema v8 to v9 after a copy (archive.db.pre-v8.bak)
  y confirms, esc cancels
-   schema    v7 -> v8, 1 pending migration:
-     v8    memory_projects, memory_files, memory_versions and memory_fts: the project memory of the harness (Claude Cod…
-   backup    ~/.local/share/total-recall/archive.db.pre-v7.bak
+   schema    v8 -> v9, 1 pending migration:
+     v9    events: tokens_cache_read and tokens_cache_write, the cached parts of tokens_in; fills them from raw (usage)…
+   backup    ~/.local/share/total-recall/archive.db.pre-v8.bak
    space     about 0.2 MiB free needed next to the database (copy and migration)
 
 

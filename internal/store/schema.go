@@ -348,7 +348,7 @@ var migrationNotes = []migrationNote{
 	{Summary: "memory_projects, memory_files, memory_versions and memory_fts: the project memory of the harness (Claude Code: memory/*.md per project), versioned and redacted; " +
 		"moves no data, the next `ingest --all` takes up the memory files as they are on disk"},
 	{Summary: "events: tokens_cache_read and tokens_cache_write, the cached parts of tokens_in; " +
-		"fills them from raw (usage) for the events that have it, about a minute per 100,000 events with usage; the rest stays NULL"},
+		"fills them from raw (usage) for the events that have it, a few seconds per 100,000 events with usage; the rest stays NULL"},
 }
 
 // migrationNote is the description of one migration.

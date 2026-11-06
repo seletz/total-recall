@@ -379,6 +379,21 @@ Die JSON-Ausgabe ist die Grundlage für `monthly_stats.py` im Vault:
 
 `by_weekday_hour` enthält immer alle 7 × 24 Zellen, `weekday` 0 ist Montag. `repo` ist die Remote-URL, sonst der Git-Root, sonst das Arbeitsverzeichnis.
 
+#### Token: `--tokens` { #stats-tokens }
+
+`tokens_in` eines Events ist die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen; die Preise dafür unterscheiden sich um den Faktor 10 bis 20. Seit Schema v9 ([#185](https://github.com/seletz/total-recall/issues/185)) stehen die Teile einzeln im Archiv ([Schema](40-schema.md#tabellen-und-views)). Die JSON-Ausgabe von `stats` hat sie immer, unter `tokens`; die Tabellen zeigen sie mit `--tokens`: nach den drei Tabellen eine Zeile `total` und eine je Tag, dann eine je Modell, mit den Spalten `INPUT`, `FRESH`, `CACHE WRITE`, `CACHE READ`, `UNSPLIT` und `OUTPUT` (kompakt: 1,2K, 3,4M, 5,6G). `--tokens` gehört zu den Tabellen und lässt sich nicht mit `--workday`, `--worktime`, `--period`, `--by` oder `--top` kombinieren.
+
+```json
+"tokens": {
+  "events": 88416, "input": 25331165720, "fresh": 1675644, "cache_read": 24497809921,
+  "cache_write": 542155856, "unsplit": 0, "output": 80000000,
+  "by_day": [{"day": "2026-10-01", "events": 310, "input": 90000000, "fresh": 5000, "cache_read": 88000000, "cache_write": 2000000, "unsplit": 0, "output": 300000}],
+  "by_model": [{"model": "claude-opus-5-5", "events": 4000, "input": 9700000000, "fresh": 76200, "cache_read": 9500000000, "cache_write": 100300000, "unsplit": 57300000, "output": 24100000}]
+}
+```
+
+`input` ist immer `fresh + cache_read + cache_write + unsplit`. `unsplit` ist die Eingabe von Events, deren Aufteilung unbekannt ist, weil ihre Rohzeile fehlt (zu groß für `ingest.raw_max_bytes`, oder vor v1.3.0 gekürzt); `ingest --all --reread --rewrite-raw` holt sie aus den Transkripten nach, soweit die noch da sind. `output` enthält die Thinking-Tokens des Modells. Die Zahlen gelten für alle Events mit Token-Angaben, nicht nur für menschliche und Agenten-Events wie die Aktivitäts-Tabellen; `by_day` rechnet in lokaler Zeit, `by_model` zeigt `null` für Events ohne Modell. Eine Kostenschätzung gibt es nicht: Preise ändern sich je Modell und Vertrag.
+
 ### Zeitreihe: `--period`, `--by`, `--top` { #stats-period }
 
 Mit `--period` oder `--by` liefert `stats` statt der drei Tabellen eine Zeitreihe: eine Zeile je Periode und, mit `--by`, je Projekt, Agent-Typ, Arbeitsverzeichnis oder Account. Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`; Periodengrenzen liegen in lokaler Zeit, Wochen sind ISO-Wochen ab Montag. Das ersetzt `monthly_stats.py` im Vault.

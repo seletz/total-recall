@@ -10,7 +10,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ### Was dieses Update mit dem Archiv macht
 
-Dieses Release bringt Schema **v8**, eine kurze Migration ohne Datenbewegung. Neu im Archiv ist das **Projekt-Gedächtnis** von Claude Code: die Markdown-Dateien, die der Agent je Projekt unter `~/.claude/projects/<projekt>/memory/` anlegt, ändert und löscht. Bisher standen sie nirgends im Archiv; wer wissen wollte, was der Agent sich zu einem Projekt gemerkt hatte, sah nur den Stand auf der Platte.
+Dieses Release bringt die Schemas **v8** und **v9**. v8 ist eine kurze Migration ohne Datenbewegung, v9 füllt neue Spalten aus den Rohzeilen (Sekunden, siehe unten). Neu im Archiv ist das **Projekt-Gedächtnis** von Claude Code: die Markdown-Dateien, die der Agent je Projekt unter `~/.claude/projects/<projekt>/memory/` anlegt, ändert und löscht. Bisher standen sie nirgends im Archiv; wer wissen wollte, was der Agent sich zu einem Projekt gemerkt hatte, sah nur den Stand auf der Platte.
 
 - **Was gespeichert wird:** jede Fassung jeder Gedächtnis-Datei, **maskiert** wie der Text der Events, als Blob einmal je Inhalt; eine Löschung als eigener Eintrag. Nichts davon ist ein Event: Suche, Statistik und Arbeitszeit bleiben, wie sie sind.
 - **Ab wann:** ab dem ersten `ingest --all` (oder Hook) nach der Migration. Frühere Stände gibt es nicht, auch nicht aus den Transkripten.
@@ -29,10 +29,21 @@ Die Inhalte liegen komprimiert mit 1,1 MiB in `blobs`, den Rest belegt der Vollt
 
 ```sh
 total-recall backup      # 1. sichern
-total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an
+total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an und füllt die Token-Spalten
 total-recall ingest --all  # 3. das Gedächtnis aufnehmen, wie es jetzt ist (sonst beim nächsten Hook)
 ```
 
+
+Außerdem **teilt das Archiv die Eingabe-Token auf** ([#185](https://github.com/seletz/total-recall/issues/185)): `events.tokens_in` war die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen, in einem echten Archiv zu 97 % Cache-Lesen, und taugte so nicht für Kostenabschätzungen. Neu sind die Spalten `tokens_cache_read` und `tokens_cache_write` (Schema v9). `tokens_in` bleibt die Summe, bestehende Zahlen ändern sich nicht. `migrate` füllt die Spalten aus `usage` in `raw`; Events ohne Rohzeile bleiben `NULL` (unbekannt). Neue Events bekommen sie beim Ingest. `stats --json` hat die Aufteilung immer (Feld `tokens`, nur ein neues Feld), `stats --tokens` zeigt sie in der Tabelle ([Befehlsreferenz](10-befehle.md#stats-tokens)). Thinking-Tokens sind in `output_tokens` enthalten und nicht einzeln gespeichert.
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Stand v7, 249 041 Events, 88 416 mit Token-Angaben):
+
+| | `migrate` (v8 und v9) | davon v9 |
+|---|---|---|
+| Dauer | 4,8 s | 3,9 s |
+| Datei | + 4 MB (786 MiB auf 790 MiB) | |
+
+87 539 der 88 416 Events hatten eine Rohzeile mit `usage` und sind aufgeteilt; 877 bleiben `NULL` und zählen in `stats` als `unsplit`. Von 25,3 G Eingabe-Token waren 24,5 G Cache-Lesen, 0,54 G Cache-Schreiben und 1,7 M frische Eingabe.
 
 Außerdem neu im Archiv sind die **Sicherungskopien bearbeiteter Dateien**: Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab, und es löscht sie zusammen mit den Transkripten. Der normale Ingest liest sie jetzt mit und legt sie einmal je Inhalt als Blob ab; Textdateien werden dabei maskiert, Binärdateien folgen `ingest.store_blobs` ([#183](https://github.com/seletz/total-recall/issues/183), [Datenschutz](../explanation/datenschutz.md)). Wer das nicht will, setzt `ingest.store_file_history = false`.
 
