@@ -204,7 +204,7 @@ func (s *Store) FindSession(ctx context.Context, ref string) (SessionInfo, error
 // the largest column, so loading it made show of a large session ten times
 // slower (#131). Paths that need raw query it themselves (UserMessages for
 // reindex --actors; backup copies the file).
-const eventCols = `e.id, e.session_id, e.ts, e.kind, e.role, e.actor, e.text, e.tool_name, e.model, e.tokens_in, e.tokens_out, src.path, e.source_offset`
+const eventCols = `e.id, e.session_id, e.ts, e.kind, e.role, e.actor, e.text, e.tool_name, e.model, e.tokens_in, e.tokens_out, e.tokens_cache_read, e.tokens_cache_write, src.path, e.source_offset`
 
 // eventFrom is the FROM clause eventCols read from: the source path lives
 // in sources since schema v5 (events.source_id).
@@ -213,14 +213,15 @@ const eventFrom = `events e LEFT JOIN sources src ON src.id = e.source_id`
 func scanEvent(sc scanner, extra ...any) (model.Event, error) {
 	var e model.Event
 	var ts, kind, role, actor, text, tool, mdl, sp sql.NullString
-	var tin, tout, so sql.NullInt64
-	dest := append([]any{&e.ID, &e.SessionID, &ts, &kind, &role, &actor, &text, &tool, &mdl, &tin, &tout, &sp, &so}, extra...)
+	var tin, tout, tcr, tcw, so sql.NullInt64
+	dest := append([]any{&e.ID, &e.SessionID, &ts, &kind, &role, &actor, &text, &tool, &mdl, &tin, &tout, &tcr, &tcw, &sp, &so}, extra...)
 	if err := sc.Scan(dest...); err != nil {
 		return e, err
 	}
 	e.TS = parseTime(ts)
 	e.Kind, e.Role, e.Actor, e.Text = model.Kind(kind.String), role.String, model.Actor(actor.String), text.String
 	e.ToolName, e.Model, e.TokensIn, e.TokensOut = tool.String, mdl.String, tin.Int64, tout.Int64
+	e.TokensCacheRead, e.TokensCacheWrite = tcr.Int64, tcw.Int64
 	e.SourcePath, e.SourceOffset = sp.String, so.Int64
 	return e, nil
 }

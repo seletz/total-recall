@@ -188,7 +188,9 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `text` | readable, redacted text; tool results truncated to 4 KiB |
 | `tool_name` | for `tool_use` |
 | `model` | model of the assistant message |
-| `tokens_in` | input tokens, NULL if unknown |
+| `tokens_in` | input tokens: fresh input plus cache writes plus cache reads, NULL if unknown |
+| `tokens_cache_read` | the cache-read part of `tokens_in`, NULL if unknown (events without usage, or archived without `raw`) |
+| `tokens_cache_write` | the cache-write part of `tokens_in`, NULL if unknown |
 | `tokens_out` | output tokens, NULL if unknown |
 | `source_id` | `sources.id` of the transcript file the line came from (`JOIN sources s ON s.id = e.source_id` for the path) |
 | `source_offset` | byte offset of the line in that file |
@@ -553,6 +555,7 @@ One object per memory file whose current content matches, best first.
 | `by_day` | per local day: `day`, `sessions`, `human`, `agent` |
 | `by_repo` | per repo: `repo`, `sessions`, `human`, `agent` |
 | `by_weekday_hour` | all 7x24 cells: `weekday` (0 = Monday), `day`, `hour`, `sessions`, `human`, `agent` |
+| `tokens` | token counts of the range: `events`, `input` (= `fresh` + `cache_read` + `cache_write` + `unsplit`), `output` (incl. thinking), and `by_day` / `by_model` with the same counts; `unsplit` is input of events archived without raw (split unknown). Cache reads cost a fraction of fresh input, so do not price `input` as one number |
 
 #### `stats --json --period`
 

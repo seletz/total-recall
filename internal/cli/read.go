@@ -921,6 +921,71 @@ type StatsJSON struct {
 		Hour    int    `json:"hour"`
 		ActivityJSON
 	} `json:"by_weekday_hour"`
+	// Tokens are the token counts of the events in the range; see TokensJSON.
+	Tokens TokensJSON `json:"tokens"`
+}
+
+// TokensJSON are summed token counts. Input is the whole input and equals
+// Fresh + CacheRead + CacheWrite + Unsplit; Unsplit is the input of events
+// whose split into cache and fresh input is unknown (archived without raw).
+// Output includes thinking tokens.
+type TokensJSON struct {
+	Events     int   `json:"events"`
+	Input      int64 `json:"input"`
+	Fresh      int64 `json:"fresh"`
+	CacheRead  int64 `json:"cache_read"`
+	CacheWrite int64 `json:"cache_write"`
+	Unsplit    int64 `json:"unsplit"`
+	Output     int64 `json:"output"`
+	ByDay      []struct {
+		Day string `json:"day"`
+		TokensCountsJSON
+	} `json:"by_day"`
+	ByModel []struct {
+		Model NullString `json:"model"`
+		TokensCountsJSON
+	} `json:"by_model"`
+}
+
+// TokensCountsJSON are the counts of TokensJSON without the breakdowns.
+type TokensCountsJSON struct {
+	Events     int   `json:"events"`
+	Input      int64 `json:"input"`
+	Fresh      int64 `json:"fresh"`
+	CacheRead  int64 `json:"cache_read"`
+	CacheWrite int64 `json:"cache_write"`
+	Unsplit    int64 `json:"unsplit"`
+	Output     int64 `json:"output"`
+}
+
+func tokenCounts(t store.Tokens) TokensCountsJSON {
+	return TokensCountsJSON{Events: t.Events, Input: t.Input, Fresh: t.Fresh, CacheRead: t.CacheRead, CacheWrite: t.CacheWrite, Unsplit: t.Unsplit, Output: t.Output}
+}
+
+func tokensJSON(ts store.TokenStats) TokensJSON {
+	c := tokenCounts(ts.Total)
+	out := TokensJSON{Events: c.Events, Input: c.Input, Fresh: c.Fresh, CacheRead: c.CacheRead, CacheWrite: c.CacheWrite, Unsplit: c.Unsplit, Output: c.Output}
+	out.ByDay = make([]struct {
+		Day string `json:"day"`
+		TokensCountsJSON
+	}, 0, len(ts.ByDay))
+	for _, d := range ts.ByDay {
+		out.ByDay = append(out.ByDay, struct {
+			Day string `json:"day"`
+			TokensCountsJSON
+		}{d.Day, tokenCounts(d.Tokens)})
+	}
+	out.ByModel = make([]struct {
+		Model NullString `json:"model"`
+		TokensCountsJSON
+	}, 0, len(ts.ByModel))
+	for _, m := range ts.ByModel {
+		out.ByModel = append(out.ByModel, struct {
+			Model NullString `json:"model"`
+			TokensCountsJSON
+		}{NullString(m.Model), tokenCounts(m.Tokens)})
+	}
+	return out
 }
 
 var weekdays = [7]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
@@ -929,8 +994,8 @@ func act(a store.Activity) ActivityJSON {
 	return ActivityJSON{Sessions: a.Sessions, Human: a.Human, Agent: a.Agent}
 }
 
-func statsJSON(s store.Stats, since, until time.Time, tz string) StatsJSON {
-	out := StatsJSON{Since: NullString(isoTime(since)), Until: NullString(isoTime(until)), Timezone: tz, Total: act(s.Total)}
+func statsJSON(s store.Stats, tk store.TokenStats, since, until time.Time, tz string) StatsJSON {
+	out := StatsJSON{Since: NullString(isoTime(since)), Until: NullString(isoTime(until)), Timezone: tz, Total: act(s.Total), Tokens: tokensJSON(tk)}
 	out.ByDay = make([]struct {
 		Day string `json:"day"`
 		ActivityJSON
@@ -968,7 +1033,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions, summary bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens bool
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -980,6 +1045,12 @@ period (day, week or month, local time) and, with --by, per project, agent
 type (main or subagent), working directory or account (named by [accounts]).
 --top N keeps the N largest keys over the whole range and folds the rest
 into "other".
+
+With --tokens the day/repo/hour tables are followed by the token counts of
+the range per day and per model: input split into fresh input, cache writes
+and cache reads (the prices differ by a factor of 10 to 20), and output. The
+JSON of the plain form always has them under "tokens". Events archived
+without their raw line have no split; their input shows as "unsplit".
 
 With --workday the output is the first and the last activity per day (for
 filling in forgotten clock-ins): one row per day with the local clock times
@@ -1020,6 +1091,9 @@ messages: the values are a lower bound.`,
 		series := period != "" || by != "" || cmd.Flags().Changed("top")
 		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
+		}
+		if tokens && (workday || worktime || series) {
+			return usagef("--tokens belongs to the plain stats tables: it cannot be combined with --workday, --worktime, --period, --by or --top")
 		}
 		if worktime {
 			return e.runWorktime(cmd, cfg, o, rng, month, sinceArg, untilArg, sessions, summary)
@@ -1096,10 +1170,20 @@ messages: the values are a lower bound.`,
 		if err != nil {
 			return err
 		}
-		if o.format.IsJSON() {
-			return o.object(statsJSON(s, since, until, cfg.Timezone))
+		tk, err := st.TokenStats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
+		if err != nil {
+			return err
 		}
-		return writeStatsTable(o.w, s, since, until, loc)
+		if o.format.IsJSON() {
+			return o.object(statsJSON(s, tk, since, until, cfg.Timezone))
+		}
+		if err := writeStatsTable(o.w, s, since, until, loc); err != nil {
+			return err
+		}
+		if tokens {
+			return writeTokensTable(o.w, tk)
+		}
+		return nil
 	})
 	c.Flags().StringVar(&month, "month", "", "month YYYY-MM (default: current month)")
 	c.Flags().StringVar(&sinceArg, "since", "", "from this time (instead of --month)")
@@ -1111,6 +1195,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
 	c.Flags().BoolVar(&summary, "summary", false, "with --worktime: issue/PR references and a booking text per day and category (JSON always has them)")
+	c.Flags().BoolVar(&tokens, "tokens", false, "append the token counts (fresh input, cache writes, cache reads, output) per day and model to the day/repo/hour tables (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
@@ -1339,4 +1424,47 @@ func (r orderedRow) MarshalJSON() ([]byte, error) {
 	}
 	b.WriteByte('}')
 	return []byte(b.String()), nil
+}
+
+// writeTokensTable prints the token counts per day and per model, with a
+// total line first. Counts are compact (1.2K, 3.4M, 5.6G).
+func writeTokensTable(w io.Writer, ts store.TokenStats) error {
+	_, _ = fmt.Fprintf(w, "\ntokens (events with counts: %d)\n", ts.Total.Events)
+	header := []string{"", "INPUT", "FRESH", "CACHE WRITE", "CACHE READ", "UNSPLIT", "OUTPUT"}
+	row := func(label string, t store.Tokens) []string {
+		return []string{label, tokenCount(t.Input), tokenCount(t.Fresh), tokenCount(t.CacheWrite), tokenCount(t.CacheRead), tokenCount(t.Unsplit), tokenCount(t.Output)}
+	}
+	rows := [][]string{row("total", ts.Total)}
+	for _, d := range ts.ByDay {
+		rows = append(rows, row(d.Day, d.Tokens))
+	}
+	if err := table(w, header, rows); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintln(w)
+	rows = rows[:0]
+	for _, m := range ts.ByModel {
+		name := m.Model
+		if name == "" {
+			name = "unknown"
+		}
+		rows = append(rows, row(name, m.Tokens))
+	}
+	header[0] = "MODEL"
+	return table(w, header, rows)
+}
+
+// tokenCount formats a token count compactly: exact below 1000, else one
+// decimal with K, M or G.
+func tokenCount(n int64) string {
+	switch {
+	case n < 1000:
+		return strconv.FormatInt(n, 10)
+	case n < 1_000_000:
+		return fmt.Sprintf("%.1fK", float64(n)/1e3)
+	case n < 1_000_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
+	default:
+		return fmt.Sprintf("%.1fG", float64(n)/1e9)
+	}
 }

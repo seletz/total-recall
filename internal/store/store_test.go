@@ -175,7 +175,7 @@ func sampleBatch() ([]model.Session, []model.Event) {
 		ev("claude:e6", "claude:s1", "2026-10-31T22:05:00Z", model.ActorHuman, model.KindMessage, "user", "thanks, now the tests"),
 	}
 	evs[1].ToolName = "Bash"
-	evs[3].TokensIn, evs[3].TokensOut, evs[3].Model = 10, 20, "m1"
+	evs[3].TokensIn, evs[3].TokensCacheRead, evs[3].TokensCacheWrite, evs[3].TokensOut, evs[3].Model = 10, 6, 3, 20, "m1"
 	return sess, evs
 }
 
@@ -205,8 +205,15 @@ func TestWriteBatchIdempotent(t *testing.T) {
 		t.Fatalf("Events = %d", len(got))
 	}
 	e := got[3]
-	if e.ID != "claude:e4" || e.TokensIn != 10 || e.TokensOut != 20 || e.Model != "m1" || !e.TS.Equal(evs[3].TS) || e.SourcePath != "/src/a.jsonl" {
+	if e.ID != "claude:e4" || e.TokensIn != 10 || e.TokensCacheRead != 6 || e.TokensCacheWrite != 3 || e.TokensOut != 20 || e.Model != "m1" || !e.TS.Equal(evs[3].TS) || e.SourcePath != "/src/a.jsonl" {
 		t.Errorf("round trip mismatch: %+v", e)
+	}
+	// Cache columns: known for the event with usage, NULL for the others.
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE tokens_cache_read = 6 AND tokens_cache_write = 3"); n != 1 {
+		t.Errorf("events with cache tokens = %d, want 1", n)
+	}
+	if n := countRows(t, s, "SELECT count(*) FROM events WHERE tokens_in IS NULL AND (tokens_cache_read IS NOT NULL OR tokens_cache_write IS NOT NULL)"); n != 0 {
+		t.Errorf("events without usage but with cache tokens = %d", n)
 	}
 	// Events does not load raw (#131); it is stored nevertheless, compressed.
 	if n := countRows(t, s, "SELECT count(*) FROM events WHERE id = 'claude:e4' AND raw_text(raw) = '{\"x\":1}' AND typeof(raw) = 'blob'"); n != 1 {
