@@ -15,6 +15,7 @@ import (
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
+	"github.com/seletz/total-recall/internal/tui/viewer"
 )
 
 // fakeLoader serves one session whose events are given; it records the
@@ -39,6 +40,15 @@ func (f *fakeLoader) FindSession(ctx context.Context, ref string) (store.Session
 
 func (f *fakeLoader) Events(context.Context, string, bool) ([]model.Event, error) {
 	return f.events, nil
+}
+
+func (f *fakeLoader) MemoryContent(context.Context, int64, string, time.Time) (store.MemoryVersion, string, error) {
+	return store.MemoryVersion{}, "", errors.New("not found")
+}
+
+// evHit is the event hit of an event.
+func evHit(e model.Event) store.Hit {
+	return store.Hit{Type: store.TypeEvent, TS: e.TS, Event: &store.SearchHit{Event: e}}
 }
 
 func ev(id string, actor model.Actor) model.Event {
@@ -158,9 +168,9 @@ func TestPreviewScroll(t *testing.T) {
 	prompt := ev("h1", model.ActorHuman)
 	prompt.Text = long
 	m := New(Options{Searcher: &fakeSearcher{}, Loader: &fakeLoader{}, Location: time.UTC})
-	m.hits = []store.SearchHit{{Event: hit}}
+	m.hits = []store.Hit{evHit(hit)}
 	m.query = "reply"
-	m.preview = preview{eventID: "a1", events: []model.Event{prompt, hit}, hit: 1}
+	m.preview = preview{key: "event:a1", view: viewer.Exchange{Events: []model.Event{prompt, hit}, Hit: 1}}
 	tests := []struct {
 		name string
 		rows int
@@ -201,7 +211,7 @@ func TestStalePreviewDiscarded(t *testing.T) {
 	m := New(Options{Searcher: &fakeSearcher{}, Loader: ld, Now: tuitest.Clock})
 	m = update(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	nm, cmd := m.Update(resultMsg{seq: m.seq, query: "x", hits: []store.SearchHit{{Event: h1}, {Event: h2}}})
+	nm, cmd := m.Update(resultMsg{seq: m.seq, query: "x", groups: []store.TypeHits{{Type: store.TypeEvent, Hits: []store.Hit{evHit(h1), evHit(h2)}}}})
 	m = nm.(Model)
 	if cmd == nil {
 		t.Fatal("result scheduled no preview")
@@ -224,12 +234,12 @@ func TestStalePreviewDiscarded(t *testing.T) {
 
 	// The second load answers first, the first one later.
 	m = update(t, m, load2())
-	if m.preview.eventID != "h2" || len(m.preview.events) != 1 || m.preview.events[0].Text != "second" {
+	if x, ok := m.preview.view.(viewer.Exchange); m.preview.key != "event:h2" || !ok || len(x.Events) != 1 || x.Events[0].Text != "second" {
 		t.Fatalf("after fresh result: preview = %+v", m.preview)
 	}
 	m = update(t, m, load1())
-	if m.preview.eventID != "h2" {
-		t.Errorf("after stale result: preview shows %q, want h2", m.preview.eventID)
+	if m.preview.key != "event:h2" {
+		t.Errorf("after stale result: preview shows %q, want event:h2", m.preview.key)
 	}
 	if !m.previewReady() {
 		t.Error("preview not ready after its result")
@@ -251,7 +261,7 @@ func TestStalePreviewDiscarded(t *testing.T) {
 		t.Error("stale tick started a load")
 	}
 	m, _ = press(m, "j")
-	if m.preview.eventID != "h2" || !m.previewReady() {
+	if m.preview.key != "event:h2" || !m.previewReady() {
 		t.Error("returning to the loaded hit lost the preview")
 	}
 }

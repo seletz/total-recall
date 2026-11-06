@@ -1,6 +1,7 @@
 package search
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -8,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/model"
+	"github.com/seletz/total-recall/internal/store"
 )
 
 // Sentinels the store wraps around matches in snippets; renderSnippet turns
@@ -20,24 +22,74 @@ const (
 // Rows of the body around the two columns: input, rule, status.
 const chromeRows = 3
 
-// linesPerHit is the height of one entry: head line and snippet line.
-const linesPerHit = 2
+// linesPerHit is the height of one hit: head line and snippet line. A
+// group header (more than one type selected) is one line.
+const (
+	linesPerHit    = 2
+	linesPerHeader = 1
+)
+
+// row is one entry of the list: the header of a group or a hit (an index
+// into Model.hits).
+type row struct {
+	header bool
+	group  int // index into Model.groups
+	hit    int
+}
+
+func (r row) height() int {
+	if r.header {
+		return linesPerHeader
+	}
+	return linesPerHit
+}
+
+// buildRows lays the groups out as rows: the hits in group order, and with
+// more than one type selected a header before every group, also an empty
+// one, so a type without hits is visible.
+func (m *Model) buildRows() {
+	m.rows = m.rows[:0]
+	n := 0
+	for gi, g := range m.groups {
+		if len(m.types) > 1 {
+			m.rows = append(m.rows, row{header: true, group: gi})
+		}
+		for range g.Hits {
+			m.rows = append(m.rows, row{group: gi, hit: n})
+			n++
+		}
+	}
+}
+
+// rowOf returns the index of the row of hit i, -1 when there is none.
+func (m Model) rowOf(i int) int {
+	for r, rw := range m.rows {
+		if !rw.header && rw.hit == i {
+			return r
+		}
+	}
+	return -1
+}
+
+// bodyRows is the height of the list and preview columns.
+func (m Model) bodyRows() int { return max(m.height-chromeRows, 0) }
 
 // View implements tea.Model: the input with the filters on its right, a
-// rule, the hit list beside the preview column, and the status line (or
-// the repo filter being typed).
+// rule with the type switcher and the project pin, the hit list beside
+// the preview column, and the status line (or the repo filter being
+// typed).
 func (m Model) View() tea.View {
 	if m.width == 0 || m.height == 0 {
 		return tea.NewView("")
 	}
 	left, right := m.columns()
-	rows := max(m.height-chromeRows, 0)
+	rows := m.bodyRows()
 	col := func(s string, w int) string {
 		return lipgloss.NewStyle().Width(w).Height(rows).MaxWidth(w).MaxHeight(rows).Render(s)
 	}
 	sep := m.th.Rule.Render(strings.TrimSuffix(strings.Repeat("│\n", rows), "\n"))
 	body := lipgloss.JoinHorizontal(lipgloss.Top, col(m.list(left, rows), left), sep, col(m.previewView(right, rows), right))
-	rule := m.th.Rule.Render(strings.Repeat("─", left) + "┬" + strings.Repeat("─", right))
+	rule, _ := m.ruleRow(left, right)
 	bottom := " " + m.status()
 	if m.focus == focusRepo {
 		bottom = " " + m.repoIn.View()
@@ -75,29 +127,65 @@ func (m Model) columns() (left, right int) {
 	return left, max(m.width-left-1, 0)
 }
 
-// visibleHits is how many entries fit into the list column.
-func (m Model) visibleHits() int {
-	return max(m.height-chromeRows, 0) / linesPerHit
+// rowAt returns the index of the row that starts at or covers line y of
+// the list column, -1 below the last row.
+func (m Model) rowAt(y int) int {
+	line := 0
+	for r := m.offset; r < len(m.rows); r++ {
+		line += m.rows[r].height()
+		if y < line {
+			return r
+		}
+	}
+	return -1
 }
 
-// list renders the visible hits in width w, or the hint.
+// visibleRows is how many rows fit into the list column from row first;
+// a row that would be cut off does not count.
+func (m Model) visibleRows(first int) int {
+	avail, n := m.bodyRows(), 0
+	for r := first; r < len(m.rows); r++ {
+		if avail -= m.rows[r].height(); avail < 0 {
+			break
+		}
+		n++
+	}
+	return n
+}
+
+// list renders the visible rows in width w, or the hint, or the project
+// choice.
 func (m Model) list(w, rows int) string {
+	if m.focus == focusPick {
+		return m.pickView(w, rows)
+	}
 	if h := m.hint(); h != "" {
 		return " " + m.th.Muted.Render(ansi.Truncate(h, max(w-1, 0), "…"))
 	}
-	n := m.visibleHits()
+	n := m.visibleRows(m.offset)
 	lines := make([]string, 0, rows)
-	for i := m.offset; i < len(m.hits) && i < m.offset+n; i++ {
-		lines = append(lines, m.entry(i, w)...)
+	for r := m.offset; r < len(m.rows) && r < m.offset+n; r++ {
+		rw := m.rows[r]
+		if rw.header {
+			lines = append(lines, m.header(m.groups[rw.group], w))
+			continue
+		}
+		lines = append(lines, m.entry(rw.hit, w)...)
 	}
 	return strings.Join(lines, "\n")
 }
 
-// entry renders hit i as two lines: a mark, time (muted), session name
-// and actor (in the actor's colour), then the snippet with the matches
-// highlighted. The marked hit always carries the mark (enter opens it
-// from the input too, and the preview shows it); its head line is drawn
-// on the selection background only while the list has the focus.
+// header renders a group header: the type in the title style and the
+// number of hits, "N of TOTAL" when the limit cut hits off.
+func (m Model) header(g store.TypeHits, w int) string {
+	count := fmt.Sprintf("%d", len(g.Hits))
+	if g.Total > len(g.Hits) {
+		count = fmt.Sprintf("%d of %d, limit reached", len(g.Hits), g.Total)
+	}
+	return ansi.Truncate(" "+m.th.Title.Render(string(g.Type))+m.th.Muted.Render("  "+count), w, "…")
+}
+
+// entry renders hit i as two lines in the format of its type.
 func (m Model) entry(i, w int) []string {
 	h := m.hits[i]
 	mark, base := " ", lipgloss.NewStyle()
@@ -107,10 +195,26 @@ func (m Model) entry(i, w int) []string {
 			base = m.th.Selected
 		}
 	}
-	ts := h.Event.TS.In(m.opts.Location).Format("2006-01-02 15:04")
-	actor := string(h.Event.Actor)
+	switch h.Type {
+	case store.TypeSession:
+		return m.entrySession(h, mark, base, w)
+	case store.TypeMemory:
+		return m.entryMemory(h, mark, base, w)
+	}
+	return m.entryEvent(h, mark, base, w)
+}
+
+// entryEvent renders an event hit: a mark, time (muted), session name
+// and actor (in the actor's colour), then the snippet with the matches
+// highlighted. The marked hit always carries the mark (enter opens it
+// from the input too, and the preview shows it); its head line is drawn
+// on the selection background only while the list has the focus.
+func (m Model) entryEvent(h store.Hit, mark string, base lipgloss.Style, w int) []string {
+	ev := h.Event
+	ts := h.TS.In(m.opts.Location).Format("2006-01-02 15:04")
+	actor := string(ev.Event.Actor)
 	nameWidth := w - 1 - len(ts) - 2 - 2 - ansi.StringWidth(actor)
-	name := ansi.Truncate(strings.TrimSpace(h.SessionName), max(nameWidth, 0), "…")
+	name := ansi.Truncate(strings.TrimSpace(ev.SessionName), max(nameWidth, 0), "…")
 	pad := strings.Repeat(" ", max(nameWidth-ansi.StringWidth(name), 0))
 	// Every piece is styled on its own, so the selection background spans
 	// the row while time and actor keep their colours.
@@ -119,6 +223,35 @@ func (m Model) entry(i, w int) []string {
 	head = ansi.Truncate(head, w, "")
 	return []string{head, "  " + m.renderSnippet(h.Snippet, max(w-2, 0))}
 }
+
+// entrySession renders a session hit: a mark, the start time (muted) and
+// the name that matched with the words highlighted, then the size and the
+// project, muted.
+func (m Model) entrySession(h store.Hit, mark string, base lipgloss.Style, w int) []string {
+	s := h.Session
+	ts := h.TS.In(m.opts.Location).Format("2006-01-02 15:04")
+	room := max(w-1-len(ts)-2, 0)
+	head := m.th.Mark.Inherit(base).Render(mark) + m.th.Muted.Inherit(base).Render(ts) +
+		base.Render("  ") + m.renderSnippet(h.Snippet, room)
+	info := fmt.Sprintf("%d events", s.Events)
+	if p := m.projectName(h); p != "" {
+		info += "  " + p
+	}
+	return []string{ansi.Truncate(head, w, ""), "  " + m.th.Muted.Render(ansi.Truncate(info, max(w-2, 0), "…"))}
+}
+
+// entryMemory renders a memory hit: a mark, the time of the version
+// (muted), project and file path, then the snippet of the file.
+func (m Model) entryMemory(h store.Hit, mark string, base lipgloss.Style, w int) []string {
+	ts := h.TS.In(m.opts.Location).Format("2006-01-02 15:04")
+	head := m.th.Mark.Inherit(base).Render(mark) + m.th.Muted.Inherit(base).Render(ts) +
+		base.Render("  ") + m.th.Title.Inherit(base).Render(m.projectName(h)) + base.Render("  "+h.Memory.Path)
+	return []string{ansi.Truncate(head, w, ""), "  " + m.renderSnippet(markdownMarks.Replace(h.Snippet), max(w-2, 0))}
+}
+
+// markdownMarks drops the emphasis and code markers of a memory file's
+// snippet, as the preview does.
+var markdownMarks = strings.NewReplacer("**", "", "`", "")
 
 // renderSnippet collapses whitespace, styles the marked matches and cuts the
 // snippet to width w.

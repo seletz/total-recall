@@ -65,6 +65,12 @@ const (
 	SearchRepo  = "search_repo"
 	SearchRaw   = "search_raw"
 
+	SearchTypeEvent   = "search_type_event"
+	SearchTypeSession = "search_type_session"
+	SearchTypeMemory  = "search_type_memory"
+	SearchPin         = "search_pin"
+	SearchProject     = "search_project"
+
 	SessionUp       = "session_up"
 	SessionDown     = "session_down"
 	SessionPageUp   = "session_page_up"
@@ -141,6 +147,11 @@ var Actions = []Action{
 	{SearchTime, Search, []string{"t"}, "time"},
 	{SearchRepo, Search, []string{"r"}, "repo"},
 	{SearchRaw, Search, []string{"ctrl+r"}, "raw fts"},
+	{SearchTypeEvent, Search, []string{"e"}, "events on/off"},
+	{SearchTypeSession, Search, []string{"s"}, "sessions on/off"},
+	{SearchTypeMemory, Search, []string{"m"}, "memory on/off"},
+	{SearchPin, Search, []string{"p"}, "pin project of hit"},
+	{SearchProject, Search, []string{"P"}, "choose project"},
 
 	{SessionUp, Session, []string{"up", "k"}, "up"},
 	{SessionDown, Session, []string{"down", "j"}, "down"},

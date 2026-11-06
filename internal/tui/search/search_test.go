@@ -59,7 +59,7 @@ func (p probe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // marked, there is no loader, or the preview holds the marked hit.
 func (m Model) previewReady() bool {
 	h := m.marked()
-	return h == nil || m.opts.Loader == nil || m.preview.eventID == h.Event.ID
+	return h == nil || m.opts.Loader == nil || m.preview.key == hitKey(*h)
 }
 
 // wait blocks until the view has handled keys key presses and results
@@ -293,7 +293,7 @@ func TestEnterOpensSession(t *testing.T) {
 			var m tea.Model = newModel(t, st, "release")
 			// The result also schedules the preview; that command is not
 			// run here.
-			m, _ = m.Update(resultMsg{seq: m.(Model).seq, query: "release", hits: hits})
+			m, _ = m.Update(resultMsg{seq: m.(Model).seq, query: "release", groups: eventGroups(hits)})
 			var cmd tea.Cmd
 			for _, k := range tt.keys {
 				m, cmd = m.Update(tuitest.Key(k))
@@ -332,13 +332,24 @@ type fakeCall struct {
 	ctx   context.Context
 	query string
 	limit int
+	q     store.TypedQuery
 }
 
-func (f *fakeSearcher) Search(ctx context.Context, query string, filter store.SearchFilter) ([]store.SearchHit, error) {
+func (f *fakeSearcher) SearchTyped(ctx context.Context, q store.TypedQuery) ([]store.TypeHits, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, fakeCall{ctx: ctx, query: query, limit: filter.Limit})
-	return []store.SearchHit{{Snippet: query}}, nil
+	f.calls = append(f.calls, fakeCall{ctx: ctx, query: q.Text, limit: q.Limit, q: q})
+	return []store.TypeHits{{Type: q.Types[0], Hits: []store.Hit{{Type: q.Types[0], Snippet: q.Text, Event: &store.SearchHit{Snippet: q.Text}}}, Total: 1}}, nil
+}
+
+// eventGroups wraps event hits as the one group of an event search.
+func eventGroups(hits []store.SearchHit) []store.TypeHits {
+	g := store.TypeHits{Type: store.TypeEvent, Hits: make([]store.Hit, len(hits)), Total: len(hits)}
+	for i := range hits {
+		h := &hits[i]
+		g.Hits[i] = store.Hit{Type: store.TypeEvent, TS: h.Event.TS, Snippet: h.Snippet, Rank: h.Rank, Project: h.Project, Event: h}
+	}
+	return []store.TypeHits{g}
 }
 
 func (f *fakeSearcher) byQuery() map[string]fakeCall {
@@ -525,9 +536,9 @@ func TestStatus(t *testing.T) {
 		{"empty input", true, nil, "type to search"},
 		{"searching", true, func(m *Model) { m.searching, m.query = true, "x" }, "⠋ searching…"},
 		{"no hits", true, func(m *Model) { m.query, m.took = "x", 3*time.Millisecond }, "no hits (3 ms)"},
-		{"one hit", true, func(m *Model) { m.query, m.hits = "x", make([]store.SearchHit, 1) }, "1 hit (0 ms)"},
-		{"hits", true, func(m *Model) { m.query, m.hits, m.took = "x", make([]store.SearchHit, 5), 12*time.Millisecond }, "5 hits (12 ms)"},
-		{"limit", true, func(m *Model) { m.query, m.hits = "x", make([]store.SearchHit, Limit) }, "200 hits, limit reached (0 ms)"},
+		{"one hit", true, func(m *Model) { m.query, m.hits = "x", make([]store.Hit, 1) }, "1 hit (0 ms)"},
+		{"hits", true, func(m *Model) { m.query, m.hits, m.took = "x", make([]store.Hit, 5), 12*time.Millisecond }, "5 hits (12 ms)"},
+		{"limit", true, func(m *Model) { m.query, m.hits = "x", make([]store.Hit, Limit) }, "200 hits, limit reached (0 ms)"},
 		{"error", true, func(m *Model) { m.query, m.err = "x", context.DeadlineExceeded }, "error: context deadline exceeded"},
 	}
 	for _, tt := range tests {

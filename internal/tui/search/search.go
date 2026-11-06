@@ -1,6 +1,14 @@
 // Package search is the live full-text search view of the TUI: a text input
-// on top, the hits of the archive in the left column and a preview of the
-// exchange around the marked hit on the right.
+// on top, a rule with the type switcher and the project pin, the hits of the
+// archive in the left column and a preview of the marked hit on the right.
+//
+// The search covers the object types of the store (event, session, memory):
+// the switcher selects them, the hits are listed in one group per type, each
+// in the format of its type, and the preview picks a viewer (package viewer)
+// by the type of the marked hit. Event is the default; with it alone the
+// view lists the hits of the events as it always did. The pin restricts every
+// type to one project, chosen from the project list or taken from the marked
+// hit.
 //
 // Every change of the input starts a search after a short pause (the
 // debounce). Searches run as commands with a context; new input cancels the
@@ -20,9 +28,11 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
+	"github.com/seletz/total-recall/internal/tui/zone"
 )
 
 // Limit is the maximum number of hits one search fetches.
@@ -31,17 +41,24 @@ const Limit = 200
 // DefaultDebounce is the pause after the last key press before a search starts.
 const DefaultDebounce = 150 * time.Millisecond
 
-// Searcher runs a full-text search; *store.Store implements it.
+// Searcher runs a full-text search over the object types;
+// *store.Store implements it.
 type Searcher interface {
-	Search(ctx context.Context, query string, f store.SearchFilter) ([]store.SearchHit, error)
+	SearchTyped(ctx context.Context, q store.TypedQuery) ([]store.TypeHits, error)
 }
 
 // Options configure the view.
 type Options struct {
 	// Searcher answers the queries; nil means no database, the view shows a hint.
 	Searcher Searcher
-	// Loader reads sessions for the preview; nil leaves the preview empty.
+	// Loader reads what the preview shows; nil leaves the preview empty.
 	Loader Loader
+	// Projects and Resolver name the projects (the pin, the project
+	// column of memory hits); Projects nil means no project list, Home
+	// shortens paths in derived names.
+	Projects project.Source
+	Resolver project.Resolver
+	Home     string
 	// Query is the initial input; it is searched right away.
 	Query string
 	// Now is the clock used to time searches and to anchor the time filter;
@@ -67,9 +84,10 @@ func (o *Options) defaults() {
 	}
 }
 
-// OpenSession is sent upwards when the user opens the marked hit. It is not
-// handled by this view; the app routes it to the session detail. Terms are
-// the words of the query for highlighting.
+// OpenSession is sent upwards when the user opens the marked hit (an event,
+// or a session: then EventID is empty). It is not handled by this view; the
+// app routes it to the session detail. Terms are the words of the query for
+// highlighting.
 type OpenSession struct {
 	SessionID string
 	EventID   string
@@ -84,12 +102,12 @@ type debounceMsg struct{ seq uint64 }
 // still the current input sequence. A quiet result comes from a reload:
 // the mark stays on the hit it was on.
 type resultMsg struct {
-	seq   uint64
-	query string
-	hits  []store.SearchHit
-	took  time.Duration
-	err   error
-	quiet bool
+	seq    uint64
+	query  string
+	groups []store.TypeHits
+	took   time.Duration
+	err    error
+	quiet  bool
 }
 
 type focus int
@@ -98,6 +116,7 @@ const (
 	focusInput focus = iota
 	focusList
 	focusRepo // the repo filter is typed in the status line
+	focusPick // a project is chosen from the list
 )
 
 // Model is the search view.
@@ -108,6 +127,13 @@ type Model struct {
 	repoIn  textinput.Model
 	focus   focus
 	filters filters
+	// types are the selected object types (display order), pin the
+	// project the search is restricted to, cat the project catalog (nil
+	// until loaded) and pick the state of the project choice.
+	types []store.HitType
+	pin   *pin
+	cat   *project.Catalog
+	pick  picker
 
 	// seq counts input changes; debounce ticks and results carry the value
 	// they were started for and are ignored when it moved on.
@@ -115,9 +141,11 @@ type Model struct {
 	cancel context.CancelFunc
 
 	query     string // text of the shown hits (or the running search)
-	hits      []store.SearchHit
-	cursor    int // marked hit
-	offset    int // first visible hit
+	groups    []store.TypeHits
+	hits      []store.Hit // the hits of all groups, in group order
+	rows      []row       // the list: group headers and hits
+	cursor    int         // marked hit
+	offset    int         // first visible row
 	took      time.Duration
 	err       error
 	searching bool
@@ -147,7 +175,7 @@ func New(opts Options) Model {
 	repo.Prompt = "repo: "
 	repo.Placeholder = "substring of remote, root or cwd"
 	repo.SetVirtualCursor(false)
-	m := Model{opts: opts, keys: newKeyMap(opts.Keys), input: in, repoIn: repo, spin: spinner.New(spinner.WithSpinner(spinner.MiniDot))}
+	m := Model{opts: opts, keys: newKeyMap(opts.Keys), input: in, repoIn: repo, types: []store.HitType{store.TypeEvent}, spin: spinner.New(spinner.WithSpinner(spinner.MiniDot))}
 	m.setTheme(theme.New(true))
 	if opts.Query != "" {
 		m.query = opts.Query
@@ -180,9 +208,9 @@ func (m Model) Focused() bool { return m.focus != focusList }
 // without waiting for the debounce.
 func (m Model) Init() tea.Cmd {
 	if m.input.Value() == "" {
-		return nil
+		return m.loadCatalog()
 	}
-	return func() tea.Msg { return debounceMsg{seq: m.seq} }
+	return tea.Batch(m.loadCatalog(), func() tea.Msg { return debounceMsg{seq: m.seq} })
 }
 
 // Update implements tea.Model.
@@ -209,6 +237,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.result(msg)
+	case catalogMsg:
+		if msg.err == nil {
+			m.cat = msg.cat
+		}
+		return m, nil
 	case previewTickMsg:
 		if msg.seq != m.preview.seq {
 			return m, nil
@@ -246,6 +279,9 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.focus == focusRepo {
 		return m.repoKey(msg)
 	}
+	if m.focus == focusPick {
+		return m.pickKey(msg)
+	}
 	switch {
 	case key.Matches(msg, m.keys.Open):
 		return m, m.open()
@@ -273,6 +309,16 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.repoIn.SetValue(m.filters.repo)
 			m.repoIn.CursorEnd()
 			m.repoIn.Focus()
+		case key.Matches(msg, m.keys.Pin):
+			return m.togglePin()
+		case key.Matches(msg, m.keys.Project):
+			return m.openPicker(), nil
+		default:
+			for _, t := range searchableTypes() {
+				if key.Matches(msg, m.keys.typeKey(t)) {
+					return m.toggleTypeAndSearch(t)
+				}
+			}
 		}
 		return m, nil
 	}
@@ -313,6 +359,11 @@ func (m Model) wheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
 		m.scrollPreview(delta * wheelLines)
 		return m, nil
 	}
+	if m.focus == focusPick {
+		m.pick.cursor = min(max(m.pick.cursor+delta, 0), len(m.pick.entries)-1)
+		m.pick.scroll(m.bodyRows())
+		return m, nil
+	}
 	return m, m.move(delta)
 }
 
@@ -320,33 +371,47 @@ func (m Model) wheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
 // click on the hit that is marked while the list has the focus opens it.
 // A click on the preview opens the marked hit like enter, whichever
 // element has the focus. A click on the input line moves the focus back
-// into the input. Clicks on the rules, the separator, the status line and
-// below the hits do nothing, so do clicks while the repo filter is typed.
+// into the input. A click on the rule row works the type switcher and the
+// project pin (clickRule). Clicks on the separator, the group headers, the
+// status line and below the hits do nothing, so do clicks while the repo
+// filter is typed. While the project choice is open, a click on a project
+// applies it.
 func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	if msg.Button != tea.MouseLeft || m.focus == focusRepo {
 		return m, nil
 	}
 	if msg.Y == 0 {
+		if m.focus == focusPick {
+			return m, nil
+		}
 		m.focus = focusInput
 		m.input.Focus()
 		return m, nil
 	}
-	row := msg.Y - (chromeRows - 1)
-	if row < 0 || row >= max(m.height-chromeRows, 0) {
+	if msg.Y == 1 {
+		return m.clickRule(msg.X)
+	}
+	line := msg.Y - (chromeRows - 1)
+	if line < 0 || line >= m.bodyRows() {
 		return m, nil
 	}
-	if left, _ := m.columns(); msg.X > left {
+	left, _ := m.columns()
+	if m.focus == focusPick {
+		if msg.X < left && m.pick.offset+line < len(m.pick.entries) {
+			return m.applyPick(m.pick.offset + line)
+		}
+		return m, nil
+	}
+	if msg.X > left {
 		return m, m.open()
 	} else if msg.X == left {
 		return m, nil
 	}
-	if row/linesPerHit >= m.visibleHits() {
+	r := m.rowAt(line)
+	if r < 0 || m.rows[r].header {
 		return m, nil
 	}
-	i := m.offset + row/linesPerHit
-	if i >= len(m.hits) {
-		return m, nil
-	}
+	i := m.rows[r].hit
 	if i == m.cursor && m.focus == focusList {
 		return m, m.open()
 	}
@@ -393,7 +458,8 @@ func (m Model) changed(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	m.seq++
 	m.stop()
 	if m.input.Value() == "" {
-		m.query, m.hits, m.err, m.took = "", nil, nil, 0
+		m.query, m.err, m.took = "", nil, 0
+		m.setGroups(nil)
 		m.cursor, m.offset = 0, 0
 		return m, tea.Batch(cmd, m.follow())
 	}
@@ -408,22 +474,23 @@ func (m Model) result(msg resultMsg) (tea.Model, tea.Cmd) {
 	m.searching = false
 	var marked string
 	if h := m.marked(); h != nil {
-		marked = h.Event.ID
+		marked = hitKey(*h)
 	}
-	m.query, m.hits, m.took, m.err = msg.query, msg.hits, msg.took, msg.err
+	m.query, m.took, m.err = msg.query, msg.took, msg.err
+	m.setGroups(msg.groups)
 	if !msg.quiet {
 		m.cursor, m.offset = 0, 0
 		return m, m.follow()
 	}
 	m.cursor = min(m.cursor, max(len(m.hits)-1, 0))
 	for i, h := range m.hits {
-		if h.Event.ID == marked {
+		if hitKey(h) == marked {
 			m.cursor = i
 			break
 		}
 	}
 	m.clampOffset()
-	if h := m.marked(); h != nil && h.Event.ID == marked {
+	if h := m.marked(); h != nil && hitKey(*h) == marked {
 		return m, m.refreshPreview()
 	}
 	return m, m.follow()
@@ -438,7 +505,8 @@ func (m Model) Reload() (tea.Model, tea.Cmd) {
 	}
 	m.seq++
 	m.stop()
-	return m.search(true)
+	r, cmd := m.search(true)
+	return r, tea.Batch(cmd, m.loadCatalog())
 }
 
 // stop cancels the running search, if any.
@@ -462,20 +530,100 @@ func (m Model) search(quiet bool) (tea.Model, tea.Cmd) {
 	seq, now, s := m.seq, m.opts.Now, m.opts.Searcher
 	query := m.input.Value()
 	f := m.filter(now())
+	types, scope := m.types, m.pinScope()
+	run := func(quiet bool) tea.Msg {
+		start := now()
+		groups, err := searchTypes(ctx, s, query, f, types, scope)
+		return resultMsg{seq: seq, query: query, groups: groups, took: now().Sub(start), err: err, quiet: quiet}
+	}
 	if quiet {
-		return m, func() tea.Msg {
-			start := now()
-			hits, err := s.Search(ctx, query, f)
-			return resultMsg{seq: seq, query: query, hits: hits, took: now().Sub(start), err: err, quiet: true}
-		}
+		return m, func() tea.Msg { return run(true) }
 	}
 	m.searching = true
 	m.query = query
-	return m, tea.Batch(func() tea.Msg {
-		start := now()
-		hits, err := s.Search(ctx, query, f)
-		return resultMsg{seq: seq, query: query, hits: hits, took: now().Sub(start), err: err}
-	}, m.spin.Tick)
+	return m, tea.Batch(func() tea.Msg { return run(false) }, m.spin.Tick)
+}
+
+// pinScope is the project scope of the pin, nil without one.
+func (m Model) pinScope() *store.ProjectScope {
+	if m.pin == nil {
+		return nil
+	}
+	return m.pin.scope
+}
+
+// searchTypes runs the query for every selected type, one after the
+// other, and returns the groups in the order of types. Every type gets
+// only the filters it applies (store.Supports): the actor filter does not
+// reach memory, the raw syntax does not reach sessions, so a filter never
+// turns a type into an error.
+func searchTypes(ctx context.Context, s Searcher, query string, f store.SearchFilter, types []store.HitType, scope *store.ProjectScope) ([]store.TypeHits, error) {
+	var out []store.TypeHits
+	for _, t := range types {
+		q := store.TypedQuery{Text: query, Types: []store.HitType{t}, HighlightStart: f.HighlightStart, HighlightEnd: f.HighlightEnd}
+		q.Limit = f.Limit
+		if store.Supports(t, store.FilterSince) {
+			q.Since = f.Since
+		}
+		if store.Supports(t, store.FilterRepo) {
+			q.Repo = f.Repo
+		}
+		if store.Supports(t, store.FilterActor) {
+			q.Actor = f.Actor
+		}
+		if store.Supports(t, store.FilterRaw) {
+			q.Raw = f.Raw
+		}
+		if store.Supports(t, store.FilterProject) {
+			q.Project = scope
+		}
+		g, err := s.SearchTyped(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g...)
+	}
+	return out, nil
+}
+
+// setGroups stores the groups of an answer, the flat list of their hits
+// and the rows of the list.
+func (m *Model) setGroups(groups []store.TypeHits) {
+	m.groups = groups
+	m.hits = m.hits[:0:0]
+	for _, g := range groups {
+		m.hits = append(m.hits, g.Hits...)
+	}
+	m.buildRows()
+}
+
+// toggleTypeAndSearch switches type t on or off and searches again.
+func (m Model) toggleTypeAndSearch(t store.HitType) (tea.Model, tea.Cmd) {
+	if !m.toggleType(t) {
+		return m, nil
+	}
+	return m.refilter()
+}
+
+// clickRule handles a click at column x of the rule row: a type toggles,
+// the project label opens the project choice, the sign drops the pin.
+func (m Model) clickRule(x int) (tea.Model, tea.Cmd) {
+	if m.focus == focusPick {
+		return m, nil
+	}
+	left, right := m.columns()
+	_, z := m.ruleRow(left, right)
+	if i := zone.At(z.types, x); i >= 0 {
+		return m.toggleTypeAndSearch(searchableTypes()[i])
+	}
+	switch {
+	case z.clear.Contains(x):
+		m.pin = nil
+		return m.refilter()
+	case z.project.Contains(x):
+		return m.openPicker(), nil
+	}
+	return m, nil
 }
 
 // filter is the store filter of the current filter settings at now.
@@ -496,7 +644,16 @@ func (m Model) open() tea.Cmd {
 		return nil
 	}
 	ts := terms(m.query, m.filters.raw)
-	return func() tea.Msg { return OpenSession{SessionID: h.Event.SessionID, EventID: h.Event.ID, Terms: ts} }
+	switch {
+	case h.Event != nil:
+		o := OpenSession{SessionID: h.Event.Event.SessionID, EventID: h.Event.Event.ID, Terms: ts}
+		return func() tea.Msg { return o }
+	case h.Session != nil:
+		o := OpenSession{SessionID: h.Session.ID, Terms: ts}
+		return func() tea.Msg { return o }
+	}
+	// A memory file has no detail view yet; its preview shows the file.
+	return nil
 }
 
 // move marks the hit delta entries away and lets the preview follow.
@@ -513,27 +670,40 @@ func (m *Model) move(delta int) tea.Cmd {
 	return m.follow()
 }
 
-// clampOffset scrolls the list so the marked hit is visible.
+// clampOffset scrolls the list so the marked hit is visible; the header
+// of its group comes along when it is just above.
 func (m *Model) clampOffset() {
-	rows := m.visibleHits()
-	if rows <= 0 {
+	if m.bodyRows() <= 0 || len(m.rows) == 0 {
+		m.offset = 0
 		return
 	}
-	if m.cursor < m.offset {
-		m.offset = m.cursor
+	r := m.rowOf(m.cursor)
+	if r < 0 {
+		m.offset = 0
+		return
 	}
-	if m.cursor >= m.offset+rows {
-		m.offset = m.cursor - rows + 1
+	if r < m.offset {
+		m.offset = r
 	}
-	m.offset = max(min(m.offset, max(len(m.hits)-rows, 0)), 0)
+	for m.offset < r && r >= m.offset+m.visibleRows(m.offset) {
+		m.offset++
+	}
+	if r > 0 && m.rows[r-1].header && m.offset == r && m.visibleRows(r-1) > 1 {
+		m.offset = r - 1
+	}
+	// Never leave empty space below the last row while rows are above.
+	for m.offset > 0 && m.visibleRows(m.offset-1) >= len(m.rows)-(m.offset-1) {
+		m.offset--
+	}
+	m.offset = max(m.offset, 0)
 }
 
 // ShortHelp implements help.KeyMap; it follows the focus.
 func (m Model) ShortHelp() []key.Binding {
 	switch m.focus {
 	case focusList:
-		return []key.Binding{m.keys.Move, m.keys.Open, m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input}
-	case focusRepo:
+		return []key.Binding{m.keys.Move, m.keys.Open, m.keys.Types, m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input}
+	case focusRepo, focusPick:
 		return []key.Binding{m.keys.Confirm, m.keys.Cancel}
 	}
 	return []key.Binding{m.keys.List, m.keys.Open, m.keys.Raw}
@@ -544,6 +714,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{m.keys.List, m.keys.Input, m.keys.Open, m.keys.Up, m.keys.Down},
 		{m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw},
+		{m.keys.TypeEvent, m.keys.TypeSession, m.keys.TypeMemory, m.keys.Pin, m.keys.Project},
 	}
 }
 
@@ -561,11 +732,27 @@ func (m Model) status() string {
 		return "type to search"
 	}
 	ms := fmt.Sprintf(" (%d ms)", m.took.Milliseconds())
+	if len(m.groups) > 1 {
+		parts := make([]string, len(m.groups))
+		for i, g := range m.groups {
+			parts[i] = fmt.Sprintf("%s %d", g.Type, len(g.Hits))
+			if g.Total > len(g.Hits) {
+				parts[i] = fmt.Sprintf("%s %d of %d", g.Type, len(g.Hits), g.Total)
+			}
+		}
+		return strings.Join(parts, ", ") + ms
+	}
+	total := len(m.hits)
+	if len(m.groups) == 1 {
+		total = max(m.groups[0].Total, total)
+	}
 	switch n := len(m.hits); {
 	case n == 0:
 		return "no hits" + ms
 	case n == 1:
 		return "1 hit" + ms
+	case total > n:
+		return fmt.Sprintf("%d of %d hits, limit reached%s", n, total, ms)
 	case n >= Limit:
 		return fmt.Sprintf("%d hits, limit reached%s", n, ms)
 	default:
