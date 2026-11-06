@@ -190,7 +190,7 @@ var Actions = []Action{
 	{ConfigSelect, Config, []string{"enter"}, "edit / run"},
 	{ConfigDefault, Config, []string{"d"}, "reset to default"},
 	{ConfigConfirm, Config, []string{"y"}, "confirm"},
-	{ConfigCopy, Config, []string{"c"}, "copy hook block"},
+	{ConfigCopy, Config, []string{"c"}, "copy hook or MCP block"},
 	{ConfigEditor, Config, []string{"E"}, "open config in $EDITOR"},
 	{ConfigAdd, Config, []string{"a"}, "add"},
 	{ConfigRemove, Config, []string{"x"}, "remove"},

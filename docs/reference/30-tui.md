@@ -339,10 +339,15 @@ Die Wartungsbefehle, im Prozess der TUI mit denselben Funktionen, Sperren und Lo
 
 *Seite Setup: Prüfungen der Installation und der Hook-Block*
 
-Sechs Prüfungen der Installation, je Zeile `√`, `!` (in Ordnung, mit Hinweis) oder `×`:
+![Config, Seite Setup: die Zeile mcp markiert; darunter der Eintrag für den MCP-Server von Claude Code](../assets/screenshots/config-setup-mcp.png)
+
+*Seite Setup: Die Zeile `mcp` ist markiert, darunter steht der Eintrag für den MCP-Server*
+
+Sieben Prüfungen der Installation, je Zeile `√`, `!` (in Ordnung, mit Hinweis) oder `×`:
 
 - **config:** Die Config-Datei ist geladen; Anzahl der Probleme, falls welche. Fehlt sie, bietet ++enter++ an, die kommentierte Vorlage zu schreiben (wie `config init`).
 - **hooks:** `~/.claude/settings.json` (bzw. `$CLAUDE_CONFIG_DIR/settings.json`) hat für `SessionStart`, `Stop`, `SubagentStop` und `SessionEnd` einen Hook mit `total-recall ingest --hook`, `SessionEnd` zusätzlich das Backup; fehlende Ereignisse werden genannt. Die Datei wird nur gelesen.
+- **mcp:** Der MCP-Server ist bei Claude Code eingetragen ([Archiv per MCP anbinden](../how-to/55-mcp-anbinden.md)): Die Seite liest nur den Schlüssel `mcpServers` aus `~/.claude.json` (bzw. `$CLAUDE_CONFIG_DIR/.claude.json`) und aus der `.mcp.json` im Arbeitsverzeichnis, sucht einen Eintrag `total-recall mcp` und prüft, dass sein Befehl existiert. Ohne Eintrag ist die Zeile ein `×` mit dem Hinweis „optional“. Beide Dateien werden nie geschrieben, und nichts sonst aus ihnen wird gelesen oder gezeigt. Ist die Zeile markiert, zeigt die Seite statt des Hook-Blocks den Befehl `claude mcp add …` und den JSON-Eintrag; ++c++ kopiert den Befehl.
 - **binary:** `total-recall` liegt im `PATH`; ist es eine andere Datei als die laufende, wird ihre Version verglichen (`is 1.1.0, this is 1.2.0`).
 - **backups:** Das Backup-Verzeichnis existiert und wann das letzte Backup war. Fehlt es, legt ++enter++ es nach Bestätigung an.
 - **transcripts:** Das Transkript-Verzeichnis der Harness (`projects_dir`) existiert.

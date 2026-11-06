@@ -169,3 +169,32 @@ func ClaudeHooks(binary string) map[string]any {
 		"SessionEnd":   one(ingest, backup),
 	}}
 }
+
+// MCPServerName is the name of the total-recall entry in the MCP
+// configuration of a harness.
+const MCPServerName = "total-recall"
+
+// MCPServer is the entry of the "mcpServers" object of Claude Code.
+type MCPServer struct {
+	Type    string   `json:"type"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+}
+
+// ClaudeMCPServer returns the entry for the "mcpServers" object of Claude
+// Code (stdio, started by the harness as a child process).
+func ClaudeMCPServer(binary string) MCPServer {
+	return MCPServer{Type: "stdio", Command: binary, Args: []string{"mcp"}}
+}
+
+// ClaudeMCPConfig returns the {"mcpServers": ...} block for binary, as it
+// goes into a project's .mcp.json or the mcpServers key of ~/.claude.json.
+func ClaudeMCPConfig(binary string) map[string]any {
+	return map[string]any{"mcpServers": map[string]any{MCPServerName: ClaudeMCPServer(binary)}}
+}
+
+// ClaudeMCPAddCommand returns the `claude mcp add` command line that
+// registers the server for the user.
+func ClaudeMCPAddCommand(binary string) string {
+	return "claude mcp add --scope user " + MCPServerName + " -- " + binary + " mcp"
+}

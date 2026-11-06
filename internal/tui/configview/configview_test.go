@@ -1,6 +1,7 @@
 package configview
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -109,6 +110,8 @@ func (h *testEnv) options(t *testing.T) Options {
 		Config: h.cfg, Store: st, Location: time.UTC, Now: tuitest.Clock, Home: h.home, Version: "1.2.0",
 		Getenv:       func(k string) string { return h.env[k] },
 		SettingsFile: h.settings,
+		ClaudeJSON:   filepath.Join(h.home, ".claude.json"),
+		ProjectDir:   h.home,
 		LookPath: func(string) (string, error) {
 			if h.found == "" {
 				return "", os.ErrNotExist
@@ -417,6 +420,7 @@ func TestSetup(t *testing.T) {
 	requireContains(t, f,
 		"config      √ ~/.config/total-recall/config.toml loaded",
 		"hooks       × ~/.claude/settings.json lacks SessionEnd; add the hook block (c copies it)",
+		"mcp         × not registered with Claude Code (optional); c copies the claude mcp add command",
 		"binary      √ ~/bin/total-recall on PATH, this version (1.2.0)", // the fake paths do not exist, so VersionOf decides
 		"backups     × ~/Documents/total-recall does not exist  enter: create the directory",
 		"transcripts × ~/.claude/projects not found",
@@ -425,7 +429,7 @@ func TestSetup(t *testing.T) {
 		`"SessionEnd": [`, `"command": "total-recall backup --if-older 24h --detach"`)
 	requireLacks(t, f, h.home)
 	// The fix of the backup directory after a confirmation.
-	m = press(t, m, "down", "down", "down", "enter")
+	m = press(t, m, "down", "down", "down", "down", "enter")
 	requireContains(t, frame(m), "backups: create the directory? y confirms, esc cancels")
 	m = press(t, m, "esc")
 	if _, err := os.Stat(h.cfg.Backup.Dir); err == nil {
@@ -601,4 +605,62 @@ func TestSettingsEffect(t *testing.T) {
 	requireContains(t, frame(m), "work.target written to ~/.config/total-recall/config.toml · applied at once")
 	m = press(t, m, "d")
 	requireContains(t, frame(m), "work.target reset to the default · applied at once")
+}
+
+// TestSetupMCP: the mcp line reads only the mcpServers key of ~/.claude.json
+// and .mcp.json, shows and copies the entry, and writes nothing.
+func TestSetupMCP(t *testing.T) {
+	h := newTestEnv(t, "")
+	h.found, h.exe, h.version = filepath.Join(h.home, "bin", "total-recall"), filepath.Join(h.home, "bin", "total-recall"), "1.2.0"
+	if err := os.MkdirAll(filepath.Dir(h.found), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.found, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	claudeJSON := filepath.Join(h.home, ".claude.json")
+	other := `{"oauthAccount": {"emailAddress": "secret@example.invalid"}, "mcpServers": {"other": {"command": "x", "args": ["serve"]}}}`
+	if err := os.WriteFile(claudeJSON, []byte(other), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m := drive(t, New(h.options(t)), "shift+tab", "down", "down")
+	f := frame(m)
+	requireContains(t, f, "mcp         × not registered with Claude Code (optional)",
+		"MCP server entry for Claude Code, nothing is written; c copies the command",
+		"claude mcp add --scope user total-recall -- total-recall mcp", `"mcpServers": {`, `"args": [`)
+	requireLacks(t, f, "secret@example.invalid", "oauthAccount")
+	m = press(t, m, "c")
+	requireContains(t, frame(m), "claude mcp add command copied to the clipboard")
+
+	// Registered with an absolute path in ~/.claude.json.
+	entry := fmt.Sprintf(`{"oauthAccount": {"emailAddress": "secret@example.invalid"}, "mcpServers": {"tr": {"type": "stdio", "command": %q, "args": ["mcp"]}}}`, h.found)
+	if err := os.WriteFile(claudeJSON, []byte(entry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m = reloadSetup(t, m)
+	f = frame(m)
+	requireContains(t, f, "mcp         √ ~/.claude.json: total-recall mcp")
+	requireLacks(t, f, "secret@example.invalid")
+
+	// Registered in the project's .mcp.json, command missing.
+	if err := os.Remove(claudeJSON); err != nil {
+		t.Fatal(err)
+	}
+	gone := filepath.Join(h.home, "gone", "total-recall")
+	if err := os.WriteFile(filepath.Join(h.home, ".mcp.json"), []byte(fmt.Sprintf(`{"mcpServers": {"total-recall": {"command": %q, "args": ["mcp"]}}}`, gone)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m = reloadSetup(t, m)
+	requireContains(t, frame(m), "mcp         ! ~/.mcp.json: total-recall mcp, command ~/gone/total-recall does not exist")
+	// Nothing was written to the Claude files.
+	if _, err := os.Stat(claudeJSON); err == nil {
+		t.Error("~/.claude.json was written")
+	}
+}
+
+func reloadSetup(t *testing.T, m Model) Model {
+	t.Helper()
+	p, cmd := m.pages[pageSetup].reload(&m)
+	m.pages = m.replace(pageSetup, p)
+	return tuitest.Run(t, m, cmd).(Model)
 }

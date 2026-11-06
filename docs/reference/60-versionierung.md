@@ -14,6 +14,7 @@ Ein Bruch an einer dieser Stellen bedeutet eine neue Major-Version:
 - **JSON- und jsonl-Ausgabe.** Die Feldnamen der dokumentierten Befehle ([Befehle](10-befehle.md), Abschnitt *JSON*) und der [Ausgabevertrag](10-befehle.md#ausgabe): jeder dokumentierte Schlüssel ist immer vorhanden, `null` nur bei Strings, Fehler als ein Objekt auf stdout mit stabilem `kind`. Neue Felder kommen in einer Minor-Version dazu; Skripte sollten unbekannte Felder ignorieren.
 - **Config-Schlüssel.** Ein Schlüssel in der [Konfiguration](20-konfiguration.md) wird nicht umbenannt oder entfernt und ändert seine Bedeutung nicht; eine bestehende Datei lädt mit jeder späteren Version derselben Major-Version. Neue Schlüssel sind Minor, ein geänderter Default steht in den Änderungen.
 - **Exit-Codes.** `0` Erfolg, `1` Fehler, `2` Befunde bei `doctor`; Hooks enden immer mit `0`.
+- **MCP-Server.** Die Namen der Tools von [`total-recall mcp`](10-befehle.md#mcp) (`search`, `sessions`, `show`, `stats`, `memory`, `status`), ihre Parameter und das Ergebnis, das exakt die `--json`-Ausgabe des Befehls ist, einschließlich des Fehlerobjekts. Neue Tools und neue Parameter sind Minor; ein Tool oder Parameter verschwindet nicht. Auch was `mcp print` ausgibt, bleibt gültig.
 - **Hooks.** Was [`hooks print`](10-befehle.md#hooks-print) ausgibt, bleibt gültig: Ein eingetragener Hook-Block funktioniert mit jeder späteren Version derselben Major-Version weiter.
 
 ## Nicht stabil
