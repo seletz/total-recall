@@ -36,9 +36,10 @@ type WorktimeData struct {
 // for five weeks.
 func Worktime(d WorktimeData, o Options) canvas.Scene {
 	const left, colW, barW, plotH, legendW = 44.0, 64.0, 40.0, 200.0, 170.0
-	s := canvas.Scene{Background: background(o)}
+	th := o.theme()
+	s := canvas.Scene{Background: th.Background}
 	tx := o.Lang.text()
-	top := heading(&s, o, tx.worktimeTitle) + 12
+	top := heading(&s, o, tx.worktimeTitle) + 14
 	mx := 0.0
 	for _, w := range d.Weeks {
 		sum := 0.0
@@ -56,8 +57,8 @@ func Worktime(d WorktimeData, o Options) canvas.Scene {
 	plotW := float64(max(len(d.Weeks), 1)) * colW
 	for h := 0.0; h <= ymax; h += step {
 		y := yOf(h)
-		s.Add(canvas.Line{X1: left, Y1: y, X2: left + plotW, Y2: y, Stroke: GridColor})
-		s.Add(label(left-6, y+4, o.Lang.hours(h), canvas.End))
+		s.Add(canvas.Line{X1: left, Y1: y, X2: left + plotW, Y2: y, Stroke: gridColor})
+		s.Add(label(th, left-6, y+4, o.Lang.hours(h), canvas.End))
 	}
 	for i, w := range d.Weeks {
 		x := left + float64(i)*colW + (colW-barW)/2
@@ -73,25 +74,25 @@ func Worktime(d WorktimeData, o Options) canvas.Scene {
 		}
 		if w.Target > 0 {
 			y := yOf(w.Target)
-			s.Add(canvas.Line{X1: x - 4, Y1: y, X2: x + barW + 4, Y2: y, Width: 2, Stroke: TargetColor})
+			s.Add(canvas.Line{X1: x - 4, Y1: y, X2: x + barW + 4, Y2: y, Width: 1.5, Stroke: th.Text, Dash: [2]float64{4, 3}})
 		}
-		s.Add(label(x+barW/2, top+plotH+16, w.Label, canvas.Middle))
+		s.Add(label(th, x+barW/2, top+plotH+16, w.Label, canvas.Middle))
 		if base > 0 {
-			s.Add(canvas.Text{X: x + barW/2, Y: yOf(base) - 4, Text: o.Lang.hours(base), Size: smallSize, Fill: TextColor, Anchor: canvas.Middle})
+			s.Add(value(th, x+barW/2, yOf(base)-4, o.Lang.hours(base), canvas.Middle))
 		}
 	}
 	s.Width = left + plotW + 10
-	s.Height = top + plotH + 24
+	s.Height = top + plotH + 22
 	if !o.NoLegend {
 		lx := left + plotW + 24
 		y := top + 4
 		for _, c := range d.Categories {
 			s.Add(canvas.Rect{X: lx, Y: y, W: 12, H: 12, Radius: 2, Fill: c.Color})
-			s.Add(label(lx+18, y+10, cut(c.Name, 20), canvas.Start))
+			s.Add(label(th, lx+18, y+10, cut(c.Name, 20), canvas.Start))
 			y += 18
 		}
-		s.Add(canvas.Line{X1: lx, Y1: y + 6, X2: lx + 12, Y2: y + 6, Width: 2, Stroke: TargetColor})
-		s.Add(label(lx+18, y+10, tx.target, canvas.Start))
+		s.Add(canvas.Line{X1: lx, Y1: y + 6, X2: lx + 12, Y2: y + 6, Width: 1.5, Stroke: th.Text, Dash: [2]float64{4, 3}})
+		s.Add(label(th, lx+18, y+10, tx.target, canvas.Start))
 		s.Width = lx + legendW
 		s.Height = max(s.Height, y+24)
 	}

@@ -212,14 +212,28 @@ scale = 1.0
 # Heading and legend (--no-title, --no-legend switch them off for one run).
 title = true
 legend = true
-# Leave the white background out (--transparent).
+# Background of a figure: "transparent" (the page shows through, fits light
+# and dark notes) or "#rrggbb" (--background). --transparent forces none.
+background = "transparent"
+# Short form of background = "transparent"; kept for old files.
 transparent = false
+# Colour of titles, labels and values: a mid grey that reads on light and
+# dark pages.
+text = "#8b8b8b"
 # Projects in the project chart; the rest is folded into "other" (--top,
 # 0 = all).
 top = 12
 # Colour scale of the calendar, light to dark, one colour per level:
-# blue, orange, green, red, purple, teal or "#rrggbb".
-heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]
+# blue, orange, green, red, purple, teal or "#rrggbb". Empty takes
+# scale_orange.
+heatmap = []
+# Stepped scales from light to dark: orange for the heatmaps and the working
+# days outside the core hours, blue within them.
+scale_orange = ["#f6c9a8", "#ee9a5f", "#d9733a", "#a84f1c"]
+scale_blue = ["#b3cde3", "#6a9fcf", "#3b73b0", "#1f4e85"]
+# Categorical palette of projects and categories without a colour of their
+# own, in assignment order; the colour of a [[project]] goes first.
+palette = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#76b7b2", "#edc948", "#9c755f", "#bab0ac"]
 # Language of the labels (titles, legends, weekdays, months, number
 # formats): en or de (--lang). File names stay the same.
 lang = "en"

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="724" height="84" viewBox="0 0 724 84" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<text x="0" y="14" font-size="14" font-weight="600" fill="#8b8b8b">Working days · October 2026</text>
+<text x="0" y="32" font-size="11" fill="#8b8b8b">0m (0 days)</text>
+<text x="66" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">4</text>
+<text x="100" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">6</text>
+<text x="134" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">8</text>
+<text x="168" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">10</text>
+<text x="202" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">12</text>
+<text x="236" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">14</text>
+<text x="270" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">16</text>
+<text x="304" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">18</text>
+<text x="338" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">20</text>
+<text x="372" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">22</text>
+<text x="406" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">0</text>
+<text x="440" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">2</text>
+<line x1="66" y1="56" x2="66" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="100" y1="56" x2="100" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="134" y1="56" x2="134" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="168" y1="56" x2="168" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="202" y1="56" x2="202" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="236" y1="56" x2="236" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="270" y1="56" x2="270" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="304" y1="56" x2="304" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="338" y1="56" x2="338" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="372" y1="56" x2="372" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="406" y1="56" x2="406" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="440" y1="56" x2="440" y2="56" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="406" y1="56" x2="406" y2="56" stroke="#8b8b8b" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="0" y="70" width="12" height="9" rx="2" fill="#3b73b0"/>
+<text x="17" y="79" font-size="11" fill="#8b8b8b">core hours</text>
+<rect x="93" y="70" width="12" height="9" rx="2" fill="#ee9a5f"/>
+<text x="110" y="79" font-size="11" fill="#8b8b8b">outside the core hours</text>
+<rect x="260.4" y="70" width="12" height="9" rx="2" fill="#d9733a"/>
+<text x="277.4" y="79" font-size="11" fill="#8b8b8b">after midnight (+1)</text>
+<rect x="409.2" y="70" width="12" height="9" rx="2" fill="#8b8b8b" fill-opacity="0.55"/>
+<text x="426.2" y="79" font-size="11" fill="#8b8b8b">weekend</text>
+<rect x="483.6" y="70" width="12" height="9" rx="2" fill="#e15759"/>
+<text x="500.6" y="79" font-size="11" fill="#8b8b8b">public holiday</text>
+<line x1="601.4" y1="75" x2="615.4" y2="75" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="620.4" y="79" font-size="11" fill="#8b8b8b">target span</text>
+</svg>

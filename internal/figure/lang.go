@@ -36,17 +36,23 @@ func ParseLang(s string) (Lang, error) {
 // texts are the labels of the figures in one language. Tooltips use the
 // same words as the legends.
 type texts struct {
-	calendarTitle, maxPerDay, total        string
-	projectsTitle, agentWork, ownAttention string
-	agentEvents, ownMessages               string
-	punchcardTitle, agentActivity          string
-	worktimeTitle, target                  string
-	other                                  string
-	week                                   string // format of a calendar week, "W%02d"
-	date, month                            string // time layouts of a day and of a month
-	decimal                                string // the decimal separator
-	hours                                  string // suffix of a number of hours
-	weekdays                               [7]string
+	calendarTitle, maxPerDay, total          string
+	projectsTitle, agentWork, ownAttention   string
+	agentEvents, ownMessages                 string
+	punchcardTitle, agentActivity            string
+	worktimeTitle, target                    string
+	other                                    string
+	workdayTitle, coreHours, outsideCore     string
+	afterMidnight, weekend, holiday          string
+	targetSpan, balance                      string
+	headline                                 string // format: total, days, target, workdays, daily target, balance
+	dayOne, dayMany, workdayOne, workdayMany string
+	shortDay                                 string // time layout of a row label
+	week                                     string // format of a calendar week, "W%02d"
+	date, month                              string // time layouts of a day and of a month
+	decimal                                  string // the decimal separator
+	hours                                    string // suffix of a number of hours
+	weekdays                                 [7]string
 }
 
 var table = map[Lang]texts{
@@ -56,7 +62,13 @@ var table = map[Lang]texts{
 		agentEvents: "agent events", ownMessages: "own messages",
 		punchcardTitle: "Messages per weekday and hour", agentActivity: "agent activity",
 		worktimeTitle: "Working time per week", target: "target",
-		other:    "other",
+		other:        "other",
+		workdayTitle: "Working days", coreHours: "core hours", outsideCore: "outside the core hours",
+		afterMidnight: "after midnight (+1)", weekend: "weekend", holiday: "public holiday",
+		targetSpan: "target span", balance: "balance",
+		headline: "%s in %s · target %s (%s × %s) · balance %s",
+		dayOne:   "day", dayMany: "days", workdayOne: "workday", workdayMany: "workdays",
+		shortDay: "01-02",
 		week:     "W%02d",
 		date:     "2006-01-02",
 		month:    "January 2006",
@@ -70,7 +82,13 @@ var table = map[Lang]texts{
 		agentEvents: "Agenten-Events", ownMessages: "eigene Nachrichten",
 		punchcardTitle: "Nachrichten je Wochentag und Stunde", agentActivity: "Agenten-Aktivität",
 		worktimeTitle: "Arbeitszeit je Woche", target: "Soll",
-		other:    "Sonstige",
+		other:        "Sonstige",
+		workdayTitle: "Arbeitstage", coreHours: "Kernzeit", outsideCore: "außerhalb der Kernzeit",
+		afterMidnight: "nach Mitternacht (+1)", weekend: "Wochenende", holiday: "Feiertag",
+		targetSpan: "Soll-Spanne", balance: "Saldo",
+		headline: "%s in %s · Soll %s (%s × %s) · Saldo %s",
+		dayOne:   "Tag", dayMany: "Tage", workdayOne: "Arbeitstag", workdayMany: "Arbeitstage",
+		shortDay: "02.01.",
 		week:     "KW %02d",
 		date:     "02.01.2006",
 		month:    "January 2006",
@@ -121,4 +139,35 @@ func (l Lang) hours(h float64) string {
 	t := l.text()
 	s := strconv.FormatFloat(math.Round(h*10)/10, 'f', -1, 64)
 	return strings.Replace(s, ".", t.decimal, 1) + t.hours
+}
+
+// shortDay formats a row label: "Mon 10-05" in EN, "Mo 05.10." in DE.
+func (l Lang) shortDay(t time.Time) string {
+	return l.Weekday((int(t.Weekday())+6)%7) + " " + t.Format(l.text().shortDay)
+}
+
+// spanText formats a duration compactly like the CLI: "25m", "3h05m".
+func spanText(d time.Duration) string {
+	d = max(d, 0)
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
+}
+
+// diffText formats a difference with its sign: "+1h12m", "-0h30m".
+func diffText(d time.Duration) string {
+	sign := "+"
+	if d < 0 {
+		sign, d = "-", -d
+	}
+	return fmt.Sprintf("%s%dh%02dm", sign, int(d.Hours()), int(d.Minutes())%60)
+}
+
+// count formats n with its noun: "1 day", "3 days", "3 Tage".
+func (l Lang) count(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
 }

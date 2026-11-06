@@ -116,7 +116,11 @@ func Image(s Scene, size Size) (*image.RGBA, error) {
 				w = 1
 			}
 			r.Reset(outW, outH)
-			stroke(r, tx(it.X1), ty(it.Y1), tx(it.X2), ty(it.Y2), float32(w*scale))
+			if it.Dash[0] > 0 {
+				dashed(r, tx(it.X1), ty(it.Y1), tx(it.X2), ty(it.Y2), float32(w*scale), float32(it.Dash[0]*scale), float32(max(it.Dash[1], 0)*scale))
+			} else {
+				stroke(r, tx(it.X1), ty(it.Y1), tx(it.X2), ty(it.Y2), float32(w*scale))
+			}
 			r.Draw(img, img.Bounds(), image.NewUniform(it.Stroke), image.Point{})
 		case Circle:
 			if it.Fill.A == 0 || it.R <= 0 {
@@ -183,6 +187,21 @@ func circle(r *vector.Rasterizer, cx, cy, rad float32) {
 	r.CubeTo(cx-rad, cy-c, cx-c, cy-rad, cx, cy-rad)
 	r.CubeTo(cx+c, cy-rad, cx+rad, cy-c, cx+rad, cy)
 	r.ClosePath()
+}
+
+// dashed adds a line of width w as dashes of length on, separated by gaps
+// of length off.
+func dashed(r *vector.Rasterizer, x1, y1, x2, y2, w, on, off float32) {
+	dx, dy := x2-x1, y2-y1
+	l := float32(math.Hypot(float64(dx), float64(dy)))
+	if l == 0 {
+		return
+	}
+	ux, uy := dx/l, dy/l
+	for p := float32(0); p < l; p += on + off {
+		q := min(p+on, l)
+		stroke(r, x1+ux*p, y1+uy*p, x1+ux*q, y1+uy*q, w)
+	}
 }
 
 // stroke adds a line of width w as a quadrilateral to the path.

@@ -132,9 +132,14 @@ format = "svg"                   # svg | png (--format)
 scale = 1.0                      # Größenfaktor (--scale); --width/--height setzen die Größe
 title = true                     # Überschrift (--no-title)
 legend = true                    # Legende (--no-legend)
-transparent = false              # true = ohne weißen Hintergrund (--transparent)
+background = "transparent"       # transparent | "#rrggbb" (--background)
+transparent = false              # Kurzform für background = "transparent" (--transparent)
+text = "#8b8b8b"                 # Textfarbe: ein mittleres Grau, lesbar auf hell und dunkel
 top = 12                         # Projekte in `chart projects`, Rest als other; 0 = alle (--top)
-heatmap = ["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]   # Stufen des Kalenders, hell nach dunkel
+heatmap = []                     # eigene Stufen des Kalenders; leer = scale_orange
+scale_orange = ["#f6c9a8", "#ee9a5f", "#d9733a", "#a84f1c"]   # Folge hell nach dunkel
+scale_blue = ["#b3cde3", "#6a9fcf", "#3b73b0", "#1f4e85"]
+palette = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#76b7b2", "#edc948", "#9c755f", "#bab0ac"]
 lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 
 [keys]
@@ -391,14 +396,26 @@ Defaults für [`total-recall chart`](10-befehle.md#chart), die Grafiken für Mon
 `title`, `legend`
 :   Überschrift und Legende zeichnen. Override für einen Lauf: `--no-title`, `--no-legend`. Default: `true`.
 
+`background`
+:   Hintergrund der Grafik: `"transparent"` (die Seite scheint durch, die Grafik passt in helle und dunkle Notizen) oder eine Farbe `#rrggbb`. Override: `--background`. Default: `"transparent"`.
+
 `transparent`
-:   `true` lässt den weißen Hintergrund weg. Override: `--transparent`. Default: `false`.
+:   Kurzform für `background = "transparent"` und stärker als `background`; für alte Dateien, in denen der Hintergrund bis v1.3 weiß war. Override: `--transparent`. Default: `false`.
+
+`text`
+:   Farbe von Titeln, Beschriftungen und Werten, ein Palettenname oder `#rrggbb`. Ein mittleres Grau liest sich auf hellem wie auf dunklem Grund. Default: `"#8b8b8b"`.
 
 `top`
 :   Projekte in `chart projects`; der Rest wird zu `other`, `0` zeigt alle. Override: `--top`. Default: `12`.
 
 `heatmap`
-:   Farbstufen des Kalenders von hell nach dunkel, je Stufe ein Palettenname oder `#rrggbb`, mindestens eine; die Zahl der Einträge ist die Zahl der Stufen. Default: `["#c6dbef", "#9ecae1", "#4292c6", "#08519c"]`.
+:   Eigene Farbstufen des Kalenders von hell nach dunkel, je Stufe ein Palettenname oder `#rrggbb`; die Zahl der Einträge ist die Zahl der Stufen. Leer nimmt `scale_orange`. Default: `[]`.
+
+`scale_orange`, `scale_blue`
+:   Die abgestuften Folgen von hell nach dunkel, mindestens zwei Farben je Folge: Orange für den Kalender und für die Arbeitstage außerhalb der Kernzeit, Blau für die Arbeitstage in der Kernzeit. Default Orange: `["#f6c9a8", "#ee9a5f", "#d9733a", "#a84f1c"]`, Blau: `["#b3cde3", "#6a9fcf", "#3b73b0", "#1f4e85"]`.
+
+`palette`
+:   Die kategoriale Palette für Projekte und Kategorien ohne eigene Farbe, in der Reihenfolge der Vergabe, mindestens eine Farbe. Die Farbe aus [`[[project]]`](#project) bzw. `[[worktime.category]]` geht immer vor; die anderen bekommen die nächste freie Farbe der Palette. Die ersten sechs Defaults sind die Reihenfarben der TUI: `["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#76b7b2", "#edc948", "#9c755f", "#bab0ac"]`.
 
 `lang`
 :   Sprache der Beschriftungen: `en` oder `de` (Titel, Legende, Achsen, Wochentage, Monatsnamen, Datums- und Zahlenformat). Die Dateinamen bleiben gleich. Override: `--lang`. Default: `en`.

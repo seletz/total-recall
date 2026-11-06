@@ -1,6 +1,7 @@
 package config
 
 import (
+	"image/color"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seletz/total-recall/internal/canvas"
 	"github.com/seletz/total-recall/internal/figure"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/worktime"
@@ -806,7 +808,7 @@ func TestChart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Format != "svg" || s.Scale != 1 || !s.Title || !s.Legend || s.Transparent || s.Top != 12 || len(s.Heatmap) != 4 || len(s.CategoryColors) != 0 || s.Lang != figure.EN {
+	if s.Format != "svg" || s.Scale != 1 || !s.Title || !s.Legend || s.Theme.Background.A != 0 || s.Top != 12 || len(s.Heatmap) != 0 || len(s.Theme.Orange) != 4 || len(s.Theme.Blue) != 4 || len(s.Theme.Palette) != 9 || s.Theme.Text != canvas.Hex(figure.DefaultText) || len(s.CategoryColors) != 0 || s.Lang != figure.EN {
 		t.Errorf("defaults = %+v", s)
 	}
 	content := `[chart]
@@ -836,10 +838,10 @@ match = "*"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Format != "png" || s.Scale != 2.5 || s.Title || s.Legend || !s.Transparent || s.Top != 0 || s.Lang != figure.DE {
+	if s.Format != "png" || s.Scale != 2.5 || s.Title || s.Legend || s.Theme.Background.A != 0 || s.Top != 0 || s.Lang != figure.DE {
 		t.Errorf("file = %+v", s)
 	}
-	if want := []string{"#4e79a7", "#abcdef"}; !slices.Equal(s.Heatmap, want) {
+	if want := []color.NRGBA{canvas.Hex("#4e79a7"), canvas.Hex("#abcdef")}; !slices.Equal(s.Heatmap, want) {
 		t.Errorf("heatmap = %v, want %v", s.Heatmap, want)
 	}
 	if len(s.CategoryColors) != 1 || s.CategoryColors["kunde"] != "#f28e2b" {
@@ -866,6 +868,36 @@ match = "*"
 	}
 }
 
+// TestChartTheme: background, text, the scales and the palette of [chart]
+// reach the settings; "transparent" and the old switch leave the
+// background out.
+func TestChartTheme(t *testing.T) {
+	load := func(content string) ChartSettings {
+		t.Helper()
+		c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: writeFile(t, t.TempDir(), "c.toml", content)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := c.ChartSettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	s := load("[chart]\nbackground = \"#101010\"\ntext = \"#a0a0a0\"\nscale_orange = [\"#111111\", \"#222222\"]\nscale_blue = [\"blue\", \"#333333\", \"#444444\"]\npalette = [\"red\"]\n")
+	if s.Theme.Background != canvas.Hex("#101010") || s.Theme.Text != canvas.Hex("#a0a0a0") {
+		t.Errorf("background/text = %v / %v", s.Theme.Background, s.Theme.Text)
+	}
+	if len(s.Theme.Orange) != 2 || len(s.Theme.Blue) != 3 || s.Theme.Blue[0] != canvas.Hex("#4e79a7") || len(s.Theme.Palette) != 1 || s.Theme.Palette[0] != canvas.Hex("#e15759") {
+		t.Errorf("scales = %v %v %v", s.Theme.Orange, s.Theme.Blue, s.Theme.Palette)
+	}
+	for _, content := range []string{"[chart]\nbackground = \"transparent\"\n", "[chart]\nbackground = \"#101010\"\ntransparent = true\n", "[chart]\nbackground = \"Transparent\"\n"} {
+		if s := load(content); s.Theme.Background.A != 0 {
+			t.Errorf("%q: background = %v, want transparent", content, s.Theme.Background)
+		}
+	}
+}
+
 // TestChartErrors: a bad [chart] table or category colour loads, but
 // ChartSettings and Problems report it.
 func TestChartErrors(t *testing.T) {
@@ -878,7 +910,11 @@ func TestChartErrors(t *testing.T) {
 		{"scale zero", "[chart]\nscale = 0\n", "chart.scale"},
 		{"scale huge", "[chart]\nscale = 17\n", "chart.scale"},
 		{"top negative", "[chart]\ntop = -1\n", "chart.top"},
-		{"heatmap empty", "[chart]\nheatmap = []\n", "chart.heatmap"},
+		{"background bad", "[chart]\nbackground = \"pink\"\n", "chart.background"},
+		{"text bad", "[chart]\ntext = \"#12345\"\n", "chart.text"},
+		{"scale_orange short", "[chart]\nscale_orange = [\"#aaaaaa\"]\n", "chart.scale_orange"},
+		{"scale_blue bad colour", "[chart]\nscale_blue = [\"blue\", \"pink\"]\n", "chart.scale_blue[1]"},
+		{"palette empty", "[chart]\npalette = []\n", "chart.palette"},
 		{"heatmap bad colour", "[chart]\nheatmap = [\"blue\", \"pink\"]\n", "chart.heatmap[1]"},
 		{"heatmap empty colour", "[chart]\nheatmap = [\"\"]\n", "chart.heatmap[0]"},
 		{"lang unknown", "[chart]\nlang = \"fr\"\n", "chart.lang"},

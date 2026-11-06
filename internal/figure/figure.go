@@ -19,7 +19,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/seletz/total-recall/internal/canvas"
-	"github.com/seletz/total-recall/internal/project"
 )
 
 // Options apply to every figure.
@@ -33,25 +32,13 @@ type Options struct {
 	Lang Lang
 	// NoTitle leaves the heading out, NoLegend the legend.
 	NoTitle, NoLegend bool
-	// Transparent leaves the background out; the default is white.
-	Transparent bool
+	// Theme sets the colours; unset parts take the defaults, a zero
+	// Background is transparent.
+	Theme Theme
 }
 
-// Theme colours shared by the figures: text, the empty cells of the
-// heatmaps, grid lines and the background.
-var (
-	TextColor  = canvas.Hex("#6b6b6b")
-	EmptyColor = canvas.Hex("#e6e6e6")
-	GridColor  = canvas.Hex("#d9d9d9")
-	Background = canvas.Hex("#ffffff")
-	// HumanColor and AgentColor mark the own messages and the agent
-	// activity of the punchcard; the legend of the project chart uses
-	// neutral swatches instead.
-	HumanColor = canvas.Hex("#59a14f")
-	AgentColor = canvas.Hex("#f28e2b")
-	// TargetColor is the target line of the working time.
-	TargetColor = canvas.Hex("#444444")
-)
+// theme returns the resolved theme of the options.
+func (o Options) theme() Theme { return o.Theme.resolved() }
 
 // Text sizes in CSS pixels.
 const (
@@ -59,10 +46,6 @@ const (
 	labelSize = 11
 	smallSize = 10
 )
-
-// DefaultHeatmap is the built-in scale of the calendar, four steps from
-// light to dark; the configuration ([chart] heatmap) replaces it.
-var DefaultHeatmap = []string{"#c6dbef", "#9ecae1", "#4292c6", "#08519c"}
 
 // Format is the output format of Encode.
 type Format string
@@ -93,33 +76,20 @@ func Encode(s canvas.Scene, f Format, size canvas.Size) ([]byte, error) {
 	return nil, fmt.Errorf("figure: unknown format %q", f)
 }
 
-// Colors parses a list of configured colours (names of project.Palette or
-// #rrggbb) for a heatmap scale.
-func Colors(hexes []string) ([]color.NRGBA, error) {
-	out := make([]color.NRGBA, 0, len(hexes))
-	for _, h := range hexes {
-		p, err := project.ParseColor(h)
-		if err != nil {
-			return nil, err
-		}
-		if p == "" {
-			return nil, fmt.Errorf("empty colour")
-		}
-		out = append(out, canvas.Hex(p))
-	}
-	return out, nil
-}
-
 // AssignColors gives every name a colour: the fixed one (#rrggbb) where
-// there is one, otherwise the next colour of project.Palette in order of
-// the names, skipping colours that are fixed for another name while any
-// is free and cycling when the palette is exhausted.
-func AssignColors(names []string, fixed map[string]string) map[string]color.NRGBA {
+// there is one, otherwise the next colour of palette in order of the
+// names, skipping colours that are fixed for another name while any is
+// free and cycling when the palette is exhausted. An empty palette takes
+// DefaultPalette.
+func AssignColors(names []string, fixed map[string]string, palette []color.NRGBA) map[string]color.NRGBA {
+	if len(palette) == 0 {
+		palette = DefaultTheme().Palette
+	}
 	out := make(map[string]color.NRGBA, len(names))
-	taken := map[string]bool{}
+	taken := map[color.NRGBA]bool{}
 	for _, n := range names {
 		if h := fixed[n]; h != "" {
-			taken[h] = true
+			taken[canvas.Hex(h)] = true
 		}
 	}
 	next := 0
@@ -128,21 +98,22 @@ func AssignColors(names []string, fixed map[string]string) map[string]color.NRGB
 			out[n] = canvas.Hex(h)
 			continue
 		}
-		var pick string
-		for tries := 0; tries < len(project.Palette); tries++ {
-			c := project.Palette[next%len(project.Palette)].Hex
+		var pick color.NRGBA
+		found := false
+		for tries := 0; tries < len(palette); tries++ {
+			c := palette[next%len(palette)]
 			next++
 			if !taken[c] {
-				pick = c
+				pick, found = c, true
 				break
 			}
 		}
-		if pick == "" {
-			pick = project.Palette[next%len(project.Palette)].Hex
+		if !found {
+			pick = palette[next%len(palette)]
 			next++
 		}
 		taken[pick] = true
-		out[n] = canvas.Hex(pick)
+		out[n] = pick
 	}
 	return out
 }
@@ -216,21 +187,18 @@ func heading(s *canvas.Scene, o Options, title string) float64 {
 	case o.Period != "":
 		title += " · " + o.Period
 	}
-	s.Add(canvas.Text{X: 0, Y: 16, Text: title, Size: titleSize, Bold: true, Fill: TextColor})
-	return 22
-}
-
-// background returns the scene background for the options.
-func background(o Options) color.NRGBA {
-	if o.Transparent {
-		return canvas.Transparent
-	}
-	return Background
+	s.Add(canvas.Text{X: 0, Y: 14, Text: title, Size: titleSize, Bold: true, Fill: o.theme().Text})
+	return 20
 }
 
 // label is a small text item in the text colour.
-func label(x, y float64, text string, anchor canvas.Anchor) canvas.Text {
-	return canvas.Text{X: x, Y: y, Text: text, Size: labelSize, Fill: TextColor, Anchor: anchor}
+func label(th Theme, x, y float64, text string, anchor canvas.Anchor) canvas.Text {
+	return canvas.Text{X: x, Y: y, Text: text, Size: labelSize, Fill: th.Text, Anchor: anchor}
+}
+
+// value is a text item of the value size in the text colour.
+func value(th Theme, x, y float64, text string, anchor canvas.Anchor) canvas.Text {
+	return canvas.Text{X: x, Y: y, Text: text, Size: smallSize, Fill: th.Text, Anchor: anchor}
 }
 
 // cut shortens s to n runes, ending in an ellipsis.

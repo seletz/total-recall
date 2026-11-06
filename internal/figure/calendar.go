@@ -27,18 +27,20 @@ func Level(v, mx, n int) int {
 }
 
 // Calendar lays out the heatmap: ISO weeks as columns, weekdays as rows,
-// one cell per day shaded by its level of scale (light to dark), the day
-// number in every cell, the week numbers above and a legend with the
-// maximum, the scale and the total on the right. About 360×290 for a
-// month with five weeks.
+// one cell per day shaded by its level of scale (light to dark; the
+// orange scale of the theme when scale is empty), the day number in every
+// cell, the week numbers above and a legend with the maximum, the scale
+// and the total on the right. Every cell carries its count as a tooltip.
+// About 360×280 for a month with five weeks.
 func Calendar(d CalendarData, scale []color.NRGBA, o Options) canvas.Scene {
 	const cell, gap, left = 32.0, 4.0, 28.0
+	th := o.theme()
 	if len(scale) == 0 {
-		scale, _ = Colors(DefaultHeatmap)
+		scale = th.Orange
 	}
-	s := canvas.Scene{Background: background(o)}
+	s := canvas.Scene{Background: th.Background}
 	tx := o.Lang.text()
-	top := heading(&s, o, tx.calendarTitle) + 12
+	top := heading(&s, o, tx.calendarTitle) + 14
 	// The weeks: Monday of the first day's week to the last day.
 	first := d.First
 	last := d.Last
@@ -57,42 +59,42 @@ func Calendar(d CalendarData, scale []color.NRGBA, o Options) canvas.Scene {
 		mx = max(mx, v)
 	}
 	for i, wd := range tx.weekdays {
-		s.Add(canvas.Text{X: 0, Y: top + float64(i)*(cell+gap) + cell/2 + 4, Text: wd[:2], Size: smallSize, Fill: TextColor})
+		s.Add(canvas.Text{X: 0, Y: top + float64(i)*(cell+gap) + cell/2 + 4, Text: wd[:2], Size: labelSize, Fill: th.Text})
 	}
 	for w := range weeks {
 		t := monday.AddDate(0, 0, 7*w)
 		_, wk := t.ISOWeek()
-		s.Add(canvas.Text{X: left + float64(w)*(cell+gap), Y: top - 6, Text: o.Lang.Week(wk), Size: smallSize, Fill: TextColor})
+		s.Add(canvas.Text{X: left + float64(w)*(cell+gap), Y: top - 6, Text: o.Lang.Week(wk), Size: labelSize, Fill: th.Text})
 	}
 	for t := first; !t.After(last); t = t.AddDate(0, 0, 1) {
 		w := daysBetween(monday, t) / 7
 		row := (int(t.Weekday()) + 6) % 7
 		v := d.Values[t.Format("2006-01-02")]
 		lv := Level(v, mx, len(scale))
-		fill := EmptyColor
+		fill := emptyColor
 		if lv > 0 {
 			fill = scale[lv-1]
 		}
 		x, y := left+float64(w)*(cell+gap), top+float64(row)*(cell+gap)
 		s.Add(canvas.Rect{X: x, Y: y, W: cell, H: cell, Radius: 4, Fill: fill,
-			Title: fmt.Sprintf("%s %s: %d", tx.weekdays[row], o.Lang.day(t), v)})
-		num := TextColor
-		if lv*2 > len(scale) {
-			num = Background
+			Title: fmt.Sprintf("%s %s: %d %s", tx.weekdays[row], o.Lang.day(t), v, tx.ownMessages)})
+		num := th.Text
+		if lv*2 >= len(scale) {
+			num = white
 		}
 		s.Add(canvas.Text{X: x + cell/2, Y: y + cell/2 + 4, Text: itoa(t.Day()), Size: smallSize, Fill: num, Anchor: canvas.Middle})
 	}
 	gridW := left + float64(weeks)*(cell+gap)
 	s.Width = gridW - gap
-	s.Height = top + 7*(cell+gap) - gap + 8
+	s.Height = top + 7*(cell+gap) - gap + 4
 	if !o.NoLegend {
 		lx := gridW + 12
-		s.Add(label(lx, top+12, fmt.Sprintf(tx.maxPerDay, mx), canvas.Start))
-		sw := append([]color.NRGBA{EmptyColor}, scale...)
+		s.Add(label(th, lx, top+12, fmt.Sprintf(tx.maxPerDay, mx), canvas.Start))
+		sw := append([]color.NRGBA{emptyColor}, scale...)
 		for i, c := range sw {
 			s.Add(canvas.Rect{X: lx + float64(i)*18, Y: top + 22, W: 14, H: 14, Radius: 3, Fill: c})
 		}
-		s.Add(label(lx, top+54, fmt.Sprintf(tx.total, total), canvas.Start))
+		s.Add(label(th, lx, top+54, fmt.Sprintf(tx.total, total), canvas.Start))
 		s.Width = lx + max(float64(len(sw))*18+20, 140)
 	}
 	return s

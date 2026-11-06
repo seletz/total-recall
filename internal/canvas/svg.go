@@ -43,6 +43,9 @@ func SVG(s Scene, size Size) []byte {
 			if it.Stroke.A < 0xff {
 				fmt.Fprintf(&b, ` stroke-opacity="%s"`, num(float64(it.Stroke.A)/255))
 			}
+			if it.Dash[0] > 0 {
+				fmt.Fprintf(&b, ` stroke-dasharray="%s %s"`, num(it.Dash[0]), num(max(it.Dash[1], 0)))
+			}
 			b.WriteString("/>\n")
 		case Circle:
 			fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" %s`, num(it.CX), num(it.CY), num(it.R), fill(it.Fill))

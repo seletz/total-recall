@@ -1,28 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="610" height="158" viewBox="0 0 610 158" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
-<rect width="100%" height="100%" fill="#ffffff"/>
-<text x="0" y="16" font-size="14" font-weight="600" fill="#6b6b6b">Share per project · October 2026</text>
-<rect x="170" y="24" width="12" height="10" rx="2" fill="#8c8c8c"/>
-<text x="188" y="33" font-size="11" fill="#6b6b6b">agent work (agent events)</text>
-<rect x="370" y="24" width="12" height="10" rx="2" fill="#8c8c8c" fill-opacity="0.5"/>
-<text x="388" y="33" font-size="11" fill="#6b6b6b">own attention (own messages)</text>
-<text x="162" y="58" font-size="11" text-anchor="end" fill="#6b6b6b">kompass</text>
-<rect x="170" y="44" width="380" height="9" rx="2" fill="#4e79a7"><title>kompass: 3000 agent events (74 %)</title></rect>
-<text x="554" y="52" font-size="10" fill="#6b6b6b">74 %</text>
-<rect x="170" y="54" width="246.24" height="9" rx="2" fill="#4e79a7" fill-opacity="0.5"><title>kompass: 120 own messages (48 %)</title></rect>
-<text x="420.24" y="62" font-size="10" fill="#6b6b6b">48 %</text>
-<text x="162" y="84" font-size="11" text-anchor="end" fill="#6b6b6b">wetterwarte</text>
-<rect x="170" y="70" width="114" height="9" rx="2" fill="#f28e2b"><title>wetterwarte: 900 agent events (22 %)</title></rect>
-<text x="288" y="78" font-size="10" fill="#6b6b6b">22 %</text>
-<rect x="170" y="80" width="164.16" height="9" rx="2" fill="#f28e2b" fill-opacity="0.5"><title>wetterwarte: 80 own messages (32 %)</title></rect>
-<text x="338.16" y="88" font-size="10" fill="#6b6b6b">32 %</text>
-<text x="162" y="110" font-size="11" text-anchor="end" fill="#6b6b6b">~/notizen</text>
-<rect x="170" y="96" width="12.67" height="9" rx="2" fill="#59a14f"><title>~/notizen: 100 agent events (2 %)</title></rect>
-<text x="186.67" y="104" font-size="10" fill="#6b6b6b">2 %</text>
-<rect x="170" y="106" width="82.08" height="9" rx="2" fill="#59a14f" fill-opacity="0.5"><title>~/notizen: 40 own messages (16 %)</title></rect>
-<text x="256.08" y="114" font-size="10" fill="#6b6b6b">16 %</text>
-<text x="162" y="136" font-size="11" text-anchor="end" fill="#6b6b6b">other</text>
-<rect x="170" y="122" width="6.33" height="9" rx="2" fill="#e15759"><title>other: 50 agent events (1 %)</title></rect>
-<text x="180.33" y="130" font-size="10" fill="#6b6b6b">1 %</text>
-<rect x="170" y="132" width="20.52" height="9" rx="2" fill="#e15759" fill-opacity="0.5"><title>other: 10 own messages (4 %)</title></rect>
-<text x="194.52" y="140" font-size="10" fill="#6b6b6b">4 %</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="610" height="148" viewBox="0 0 610 148" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<text x="0" y="14" font-size="14" font-weight="600" fill="#8b8b8b">Share per project · October 2026</text>
+<rect x="170" y="22" width="12" height="10" rx="2" fill="#8b8b8b"/>
+<text x="188" y="31" font-size="11" fill="#8b8b8b">agent work (agent events)</text>
+<rect x="370" y="22" width="12" height="10" rx="2" fill="#8b8b8b" fill-opacity="0.5"/>
+<text x="388" y="31" font-size="11" fill="#8b8b8b">own attention (own messages)</text>
+<text x="162" y="54" font-size="11" text-anchor="end" fill="#8b8b8b">kompass</text>
+<rect x="170" y="40" width="380" height="9" rx="2" fill="#4e79a7"><title>kompass: 3000 agent events (74 %)</title></rect>
+<text x="554" y="48" font-size="10" fill="#8b8b8b">74 %</text>
+<rect x="170" y="50" width="246.24" height="9" rx="2" fill="#4e79a7" fill-opacity="0.5"><title>kompass: 120 own messages (48 %)</title></rect>
+<text x="420.24" y="58" font-size="10" fill="#8b8b8b">48 %</text>
+<text x="162" y="80" font-size="11" text-anchor="end" fill="#8b8b8b">wetterwarte</text>
+<rect x="170" y="66" width="114" height="9" rx="2" fill="#f28e2b"><title>wetterwarte: 900 agent events (22 %)</title></rect>
+<text x="288" y="74" font-size="10" fill="#8b8b8b">22 %</text>
+<rect x="170" y="76" width="164.16" height="9" rx="2" fill="#f28e2b" fill-opacity="0.5"><title>wetterwarte: 80 own messages (32 %)</title></rect>
+<text x="338.16" y="84" font-size="10" fill="#8b8b8b">32 %</text>
+<text x="162" y="106" font-size="11" text-anchor="end" fill="#8b8b8b">~/notizen</text>
+<rect x="170" y="92" width="12.67" height="9" rx="2" fill="#59a14f"><title>~/notizen: 100 agent events (2 %)</title></rect>
+<text x="186.67" y="100" font-size="10" fill="#8b8b8b">2 %</text>
+<rect x="170" y="102" width="82.08" height="9" rx="2" fill="#59a14f" fill-opacity="0.5"><title>~/notizen: 40 own messages (16 %)</title></rect>
+<text x="256.08" y="110" font-size="10" fill="#8b8b8b">16 %</text>
+<text x="162" y="132" font-size="11" text-anchor="end" fill="#8b8b8b">other</text>
+<rect x="170" y="118" width="6.33" height="9" rx="2" fill="#e15759"><title>other: 50 agent events (1 %)</title></rect>
+<text x="180.33" y="126" font-size="10" fill="#8b8b8b">1 %</text>
+<rect x="170" y="128" width="20.52" height="9" rx="2" fill="#e15759" fill-opacity="0.5"><title>other: 10 own messages (4 %)</title></rect>
+<text x="194.52" y="136" font-size="10" fill="#8b8b8b">4 %</text>
 </svg>

@@ -1,6 +1,7 @@
 package figure
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 	"time"
@@ -143,7 +144,7 @@ func TestLang(t *testing.T) {
 }
 
 func TestAssignColors(t *testing.T) {
-	got := AssignColors([]string{"a", "b", "c", "d"}, map[string]string{"b": "#4e79a7", "d": "#123456"})
+	got := AssignColors([]string{"a", "b", "c", "d"}, map[string]string{"b": "#4e79a7", "d": "#123456"}, nil)
 	want := map[string]string{"a": "#f28e2b", "b": "#4e79a7", "c": "#59a14f", "d": "#123456"}
 	for n, w := range want {
 		if g := canvas.HexString(got[n]); g != w {
@@ -152,20 +153,15 @@ func TestAssignColors(t *testing.T) {
 	}
 	// More names than colours: the palette cycles.
 	names := []string{"a", "b", "c", "d", "e", "f", "g"}
-	got = AssignColors(names, nil)
-	if canvas.HexString(got["g"]) != canvas.HexString(got["a"]) {
-		t.Errorf("g = %s, want the colour of a (%s)", canvas.HexString(got["g"]), canvas.HexString(got["a"]))
+	small := []color.NRGBA{canvas.Hex("#111111"), canvas.Hex("#222222")}
+	got = AssignColors(names, nil, small)
+	if canvas.HexString(got["c"]) != canvas.HexString(got["a"]) {
+		t.Errorf("c = %s, want the colour of a (%s)", canvas.HexString(got["c"]), canvas.HexString(got["a"]))
 	}
-}
-
-func TestColors(t *testing.T) {
-	if _, err := Colors([]string{"blue", "#ABCDEF"}); err != nil {
-		t.Errorf("Colors: %v", err)
-	}
-	for _, bad := range [][]string{{"pink"}, {""}, {"#abc"}} {
-		if _, err := Colors(bad); err == nil {
-			t.Errorf("Colors(%q) = nil error", bad)
-		}
+	// A configured palette replaces the default; a fixed colour still wins.
+	got = AssignColors([]string{"a", "b"}, map[string]string{"a": "#222222"}, small)
+	if canvas.HexString(got["a"]) != "#222222" || canvas.HexString(got["b"]) != "#111111" {
+		t.Errorf("fixed colour: a = %s, b = %s", canvas.HexString(got["a"]), canvas.HexString(got["b"]))
 	}
 }
 
@@ -224,7 +220,7 @@ func sampleCalendar() CalendarData {
 }
 
 func sampleProjects() []ProjectRow {
-	c := AssignColors([]string{"kompass", "wetterwarte", "~/notizen", "other"}, nil)
+	c := AssignColors([]string{"kompass", "wetterwarte", "~/notizen", "other"}, nil, nil)
 	return []ProjectRow{
 		{"kompass", 120, 3000, c["kompass"]},
 		{"wetterwarte", 80, 900, c["wetterwarte"]},
@@ -244,7 +240,7 @@ func samplePunchcard() PunchcardData {
 }
 
 func sampleWorktime() WorktimeData {
-	c := AssignColors([]string{"kompass", "privat"}, map[string]string{"privat": "#b07aa1"})
+	c := AssignColors([]string{"kompass", "privat"}, map[string]string{"privat": "#b07aa1"}, nil)
 	return WorktimeData{
 		Categories: []WorktimeCategory{{"kompass", c["kompass"]}, {"privat", c["privat"]}},
 		Weeks: []WorktimeWeek{
@@ -252,6 +248,36 @@ func sampleWorktime() WorktimeData {
 			{Label: "W41", Hours: map[string]float64{"kompass": 41.25, "privat": 2.5}, Target: 40},
 			{Label: "W42", Hours: map[string]float64{}, Target: 40},
 			{Label: "W43", Hours: map[string]float64{"privat": 6}, Target: 0},
+		},
+	}
+}
+
+// sampleWorkday is a week: an ordinary day within and around the core
+// hours, one past midnight, a day without activity, a public holiday that
+// was worked and a quiet weekend.
+func sampleWorkday() WorkdayData {
+	day := func(d int) time.Time { return time.Date(2026, 10, d, 0, 0, 0, 0, berlin) }
+	h := func(hours, mins int) float64 { return float64(hours-4) + float64(mins)/60 }
+	core := func(r WorkdayRow) WorkdayRow {
+		r.HasCore, r.CoreStart, r.CoreEnd, r.Target = true, h(9, 0), h(17, 0), 8
+		return r
+	}
+	return WorkdayData{
+		DayStart: 4, Midnight: 20,
+		Span: 31*time.Hour + 5*time.Minute, Target: 32 * time.Hour, Balance: -55 * time.Minute,
+		Active: 4, Workdays: 4, DayTarget: 8 * time.Hour, HasTarget: true,
+		Rows: []WorkdayRow{
+			core(WorkdayRow{Day: day(5), Active: true, First: h(8, 12), Last: h(17, 40), FirstText: "08:12", LastText: "17:40",
+				Span: 9*time.Hour + 28*time.Minute, Diff: time.Hour + 28*time.Minute, HasDiff: true}),
+			core(WorkdayRow{Day: day(6), Active: true, First: h(9, 30), Last: h(25, 20), FirstText: "09:30", LastText: "01:20 (+1)",
+				Span: 15*time.Hour + 50*time.Minute, Diff: 7*time.Hour + 50*time.Minute, HasDiff: true}),
+			core(WorkdayRow{Day: day(7)}),
+			{Day: day(8), Active: true, First: h(10, 0), Last: h(15, 0), FirstText: "10:00", LastText: "15:00", Span: 5 * time.Hour,
+				Diff: -3 * time.Hour, HasDiff: true, HasCore: true, CoreStart: h(9, 0), CoreEnd: h(17, 0), Target: 8},
+			{Day: day(9), Holiday: "Feiertag"},
+			{Day: day(10), Weekend: true},
+			{Day: day(11), Weekend: true, Active: true, First: h(11, 0), Last: h(12, 30), FirstText: "11:00", LastText: "12:30",
+				Span: 90 * time.Minute, Diff: 90 * time.Minute, HasDiff: true},
 		},
 	}
 }
@@ -266,7 +292,7 @@ func TestGolden(t *testing.T) {
 		scene canvas.Scene
 	}{
 		{"Calendar", Calendar(sampleCalendar(), nil, period)},
-		{"CalendarBare", Calendar(sampleCalendar(), nil, Options{NoTitle: true, NoLegend: true, Transparent: true})},
+		{"CalendarBare", Calendar(sampleCalendar(), nil, Options{NoTitle: true, NoLegend: true})},
 		{"CalendarEmpty", Calendar(CalendarData{First: sampleCalendar().First, Last: sampleCalendar().Last}, nil, period)},
 		{"Projects", Projects(sampleProjects(), period)},
 		{"ProjectsBare", Projects(sampleProjects(), Options{NoTitle: true, NoLegend: true})},
@@ -280,6 +306,11 @@ func TestGolden(t *testing.T) {
 		{"ProjectsDE", Projects(sampleProjects(), de)},
 		{"PunchcardDE", Punchcard(samplePunchcard(), de)},
 		{"WorktimeDE", Worktime(sampleWorktimeDE(), de)},
+		{"Workday", Workday(sampleWorkday(), period)},
+		{"WorkdayBare", Workday(sampleWorkday(), Options{NoTitle: true, NoLegend: true})},
+		{"WorkdayDE", Workday(sampleWorkday(), de)},
+		{"WorkdayNoTarget", Workday(WorkdayData{DayStart: 0, Midnight: 24, Rows: sampleWorkday().Rows[:1], Span: time.Hour, Active: 1}, period)},
+		{"WorkdayEmpty", Workday(WorkdayData{DayStart: 4, Midnight: 20}, period)},
 		{"CalendarTitle", Calendar(sampleCalendar(), nil, Options{Period: "October 2026", Title: "Kompass im Oktober"})},
 	}
 	for _, tt := range tests {
@@ -307,7 +338,8 @@ func TestSizes(t *testing.T) {
 	}{
 		{"calendar", Calendar(CalendarData{First: time.Date(2026, 10, 1, 0, 0, 0, 0, berlin), Last: time.Date(2026, 10, 31, 0, 0, 0, 0, berlin)}, nil, Options{Period: "x"}), 360, 290, 20},
 		{"projects", Projects(make([]ProjectRow, 12), Options{Period: "x"}), 610, 370, 20},
-		{"punchcard", Punchcard(PunchcardData{}, Options{Period: "x"}), 760, 290, 20},
+		{"punchcard", Punchcard(PunchcardData{}, Options{Period: "x"}), 760, 270, 20},
+		{"workday", Workday(WorkdayData{DayStart: 4, Midnight: 20, Rows: make([]WorkdayRow, 31)}, Options{Period: "x"}), 720, 590, 30},
 		{"worktime", Worktime(WorktimeData{Weeks: make([]WorktimeWeek, 5)}, Options{Period: "x"}), 560, 260, 30},
 	}
 	for _, tt := range tests {
@@ -322,10 +354,13 @@ func TestSizes(t *testing.T) {
 	}
 }
 
-// TestPNGPixels rasterizes the calendar and samples a cell, the empty
-// colour and the background.
+// TestPNGPixels rasterizes the calendar on a white background and samples
+// a cell, the empty colour and the background.
 func TestPNGPixels(t *testing.T) {
-	scene := Calendar(sampleCalendar(), nil, Options{Period: "October 2026"})
+	white := canvas.Hex("#ffffff")
+	th := DefaultTheme()
+	th.Background = white
+	scene := Calendar(sampleCalendar(), nil, Options{Period: "October 2026", Theme: th})
 	img, err := canvas.Image(scene, canvas.Size{Scale: 2})
 	if err != nil {
 		t.Fatal(err)
@@ -337,20 +372,60 @@ func TestPNGPixels(t *testing.T) {
 	// darkest colour; Thursday of the first column is 2026-10-01 (12 of
 	// 40, level 2), Saturday 2026-10-03 is empty and the Monday of the
 	// first column lies before the range.
-	darkest := canvas.Hex(DefaultHeatmap[3])
-	if got := canvas.At(img, 2*(28+36+2), 2*(34+2)); got != darkest {
-		t.Errorf("Monday W41 = %v, want %v", got, darkest)
+	if got := canvas.At(img, 2*(28+36+2), 2*(36+2)); got != th.Orange[3] {
+		t.Errorf("Monday W41 = %v, want %v", got, th.Orange[3])
 	}
-	if got := canvas.At(img, 2*(28+2), 2*(34+2)); got != Background {
+	if got := canvas.At(img, 2*(28+2), 2*(36+2)); got != white {
 		t.Errorf("Monday W40 = %v, want background", got)
 	}
-	if got := canvas.At(img, 2*(28+2), 2*(34+3*36+2)); got != canvas.Hex(DefaultHeatmap[1]) {
-		t.Errorf("Thursday W40 = %v, want %v", got, canvas.Hex(DefaultHeatmap[1]))
+	if got := canvas.At(img, 2*(28+2), 2*(36+3*36+2)); got != th.Orange[1] {
+		t.Errorf("Thursday W40 = %v, want %v", got, th.Orange[1])
 	}
-	if got := canvas.At(img, 2*(28+2), 2*(34+5*36+2)); got != EmptyColor {
-		t.Errorf("Saturday W40 = %v, want empty", got)
+	// The empty colour is translucent grey: darker than white, not black.
+	if got := canvas.At(img, 2*(28+2), 2*(36+5*36+2)); got.R > 240 || got.R < 200 || got.R != got.G || got.G != got.B {
+		t.Errorf("Saturday W40 = %v, want a light grey", got)
 	}
-	if got := canvas.At(img, 2, 2); got != Background {
+	if got := canvas.At(img, 2, 2); got != white {
 		t.Errorf("corner = %v, want background", got)
+	}
+}
+
+// TestTransparentByDefault: without a theme the SVG has no background
+// rectangle and the PNG a transparent corner; a Background colour adds
+// both.
+func TestTransparentByDefault(t *testing.T) {
+	scene := Calendar(sampleCalendar(), nil, Options{Period: "October 2026"})
+	if svg := string(canvas.SVG(scene, canvas.Size{})); strings.Contains(svg, `width="100%"`) {
+		t.Error("the default SVG has a background rectangle")
+	}
+	img, err := canvas.Image(scene, canvas.Size{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := canvas.At(img, 1, 1).A; a != 0 {
+		t.Errorf("corner alpha = %d, want 0", a)
+	}
+	th := DefaultTheme()
+	th.Background = canvas.Hex("#101010")
+	scene = Calendar(sampleCalendar(), nil, Options{Theme: th})
+	if svg := string(canvas.SVG(scene, canvas.Size{})); !strings.Contains(svg, `width="100%" height="100%" fill="#101010"`) {
+		t.Error("a Background colour must be drawn")
+	}
+}
+
+// TestTheme: the zero theme takes the defaults for everything unset and
+// the configured text colour reaches the text.
+func TestTheme(t *testing.T) {
+	th := Theme{Text: canvas.Hex("#123456")}.resolved()
+	if len(th.Orange) != 4 || len(th.Blue) != 4 || len(th.Palette) == 0 || th.Text != canvas.Hex("#123456") {
+		t.Errorf("resolved = %+v", th)
+	}
+	svg := string(canvas.SVG(Punchcard(samplePunchcard(), Options{Period: "x", Theme: Theme{Text: canvas.Hex("#123456")}}), canvas.Size{}))
+	if !strings.Contains(svg, `fill="#123456"`) || strings.Contains(svg, DefaultText) {
+		t.Error("the text colour of the theme is not used throughout")
+	}
+	def := string(canvas.SVG(Punchcard(samplePunchcard(), Options{Period: "x"}), canvas.Size{}))
+	if !strings.Contains(def, `fill="`+DefaultText+`"`) {
+		t.Error("the default text colour is missing")
 	}
 }
