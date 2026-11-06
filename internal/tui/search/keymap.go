@@ -28,6 +28,13 @@ type KeyMap struct {
 	Repo  key.Binding
 	Raw   key.Binding
 	Move  key.Binding
+	// TypeEvent, TypeSession and TypeMemory toggle the object types of the
+	// search, Types names the three in the footer; Pin pins the project of
+	// the marked hit (or drops the pin) and Project chooses one from the
+	// list.
+	TypeEvent, TypeSession, TypeMemory key.Binding
+	Types                              key.Binding
+	Pin, Project                       key.Binding
 	// Confirm and Cancel apply while the repo filter is typed.
 	Confirm key.Binding
 	Cancel  key.Binding
@@ -36,16 +43,24 @@ type KeyMap struct {
 func newKeyMap(m keys.Map) KeyMap {
 	focus, back, open := m.Keys(keys.SearchFocus), m.Keys(keys.GlobalBack), m.Keys(keys.SearchOpen)
 	return KeyMap{
-		Up:      m.Binding(keys.SearchUp),
-		Down:    m.Binding(keys.SearchDown),
-		Open:    m.Binding(keys.SearchOpen),
-		List:    key.NewBinding(key.WithKeys(focus...), key.WithHelp(keys.Display(focus[0]), "list")),
-		Input:   key.NewBinding(key.WithKeys(slices.Concat(focus, back)...), key.WithHelp(keys.Display(focus[0])+"/"+keys.Display(back[0]), "input")),
-		Actor:   m.Binding(keys.SearchActor),
-		Time:    m.Binding(keys.SearchTime),
-		Repo:    m.Binding(keys.SearchRepo),
-		Raw:     m.Binding(keys.SearchRaw),
-		Move:    m.Group("move", keys.SearchUp, keys.SearchDown),
+		Up:    m.Binding(keys.SearchUp),
+		Down:  m.Binding(keys.SearchDown),
+		Open:  m.Binding(keys.SearchOpen),
+		List:  key.NewBinding(key.WithKeys(focus...), key.WithHelp(keys.Display(focus[0]), "list")),
+		Input: key.NewBinding(key.WithKeys(slices.Concat(focus, back)...), key.WithHelp(keys.Display(focus[0])+"/"+keys.Display(back[0]), "input")),
+		Actor: m.Binding(keys.SearchActor),
+		Time:  m.Binding(keys.SearchTime),
+		Repo:  m.Binding(keys.SearchRepo),
+		Raw:   m.Binding(keys.SearchRaw),
+		Move:  m.Group("move", keys.SearchUp, keys.SearchDown),
+
+		TypeEvent:   m.Binding(keys.SearchTypeEvent),
+		TypeSession: m.Binding(keys.SearchTypeSession),
+		TypeMemory:  m.Binding(keys.SearchTypeMemory),
+		Types:       m.Group("types", keys.SearchTypeEvent, keys.SearchTypeSession, keys.SearchTypeMemory),
+		Pin:         m.Binding(keys.SearchPin),
+		Project:     m.Binding(keys.SearchProject),
+
 		Confirm: key.NewBinding(key.WithKeys(slices.Concat(open, focus)...), key.WithHelp(keys.Display(open[0]), "apply")),
 		Cancel:  key.NewBinding(key.WithKeys(back...), key.WithHelp(keys.Display(back[0]), "cancel")),
 	}

@@ -526,7 +526,7 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 	// writer, MetaStats and the single-row reader for tests) and the
 	// migrations may name the columns.
 	allowed := map[string]map[string]bool{
-		"raw":  {"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true, "blob.go": true, "meta.go": true},
+		"raw":  {"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true, "migrate_v9.go": true, "blob.go": true, "meta.go": true},
 		"data": {"write.go": true, "schema.go": true, "blob.go": true},
 	}
 	files, err := filepath.Glob("*.go")
@@ -544,7 +544,8 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 				t.Fatal(err)
 			}
 			ast.Inspect(src, func(n ast.Node) bool {
-				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
+				// A bare word (the filter name "raw" of the typed search) is no query.
+				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) && lit.Value != `"`+col+`"` {
 					t.Errorf("%s: a query names %s: %s", f, col, lit.Value)
 				}
 				return true

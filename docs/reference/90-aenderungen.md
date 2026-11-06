@@ -10,7 +10,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ### Was dieses Update mit dem Archiv macht
 
-Dieses Release bringt Schema **v8**, eine kurze Migration ohne Datenbewegung. Neu im Archiv ist das **Projekt-Gedächtnis** von Claude Code: die Markdown-Dateien, die der Agent je Projekt unter `~/.claude/projects/<projekt>/memory/` anlegt, ändert und löscht. Bisher standen sie nirgends im Archiv; wer wissen wollte, was der Agent sich zu einem Projekt gemerkt hatte, sah nur den Stand auf der Platte.
+Dieses Release bringt die Schemas **v8** und **v9**. v8 ist eine kurze Migration ohne Datenbewegung, v9 füllt neue Spalten aus den Rohzeilen (Sekunden, siehe unten). Neu im Archiv ist das **Projekt-Gedächtnis** von Claude Code: die Markdown-Dateien, die der Agent je Projekt unter `~/.claude/projects/<projekt>/memory/` anlegt, ändert und löscht. Bisher standen sie nirgends im Archiv; wer wissen wollte, was der Agent sich zu einem Projekt gemerkt hatte, sah nur den Stand auf der Platte.
 
 - **Was gespeichert wird:** jede Fassung jeder Gedächtnis-Datei, **maskiert** wie der Text der Events, als Blob einmal je Inhalt; eine Löschung als eigener Eintrag. Nichts davon ist ein Event: Suche, Statistik und Arbeitszeit bleiben, wie sie sind.
 - **Ab wann:** ab dem ersten `ingest --all` (oder Hook) nach der Migration. Frühere Stände gibt es nicht, auch nicht aus den Transkripten.
@@ -29,10 +29,21 @@ Die Inhalte liegen komprimiert mit 1,1 MiB in `blobs`, den Rest belegt der Vollt
 
 ```sh
 total-recall backup      # 1. sichern
-total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an
+total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an und füllt die Token-Spalten
 total-recall ingest --all  # 3. das Gedächtnis aufnehmen, wie es jetzt ist (sonst beim nächsten Hook)
 ```
 
+
+Außerdem **teilt das Archiv die Eingabe-Token auf** ([#185](https://github.com/seletz/total-recall/issues/185)): `events.tokens_in` war die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen, in einem echten Archiv zu 97 % Cache-Lesen, und taugte so nicht für Kostenabschätzungen. Neu sind die Spalten `tokens_cache_read` und `tokens_cache_write` (Schema v9). `tokens_in` bleibt die Summe, bestehende Zahlen ändern sich nicht. `migrate` füllt die Spalten aus `usage` in `raw`; Events ohne Rohzeile bleiben `NULL` (unbekannt). Neue Events bekommen sie beim Ingest. `stats --json` hat die Aufteilung immer (Feld `tokens`, nur ein neues Feld), `stats --tokens` zeigt sie in der Tabelle ([Befehlsreferenz](10-befehle.md#stats-tokens)). Thinking-Tokens sind in `output_tokens` enthalten und nicht einzeln gespeichert.
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Stand v7, 249 041 Events, 88 416 mit Token-Angaben):
+
+| | `migrate` (v8 und v9) | davon v9 |
+|---|---|---|
+| Dauer | 4,8 s | 3,9 s |
+| Datei | + 4 MB (786 MiB auf 790 MiB) | |
+
+87 539 der 88 416 Events hatten eine Rohzeile mit `usage` und sind aufgeteilt; 877 bleiben `NULL` und zählen in `stats` als `unsplit`. Von 25,3 G Eingabe-Token waren 24,5 G Cache-Lesen, 0,54 G Cache-Schreiben und 1,7 M frische Eingabe.
 
 Außerdem neu im Archiv sind die **Sicherungskopien bearbeiteter Dateien**: Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab, und es löscht sie zusammen mit den Transkripten. Der normale Ingest liest sie jetzt mit und legt sie einmal je Inhalt als Blob ab; Textdateien werden dabei maskiert, Binärdateien folgen `ingest.store_blobs` ([#183](https://github.com/seletz/total-recall/issues/183), [Datenschutz](../explanation/datenschutz.md)). Wer das nicht will, setzt `ingest.store_file_history = false`.
 
@@ -61,6 +72,10 @@ Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespe
 - **Neue Optik** ([#213](https://github.com/seletz/total-recall/issues/213)): `total-recall chart` zeichnet mit transparentem Hintergrund und mittelgrauem Text (`#8b8b8b`), kompakter, mit leicht gerundeten Ecken und Werten als Tooltip; die Grafiken passen in helle und dunkle Notizen. Neu in `[chart]`: `background`, `text`, `scale_orange`, `scale_blue`, `palette`; neu `--background`. `heatmap` ist jetzt ein optionaler Override (Default: leer, der Kalender nimmt `scale_orange`). Der Hintergrund ist nicht mehr weiß: wer ihn weiß will, setzt `background = "#ffffff"`.
 - **`chart workday`** ([#214](https://github.com/seletz/total-recall/issues/214)): die Arbeitstage der TUI als Grafik, mit Kernzeit, Soll, Feiertagen und Überlauf nach Mitternacht; auch Teil von `chart all`.
 
+### Agenten
+
+- **MCP-Server `total-recall mcp`** ([#219](https://github.com/seletz/total-recall/issues/219)). Ein lokaler MCP-Server über stdio, den Claude Code als Unterprozess startet (kein Port, kein Daemon, nur lesend). Tools: `search` (mit `type` und `project` wie [`search`](10-befehle.md#search), `limit` gilt je Typ), `sessions`, `show`, `stats`, `memory`, `status`; jedes liefert die `--json`-Ausgabe des gleichnamigen Befehls, Fehler als dasselbe Fehlerobjekt mit `isError`. Die Ausgabe ist auf 64 KiB begrenzt: der erste Inhalt bleibt gültiges CLI-JSON, ein zweiter nennt die Kürzung und `next.offset`. Jeder Aufruf öffnet das Archiv neu, schreibgeschützt; ein älteres Schema meldet den Hinweis auf `migrate`, eine mit `maintenance` ausgetauschte Datei braucht keinen Neustart. Die Umsetzung ist klein und ohne neue Abhängigkeit. [`mcp print`](10-befehle.md#mcp) gibt den Eintrag aus (JSON oder die Zeile `claude mcp add`), die Seite Setup der TUI prüft ihn und zeigt ihn, geschrieben wird nichts. `llm --skill` beschreibt den Server. Die Tool-Namen und Parameter sind Teil der [stabilen Schnittstelle](60-versionierung.md). Anleitung: [Archiv per MCP anbinden](../how-to/55-mcp-anbinden.md), [Datenschutz](../explanation/datenschutz.md#mcp).
+
 ### Archiv
 
 - **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.
@@ -69,8 +84,19 @@ Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespe
 - [`status`](10-befehle.md#status) hat eine Zeile `memory` (Dateien, Projekte, Löschungen, Fassungen, Größe), JSON `memory_projects`, `memory_files`, `memory_deleted`, `memory_versions`, `memory_bytes`, `memory_stored_bytes`. Die [Ingest-Zusammenfassung](10-befehle.md#ingest) meldet `memory: N new versions, M deleted`, wenn sich etwas geändert hat.
 - Neuer Schalter [`ingest.store_memory`](20-konfiguration.md#ingest) (Default `true`).
 
+### Suche
+
+- **Suche über Objekttypen** ([#196](https://github.com/seletz/total-recall/issues/196), Teil von [#195](https://github.com/seletz/total-recall/issues/195)). [`search --type T[,T…]`](10-befehle.md#search) sucht außer in Events (`event`, weiter der Default) auch in Sessions (`session`: Name, Titel, Agentenname) und im Projekt-Gedächtnis (`memory`: aktueller Inhalt, dieselben Dateien wie `memory --grep`). Die Treffer kommen nach Typ gruppiert in der Reihenfolge von `--type`; `--limit` gilt je Typ, und die Textausgabe meldet auf stderr, wie viele Treffer ein Typ hätte (`event: 20 of 134 hits`). `attachment`, `meta` und `file` sind als Namen reserviert und noch nicht durchsuchbar. Ein Filter, der für einen gewählten Typ nicht gilt (etwa `--actor` bei `memory`, `--raw` bei `session`), ist ein `usage`-Fehler. Ohne `--type` bleibt die Textausgabe, wie sie war.
+- **`search --project P`** schränkt jeden Typ auf ein Projekt ein; der Name ist derselbe wie bei `stats --by project` (Definitionen `[[project]]` zuerst), sonst zählt ein Teil von Name, Pfad oder Remote-URL. Wirkt auch mit `--by-session`.
+- **JSON:** Neue Felder an den Event-Treffern von `search --json`: `type` (immer `event`) und `project` (Projektname der Session, ein Subagent zählt zu seiner Eltern-Session; `null` ohne Verzeichnis). `rank` gab es schon. Die Treffer der Typen `session` und `memory` haben dieselben Kernfelder (`type`, `session_id`, `session_name`, `repo`, `project`, `ts`, `snippet`, `rank`) und eigene dazu, beschrieben in der [Befehlsreferenz](10-befehle.md#search). Die Zeilen von `--by-session` bleiben unverändert und haben kein `type`: Sie fassen Treffer zusammen, sie sind keine.
+- Keine Migration: Jeder Typ sucht in seinem eigenen Index (`events_fts`, `memory_fts`, die Namensspalten von `sessions`). Gemessen auf einer Kopie eines echten Archivs (248 552 Events, 911 Gedächtnis-Dateien) war ein gemeinsamer Index nicht schneller (Top 20 über Events und Gedächtnis je 4–40 ms, getrennt ebenso), bei einem Typfilter langsamer (nur Gedächtnis: 0,1–0,5 ms getrennt, 3–30 ms gemeinsam) und hätte einen Neuaufbau als Migration (19 s, + 72 MB) gekostet.
+
 ### TUI
 
+- **Suche über Objekttypen in der TUI** ([#197](https://github.com/seletz/total-recall/issues/197), Teil von [#195](https://github.com/seletz/total-recall/issues/195)). Die Suche hat einen **Typ-Umschalter** in der Linie unter der Eingabe: `event` (Default), `session` und `memory`, einzeln oder zusammen, per Klick oder mit `e`, `s`, `m` (`search_type_event`, `search_type_session`, `search_type_memory`). Mit mehreren Typen steht vor jeder Gruppe eine Kopfzeile mit der Zahl der Treffer, bei einem Treffer-Limit `200 of 1234`; jeder Typ hat sein eigenes Format (Event: Zeit, Session, Actor; Session: Name, Zahl der Events, Projekt; Memory: Projekt und Datei). Mit dem Default sieht die Liste aus wie bisher, nur die Linie trägt jetzt den Umschalter.
+- **Projekt-Pin.** Rechts in derselben Linie steht `project: all`. `p` pinnt das Projekt des markierten Treffers (nochmal `p` hebt den Pin auf), `P` oder ein Klick auf das Wort öffnet die Liste der Projekte (`all projects` hebt auf), das `✕` löscht den Pin. Der Pin gilt für jeden Typ, mit demselben Projektnamen wie `search --project`. Filter, die ein Typ nicht anwendet (Actor bei Sessions und Memory, Rohsyntax bei Sessions), lässt die TUI für diesen Typ weg, statt einen Fehler zu zeigen.
+- **Viewer in der Vorschau.** Die Vorschau wählt den Viewer nach dem Typ des markierten Treffers: den Austausch um eine Nachricht wie bisher; bei einem Tool-Aufruf oder einer Tool-Ausgabe **Eingabe und Ausgabe getrennt**, JSON eingerückt; bei einer Session den Kopf und die ersten Nachrichten; bei einer Memory-Datei den Inhalt als **lesbares Markdown** mit Projekt und Datei im Kopf. Die Viewer teilen eine Schnittstelle (`internal/tui/viewer`), in die spätere Viewer für Bilder und Diffs einhängen. Eine Session öffnet ++enter++ wie einen Event-Treffer; eine Memory-Datei hat noch keine Detailansicht.
+- **Setup-Zeile `mcp`** ([#219](https://github.com/seletz/total-recall/issues/219)). Die Seite Setup der Ansicht Config prüft, ob der MCP-Server bei Claude Code eingetragen ist (Schlüssel `mcpServers` in `~/.claude.json` und `.mcp.json`, nur gelesen), und zeigt bei markierter Zeile den Befehl und den JSON-Eintrag; ++c++ kopiert den Befehl. Die Taste heißt jetzt „copy hook or MCP block“.
 - **Projektnamen in der Projektfarbe** ([#210](https://github.com/seletz/total-recall/issues/210)). Die Seite Projects der Ansicht Config zeigt die Namen in Liste und Formular in derselben Farbe wie Statistik und Aktivität: die konfigurierte Farbe, sonst die automatische. Die markierte Zeile hat ihren Hintergrund jetzt über die ganze Breite, und zu dunkle oder zu helle Farben bleiben auf ihm lesbar. Ohne Farben (`NO_COLOR`) bleibt der Name normal.
 
 ### Behoben

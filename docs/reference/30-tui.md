@@ -106,6 +106,9 @@ In den Ansichten:
 | Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
 | Klick auf die Vorschau | öffnet den markierten Treffer wie ++enter++, egal ob Eingabe oder Liste den Fokus hat |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
+| Klick auf einen Typ in der Linie der Suche (`event`, `session`, `memory`) | schaltet den Typ ein oder aus wie `e`, `s`, `m` |
+| Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
+| Klick auf das `✕` hinter dem Pin | hebt den Pin auf wie `p` |
 | Klick auf `day`, `week`, `month` oder `project`, `agent`, `directory` in der Statistik | wählt die Periode wie `d`/`w`/`m` bzw. die Dimension wie `p`/`a`/`v` |
 | Klick auf `day`, `week`, `month` oder `all`, `human` in der Aktivität | wählt das Fenster wie `d`/`w`/`m` bzw. die Zählweise wie `h` |
 | Klick auf die Kennzahlen der Aktivität | blendet sie aus wie `s`; `s` oder der Hinweis `s summary figures` in der Fußzeile blendet sie wieder ein |
@@ -122,11 +125,50 @@ Klicks anderswo (Chart, Tabelle und Heatmap der Statistik, die Tage der Aktivit�
 
 *Suche mit Vorschau: Trefferliste links, der Austausch um den markierten Treffer rechts*
 
-- **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer werden geholt; die Statuszeile sagt `200 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
-- **Trefferliste** links, zwei Zeilen je Treffer: Zeit (gedämpft), Session-Name und Actor (in seiner Farbe, siehe [Farben](#farben)), darunter der Textausschnitt mit den Suchwörtern gelb, fett und unterstrichen. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist seine Kopfzeile zusätzlich hinterlegt.
-- **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe): der Session-Kopf (Name in der Akzentfarbe, ID und Repo gedämpft, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Die Trennzeilen nennen Zeit und Actor in seiner Farbe, der Treffer-Event ist mit `◄` markiert, die Suchwörter sind hervorgehoben wie in der Liste. Trifft die Suche einen Tool-Aufruf, lädt die Vorschau den vollen Verlauf inklusive Tools.
-- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die markierte Session (auch direkt aus der Eingabe). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
-- **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), sonst `type to search`, `searching…` mit einem drehenden Spinner davor, solange die Abfrage läuft, `no hits` oder die Fehlermeldung.
+- **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer je Typ werden geholt; die Statuszeile sagt `200 of 1234 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
+- **Linie** unter der Eingabe: links der [Typ-Umschalter](#typen-und-projekt), rechts der Projekt-Pin.
+- **Trefferliste** links, zwei Zeilen je Treffer, im Format des Typs (siehe [Typen und Projekt](#typen-und-projekt)). Beim Typ `event`: Zeit (gedämpft), Session-Name und Actor (in seiner Farbe, siehe [Farben](#farben)), darunter der Textausschnitt mit den Suchwörtern gelb, fett und unterstrichen. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist seine Kopfzeile zusätzlich hinterlegt.
+- **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe) und zeigt den [Viewer](#viewer) des Treffertyps. Beim Typ `event` und einer Nachricht: der Session-Kopf (Name in der Akzentfarbe, ID und Repo gedämpft, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Die Trennzeilen nennen Zeit und Actor in seiner Farbe, der Treffer-Event ist mit `◄` markiert, die Suchwörter sind hervorgehoben wie in der Liste.
+- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die Session des markierten Treffers (auch direkt aus der Eingabe; eine Memory-Datei hat noch keine Detailansicht, dort tut ++enter++ nichts). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
+- **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), mit mehreren Typen die Zahl je Typ (`event 12, session 0, memory 1 (3 ms)`), sonst `type to search`, `searching…` mit einem drehenden Spinner davor, solange die Abfrage läuft, `no hits` oder die Fehlermeldung.
+
+### Typen und Projekt { #typen-und-projekt }
+
+Die Suche durchsucht die Objekttypen des Archivs, dieselben wie [`search --type`](10-befehle.md#search): `event` (Nachrichten, Tool-Aufrufe und Tool-Ergebnisse), `session` (Name, Titel, Agentenname) und `memory` (aktueller Inhalt der Gedächtnis-Dateien). Der Default ist `event`; solange nichts umgeschaltet wird, sucht und zeigt die Ansicht wie bisher.
+
+![Suche über Events, Sessions und Gedächtnis: der Typ-Umschalter in der Linie, die Treffer in einer Gruppe je Typ](../assets/screenshots/search-types.png)
+
+*Suche über Events, Sessions und Gedächtnis: der Typ-Umschalter in der Linie, die Treffer in einer Gruppe je Typ*
+
+- **Umschalter:** In der Linie unter der Eingabe stehen die Typen. Ein gewählter Typ steht in Klammern (`[event]`). Ein Klick schaltet ihn ein oder aus, ebenso `e`, `s` und `m` in der Liste (`search_type_event`, `search_type_session`, `search_type_memory`); in der Eingabe wären sie Suchtext. Mehrfachauswahl ist möglich, der letzte gewählte Typ bleibt immer stehen. Jede Änderung sucht sofort neu.
+- **Gruppen:** Mit mehr als einem Typ steht vor jeder Gruppe eine Kopfzeile mit dem Typ und der Zahl der Treffer, auch bei 0. Wurde die Gruppe vom Limit gekürzt, steht dort `200 of 1234, limit reached`; die Statuszeile nennt es ebenso. Die Typen haben keinen gemeinsamen Rang, weil bm25 aus verschiedenen Indizes nicht vergleichbar ist; die Gruppen stehen in der Reihenfolge `event`, `session`, `memory`, und die Markierung läuft durch alle.
+- **Formate:** `event` wie oben beschrieben. `session`: Startzeit, der Name, der gepasst hat, mit den Suchwörtern hervorgehoben; darunter die Zahl der Events und das Projekt. `memory`: Zeit der Fassung, Projekt und Dateipfad; darunter der Ausschnitt aus der Datei.
+- **Projekt-Pin:** Rechts in der Linie steht `project: all`. Ein Pin schränkt **jeden** Typ auf ein Projekt ein, mit demselben Namen wie `stats --by project` und `search --project`. `p` pinnt das Projekt des markierten Treffers (bei einer Memory-Datei auch dann, wenn nur ihr Gedächtnis-Projekt bekannt ist), nochmal `p` hebt den Pin auf. `P` oder ein Klick auf das Wort öffnet die Liste der Projekte des Archivs: ++up++/++down++ bewegen, ++enter++ pinnt das Projekt unter der Markierung (`all projects` hebt den Pin auf), ++esc++ lässt alles, wie es war. Ein Klick auf das `✕` hebt den Pin ebenfalls auf.
+
+![Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie](../assets/screenshots/search-pin.png)
+
+*Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie*
+
+Nicht jeder [Filter](#filter) gilt für jeden Typ: Actor nur für `event`, Rohsyntax für `event` und `memory`; Zeitraum und Repo für alle drei. Wo ein Typ einen Filter nicht anwendet, lässt die TUI ihn für diesen Typ weg, statt einen Fehler zu zeigen (die CLI meldet dort einen `usage`-Fehler).
+
+### Viewer { #viewer }
+
+Die Vorschau wählt den Viewer nach dem Typ des markierten Treffers. Alle Viewer haben dieselbe Schnittstelle (`internal/tui/viewer`): Sie bekommen Daten, die die Suche geladen hat, und liefern Kopfzeilen, die stehen bleiben, und Zeilen, die das Mausrad verschiebt; ein Viewer für einen weiteren Typ (Bild, Diff) hängt sich dort ein.
+
+| Treffer | Viewer |
+|---|---|
+| `event`, Nachricht | der Austausch um den Treffer, wie oben beschrieben |
+| `event`, Tool-Aufruf oder Tool-Ergebnis | **Eingabe und Ausgabe getrennt**, je unter einer Trennzeile (Tool, Zeit); der Treffer ist mit `◄` markiert. Ist der Text ein JSON-Objekt oder -Array, wird er eingerückt. Das Gegenstück steht dabei: zum Ergebnis der Aufruf davor, zum Aufruf das Ergebnis danach |
+| `session` | der Kopf der Session, die Zahl der Events (menschlich, Agent) und die ersten fünf Nachrichten, je höchstens sechs Zeilen |
+| `memory` | die Datei als lesbares Markdown: Front Matter und Codeblöcke gedämpft, Überschriften in der Akzentfarbe ohne `#`, Aufzählungen als `•`, Absätze umbrochen, ohne die Zeichen für fett und Code. Im Kopf stehen der Pfad, das Projekt mit dem Harness und die Zeit der Fassung. Liegt der erste Treffer tief in der Datei, springt die Vorschau dorthin, sonst steht die Datei am Anfang |
+
+![Treffer in einer Tool-Ausgabe: rechts Aufruf und Ausgabe getrennt, das JSON eingerückt](../assets/screenshots/search-tool.png)
+
+*Treffer in einer Tool-Ausgabe: rechts Aufruf und Ausgabe getrennt, das JSON eingerückt*
+
+![Suche nur im Gedächtnis: Treffer mit Projekt und Datei, rechts die Datei als lesbares Markdown](../assets/screenshots/search-memory.png)
+
+*Suche nur im Gedächtnis: Treffer mit Projekt und Datei, rechts die Datei als lesbares Markdown*
 
 ### Fokus
 
@@ -134,9 +176,10 @@ Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und d
 
 - ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1` bis `4`; ++tab++ ist dafür nicht belegt.
 - ++esc++ geht eine Ebene zurück: aus dem Repo-Filter in die Liste (die Änderung wird verworfen), aus der Liste in die Eingabe. In der Eingabe tut ++esc++ nichts.
-- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `q`, `?`, `R` und `1` bis `4` landen im Suchtext und lösen nichts aus.
+- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `e`, `s`, `m`, `p`, `P`, `q`, `?`, `R` und `1` bis `4` landen im Suchtext und lösen nichts aus.
 - Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1` bis `4`, `R`, `?`, `q`.
 - Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
+- Die **Projektliste** (`P`) ist ebenfalls modal: ++up++/++down++ bewegen, ++enter++ pinnt, ++esc++ bricht ab.
 - Die **Maus** folgt derselben Ordnung: ein Klick auf einen Treffer gibt der Liste den Fokus, ein Klick auf die Eingabezeile der Eingabe; das Rad ändert den Fokus nicht. Solange der Repo-Filter offen ist, tut die Maus nichts.
 - Sichtbar ist der Fokus am Cursor und an der Markierung: in der Eingabe und im Repo-Filter steht der Cursor des Terminals im Feld; hat die Liste den Fokus, ist der markierte Treffer hinterlegt. Das `▸` vor dem markierten Treffer bleibt in jedem Fall, weil ++enter++ ihn aus beiden Elementen öffnet und die Vorschau ihn zeigt. Die Fußzeile nennt die Tasten des fokussierten Elements.
 
@@ -339,10 +382,15 @@ Die Wartungsbefehle, im Prozess der TUI mit denselben Funktionen, Sperren und Lo
 
 *Seite Setup: Prüfungen der Installation und der Hook-Block*
 
-Sechs Prüfungen der Installation, je Zeile `√`, `!` (in Ordnung, mit Hinweis) oder `×`:
+![Config, Seite Setup: die Zeile mcp markiert; darunter der Eintrag für den MCP-Server von Claude Code](../assets/screenshots/config-setup-mcp.png)
+
+*Seite Setup: Die Zeile `mcp` ist markiert, darunter steht der Eintrag für den MCP-Server*
+
+Sieben Prüfungen der Installation, je Zeile `√`, `!` (in Ordnung, mit Hinweis) oder `×`:
 
 - **config:** Die Config-Datei ist geladen; Anzahl der Probleme, falls welche. Fehlt sie, bietet ++enter++ an, die kommentierte Vorlage zu schreiben (wie `config init`).
 - **hooks:** `~/.claude/settings.json` (bzw. `$CLAUDE_CONFIG_DIR/settings.json`) hat für `SessionStart`, `Stop`, `SubagentStop` und `SessionEnd` einen Hook mit `total-recall ingest --hook`, `SessionEnd` zusätzlich das Backup; fehlende Ereignisse werden genannt. Die Datei wird nur gelesen.
+- **mcp:** Der MCP-Server ist bei Claude Code eingetragen ([Archiv per MCP anbinden](../how-to/55-mcp-anbinden.md)): Die Seite liest nur den Schlüssel `mcpServers` aus `~/.claude.json` (bzw. `$CLAUDE_CONFIG_DIR/.claude.json`) und aus der `.mcp.json` im Arbeitsverzeichnis, sucht einen Eintrag `total-recall mcp` und prüft, dass sein Befehl existiert. Ohne Eintrag ist die Zeile ein `×` mit dem Hinweis „optional“. Beide Dateien werden nie geschrieben, und nichts sonst aus ihnen wird gelesen oder gezeigt. Ist die Zeile markiert, zeigt die Seite statt des Hook-Blocks den Befehl `claude mcp add …` und den JSON-Eintrag; ++c++ kopiert den Befehl.
 - **binary:** `total-recall` liegt im `PATH`; ist es eine andere Datei als die laufende, wird ihre Version verglichen (`is 1.1.0, this is 1.2.0`).
 - **backups:** Das Backup-Verzeichnis existiert und wann das letzte Backup war. Fehlt es, legt ++enter++ es nach Bestätigung an.
 - **transcripts:** Das Transkript-Verzeichnis der Harness (`projects_dir`) existiert.
@@ -376,9 +424,11 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 | ++enter++ | `search_open` | markierten Treffer öffnen | markierten Treffer öffnen |
 | ++up++ / `k`, ++down++ / `j` | `search_up`, `search_down` | – | Markierung bewegen |
 | `a`, `t`, `r` | `search_actor`, `search_time`, `search_repo` | Suchtext | Filter Actor, Zeitraum, Repo |
+| `e`, `s`, `m` | `search_type_event`, `search_type_session`, `search_type_memory` | Suchtext | Typ `event`, `session`, `memory` ein/aus |
+| `p`, `P` | `search_pin`, `search_project` | Suchtext | Projekt des markierten Treffers pinnen oder den Pin aufheben; Liste der Projekte öffnen |
 | ++ctrl+r++ | `search_raw` | Rohsyntax ein/aus | Rohsyntax ein/aus |
 
-Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernimmt, ++esc++ (`global_back`) verwirft; siehe [Fokus](#fokus).
+Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernimmt, ++esc++ (`global_back`) verwirft; siehe [Fokus](#fokus). In der Projektliste: ++up++/++down++ (`search_up`, `search_down`) bewegen, ++enter++ (`search_open`) pinnt, ++esc++ (`global_back`) bricht ab.
 
 ### Session
 

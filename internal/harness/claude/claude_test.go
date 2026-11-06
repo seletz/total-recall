@@ -438,7 +438,7 @@ func TestAssistant(t *testing.T) {
 			lines: []string{line("msg_1", "a-1", `[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"Answer."},{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/x/y.go","limit":10}}]`,
 				`{"input_tokens":1,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4}`)},
 			want: []model.Event{
-				{ID: "claude:a-1#1", Kind: model.KindMessage, Role: "assistant", Actor: model.ActorAgent, Text: "Answer.", Model: "m-1", TokensIn: 6, TokensOut: 4},
+				{ID: "claude:a-1#1", Kind: model.KindMessage, Role: "assistant", Actor: model.ActorAgent, Text: "Answer.", Model: "m-1", TokensIn: 6, TokensCacheRead: 2, TokensCacheWrite: 3, TokensOut: 4},
 				{ID: "claude:a-1#2", Kind: model.KindToolUse, Role: "assistant", Actor: model.ActorAgent, Text: "/x/y.go", ToolName: "Read", Model: "m-1"},
 			},
 		},

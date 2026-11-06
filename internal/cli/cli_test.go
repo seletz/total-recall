@@ -489,6 +489,41 @@ func TestEndToEnd(t *testing.T) {
 	}
 }
 
+// TestStatsTokens: the JSON has the token counts under "tokens" (always),
+// --tokens appends them to the table, and the flag refuses the other modes.
+func TestStatsTokens(t *testing.T) {
+	e := newTestEnv(t)
+	// The shared fixture has no usage: add a session with some.
+	const sid = "aaaaaaaa-0000-4000-8000-0000000000c1"
+	a1 := tf.Assistant(sid, "t2", "2026-10-07T08:00:02.000Z", "/w/gamma", "Done.")
+	a1["message"].(map[string]any)["usage"] = map[string]any{"input_tokens": 10, "cache_creation_input_tokens": 20, "cache_read_input_tokens": 70, "output_tokens": 5}
+	tf.WriteFile(t, e.projects, "-w-gamma/"+sid+".jsonl", tf.Join(tf.User(sid, "t1", "2026-10-07T08:00:00.000Z", "/w/gamma", "count"), a1))
+	e.mustRun(t, "ingest", "--all")
+	st := decode[StatsJSON](t, e.mustRun(t, "stats", "--month", "2026-10", "--json"))
+	tk := st.Tokens
+	if tk.Events != 1 || tk.Input != 100 || tk.Fresh != 10 || tk.CacheWrite != 20 || tk.CacheRead != 70 || tk.Unsplit != 0 || tk.Output != 5 {
+		t.Errorf("tokens = %+v, want 100 in = 10 fresh + 20 write + 70 read, 5 out", tk)
+	}
+	if len(tk.ByDay) != 1 || tk.ByDay[0].Day != "2026-10-07" || len(tk.ByModel) != 1 || tk.ByModel[0].Model != "test-model" {
+		t.Errorf("breakdowns = %+v", tk)
+	}
+	if empty := decode[StatsJSON](t, e.mustRun(t, "stats", "--month", "2026-09", "--json")); empty.Tokens.Events != 0 || empty.Tokens.ByDay == nil || empty.Tokens.ByModel == nil {
+		t.Errorf("empty range tokens = %+v (arrays must be [] not null)", empty.Tokens)
+	}
+	plain := e.mustRun(t, "stats", "--month", "2026-10")
+	if strings.Contains(plain, "CACHE READ") {
+		t.Errorf("plain table has the token section:\n%s", plain)
+	}
+	if tbl := e.mustRun(t, "stats", "--month", "2026-10", "--tokens"); !strings.Contains(tbl, plain) || !strings.Contains(tbl, "CACHE READ") || !strings.Contains(tbl, "MODEL") {
+		t.Errorf("--tokens table:\n%s", tbl)
+	}
+	for _, args := range [][]string{{"--workday"}, {"--worktime"}, {"--period", "week"}, {"--by", "project"}} {
+		if r := e.run(t, "", append([]string{"stats", "--tokens"}, args...)...); r.code == 0 || !strings.Contains(r.stderr, "--tokens") {
+			t.Errorf("stats --tokens %v = %+v, want a usage error", args, r)
+		}
+	}
+}
+
 func TestSearch(t *testing.T) {
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")

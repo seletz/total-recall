@@ -53,6 +53,10 @@ func TestRenderAll(t *testing.T) {
 	latest := store.LatestSchemaVersion()
 	markers := map[string][]string{
 		"search":                  {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
+		"search-types":            {"[1 search]", "─ [event] [session] [memory] ", "project: all", " event  10", " session  0", " memory  1", "release-process.md", "event 10, session 0, memory 1"},
+		"search-memory":           {"─ event session [memory] ", "kompass  release-process.md", "kompass  claude", "A release is a signed tag on main.", "1. Update the changelog", "1 hit (0 ms)"},
+		"search-tool":             {"> cask generated", "tool_use Bash", "brew info --cask --json=v2 mara/tap/kompass", "tool (tool_result) ◄", `  "casks": [`, `"token": "kompass"`},
+		"search-pin":              {"project: kompass ✕", "─ [event] [session] [memory] ", "◄", "event 195, session 22, memory 1"},
 		"session":                 {"› session", "Release v0.3.0", "· tools", "tool_use Read", "tool_use Bash", "tool (tool_result)", "goreleaser", "mara/kompass"},
 		"stats":                   {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
 		"heatmap":                 {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
@@ -65,13 +69,14 @@ func TestRenderAll(t *testing.T) {
 		"help":                    {"[2 stats]", "keys: stats", "closes this help", "esc back"},
 		"heatmap-compact":         {"[2 stats]", "░▒▓█", "heatmap"},
 		"config-status":           {"4 config]", "[status] settings projects actions setup", "~/.config/total-recall/config.toml", "~/.local/share/total-recall/archive.db", "schema", "sessions", "last backup", "~/Documents/total-recall/archive-2026-11-02.db.zst", "problems              none"},
+		"config-setup-mcp":        {"4 config]", "actions [setup]", "mcp         √ ~/.claude.json: total-recall mcp", "MCP server entry for Claude Code, nothing is written", "claude mcp add --scope user total-recall -- total-recall mcp", `"mcpServers": {`},
 		"config-settings":         {"4 config]", "status [settings]", "KEY", "VALUE", "ORIGIN", "[backup]", "enter saves, esc cancels"},
 		"config-actions":          {"4 config]", "[actions] setup", "▸ backup", "maintenance (dry run)", "migrate", "y confirms, esc cancels"},
 		"config-projects":         {"4 config]", "settings [projects] actions", "NAME", "DESCRIPTION", "SESSIONS", "MATCH", "■ kompass", "Wanderkarten, alle Repositories", "https://git.invalid/mara/kompass*, ~/src/kompass*", "■ fahrtenbuch", "UNMATCHED", "LAST", "PATH", "dotfiles", "https://git.invalid/mara/dotfiles", "/home/mara/notizen", "kompass  #4e79a7  matches 1 path ·", "sessions: kompass", "enter edits · a adds · x removes · K/J move (first match wins) · m adds a path as a pattern"},
 		"config-projects-edit":    {"4 config]", "settings [projects] actions", "project kompass  1 of 3 · first match wins", "name          kompass", "description   Wanderkarten, alle Repositories", "▸ color         ■ blue #4e79a7", "match         https://git.invalid/mara/kompass*", "match         ~/src/kompass*", "+ pattern", "preview  matches 1 path ·", "color: · automatic  ■ [blue] ■ orange  ■ green  ■ red  ■ purple  ■ teal    custom #rrggbb"},
 		"config-projects-pattern": {"4 config]", "new project", "name          dotfiles", "color         · automatic", "▸ match         https://git.invalid/mara/dotfiles", "pattern https://git.invalid/mara/dotfiles  matches 1 path ·", "sessions: dotfiles", "* matches any text", "> https://git.invalid/mara/dotfiles", "enter takes it, esc cancels"},
 		"config-migrate":          {"4 config]", "[actions] setup", "▸ migrate", "· migrate first", fmt.Sprintf("migrate: migrate from schema v%d to v%d after a copy (archive.db.pre-v%d.bak)", latest-1, latest, latest-1), "y confirms, esc cancels", fmt.Sprintf("schema    v%d -> v%d, 1 pending migration:", latest-1, latest), fmt.Sprintf("backup    ~/.local/share/total-recall/archive.db.pre-v%d.bak", latest-1), "space     about"},
-		"config-setup":            {"4 config]", "actions [setup]", "config      √", "hooks       √ ~/.claude/settings.json: SessionStart, Stop, SubagentStop, SessionEnd", "binary      √ ~/.local/bin/total-recall on PATH, this version (1.2.0)", "backups     √", "transcripts √ ~/.claude/projects", "archive     √ ~/.local/share/total-recall/archive.db", `"command": "total-recall ingest --hook --detach"`},
+		"config-setup":            {"4 config]", "actions [setup]", "config      √", "hooks       √ ~/.claude/settings.json: SessionStart, Stop, SubagentStop, SessionEnd", "mcp         √ ~/.claude.json: total-recall mcp", "binary      √ ~/.local/bin/total-recall on PATH, this version (1.2.0)", "backups     √", "transcripts √ ~/.claude/projects", "archive     √ ~/.local/share/total-recall/archive.db", `"command": "total-recall ingest --hook --detach"`},
 	}
 	for _, f := range frames(t) {
 		t.Run(f.Shot.Name, func(t *testing.T) {

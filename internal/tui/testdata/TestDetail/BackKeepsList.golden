@@ -1,7 +1,7 @@
  total-recall             updated 13:00:00             [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  > release                                                          actor: all  since: all  repo: *
-─────────────────────────────────────────────────┬──────────────────────────────────────────────────
+─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
  2025-12-04 20:30  Beta release             human│ (untitled)
   tag the release                                │ claude:b2b2b2b2-0004-4000-8000-000000000…  o/beta
 ▸2026-01-05 08:45  b2b2b2b2-0004-4000-800…  agent│ 2026-01-05 08:45 – 08:45 (5s)  main
@@ -27,4 +27,4 @@
                                                  │
  2 hits (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ move • enter open • a actor • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stat…
+ ↑/↓ move • enter open • e/s/m types • a actor • t time • r repo • ^r raw fts • tab/esc input …

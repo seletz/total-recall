@@ -33,6 +33,10 @@ Nicht gespeichert werden der API-Request-Cache der Harness (`api-request`, `api-
 
 Das **Projekt-Gedächtnis** der Harness (seit Schema v8, [`memory`](../reference/10-befehle.md#memory)): bei Claude Code die Markdown-Dateien in `~/.claude/projects/<projekt>/memory/`, die der Agent über dich, deine Vorlieben, Korrekturen und die Projekte anlegt. **Sie enthalten oft persönliche Notizen**: wie du arbeitest, wem du was zugesagt hast, Namen von Kollegen und Kunden, Einschätzungen. total-recall archiviert jede Fassung und auch gelöschte Dateien; was der Agent vergessen soll und deshalb löscht, bleibt im Archiv (und in seinen Backups). Der Inhalt wird vor dem Speichern **maskiert** wie der Text der Events, mit denselben Grenzen; ein Passwort in Fließtext erkennt die Maskierung nicht. Durchsuchbar ist nur die aktuelle Fassung (`memory --grep`), ältere bleiben über `memory --history` und `blob` lesbar. Abschaltbar mit `ingest.store_memory = false`; was schon archiviert ist, bleibt dann im Archiv.
 
+## MCP-Server { #mcp }
+
+[`total-recall mcp`](../how-to/55-mcp-anbinden.md) macht das Archiv für Agenten über Tools lesbar. Er öffnet das Archiv schreibgeschützt, hört auf keinem Port und ändert nichts; es gibt kein Tool zum Schreiben und keins für `sql`. Er liefert, was in der Datenbank steht (also maskiert, mit dem Stand von `ingest`), nicht mehr als die CLI. Aber: Was ein Tool zurückgibt, steht danach im Kontext der Session und geht an den Modellanbieter der Harness, und jede Session mit eingetragenem Server kann das **ganze** Archiv durchsuchen, auch Sessions aus anderen Repositories. Wer das für ein Repository nicht will, trägt den Server nur in der `.mcp.json` der Projekte ein, in denen er ihn will, und nicht im User-Scope.
+
 ## Maskierung von Geheimnissen
 
 Vor dem Schreiben werden `text` und `raw` durchsucht, auch das `raw` der Meta-Records, ihre JSON-Blobs und die Text-Kopien der Datei-Historie sowie der Inhalt der Gedächtnis-Dateien (die Bilder, Dokumente und binären Kopien nicht, siehe oben). Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:

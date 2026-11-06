@@ -121,6 +121,25 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 					t.Fatalf("v%d: %s: %v", k, e.q, err)
 				}
 			}
+			// Token counts: e2 has usage in its raw line, e3 has counts but no
+			// raw, x1 has counts and a raw line without usage. Migration 9
+			// fills the cache columns of e2 only.
+			e2raw := any(`{"type":"assistant","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":20,"cache_read_input_tokens":70,"output_tokens":5}}}`)
+			if k >= 5 {
+				e2raw = rawz.Encode(e2raw.(string))
+			}
+			for _, q := range []struct {
+				q    string
+				args []any
+			}{
+				{"UPDATE events SET tokens_in = 100, tokens_out = 5, raw = ? WHERE id = 'claude:e2'", []any{e2raw}},
+				{"UPDATE events SET tokens_in = 5, tokens_out = 1 WHERE id = 'claude:e3'", nil},
+				{"UPDATE events SET tokens_in = 7 WHERE id = 'other:x1'", nil},
+			} {
+				if _, err := db.ExecContext(ctx, q.q, q.args...); err != nil {
+					t.Fatalf("v%d: %s: %v", k, q.q, err)
+				}
+			}
 			if k >= 3 { // raw_truncated arrives with v3
 				if _, err := db.ExecContext(ctx, "UPDATE events SET raw_truncated = 1 WHERE id = 'claude:e3'"); err != nil {
 					t.Fatal(err)
@@ -169,6 +188,13 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			if k >= 5 {
 				rawE1 = sampleRawV5
 			}
+			// A database created at v9 never ran the migration: its rows stay NULL.
+			wantCache := func(v string) string {
+				if k == LatestSchemaVersion() {
+					return "NULL"
+				}
+				return v
+			}
 			checks := map[string]int{
 				"SELECT count(*) FROM sources WHERE \"offset\" = 90":                        1,
 				"SELECT count(*) FROM sessions WHERE name = 'Title' AND cwd = '/w'":         1,
@@ -207,6 +233,11 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('memory_projects', 'memory_files', 'memory_versions', 'memory_fts')": 4,
 				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name IN ('memory_versions_file', 'memory_versions_sha256')":                   2,
 				"SELECT count(*) FROM memory_versions": 0,
+				// Migration 9: the cache columns are filled from raw where it
+				// has a usage, tokens_in is untouched, the rest stays NULL.
+				"SELECT count(*) FROM events WHERE id = 'claude:e2' AND tokens_in = 100 AND tokens_cache_read IS " + wantCache("70") + " AND tokens_cache_write IS " + wantCache("20"): 1,
+				"SELECT count(*) FROM events WHERE id IN ('claude:e3', 'other:x1', 'claude:e1') AND tokens_cache_read IS NULL AND tokens_cache_write IS NULL":                          3,
+				"SELECT count(*) FROM events WHERE id = 'claude:e3' AND tokens_in = 5":                                                                                                 1,
 			}
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
@@ -284,6 +315,18 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				}
 				if last != (Progress{Version: 5, Done: 4, Total: 4}) {
 					t.Errorf("last progress of v5 = %+v, want done 4/4", last)
+				}
+			}
+			// Migration 9 reports its work: two events had raw and counts.
+			if k < 9 {
+				var last Progress
+				for _, pr := range progress {
+					if pr.Version == 9 {
+						last = pr
+					}
+				}
+				if last != (Progress{Version: 9, Done: 2, Total: 2}) {
+					t.Errorf("last progress of v9 = %+v, want done 2/2", last)
 				}
 			}
 			// Migration 4: the link and account columns are usable and indexed,

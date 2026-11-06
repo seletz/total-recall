@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,6 +34,9 @@ type check struct {
 	text     string
 	// fix, when set, is offered on select and run by fixFn after a
 	// confirmation; reloadConfig says the configuration changed by it.
+	// mcp marks the line whose block (the MCP entry) is shown and copied
+	// instead of the hook block while it is marked.
+	mcp          bool
 	fix          string
 	fixFn        func() error
 	reloadConfig bool
@@ -152,6 +156,10 @@ func (p setupPage) key(m *Model, msg tea.KeyPressMsg) (page, tea.Cmd) {
 	case key.Matches(msg, m.keys.Select):
 		return p.selectRow(m)
 	case key.Matches(msg, m.keys.Copy):
+		if p.onMCP() {
+			p.notice, p.bad = "claude mcp add command copied to the clipboard", false
+			return p, tea.SetClipboard(ops.ClaudeMCPAddCommand("total-recall") + "\n")
+		}
 		p.notice, p.bad = "hook block copied to the clipboard", false
 		return p, tea.SetClipboard(hookBlock(m) + "\n")
 	case key.Matches(msg, m.keys.Back):
@@ -192,6 +200,18 @@ func (p setupPage) fix(m *Model) (page, tea.Cmd) {
 		n, err := cfg.Reload()
 		return fixedMsg{name: c.name, err: err, cfg: n}
 	}
+}
+
+// onMCP says whether the marked line is the MCP check.
+func (p setupPage) onMCP() bool { return p.row < len(p.checks) && p.checks[p.row].mcp }
+
+// mcpBlock is the command and the JSON entry of the MCP server.
+func mcpBlock() string {
+	b, err := json.MarshalIndent(ops.ClaudeMCPConfig("total-recall"), "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return ops.ClaudeMCPAddCommand("total-recall") + "\n\nor in .mcp.json:\n" + string(b)
 }
 
 // hookBlock is the settings.json block for the binary as found.
@@ -242,9 +262,17 @@ func (p setupPage) view(m *Model, width, height int) string {
 	case p.notice != "":
 		lines = append(lines, m.line(" "+m.th.Muted.Render(p.notice), width))
 	default:
-		lines = append(lines, m.line(" "+m.th.Muted.Render("hook block for "+m.tilde(m.opts.SettingsFile)+"; c copies it, enter offers a fix where there is one"), width))
+		if p.onMCP() {
+			lines = append(lines, m.line(" "+m.th.Muted.Render("MCP server entry for Claude Code, nothing is written; c copies the command"), width))
+		} else {
+			lines = append(lines, m.line(" "+m.th.Muted.Render("hook block for "+m.tilde(m.opts.SettingsFile)+"; c copies it, enter offers a fix where there is one"), width))
+		}
 	}
-	for _, l := range strings.Split(hookBlock(m), "\n") {
+	block := hookBlock(m)
+	if p.onMCP() {
+		block = mcpBlock()
+	}
+	for _, l := range strings.Split(block, "\n") {
 		if len(lines) >= height {
 			break
 		}
@@ -298,6 +326,22 @@ func runChecks(opts Options, now time.Time) []check {
 		} else {
 			c.text = tilde(opts.SettingsFile) + " lacks " + strings.Join(missing, ", ") + "; add the hook block (c copies it)"
 		}
+	}
+	out = append(out, c)
+
+	// MCP server
+	c = check{name: "mcp", mcp: true}
+	files := []string{opts.ClaudeJSON}
+	if opts.ProjectDir != "" {
+		files = append(files, filepath.Join(opts.ProjectDir, ".mcp.json"))
+	}
+	if where, state := mcpIn(files, opts); where != "" {
+		c.ok, c.text = true, tilde(where)+": total-recall mcp"
+		if state != "" {
+			c.warn, c.text = true, c.text+", "+state
+		}
+	} else {
+		c.text = "not registered with Claude Code (optional); c copies the claude mcp add command"
 	}
 	out = append(out, c)
 
@@ -402,6 +446,45 @@ func hooksIn(path string) (map[string]bool, error) {
 		out[ev] = ingest && (ev != "SessionEnd" || backup)
 	}
 	return out, nil
+}
+
+// mcpIn looks for the total-recall entry in the "mcpServers" object of the
+// files, reading nothing else from them. It returns the file that has it and
+// a hint when the entry points to another binary than the one on PATH, or
+// "" for none.
+func mcpIn(files []string, opts Options) (where, hint string) {
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var doc struct {
+			MCPServers map[string]struct {
+				Command string   `json:"command"`
+				Args    []string `json:"args"`
+			} `json:"mcpServers"`
+		}
+		if json.Unmarshal(b, &doc) != nil {
+			continue
+		}
+		for _, e := range doc.MCPServers {
+			if len(e.Args) == 0 || e.Args[0] != "mcp" || filepath.Base(e.Command) != "total-recall" {
+				continue
+			}
+			// A bare command resolves through PATH.
+			cmd := e.Command
+			if !strings.ContainsRune(cmd, filepath.Separator) {
+				if cmd, err = opts.LookPath(cmd); err != nil {
+					return f, "command not found on PATH"
+				}
+			}
+			if _, err := os.Stat(cmd); err != nil {
+				return f, "command " + Model{opts: opts}.tilde(cmd) + " does not exist"
+			}
+			return f, ""
+		}
+	}
+	return "", ""
 }
 
 // sameFile reports whether two paths name the same file.

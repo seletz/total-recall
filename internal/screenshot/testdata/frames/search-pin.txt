@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > tests                                                                                actor: all  since: all  repo: *
+─ [event] [session] [memory] ──────────────────────────────┬─ project: kompass ✕ ───────────────────────────────────────
+ event  195                                                │ Rennrad-Profil
+▸2026-10-31 11:28  Rennrad-Profil                     agent│ claude:7d1e02d6-02d6-4000-8000-0000000002d6  mara/kompass
+  Umbenannt, Importe angepasst, Tests laufen.              │ 2026-10-31 10:35 – 11:52 (1h17m)  main
+ 2026-10-30 16:59  Kartenkacheln offline              agent│────────────────────────────────────────────────────────────
+  Umbenannt, Importe angepasst, Tests laufen.              │── 11:17  human
+ 2026-10-30 14:28  Doku der Befehle                   agent│lint and vet, then commit
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-30 12:31  Benchmarks für den Routing-Kern    agent│── 11:28  agent ◄
+  Umbenannt, Importe angepasst, Tests laufen.              │Umbenannt, Importe angepasst, Tests laufen.
+ 2026-10-28 12:15  Höhenprofil der Route              agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-27 14:53  Neue Lint-Regeln (#40)             agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-27 09:44  Benchmarks für den Routing-Kern    agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-26 16:08  Umlaute in Ortsnamen               agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-26 13:58  Wegpunkte stabil sortieren         agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-26 11:06  GPX-Export                         agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-23 11:42  Streaming-Parser                   agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-22 12:11  Neue Lint-Regeln (#40)             agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-21 16:42  Benchmarks für den Routing-Kern    agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ 2026-10-21 12:23  Tiles-Cache nach Neustart leer     agent│
+  Umbenannt, Importe angepasst, Tests laufen.              │
+ event 195, session 22, memory 1 (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • e/s/m types • a actor • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stats …

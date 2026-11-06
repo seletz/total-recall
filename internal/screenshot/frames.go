@@ -82,6 +82,14 @@ var (
 var Shots = []Shot{
 	{Name: "search", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Caption: "Suche mit Vorschau"},
+	{Name: "search-types", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
+		Keys: []string{"tab", "s", "m"}, Caption: "Suche über Events, Sessions und Gedächtnis: der Typ-Umschalter in der Linie, die Treffer in einer Gruppe je Typ"},
+	{Name: "search-memory", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
+		Keys: []string{"tab", "m", "e"}, Caption: "Suche nur im Gedächtnis: Treffer mit Projekt und Datei, rechts die Datei als lesbares Markdown"},
+	{Name: "search-tool", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "cask generated", Now: searchNow,
+		Caption: "Treffer in einer Tool-Ausgabe: rechts Aufruf und Ausgabe getrennt, das JSON eingerückt"},
+	{Name: "search-pin", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "tests", Now: searchNow,
+		Keys: []string{"tab", "s", "m", "j", "j", "j", "p"}, Caption: "Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie"},
 	{Name: "session", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Keys: []string{"enter", "T"}, Caption: "Session-Detail mit Treffer, Tool-Aufrufe eingeblendet"},
 	{Name: "stats", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow,
@@ -120,6 +128,8 @@ var Shots = []Shot{
 		Caption: "Config, Seite Actions bei anstehender Migration: der Plan wartet auf die Bestätigung"},
 	{Name: "config-setup", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab"},
 		Caption: "Config, Seite Setup: Prüfungen der Installation und der Hook-Block"},
+	{Name: "config-setup-mcp", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"shift+tab", "j", "j"},
+		Caption: "Config, Seite Setup: die Zeile mcp markiert; darunter der Eintrag für den MCP-Server von Claude Code"},
 }
 
 // workHours mirrors the defaults of the [work] config table.

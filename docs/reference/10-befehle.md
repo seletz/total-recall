@@ -288,7 +288,7 @@ iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 | `--at ZEIT` | der Stand zu dieser Zeit (lokale Zeit, `YYYY-MM-DD` meint das Ende des Tages, sonst `YYYY-MM-DDTHH:MM`): je Datei die letzte Fassung bis dahin |
 | `--deleted` | gelöschte Dateien mit anzeigen (`SIZE` `deleted`, JSON `deleted: true`, `sha256: null`) |
 | `--history DATEI` | alle Fassungen einer Datei, älteste zuerst, Löschungen eingeschlossen; `DATEI` ist der Pfad im Gedächtnis-Verzeichnis. Liegt die Datei in mehreren Projekten (`MEMORY.md` fast immer), ist das ohne `--project` ein `ambiguous`-Fehler, der die Projekte nennt. Mit `--at` nur die Fassungen bis dahin |
-| `--grep WÖRTER` | Volltextsuche (FTS5) im aktuellen Inhalt der vorhandenen Dateien, beste Treffer zuerst, mit Textausschnitt; alle Wörter müssen vorkommen. Ein eigener Index, getrennt von dem der Events: [`search`](#search) findet kein Gedächtnis, `--grep` keine Gespräche |
+| `--grep WÖRTER` | Volltextsuche (FTS5) im aktuellen Inhalt der vorhandenen Dateien, beste Treffer zuerst, mit Textausschnitt; alle Wörter müssen vorkommen. Ein eigener Index, getrennt von dem der Events; dieselbe Suche ist [`search --type memory`](#search) |
 | `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
 | `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
 
@@ -300,7 +300,7 @@ iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 
 ## `search` { #search }
 
-Volltextsuche (SQLite FTS5) mit Textausschnitten, beste Treffer zuerst.
+Volltextsuche (SQLite FTS5) mit Textausschnitten, beste Treffer zuerst. Ohne `--type` sucht sie in den Events, also in Nachrichten, Tool-Aufrufen und Tool-Ergebnissen.
 
 ```sh
 total-recall search goreleaser
@@ -309,6 +309,8 @@ total-recall search --raw 'cask AND (homebrew OR tap)'       # FTS5-Syntax
 total-recall search redaction --actor human --repo seletz/total-recall --json
 total-recall search backup --session 9a1b2c3d                # nur in dieser Session
 total-recall search goreleaser --by-session                  # eine Zeile je Session, Zeitleiste
+total-recall search kompass --type session,memory            # Sessions nach Titel, Projekt-Gedächtnis
+total-recall search release --project kompass --type event,memory
 ```
 
 ```text
@@ -326,15 +328,49 @@ FIRST             LAST              HITS  ID                  NAME              
 
 | Option | Bedeutung |
 |---|---|
-| Filter wie `sessions` | `--since`/`--until` gelten hier für die Zeit des Events |
+| `--type T[,T…]` | was durchsucht wird, siehe [Typen](#search-types); Default `event` |
+| Filter wie `sessions` | `--since`/`--until` gelten hier für die Zeit des Events (bei `session` für die Zeit, in der die Session lief, bei `memory` für die Zeit der aktuellen Fassung) |
+| `--project P` | nur dieses Projekt, bei jedem Typ: der Name wie bei [`stats --by project`](#stats-period) (Definitionen `[[project]]` zuerst), ein Pfad oder der Schlüssel der Harness eines Gedächtnis-Projekts; ohne genauen Treffer alle, deren Name, Pfad oder Remote-URL `P` enthält. Kein Treffer ist `not_found` |
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
 | `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
-| `--limit N` | höchstens N Treffer (Default 20, 0 = alle); mit `--by-session` die N Sessions mit den jüngsten Treffern, bei `--order hits` die mit den meisten |
-| `--by-session` | eine Zeile je Session statt je Treffer: `first_hit`, `last_hit`, `hits`, `snippet` des ersten Treffers |
+| `--limit N` | höchstens N Treffer je Typ (Default 20, 0 = alle); mit `--by-session` die N Sessions mit den jüngsten Treffern, bei `--order hits` die mit den meisten |
+| `--by-session` | eine Zeile je Session statt je Treffer: `first_hit`, `last_hit`, `hits`, `snippet` des ersten Treffers; nur für den Typ `event` |
 | `--order first_hit\|hits` | Sortierung mit `--by-session`: nach erstem Treffer, älteste zuerst (Default), oder nach Trefferzahl, meiste zuerst |
 
 Ohne `--raw` wird jedes Wort in Anführungszeichen gesetzt. Dann müssen alle Wörter vorkommen, und Sonderzeichen sind harmlos.
+
+### Typen { #search-types }
+
+Jeder Typ hat seinen eigenen Index; die Namen sind dieselben in CLI, JSON und TUI und gelten für jede Harness.
+
+| Typ | findet | Reihenfolge | gilt mit |
+|---|---|---|---|
+| `event` | Nachrichten, Tool-Aufrufe und Tool-Ergebnisse (JSON `kind`) | beste zuerst | allen Filtern |
+| `session` | Sessions, deren Name, Titel oder Agentenname alle Wörter enthält (Groß-/Kleinschreibung egal) | neueste zuerst | `--since`, `--until`, `--repo`, `--harness`, `--name`, `--account`, `--project`, `--session` |
+| `memory` | Dateien des [Projekt-Gedächtnisses](#memory) nach ihrem aktuellen Inhalt | beste zuerst | `--since`, `--until`, `--repo`, `--harness`, `--project`, `--raw` |
+
+`attachment`, `meta` und `file` sind reserviert und noch nicht durchsuchbar; `--type file` ist ein `usage`-Fehler. Mehrere Typen ergeben je Typ eine Gruppe in der Reihenfolge von `--type`; einen Rang über Typen hinweg gibt es nicht, weil die Indizes nicht vergleichbar sind. Ein Filter, der für einen gewählten Typ nicht gilt, ist ein `usage`-Fehler (`--actor does not apply to type memory`), nie ein stilles Weglassen.
+
+In der Textausgabe beginnt jede Zeile mit dem Typ, sobald `--type` etwas anderes als nur `event` wählt; ohne `--type` bleibt sie, wie sie war. Schneidet `--limit` einen Typ ab, steht auf stderr, wie viele Treffer er hätte:
+
+```text
+session  2026-10-31 19:38  Release-Pipeline aufsetzen  kompass  claude:9a1b2c3d-…
+    [Release]-Pipeline aufsetzen
+memory  2026-11-02 08:10  kompass  release.md
+    Das [Release] läuft über goreleaser…
+memory: 20 of 31 hits, --limit 0 for all
+```
+
+**JSON.** Ein flaches Objekt je Treffer. Jeder Treffer hat die Kernfelder `type`, `session_id`, `session_name`, `repo`, `project` (Name wie bei `stats --by project`), `ts` (UTC), `snippet` (Treffer in `[…]`) und `rank`, dazu die Felder seines Typs; innerhalb eines Typs ist jeder Schlüssel immer vorhanden. Skripte verzweigen über `type`.
+
+| Typ | eigene Felder | Anmerkungen |
+|---|---|---|
+| `event` | `event_id`, `actor`, `kind` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session |
+| `session` | `harness`, `ended_at`, `events` | `ts` ist der Start, `snippet` der passende Name, Titel oder Agentenname, `rank` immer `0` |
+| `memory` | `project_key`, `path`, `sha256` | `ts` ist die Zeit der aktuellen Fassung, `session_id` und `session_name` sind `null`; den Inhalt gibt `blob SHA256` aus |
+
+Die Zeilen von `--by-session` fassen Event-Treffer zusammen und haben kein `type`.
 
 ## `stats` { #stats }
 
@@ -378,6 +414,21 @@ Die JSON-Ausgabe ist die Grundlage für `monthly_stats.py` im Vault:
 ```
 
 `by_weekday_hour` enthält immer alle 7 × 24 Zellen, `weekday` 0 ist Montag. `repo` ist die Remote-URL, sonst der Git-Root, sonst das Arbeitsverzeichnis.
+
+#### Token: `--tokens` { #stats-tokens }
+
+`tokens_in` eines Events ist die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen; die Preise dafür unterscheiden sich um den Faktor 10 bis 20. Seit Schema v9 ([#185](https://github.com/seletz/total-recall/issues/185)) stehen die Teile einzeln im Archiv ([Schema](40-schema.md#tabellen-und-views)). Die JSON-Ausgabe von `stats` hat sie immer, unter `tokens`; die Tabellen zeigen sie mit `--tokens`: nach den drei Tabellen eine Zeile `total` und eine je Tag, dann eine je Modell, mit den Spalten `INPUT`, `FRESH`, `CACHE WRITE`, `CACHE READ`, `UNSPLIT` und `OUTPUT` (kompakt: 1,2K, 3,4M, 5,6G). `--tokens` gehört zu den Tabellen und lässt sich nicht mit `--workday`, `--worktime`, `--period`, `--by` oder `--top` kombinieren.
+
+```json
+"tokens": {
+  "events": 88416, "input": 25331165720, "fresh": 1675644, "cache_read": 24497809921,
+  "cache_write": 542155856, "unsplit": 0, "output": 80000000,
+  "by_day": [{"day": "2026-10-01", "events": 310, "input": 90000000, "fresh": 5000, "cache_read": 88000000, "cache_write": 2000000, "unsplit": 0, "output": 300000}],
+  "by_model": [{"model": "claude-opus-5-5", "events": 4000, "input": 9700000000, "fresh": 76200, "cache_read": 9500000000, "cache_write": 100300000, "unsplit": 57300000, "output": 24100000}]
+}
+```
+
+`input` ist immer `fresh + cache_read + cache_write + unsplit`. `unsplit` ist die Eingabe von Events, deren Aufteilung unbekannt ist, weil ihre Rohzeile fehlt (zu groß für `ingest.raw_max_bytes`, oder vor v1.3.0 gekürzt); `ingest --all --reread --rewrite-raw` holt sie aus den Transkripten nach, soweit die noch da sind. `output` enthält die Thinking-Tokens des Modells. Die Zahlen gelten für alle Events mit Token-Angaben, nicht nur für menschliche und Agenten-Events wie die Aktivitäts-Tabellen; `by_day` rechnet in lokaler Zeit, `by_model` zeigt `null` für Events ohne Modell. Eine Kostenschätzung gibt es nicht: Preise ändern sich je Modell und Vertrag.
 
 ### Zeitreihe: `--period`, `--by`, `--top` { #stats-period }
 
@@ -910,6 +961,27 @@ total-recall hooks print --binary "$(command -v total-recall)"   # mit absolutem
 | `--binary BEFEHL` | Befehl in den Hooks, Default `total-recall` |
 
 Den Block und was jeder Hook tut: [Hooks einrichten](../how-to/20-hooks-einrichten.md).
+
+## `mcp` { #mcp }
+
+Startet den lesenden MCP-Server auf stdin/stdout. Claude Code startet ihn als Unterprozess; du rufst ihn selten selbst auf. Kein Port, kein Daemon, nur lesend. Einrichten und Tools: [Archiv per MCP anbinden](../how-to/55-mcp-anbinden.md).
+
+```sh
+total-recall mcp
+total-recall mcp print                       # der Eintrag als JSON
+total-recall mcp print --command             # die Zeile `claude mcp add …`
+total-recall mcp print --binary "$(command -v total-recall)"
+```
+
+Der Server bietet die Tools `search`, `sessions`, `show`, `stats`, `memory` und `status`. Jedes führt den gleichnamigen Befehl mit `--json` aus; Ausgabe und [Fehlerobjekt](#ausgabe) sind die der CLI. Ein Ergebnis ist auf 64 KiB begrenzt: der erste Inhalt ist die (gekürzte) CLI-Ausgabe, ein zweiter nennt die Kürzung und, wo möglich, `next.offset`. Jeder Aufruf öffnet das Archiv neu und schreibgeschützt. Die persistenten Optionen `--config`, `--db` und `--tz` gelten auch für die Tools.
+
+| `mcp print` | Bedeutung |
+|---|---|
+| `--harness NAME` | derzeit nur `claude` (Default) |
+| `--binary BEFEHL` | Befehl im Eintrag, Default `total-recall` |
+| `--command` | statt des JSON die Zeile `claude mcp add --scope user total-recall -- BEFEHL mcp` |
+
+`mcp print` schreibt nichts in die Einstellungen von Claude Code.
 
 ## `llm --skill` { #llm }
 

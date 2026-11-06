@@ -320,6 +320,12 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
 	tokenize = 'unicode61 remove_diacritics 2'
 );
 `,
+	// 9: tokens_in stays the sum; the cached parts of it get their own
+	// columns. migrateTokensV9 fills them from raw.
+	`
+ALTER TABLE events ADD COLUMN tokens_cache_read INTEGER;
+ALTER TABLE events ADD COLUMN tokens_cache_write INTEGER;
+`,
 }
 
 // migrationNotes describe the migrations for `total-recall migrate`, one
@@ -341,6 +347,8 @@ var migrationNotes = []migrationNote{
 		"moves no data, the same `ingest --all --reread --rewrite-raw` fills them from the transcripts"},
 	{Summary: "memory_projects, memory_files, memory_versions and memory_fts: the project memory of the harness (Claude Code: memory/*.md per project), versioned and redacted; " +
 		"moves no data, the next `ingest --all` takes up the memory files as they are on disk"},
+	{Summary: "events: tokens_cache_read and tokens_cache_write, the cached parts of tokens_in; " +
+		"fills them from raw (usage) for the events that have it, a few seconds per 100,000 events with usage; the rest stays NULL"},
 }
 
 // migrationNote is the description of one migration.
@@ -370,6 +378,7 @@ type migrationStep func(ctx context.Context, tx *sql.Tx, report func(done, total
 // no entry.
 var migrationSteps = map[int]func(s *Store) migrationStep{
 	5: func(s *Store) migrationStep { return s.migrateRawV5 },
+	9: func(s *Store) migrationStep { return s.migrateTokensV9 },
 }
 
 // eventsIndexSQL creates the indexes and the full-text triggers of events.

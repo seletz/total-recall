@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bytes"
+	"fmt"
 	"image/color"
 	"strings"
 	"sync"
@@ -233,6 +234,7 @@ type appProbe struct {
 }
 
 type probeState struct {
+	gate   tuitest.Gate
 	mu     sync.Mutex
 	keys   int  // key presses handled
 	loaded bool // the detail holds a session
@@ -243,12 +245,13 @@ func (p appProbe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m, cmd := p.App.Update(msg)
 	p.App = m.(App)
 	p.st.mu.Lock()
-	defer p.st.mu.Unlock()
 	if _, ok := msg.(tea.KeyPressMsg); ok {
 		p.st.keys++
 	}
 	p.st.loaded = p.detail.SessionID() != ""
 	p.st.shown = p.showDetail
+	p.st.mu.Unlock()
+	p.st.gate.Notify()
 	return p, cmd
 }
 
@@ -257,17 +260,11 @@ func (p appProbe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // (Back arrives as a message after the esc key press).
 func (p *probeState) wait(t *testing.T, keys int, loaded, closed bool) {
 	t.Helper()
-	deadline := time.Now().Add(tuitest.Timeout)
-	for time.Now().Before(deadline) {
+	p.gate.Wait(t, fmt.Sprintf("app to settle (keys %d, loaded %v, closed %v)", keys, loaded, closed), func() bool {
 		p.mu.Lock()
-		ok := p.keys >= keys && (!loaded || p.loaded) && (!closed || !p.shown)
-		p.mu.Unlock()
-		if ok {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("app did not settle (keys %d, loaded %v, closed %v)", keys, loaded, closed)
+		defer p.mu.Unlock()
+		return p.keys >= keys && (!loaded || p.loaded) && (!closed || !p.shown)
+	})
 }
 
 // TestDetail drives the round trip search → detail → search against the

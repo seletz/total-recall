@@ -26,6 +26,10 @@ Die Positionierung steht am Anfang: So erfährt ein Agent in Session A, was in S
 
 Ein Test prüft die im Skill genannten Spalten gegen das echte Schema (`PRAGMA table_xinfo`) und die genannten JSON-Felder gegen die echte Ausgabe der Befehle auf einer synthetischen Datenbank. Der Skill beschreibt also kein Feld, das es nicht gibt.
 
+## Per MCP statt per Shell
+
+Zusätzlich zur CLI gibt es einen lokalen MCP-Server, `total-recall mcp`: Der Agent ruft dann Tools (`search`, `sessions`, `show`, `stats`, `memory`, `status`) auf, mit demselben JSON wie die Befehle. Der Skill beschreibt ihn: wann Tools, wann die CLI, die Namen der Tools, die Begrenzung der Ausgabe. Einrichten: [Archiv per MCP anbinden](55-mcp-anbinden.md).
+
 ## Als Skill installieren
 
 Der Text ist ins Binary eingebettet. Er passt also immer zur installierten Version. So legst du ihn für Claude Code als persönlichen Skill ab:
