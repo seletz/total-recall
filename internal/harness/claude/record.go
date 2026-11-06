@@ -545,6 +545,7 @@ func (p *parser) assistantEvents(r *rawRecord, base model.Event, evID string) []
 		if withUsage {
 			u := m.Usage
 			e.TokensIn = u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+			e.TokensCacheRead, e.TokensCacheWrite = u.CacheReadInputTokens, u.CacheCreationInputTokens
 			e.TokensOut = u.OutputTokens
 			withUsage = false
 			if m.ID != "" {

@@ -12,6 +12,7 @@ Ein Bruch an einer dieser Stellen bedeutet eine neue Major-Version:
 
 - **CLI-Befehle und Flags.** Ein Befehl oder ein Flag verschwindet nicht und ändert seine Bedeutung nicht; neue kommen in einer Minor-Version dazu.
 - **JSON- und jsonl-Ausgabe.** Die Feldnamen der dokumentierten Befehle ([Befehle](10-befehle.md), Abschnitt *JSON*) und der [Ausgabevertrag](10-befehle.md#ausgabe): jeder dokumentierte Schlüssel ist immer vorhanden, `null` nur bei Strings, Fehler als ein Objekt auf stdout mit stabilem `kind`. Neue Felder kommen in einer Minor-Version dazu; Skripte sollten unbekannte Felder ignorieren.
+- **Typen der Suche.** Die Namen der [Typen](10-befehle.md#search-types) (`event`, `session`, `memory` und die reservierten `attachment`, `meta`, `file`), das Flag `--type` mit dem Default `event` und das Feld `type` jedes Treffers. Je Typ gelten seine Felder wie oben: immer vorhanden, neue nur dazu. Ein neuer Typ oder ein reservierter, der durchsuchbar wird, ist Minor; Skripte sollten Treffer eines unbekannten `type` überspringen. Welche Filter für welchen Typ gelten, kann in einer Minor-Version nur wachsen.
 - **Config-Schlüssel.** Ein Schlüssel in der [Konfiguration](20-konfiguration.md) wird nicht umbenannt oder entfernt und ändert seine Bedeutung nicht; eine bestehende Datei lädt mit jeder späteren Version derselben Major-Version. Neue Schlüssel sind Minor, ein geänderter Default steht in den Änderungen.
 - **Exit-Codes.** `0` Erfolg, `1` Fehler, `2` Befunde bei `doctor`; Hooks enden immer mit `0`.
 - **MCP-Server.** Die Namen der Tools von [`total-recall mcp`](10-befehle.md#mcp) (`search`, `sessions`, `show`, `stats`, `memory`, `status`), ihre Parameter und das Ergebnis, das exakt die `--json`-Ausgabe des Befehls ist, einschließlich des Fehlerobjekts. Neue Tools und neue Parameter sind Minor; ein Tool oder Parameter verschwindet nicht. Auch was `mcp print` ausgibt, bleibt gültig.
@@ -35,6 +36,7 @@ v1.2.0 nahm diese Regel schon vorweg: `source_path` entfiel, `raw` wurde ein BLO
 ## Was das für Skripte heißt
 
 - Skripte rufen die Befehle mit `--json` oder `--format jsonl` auf und lesen nur stdout. Diese Ausgabe ändert sich innerhalb einer Major-Version nur durch neue Felder.
+- Wer `search` mit mehreren Typen aufruft, verzweigt über `type` und übergeht unbekannte Typen.
 - `sql` gehört in ein Skript nur, wenn ein Schemawechsel verkraftbar ist. Vor einem Update die Änderungen lesen; `total-recall sql "SELECT name, sql FROM sqlite_master"` zeigt das aktuelle Schema.
 - Skripte, die Backups weiterverarbeiten, sollten die Endung nicht fest annehmen und zum Entpacken [`restore`](10-befehle.md#restore) nehmen statt eines externen Werkzeugs.
 - Nach jedem Update `total-recall status` ansehen; `MIGRATION PENDING` heißt, dass eine Minor-Version ein neues Schema gebracht hat, siehe [Aktualisieren](../how-to/10-installieren.md#aktualisieren).

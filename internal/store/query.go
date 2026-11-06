@@ -204,7 +204,7 @@ func (s *Store) FindSession(ctx context.Context, ref string) (SessionInfo, error
 // the largest column, so loading it made show of a large session ten times
 // slower (#131). Paths that need raw query it themselves (UserMessages for
 // reindex --actors; backup copies the file).
-const eventCols = `e.id, e.session_id, e.ts, e.kind, e.role, e.actor, e.text, e.tool_name, e.model, e.tokens_in, e.tokens_out, src.path, e.source_offset`
+const eventCols = `e.id, e.session_id, e.ts, e.kind, e.role, e.actor, e.text, e.tool_name, e.model, e.tokens_in, e.tokens_out, e.tokens_cache_read, e.tokens_cache_write, src.path, e.source_offset`
 
 // eventFrom is the FROM clause eventCols read from: the source path lives
 // in sources since schema v5 (events.source_id).
@@ -213,14 +213,15 @@ const eventFrom = `events e LEFT JOIN sources src ON src.id = e.source_id`
 func scanEvent(sc scanner, extra ...any) (model.Event, error) {
 	var e model.Event
 	var ts, kind, role, actor, text, tool, mdl, sp sql.NullString
-	var tin, tout, so sql.NullInt64
-	dest := append([]any{&e.ID, &e.SessionID, &ts, &kind, &role, &actor, &text, &tool, &mdl, &tin, &tout, &sp, &so}, extra...)
+	var tin, tout, tcr, tcw, so sql.NullInt64
+	dest := append([]any{&e.ID, &e.SessionID, &ts, &kind, &role, &actor, &text, &tool, &mdl, &tin, &tout, &tcr, &tcw, &sp, &so}, extra...)
 	if err := sc.Scan(dest...); err != nil {
 		return e, err
 	}
 	e.TS = parseTime(ts)
 	e.Kind, e.Role, e.Actor, e.Text = model.Kind(kind.String), role.String, model.Actor(actor.String), text.String
 	e.ToolName, e.Model, e.TokensIn, e.TokensOut = tool.String, mdl.String, tin.Int64, tout.Int64
+	e.TokensCacheRead, e.TokensCacheWrite = tcr.Int64, tcw.Int64
 	e.SourcePath, e.SourceOffset = sp.String, so.Int64
 	return e, nil
 }
@@ -314,6 +315,9 @@ type SearchFilter struct {
 	// Raw passes the query to FTS5 unchanged (AND/OR/NOT, "phrases", prefix*).
 	// Otherwise every whitespace-separated term is quoted and all must match.
 	Raw bool
+	// ProjectKeys restricts to sessions whose raw project key (see
+	// ProjectRef) is one of these; empty does not filter.
+	ProjectKeys []string
 	// HighlightStart/End wrap matches in snippets; default "[" and "]".
 	HighlightStart, HighlightEnd string
 }
@@ -325,6 +329,8 @@ type SearchHit struct {
 	Repo        string
 	Snippet     string
 	Rank        float64 // bm25, lower is better
+	// Project is the raw project key of the event's session.
+	Project ProjectRef
 }
 
 // ftsQuery quotes every term so user input cannot produce FTS syntax errors.
@@ -346,11 +352,12 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 	}
 	cond, args := f.where(query)
 	q := "SELECT " + eventCols + `, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id), ` +
-		repoExpr + `, snippet(events_fts, 0, ?, ?, '…', 16), bm25(events_fts)
+		repoExpr + `, snippet(events_fts, 0, ?, ?, '…', 16), bm25(events_fts), ` + projectCols + `
 		FROM events_fts
 		JOIN events e ON e.seq = events_fts.rowid
 		LEFT JOIN sources src ON src.id = e.source_id
 		JOIN sessions s ON s.id = e.session_id
+		LEFT JOIN sessions p ON p.id = s.parent_id
 		WHERE ` + strings.Join(cond, " AND ") + `
 		ORDER BY bm25(events_fts), e.ts DESC`
 	if f.Limit > 0 {
@@ -364,11 +371,11 @@ func (s *Store) Search(ctx context.Context, query string, f SearchFilter) ([]Sea
 	var out []SearchHit
 	for rows.Next() {
 		var h SearchHit
-		e, err := scanEvent(rows, &h.SessionName, &h.Repo, &h.Snippet, &h.Rank)
+		e, err := scanEvent(rows, &h.SessionName, &h.Repo, &h.Snippet, &h.Rank, &h.Project.Key, &h.Project.Dir, &h.Project.Remote)
 		if err != nil {
 			return nil, fmt.Errorf("store: search: %w", err)
 		}
-		h.Event = e
+		h.Event, h.Project = e, h.Project.clean()
 		out = append(out, h)
 	}
 	if err := rows.Err(); err != nil {
@@ -398,8 +405,9 @@ type SessionHits struct {
 	Snippet     string // snippet of the earliest hit
 }
 
-// where builds the FTS match and the filters of f on aliases "e" and
-// "s", with the snippet delimiters as the first two arguments.
+// where builds the FTS match and the filters of f on aliases "e", "s"
+// and "p" (the parent session, LEFT JOIN), with the snippet delimiters as
+// the first two arguments.
 func (f SearchFilter) where(query string) ([]string, []any) {
 	hs, he := f.HighlightStart, f.HighlightEnd
 	if hs == "" && he == "" {
@@ -415,6 +423,10 @@ func (f SearchFilter) where(query string) ([]string, []any) {
 	if f.SessionID != "" {
 		cond = append(cond, "e.session_id = ?")
 		args = append(args, f.SessionID)
+	}
+	if len(f.ProjectKeys) > 0 {
+		c, a := inCond(projectKeyExpr, f.ProjectKeys)
+		cond, args = append(cond, c), append(args, a...)
 	}
 	return cond, args
 }
@@ -443,6 +455,7 @@ func (s *Store) SearchBySession(ctx context.Context, query string, f SearchFilte
 			FROM events_fts
 			JOIN events e ON e.seq = events_fts.rowid
 			JOIN sessions s ON s.id = e.session_id
+			LEFT JOIN sessions p ON p.id = s.parent_id
 			WHERE ` + strings.Join(cond, " AND ") + `),
 		g AS (SELECT session_id, min(ts) AS first_hit, max(ts) AS last_hit, count(*) AS hits FROM m GROUP BY session_id),
 		r AS (SELECT g.session_id, COALESCE(NULLIF(s.name, ''), NULLIF(s.ai_title, ''), NULLIF(s.agent_name, ''), s.native_id, s.id) AS name, ` +
