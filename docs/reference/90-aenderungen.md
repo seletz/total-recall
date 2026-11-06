@@ -36,6 +36,10 @@ Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespe
 
 - **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.
 
+### Behoben
+
+- **Letztes Backup nach Zeitpunkt statt nach Dateiname** ([#209](https://github.com/seletz/total-recall/issues/209)). Lagen an einem Tag `archive-YYYY-MM-DD-1505.db.gz` (15:05) und ein späteres `archive-YYYY-MM-DD.db.zst` (22:03), galt das ältere als neuestes. `status`, Config-Seite, Setup, `backup --if-older` und die Aufbewahrung (die letzte Kopie eines Monats) bestimmen den Zeitpunkt jetzt einheitlich, in jedem Format: Datum und Uhrzeit aus dem Namen, ohne Uhrzeit im Namen die Änderungszeit der Datei. Liegt sie nicht auf dem Tag des Namens, etwa nach dem Kopieren auf einen neuen Rechner, zählt der Beginn dieses Tages. Dateien mit unmöglichem Datum im Namen (`archive-2026-13-01.db.zst`) gelten nicht mehr als Backup; die Aufbewahrung lässt sie liegen.
+
 ## v1.3.1
 
 ### Behoben

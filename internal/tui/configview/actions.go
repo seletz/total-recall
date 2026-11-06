@@ -141,13 +141,13 @@ func (m Model) actions() []action {
 	}
 	return []action{
 		{name: "backup", writes: true, disabled: noArchive,
-			summary: fmt.Sprintf("write a compressed copy to %s, keep %d daily and %d monthly", dir, cfg.Backup.KeepDaily, cfg.Backup.KeepMonthly),
+			summary: fmt.Sprintf("write a compressed copy to %s, keep %d daily and %d monthly backups", dir, cfg.Backup.KeepDaily, cfg.Backup.KeepMonthly),
 			prompt: func() string {
 				name, err := store.NextBackupName(cfg.Backup.Dir, m.opts.Now().In(cfg.Location()))
 				if err != nil {
 					name = "a new copy"
 				}
-				return fmt.Sprintf("write %s to %s and prune older copies", name, dir)
+				return fmt.Sprintf("write %s to %s and prune older backups", name, dir)
 			},
 			run: runBackup},
 		{name: "maintenance (dry run)", disabled: outdated,

@@ -93,7 +93,7 @@ func load(opts Options, now time.Time) state {
 	} else {
 		s.errs, s.older = logfile.SplitErrors(errs, now.Add(-errorWindow))
 	}
-	if p, t, err := store.LastBackup(cfg.Backup.Dir); err != nil {
+	if p, t, err := store.LastBackup(cfg.Backup.Dir, cfg.Location()); err != nil {
 		s.err = err
 	} else {
 		s.backup, s.backupAt = p, t

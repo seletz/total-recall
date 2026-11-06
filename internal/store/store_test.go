@@ -418,11 +418,11 @@ func TestBackupRetention(t *testing.T) {
 	if err != nil || len(hits) != 1 {
 		t.Errorf("search in backup: %v %v", hits, err)
 	}
-	p, mt, err := LastBackup(dir)
+	p, mt, err := LastBackup(dir, time.UTC)
 	if err != nil || filepath.Base(p) != "archive-2026-11-01-2230.db.zst" || mt.IsZero() {
 		t.Errorf("LastBackup = %q %v %v", p, mt, err)
 	}
-	if p, _, err := LastBackup(filepath.Join(t.TempDir(), "none")); err != nil || p != "" {
+	if p, _, err := LastBackup(filepath.Join(t.TempDir(), "none"), time.UTC); err != nil || p != "" {
 		t.Errorf("LastBackup on missing dir = %q %v", p, err)
 	}
 }
@@ -436,7 +436,7 @@ func TestBackupLegacyFormats(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	p, _, err := LastBackup(dir)
+	p, _, err := LastBackup(dir, time.UTC)
 	if err != nil || filepath.Base(p) != "archive-2026-11-01.db.gz" {
 		t.Errorf("LastBackup with legacy files = %q %v", p, err)
 	}
@@ -454,7 +454,7 @@ func TestBackupLegacyFormats(t *testing.T) {
 			t.Errorf("temp files left: %v", m)
 		}
 	}
-	if p, _, err := LastBackup(dir); err != nil || filepath.Base(p) != "archive-2026-11-01-2200.db.zst" {
+	if p, _, err := LastBackup(dir, time.UTC); err != nil || filepath.Base(p) != "archive-2026-11-01-2200.db.zst" {
 		t.Errorf("LastBackup = %q %v", p, err)
 	}
 }

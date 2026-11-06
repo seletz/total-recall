@@ -359,7 +359,7 @@ func TestActionsConfirm(t *testing.T) {
 	m := drive(t, New(h.options(t)), "tab", "tab", "tab")
 	requireContains(t, frame(m), "▸ backup", "write a compressed copy to ~/Documents/total-recall, keep 7 daily and 0")
 	m = press(t, m, "enter")
-	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.zst to ~/Documents/total-recall and prune older copies", "y confirms, esc cancels")
+	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.zst to ~/Documents/total-recall and prune older backups", "y confirms, esc cancels")
 	m = press(t, m, "esc")
 	requireContains(t, frame(m), "backup: cancelled")
 	if _, err := os.Stat(h.cfg.Backup.Dir); err == nil {

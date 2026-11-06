@@ -75,7 +75,7 @@ func TestBackupKeepsSameDayCopies(t *testing.T) {
 				t.Errorf("Backup wrote %s, want %s", filepath.Base(p), tt.want)
 			}
 			requireUntouched(t, dir, tt.existing...)
-			if last, _, err := LastBackup(dir); err != nil || last != p {
+			if last, _, err := LastBackup(dir, time.UTC); err != nil || last != p {
 				t.Errorf("LastBackup = %q, %v, want %q", last, err, p)
 			}
 			if m, _ := filepath.Glob(filepath.Join(dir, "*.tmp")); len(m) > 0 {
@@ -184,9 +184,10 @@ func TestBackupFilesOrder(t *testing.T) {
 		"archive-2026-11-01-093.db.zst", // not ours
 		"archive-2026-11-01-0930-.db.zst",
 		"archive-latest.db.zst",
+		"archive-2026-13-01.db.zst",
 		"notes.txt",
 	)
-	got, err := backupFiles(dir)
+	got, err := backupFiles(dir, time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +250,7 @@ func TestPruneCountsDays(t *testing.T) {
 			dir := t.TempDir()
 			writeBackups(t, dir, all...)
 			writeBackups(t, dir, "notes.txt")
-			removed, err := PruneBackups(dir, tt.daily, tt.monthly)
+			removed, err := PruneBackups(dir, tt.daily, tt.monthly, time.UTC)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -301,7 +302,7 @@ func TestLastBackupTimedName(t *testing.T) {
 	if err := os.Chtimes(filepath.Join(dir, "archive-2026-11-01-0930.db.zst"), mt, mt); err != nil {
 		t.Fatal(err)
 	}
-	p, got, err := LastBackup(dir)
+	p, got, err := LastBackup(dir, time.UTC)
 	if err != nil || filepath.Base(p) != "archive-2026-11-01-0930.db.zst" || !got.Equal(mt) {
 		t.Errorf("LastBackup = %q %v %v", p, got, err)
 	}
