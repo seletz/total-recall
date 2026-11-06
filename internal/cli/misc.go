@@ -68,7 +68,7 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 		if err != nil {
 			return fmt.Errorf("invalid --if-older %q: %w", ifOlder, err)
 		}
-		p, t, err := store.LastBackup(cfg.Backup.Dir)
+		p, t, err := store.LastBackup(cfg.Backup.Dir, cfg.Location())
 		if err != nil {
 			return err
 		}

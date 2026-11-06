@@ -333,7 +333,7 @@ func runChecks(opts Options, now time.Time) []check {
 	c = check{name: "backups"}
 	if fi, err := os.Stat(cfg.Backup.Dir); err == nil && fi.IsDir() {
 		c.ok, c.text = true, tilde(cfg.Backup.Dir)+" exists"
-		if p, t, err := store.LastBackup(cfg.Backup.Dir); err == nil && p != "" {
+		if p, t, err := store.LastBackup(cfg.Backup.Dir, cfg.Location()); err == nil && p != "" {
 			c.text += ", last backup " + age(now, t)
 		} else {
 			c.warn, c.text = true, c.text+", no backup yet (actions: backup)"

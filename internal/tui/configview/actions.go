@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,13 +142,13 @@ func (m Model) actions() []action {
 	}
 	return []action{
 		{name: "backup", writes: true, disabled: noArchive,
-			summary: fmt.Sprintf("write a compressed copy to %s, keep %d daily and %d monthly", dir, cfg.Backup.KeepDaily, cfg.Backup.KeepMonthly),
+			summary: fmt.Sprintf("write a compressed copy to %s, %s", dir, retentionText(cfg.Backup.KeepDaily, cfg.Backup.KeepMonthly)),
 			prompt: func() string {
 				name, err := store.NextBackupName(cfg.Backup.Dir, m.opts.Now().In(cfg.Location()))
 				if err != nil {
 					name = "a new copy"
 				}
-				return fmt.Sprintf("write %s to %s and prune older copies", name, dir)
+				return fmt.Sprintf("write %s to %s and prune older backups", name, dir)
 			},
 			run: runBackup},
 		{name: "maintenance (dry run)", disabled: outdated,
@@ -404,6 +405,16 @@ func openWrite(env runEnv, extra ...store.Option) (*store.Store, *logfile.Logger
 	log := logfile.New(env.cfg.LogPath(), env.opts.Now)
 	st, err := ops.OpenWrite(env.cfg, log, extra...)
 	return st, log, err
+}
+
+// retentionText says what retention keeps. keepMonthly 0 means all months,
+// not none.
+func retentionText(keepDaily, keepMonthly int) string {
+	monthly := "all"
+	if keepMonthly > 0 {
+		monthly = strconv.Itoa(keepMonthly)
+	}
+	return fmt.Sprintf("keep %d daily and %s monthly backups", keepDaily, monthly)
 }
 
 func runBackup(ctx context.Context, env runEnv, log logf) (string, error) {

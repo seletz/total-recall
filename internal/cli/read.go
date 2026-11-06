@@ -249,7 +249,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		for h, t := range s.LastIngest {
 			out.LastIngest[h] = isoTime(t)
 		}
-		bp, bt, err := store.LastBackup(cfg.Backup.Dir)
+		bp, bt, err := store.LastBackup(cfg.Backup.Dir, cfg.Location())
 		if err != nil {
 			return err
 		}
