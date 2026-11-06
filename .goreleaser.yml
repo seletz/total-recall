@@ -6,6 +6,10 @@ before:
   hooks:
     - go mod tidy
     - ./scripts/completions.sh
+    # The web UI (web/, spike #171) is built once here and embedded into
+    # every binary; Node is needed on the release runner, not at run time.
+    - npm ci --prefix web
+    - npm run build --prefix web
 
 builds:
   - id: total-recall
