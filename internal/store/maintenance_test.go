@@ -389,6 +389,21 @@ func TestMaintainLosesNoWrites(t *testing.T) {
 	refused := 0
 	stop := make(chan struct{})
 	done := make(chan error, 1)
+	// wrote signals every acknowledged write, so the test waits for the
+	// writer's progress instead of for the clock.
+	wrote := make(chan struct{}, 1<<16)
+	awaitWrites := func(n int) {
+		t.Helper()
+		for ; n > 0; n-- {
+			select {
+			case <-wrote:
+			case err := <-done:
+				t.Fatalf("writer stopped early: %v", err)
+			case <-time.After(2 * time.Minute):
+				t.Fatal("writer made no progress")
+			}
+		}
+	}
 	go func() {
 		i := 0
 		for {
@@ -421,11 +436,15 @@ func TestMaintainLosesNoWrites(t *testing.T) {
 			mu.Lock()
 			written = append(written, id)
 			mu.Unlock()
+			select {
+			case wrote <- struct{}{}:
+			default:
+			}
 			i++
 		}
 	}()
 	for round := 0; round < 2; round++ {
-		time.Sleep(50 * time.Millisecond)
+		awaitWrites(3) // the writer is running before maintenance starts
 		o := maintainOpts(dir)
 		o.Wait = 30 * time.Second
 		if round == 1 {
@@ -435,7 +454,7 @@ func TestMaintainLosesNoWrites(t *testing.T) {
 			t.Fatalf("round %d: %v", round, err)
 		}
 	}
-	time.Sleep(50 * time.Millisecond)
+	awaitWrites(3) // and still writes once maintenance is over
 	close(stop)
 	if err := <-done; err != nil {
 		t.Fatalf("writer: %v", err)

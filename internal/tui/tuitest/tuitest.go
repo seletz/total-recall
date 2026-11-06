@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,8 +29,54 @@ const (
 	Height = 30
 )
 
-// Timeout is how long Final and WaitQuit wait for the program to stop.
-const Timeout = 5 * time.Second
+// Timeout is the ceiling for every wait on the program: it is the signal
+// that ends a wait (an output, a handled message), never the clock, so a
+// passing test is not slower for a high value. It is high because a
+// parallel full test run can starve a program for many seconds.
+const Timeout = 2 * time.Minute
+
+// Gate lets a test wait for a condition on state that a probe model
+// updates from the program's goroutine. The probe calls Notify after every
+// change; Wait wakes on that signal instead of polling.
+type Gate struct {
+	mu sync.Mutex
+	ch chan struct{}
+}
+
+// Notify wakes every Wait in progress to check its condition again.
+func (g *Gate) Notify() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.ch != nil {
+		close(g.ch)
+		g.ch = nil
+	}
+}
+
+// Wait blocks until cond reports true, checking it again after every
+// Notify, and fails the test after Timeout. cond runs without the Gate's
+// lock; it takes the probe's own.
+func (g *Gate) Wait(tb testing.TB, what string, cond func() bool) {
+	tb.Helper()
+	timeout := time.NewTimer(Timeout)
+	defer timeout.Stop()
+	for {
+		g.mu.Lock()
+		if g.ch == nil {
+			g.ch = make(chan struct{})
+		}
+		ch := g.ch
+		g.mu.Unlock()
+		if cond() {
+			return
+		}
+		select {
+		case <-ch:
+		case <-timeout.C:
+			tb.Fatalf("timed out waiting for %s", what)
+		}
+	}
+}
 
 // Now is the fixed time Clock returns: a Tuesday noon in Berlin.
 var Now = time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
