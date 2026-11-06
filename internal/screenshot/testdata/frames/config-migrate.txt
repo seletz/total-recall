@@ -3,7 +3,7 @@
  status settings projects [actions] setup                                            ~/.config/total-recall/config.toml
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ACTION                    WHAT IT DOES
-  backup                    write a compressed copy to ~/Documents/total-recall, keep 7 daily and 0 monthly
+  backup                    write a compressed copy to ~/Documents/total-recall, keep 7 daily and all monthly backups
   maintenance (dry run)     measure a rebuild with 16384-byte pages; changes nothing · migrate first
   maintenance               rebuild the archive with 16384-byte pages after a backup; hooks skip meanwhile · migrate fi…
 ▸ migrate                   apply the pending schema migrations after a backup; hooks skip meanwhile

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -102,6 +101,10 @@ type Summary struct {
 	MetaRewritten int
 	// Meta counts meta records newly inserted (table session_meta).
 	Meta int
+	// MetaKept counts existing meta records a rewrite left as they were:
+	// their stored line refers to more blobs than the new one, the
+	// harness has deleted data the archive holds.
+	MetaKept int
 	// Blobs counts attachments newly stored, BlobBytes their size as
 	// delivered (an attachment the archive already had does not count).
 	Blobs     int
@@ -291,6 +294,7 @@ func (r *runner) ingestFile(ctx context.Context, a harness.Adapter, path string)
 		r.sum.RawRewritten += res.RawRewritten
 		r.sum.MetaRewritten += res.MetaRewritten
 		r.sum.Meta += res.MetaInserted
+		r.sum.MetaKept += res.MetaKept
 		r.sum.Blobs += res.Blobs
 		r.sum.BlobBytes += res.BlobBytes
 		sessions, events, metas, pending = sessions[:0], events[:0], metas[:0], 0
@@ -373,22 +377,36 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 			continue
 		}
 		r.sessions[m.SessionID] = true
-		// The attachments of a meta record are redacted JSON (a system
-		// prompt, tool definitions), not images: they are kept whatever
-		// StoreBlobs says, else the record would lose its content. Redaction
-		// changes the hash, so the reference in the line follows.
-		m.Attachments = slices.Clone(m.Attachments)
-		for i, a := range m.Attachments {
-			if rd := r.deps.Redactor; rd != nil && a.MediaType == "application/json" {
-				if red, _ := rd.JSON(string(a.Data)); red != string(a.Data) {
+		// The attachments of a meta record are JSON (a system prompt, tool
+		// definitions) or text (a backup copy of an edited file), redacted
+		// like the line: they are kept whatever StoreBlobs says, else the
+		// record would lose its content. Other data (a binary backup copy)
+		// cannot be redacted and follows StoreBlobs like an image; the line
+		// keeps the reference. Redaction changes the hash, so the reference
+		// in the line follows.
+		atts := make([]model.Attachment, 0, len(m.Attachments))
+		for _, a := range m.Attachments {
+			redactable := a.MediaType == "application/json" || strings.HasPrefix(a.MediaType, "text/")
+			if !redactable && !r.deps.StoreBlobs {
+				continue
+			}
+			if rd := r.deps.Redactor; rd != nil && redactable {
+				var red string
+				if a.MediaType == "application/json" {
+					red, _ = rd.JSON(string(a.Data))
+				} else {
+					red = rd.Text(string(a.Data))
+				}
+				if red != string(a.Data) {
 					h := blobref.Hash([]byte(red))
 					m.Raw = strings.ReplaceAll(m.Raw, blobref.Ref{SHA256: a.SHA256}.String(), blobref.Ref{SHA256: h}.String())
 					a.Data, a.SHA256 = []byte(red), h
-					m.Attachments[i] = a
 				}
 			}
+			atts = append(atts, a)
 			added += int64(len(a.Data))
 		}
+		m.Attachments = atts
 		if rd := r.deps.Redactor; rd != nil {
 			m.Raw, _ = rd.JSON(m.Raw)
 		}

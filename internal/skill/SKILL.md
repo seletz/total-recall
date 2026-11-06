@@ -483,6 +483,7 @@ One object per memory file whose current content matches, best first.
 | `blobs` | number of stored attachments (images, documents) |
 | `blob_bytes` | their size as delivered |
 | `blob_stored_bytes` | their size in the archive (PDF and text are zstd-compressed) |
+| `blob_kinds` | the blobs split by kind, each `{count, bytes, stored_bytes}`: `attachments` (images and documents of events), `json` (system prompts and tool definitions of meta records), `files` (backup copies of edited files, Claude Code file-history) |
 | `meta_rows` | stored meta records (table `session_meta`) |
 | `meta_bytes` | compressed size of all meta records |
 | `memory_projects` | projects with archived memory |

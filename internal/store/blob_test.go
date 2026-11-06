@@ -111,6 +111,9 @@ func TestWriteAttachments(t *testing.T) {
 	if err != nil || bs.Count != 2 || bs.Bytes != int64(len(testPNG)+len(testPDF)) || bs.StoredBytes <= 0 || bs.StoredBytes >= bs.Bytes {
 		t.Errorf("BlobStats = %+v, %v", bs, err)
 	}
+	if bs.Attachments.Count != 2 || bs.Attachments.Bytes != bs.Bytes || bs.JSON.Count != 0 || bs.Files.Count != 0 {
+		t.Errorf("BlobStats kinds = %+v", bs)
+	}
 
 	// The read paths do not load the attachments.
 	got, err := s.Events(ctx, "claude:s1", true)

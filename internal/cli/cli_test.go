@@ -701,12 +701,14 @@ func TestBackup(t *testing.T) {
 	if out := e.mustRun(t, "backup"); !strings.Contains(out, "archive-2026-10-22.db.zst") {
 		t.Errorf("tz date = %q", out)
 	}
-	// --if-older compares with the newest copy's modification time (real clock).
-	e.now = time.Now()
+	// --if-older compares with the time of the newest copy. The modification
+	// time is outside the day of the name here, so the start of that day
+	// counts: 2026-10-21 22:00 UTC.
+	e.now = time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	if out := e.mustRun(t, "backup", "--if-older", "24h"); !strings.Contains(out, "skipped") {
 		t.Errorf("--if-older 24h = %q", out)
 	}
-	e.now = time.Now().Add(48 * time.Hour)
+	e.now = e.now.Add(48 * time.Hour)
 	if out := e.mustRun(t, "backup", "--if-older", "24h"); !strings.Contains(out, "backup written") {
 		t.Errorf("--if-older after 48h = %q", out)
 	}
@@ -748,7 +750,7 @@ func TestBackupSameDay(t *testing.T) {
 			if b, err := os.ReadFile(first); err != nil || string(b) != "the copy of the morning" {
 				t.Errorf("first copy: %q %v", b, err)
 			}
-			e.now = time.Now()
+			e.now = e.now.Add(time.Hour)
 			if out := e.mustRun(t, "backup", "--if-older", "24h"); !strings.Contains(out, "skipped: "+timed) {
 				t.Errorf("--if-older with a timed copy = %q", out)
 			}
@@ -756,6 +758,43 @@ func TestBackupSameDay(t *testing.T) {
 				t.Errorf("status does not show the timed copy: %q", out)
 			}
 		})
+	}
+}
+
+// TestLastBackupOfMixedDay is the case that led to #209: a copy with a time
+// in its name at 15:05 and a later one with only the date at 22:03. status
+// shows the later one and --if-older measures from it.
+func TestLastBackupOfMixedDay(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	if err := os.MkdirAll(e.backups, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	timed := filepath.Join(e.backups, "archive-2026-10-20-1505.db.gz")
+	dayName := filepath.Join(e.backups, "archive-2026-10-20.db.zst")
+	stamps := map[string]time.Time{
+		timed:   time.Date(2026, 10, 20, 15, 5, 0, 0, berlin),
+		dayName: time.Date(2026, 10, 20, 22, 3, 0, 0, berlin),
+	}
+	for p, mt := range stamps {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(p, mt, mt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.now = stamps[dayName].Add(time.Hour)
+	if out := e.mustRun(t, "status"); !strings.Contains(out, dayName) || strings.Contains(out, timed) {
+		t.Errorf("status does not show the later copy: %q", out)
+	}
+	// Seven hours after the timed copy, but one after the later one.
+	if out := e.mustRun(t, "backup", "--if-older", "2h"); !strings.Contains(out, "skipped: "+dayName) {
+		t.Errorf("--if-older = %q", out)
 	}
 }
 
@@ -1517,6 +1556,58 @@ func TestShowAttachments(t *testing.T) {
 	if out := e.mustRun(t, "status"); !strings.Contains(out, "1 attachments, 34 B (34 B stored)") {
 		t.Errorf("status = %q", out)
 	}
+}
+
+// TestFileHistoryCommand: the backup copy a file-history record names is
+// archived next to projects_dir (file-history), readable with blob (text
+// also on a terminal), counted by status and the ingest summary;
+// store_file_history = false leaves it out.
+func TestFileHistoryCommand(t *testing.T) {
+	const sid = "44444444-4444-4444-8444-444444444444"
+	src := []byte("package demo\n\nfunc Hello() string { return \"hallo\" }\n")
+	setup := func(t *testing.T) *testEnv {
+		e := newTestEnv(t)
+		tf.WriteFile(t, filepath.Join(filepath.Dir(e.projects), "file-history"), sid+"/eeee000000000005@v1", string(src))
+		tf.WriteFile(t, e.projects, "-w-demo/"+sid+".jsonl", tf.Join(
+			tf.User(sid, "f1", "2026-10-04T10:00:00Z", "/w/demo", "edit hello.go"),
+			tf.FileHistorySnapshot("f1", "2026-10-04T10:00:00Z", map[string]string{"/w/demo/hello.go": "eeee000000000005@v1"}),
+		))
+		return e
+	}
+	hash := blobref.Hash(src)
+	t.Run("on", func(t *testing.T) {
+		e := setup(t)
+		e.mustRun(t, "ingest", "--all")
+		e.width = 80 // text goes to a terminal too
+		if out := e.mustRun(t, "blob", hash[:12]); out != string(src) {
+			t.Errorf("blob = %q", out)
+		}
+		e.width = 0
+		b := decode[BlobJSON](t, e.mustRun(t, "blob", hash, "--json"))
+		if b.MediaType != "text/plain" || len(b.MetaRecords) != 1 {
+			t.Errorf("blob --json = %+v", b)
+		}
+		if out := e.mustRun(t, "status"); !strings.Contains(out, "1 files") {
+			t.Errorf("status = %q", out)
+		}
+		st := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
+		if k := st.BlobKinds["files"]; k.Count != 1 || k.Bytes != int64(len(src)) {
+			t.Errorf("status --json blob_kinds = %+v", st.BlobKinds)
+		}
+	})
+	t.Run("off", func(t *testing.T) {
+		e := setup(t)
+		f, err := os.OpenFile(e.configPath, os.O_APPEND|os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.WriteString("\n[ingest]\nstore_file_history = false\n")
+		_ = f.Close()
+		e.mustRun(t, "ingest", "--all")
+		if r := e.run(t, "", "blob", hash, "--json"); r.code != 1 || !strings.Contains(r.stdout, `"kind":"not_found"`) {
+			t.Errorf("blob with store_file_history = false: %+v", r)
+		}
+	})
 }
 
 // TestAddSummaryCoversEveryField: a counter added to ingest.Summary and

@@ -59,6 +59,11 @@ store_blobs = true
 # Archive the project memory of the harness (Claude Code: the memory/*.md
 # files of every project), versioned and redacted (`total-recall memory`).
 store_memory = true
+# Keep the backup copies of edited files the harness writes next to its
+# transcripts (Claude Code: file-history, deleted with the transcripts) as
+# blobs, once per content. Text is redacted; binary files follow
+# store_blobs.
+store_file_history = true
 
 [harness.claude]
 enabled = true

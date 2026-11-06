@@ -47,6 +47,16 @@ type BlobStats struct {
 	Count       int64
 	Bytes       int64
 	StoredBytes int64
+	// Attachments, JSON and Files split the totals: images and documents
+	// of events (and blobs no link refers to), JSON values of meta
+	// records (system prompts, tool definitions), other data of meta
+	// records (Claude Code: backup copies of edited files).
+	Attachments, JSON, Files BlobKind
+}
+
+// BlobKind counts one kind of blob, as BlobStats does in total.
+type BlobKind struct {
+	Count, Bytes, StoredBytes int64
 }
 
 // blobEncodingZstd marks a blob stored as a zstd frame (no dictionary).
@@ -314,14 +324,40 @@ func (s *Store) SessionAttachments(ctx context.Context, sessionID string) (map[s
 	return out, rows.Err()
 }
 
-// BlobStats counts the stored attachments.
+// BlobStats counts the stored attachments, in total and per kind (by
+// media type and link table, over the sha256 indexes of the links).
 func (s *Store) BlobStats(ctx context.Context) (BlobStats, error) {
 	var st BlobStats
-	if err := s.db().QueryRowContext(ctx, `SELECT count(*), COALESCE(sum(bytes), 0), COALESCE(sum(length(data)), 0) FROM blobs`).
-		Scan(&st.Count, &st.Bytes, &st.StoredBytes); err != nil {
+	rows, err := s.db().QueryContext(ctx, `SELECT
+		CASE WHEN b.media_type = 'application/json' THEN 1
+		     WHEN EXISTS (SELECT 1 FROM event_blobs e WHERE e.sha256 = b.sha256) THEN 0
+		     WHEN EXISTS (SELECT 1 FROM meta_blobs m WHERE m.sha256 = b.sha256) THEN 2
+		     ELSE 0 END AS kind,
+		count(*), COALESCE(sum(b.bytes), 0), COALESCE(sum(length(b.data)), 0)
+		FROM blobs b GROUP BY kind`)
+	if err != nil {
 		return st, fmt.Errorf("store: blob stats: %w", err)
 	}
-	return st, nil
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var kind int
+		var k BlobKind
+		if err := rows.Scan(&kind, &k.Count, &k.Bytes, &k.StoredBytes); err != nil {
+			return st, fmt.Errorf("store: blob stats: %w", err)
+		}
+		switch kind {
+		case 1:
+			st.JSON = k
+		case 2:
+			st.Files = k
+		default:
+			st.Attachments = k
+		}
+		st.Count += k.Count
+		st.Bytes += k.Bytes
+		st.StoredBytes += k.StoredBytes
+	}
+	return st, rows.Err()
 }
 
 // RawLine returns the raw line of an event as the transcript had it: the

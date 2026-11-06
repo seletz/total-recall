@@ -410,6 +410,9 @@ type Ingest struct {
 	// StoreMemory archives the project memory of the harness (versioned,
 	// redacted) on ingest --all and in the hooks.
 	StoreMemory bool `toml:"store_memory"`
+	// StoreFileHistory archives the backup copies of edited files the
+	// harness keeps next to its transcripts (Claude Code: file-history).
+	StoreFileHistory bool `toml:"store_file_history"`
 }
 
 // Claude configures the Claude Code adapter.
@@ -481,6 +484,7 @@ var fields = []struct {
 	{"ingest.store_raw", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreRaw) }},
 	{"ingest.store_blobs", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreBlobs) }},
 	{"ingest.store_memory", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreMemory) }},
+	{"ingest.store_file_history", func(c *Config) string { return strconv.FormatBool(c.Ingest.StoreFileHistory) }},
 	{"harness.claude.enabled", func(c *Config) string { return strconv.FormatBool(c.Harness.Claude.Enabled) }},
 	{"harness.claude.projects_dir", func(c *Config) string { return c.Harness.Claude.ProjectsDir }},
 	{"harness.claude.skip_record_types", func(c *Config) string { return formatList(c.Harness.Claude.SkipRecordTypes) }},
@@ -589,7 +593,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 	}
 	c.Backup = Backup{Dir: filepath.Join(home, "Documents", "total-recall"), KeepDaily: 7, MinInterval: Duration{24 * time.Hour}}
 	c.Redact = Redact{Enabled: true, ExtraPatterns: []string{}, Allow: []string{}}
-	c.Ingest = Ingest{ToolResultMaxBytes: 4096, RawMaxBytes: DefaultRawMaxBytes, StoreRaw: true, StoreBlobs: true, StoreMemory: true}
+	c.Ingest = Ingest{ToolResultMaxBytes: 4096, RawMaxBytes: DefaultRawMaxBytes, StoreRaw: true, StoreBlobs: true, StoreMemory: true, StoreFileHistory: true}
 	claudeDir := getenv("CLAUDE_CONFIG_DIR")
 	if claudeDir == "" {
 		claudeDir = filepath.Join(home, ".claude")

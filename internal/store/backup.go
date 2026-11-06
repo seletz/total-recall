@@ -57,8 +57,8 @@ func backupStem(now time.Time, n int) string {
 
 // freeBackupName returns the first candidate from index n on that is not
 // taken by copies, in any format, and the index after it. The name of the
-// day is free only for the first copy of the day: it sorts before the timed
-// names, so a later copy under it would count as older than they are.
+// day is free only for the first copy of the day, so a name carries the
+// time of every later one.
 func freeBackupName(copies []backupFile, now time.Time, n int) (string, int) {
 	day := now.Format("2006-01-02")
 	taken := map[string]bool{}
@@ -86,7 +86,7 @@ next:
 // now (in now's location): see BackupFileName, and with a copy of that day
 // in any format the first free name with the time of day.
 func NextBackupName(dir string, now time.Time) (string, error) {
-	copies, err := backupFiles(dir)
+	copies, err := backupFiles(dir, now.Location())
 	if err != nil {
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
@@ -97,8 +97,8 @@ func NextBackupName(dir string, now time.Time) (string, error) {
 // Backup writes a consistent, zstd-compressed copy of the database to dir
 // under NextBackupName, then applies retention: keep all copies of the
 // keepDaily newest days plus the newest copy of each month, limited to the
-// keepMonthly newest months (0 = all months). It returns the path of the new
-// copy. A new copy never replaces an existing one; only retention deletes
+// keepMonthly newest months (0 = all months), judged in the zone of now,
+// which is the zone of the names. It returns the path of the new copy. A new copy never replaces an existing one; only retention deletes
 // copies, and it logs each one.
 //
 // The copy is made with VACUUM INTO into a temporary file next to the
@@ -142,7 +142,7 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 	if err != nil {
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
-	removed, err := PruneBackups(dir, keepDaily, keepMonthly)
+	removed, err := PruneBackups(dir, keepDaily, keepMonthly, now.Location())
 	for _, p := range removed {
 		s.logf("backup: pruned %s (retention: keep_daily %d, keep_monthly %d)", p, keepDaily, keepMonthly)
 	}
@@ -156,7 +156,7 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 // path. A parallel backup can take a name between the check and the claim;
 // then the next candidate is tried.
 func publishBackup(tmp, dir string, now time.Time) (string, error) {
-	copies, err := backupFiles(dir)
+	copies, err := backupFiles(dir, now.Location())
 	if err != nil {
 		return "", err
 	}
@@ -360,15 +360,29 @@ type backupFile struct {
 	number int
 	// format ranks the copies of the same name: .zst, .gz, plain.
 	format int
+	// named is what the name says: the day and the clock, without a clock
+	// the start of the day.
+	named time.Time
+	// at is when the copy was made, see backupTime.
+	at time.Time
 }
 
-// parseBackupName returns the copy a file name stands for.
-func parseBackupName(name string) (backupFile, bool) {
+// parseBackupName returns the copy a file name stands for; the clock in a
+// name is local to loc. A name without a real date and time is no copy.
+func parseBackupName(name string, loc *time.Location) (backupFile, bool) {
 	m := backupName.FindStringSubmatch(name)
 	if m == nil {
 		return backupFile{}, false
 	}
-	b := backupFile{name: name, day: m[1], month: m[1][:7], clock: m[2]}
+	stamp, layout := m[1], "2006-01-02"
+	if m[2] != "" {
+		stamp, layout = stamp+"-"+m[2], layout+"-1504"
+	}
+	named, err := time.ParseInLocation(layout, stamp, loc)
+	if err != nil {
+		return backupFile{}, false
+	}
+	b := backupFile{name: name, day: m[1], month: m[1][:7], clock: m[2], named: named}
 	if m[3] != "" {
 		n, err := strconv.Atoi(m[3])
 		if err != nil {
@@ -380,16 +394,29 @@ func parseBackupName(name string) (backupFile, bool) {
 	return b, true
 }
 
-// compareBackups orders copies oldest first: by day, then the first copy of
-// the day, then by time and number; of the same name .db, .gz, .zst.
-func compareBackups(a, b backupFile) int {
-	return cmp.Or(cmp.Compare(a.day, b.day), cmp.Compare(a.clock, b.clock),
-		cmp.Compare(a.number, b.number), cmp.Compare(a.format, b.format))
+// backupTime returns when copy b was made, and is the only place that
+// decides it: the date and time in the name, or, for a name with only a
+// date, the modification time mtime. An mtime outside the named day says
+// nothing about the copy (it was copied or restored later), then the start
+// of the day stands in. So a copy never leaves the day of its name.
+func backupTime(b backupFile, mtime time.Time) time.Time {
+	if b.clock == "" && mtime.In(b.named.Location()).Format("2006-01-02") == b.day {
+		return mtime
+	}
+	return b.named
 }
 
-// backupFiles returns the backup copies in dir, newest first. A missing dir
-// yields no files.
-func backupFiles(dir string) ([]backupFile, error) {
+// compareBackups orders copies oldest first: by time, to the minute, the
+// precision of a timed name. Within a minute the copy without a time was the
+// first one, then the number decides; of the same name .db, .gz, .zst.
+func compareBackups(a, b backupFile) int {
+	return cmp.Or(a.at.Truncate(time.Minute).Compare(b.at.Truncate(time.Minute)),
+		cmp.Compare(a.clock, b.clock), cmp.Compare(a.number, b.number), cmp.Compare(a.format, b.format))
+}
+
+// backupFiles returns the backup copies in dir, newest first; loc is the
+// time zone of their names. A missing dir yields no files.
+func backupFiles(dir string, loc *time.Location) ([]backupFile, error) {
 	ents, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -399,9 +426,19 @@ func backupFiles(dir string) ([]backupFile, error) {
 	}
 	var files []backupFile
 	for _, e := range ents {
-		if b, ok := parseBackupName(e.Name()); ok && !e.IsDir() {
-			files = append(files, b)
+		b, ok := parseBackupName(e.Name(), loc)
+		if !ok || e.IsDir() {
+			continue
 		}
+		fi, err := e.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // retention of a parallel backup was faster
+		}
+		if err != nil {
+			return nil, err
+		}
+		b.at = backupTime(b, fi.ModTime())
+		files = append(files, b)
 	}
 	slices.SortFunc(files, func(a, b backupFile) int { return compareBackups(b, a) })
 	return files, nil
@@ -410,9 +447,10 @@ func backupFiles(dir string) ([]backupFile, error) {
 // PruneBackups deletes backup copies in dir that fall outside the retention
 // policy (see Backup) and returns the removed paths, oldest first. keepDaily
 // counts days: all copies of a kept day stay. Every format and name counts
-// alike. Other files are never touched.
-func PruneBackups(dir string, keepDaily, keepMonthly int) ([]string, error) {
-	files, err := backupFiles(dir)
+// alike, in the order of their time (see backupTime); loc is the time zone
+// of the names. Other files are never touched.
+func PruneBackups(dir string, keepDaily, keepMonthly int, loc *time.Location) ([]string, error) {
+	files, err := backupFiles(dir, loc)
 	if err != nil {
 		return nil, fmt.Errorf("store: prune backups: %w", err)
 	}
@@ -453,17 +491,13 @@ func PruneBackups(dir string, keepDaily, keepMonthly int) ([]string, error) {
 }
 
 // LastBackup returns the newest backup copy in dir (in any of the formats
-// backupName matches) and its modification time. path is empty if there is
-// none (also if dir does not exist).
-func LastBackup(dir string) (path string, modTime time.Time, err error) {
-	files, err := backupFiles(dir)
+// backupName matches) and when it was made (see backupTime); loc is the time
+// zone of the names. path is empty if there is none (also if dir does not
+// exist).
+func LastBackup(dir string, loc *time.Location) (path string, at time.Time, err error) {
+	files, err := backupFiles(dir, loc)
 	if err != nil || len(files) == 0 {
 		return "", time.Time{}, err
 	}
-	p := filepath.Join(dir, files[0].name)
-	fi, err := os.Stat(p)
-	if err != nil {
-		return "", time.Time{}, err
-	}
-	return p, fi.ModTime(), nil
+	return filepath.Join(dir, files[0].name), files[0].at, nil
 }

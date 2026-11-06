@@ -981,6 +981,98 @@ func TestMetaRecords(t *testing.T) {
 	})
 }
 
+// TestFileHistory: the backup copies a transcript's file-history records
+// name are archived as blobs once per content, linked to the records;
+// text is redacted (the reference follows the redacted hash), binary
+// data follows store_blobs, a missing copy keeps the record, and a reread
+// with --rewrite-raw after the copies are gone keeps what was archived.
+func TestFileHistory(t *testing.T) {
+	secret := "ghp_" + strings.Repeat("aB3", 12)
+	s := tf.SmallSession1
+	src := "package demo\n\nconst token = \"" + secret + "\"\n"
+	bin := "\x89PNG\r\n\x1a\n\x00synthetic"
+	setup := func(t *testing.T, storeBlobs bool) (*env, string, string) {
+		e := newEnv(t)
+		r, err := redact.New(redact.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		hist := filepath.Join(e.dir, "file-history")
+		e.deps.Redactor, e.deps.StoreBlobs = r, storeBlobs
+		e.deps.Adapters = []harness.Adapter{claude.New(e.projects, claude.WithFileHistoryDir(hist))}
+		tf.WriteFile(t, hist, s+"/aaaa000000000001@v1", src)
+		tf.WriteFile(t, hist, s+"/bbbb000000000002@v1", bin)
+		tf.WriteFile(t, hist, "22222222-2222-4222-8222-222222222222/aaaa000000000001@v1", src) // same content, other session
+		p := tf.WriteFile(t, e.projects, "-w-x/"+s+".jsonl", tf.Join(
+			tf.User(s, "u1", "2026-10-01T10:00:00Z", "/w/x", "edit please"),
+			tf.FileHistorySnapshot("u1", "2026-10-01T10:00:00Z", map[string]string{"/w/x/a.go": "aaaa000000000001@v1", "/w/x/logo.png": "bbbb000000000002@v1"}),
+			tf.FileHistoryDelta(s, "u1", "2026-10-01T10:01:00Z", "/w/x/gone.go", "cccc000000000003@v1"),
+		))
+		return e, p, hist
+	}
+	for _, storeBlobs := range []bool{true, false} {
+		t.Run(fmt.Sprintf("store_blobs=%v", storeBlobs), func(t *testing.T) {
+			e, p, hist := setup(t, storeBlobs)
+			sum := run(t, e, p)
+			wantBlobs := 2
+			if !storeBlobs {
+				wantBlobs = 1 // text is redacted and stays; the binary copy follows store_blobs
+			}
+			if sum.Meta != 2 || sum.Blobs != wantBlobs {
+				t.Errorf("summary = %+v, want 2 meta records, %d blobs", sum, wantBlobs)
+			}
+			sha := e.str(t, "SELECT sha256 FROM blobs WHERE media_type = 'text/plain'")
+			_, data, err := e.st.Blob(ctx, sha)
+			if err != nil || strings.Contains(string(data), secret) || !strings.Contains(string(data), "package demo") || !strings.Contains(string(data), "«redacted:") || sha != blobref.Hash(data) {
+				t.Errorf("text blob %s = %q, %v", sha, data, err)
+			}
+			raw := e.str(t, "SELECT raw_text(raw) FROM session_meta WHERE type = 'file-history-snapshot'")
+			if !strings.Contains(raw, `"blob":"blob:sha256:`+sha+`"`) || strings.Count(raw, "blob:sha256:") != 2 {
+				t.Errorf("snapshot raw = %s", raw)
+			}
+			for q, want := range map[string]int{
+				"SELECT count(*) FROM meta_blobs":                                                                             wantBlobs,
+				"SELECT count(*) FROM blobs WHERE media_type = 'application/octet-stream'":                                    wantBlobs - 1,
+				"SELECT count(*) FROM session_meta WHERE type = 'file-history-delta' AND raw_text(raw) LIKE '%blob:sha256:%'": 0,
+			} {
+				if got := e.count(t, q); got != want {
+					t.Errorf("%s = %d, want %d", q, got, want)
+				}
+			}
+			// The copies are gone (Claude Code cleaned up): a reread with
+			// rewrite keeps the archived references and blobs.
+			if err := os.RemoveAll(hist); err != nil {
+				t.Fatal(err)
+			}
+			e.deps.Reread, e.deps.RewriteRaw = true, true
+			if again := run(t, e, p); again.Meta != 0 || again.Blobs != 0 {
+				t.Errorf("reread = %+v", again)
+			}
+			if got := e.str(t, "SELECT raw_text(raw) FROM session_meta WHERE type = 'file-history-snapshot'"); got != raw {
+				t.Errorf("rewrite dropped the references:\n got %s\nwant %s", got, raw)
+			}
+			if got := e.count(t, "SELECT count(*) FROM meta_blobs"); got != wantBlobs {
+				t.Errorf("meta_blobs after reread = %d, want %d", got, wantBlobs)
+			}
+		})
+	}
+	t.Run("same content in two sessions is one blob", func(t *testing.T) {
+		e, p, _ := setup(t, true)
+		s2 := "22222222-2222-4222-8222-222222222222"
+		p2 := tf.WriteFile(t, e.projects, "-w-y/"+s2+".jsonl", tf.Join(
+			tf.User(s2, "u9", "2026-10-02T10:00:00Z", "/w/y", "again"),
+			tf.FileHistorySnapshot("u9", "2026-10-02T10:00:00Z", map[string]string{"/w/y/a.go": "aaaa000000000001@v1"}),
+		))
+		run(t, e, p, p2)
+		if got := e.count(t, "SELECT count(*) FROM blobs WHERE media_type = 'text/plain'"); got != 1 {
+			t.Errorf("text blobs = %d, want 1", got)
+		}
+		if got := e.count(t, "SELECT count(DISTINCT meta_id) FROM meta_blobs"); got != 2 {
+			t.Errorf("records with blobs = %d, want 2", got)
+		}
+	})
+}
+
 // TestSummaryMatchesTables checks the summary against the tables (#201):
 // a record that comes by several times (a mode written every round, a line
 // a resumed session copied, an event in a later batch) is one row and

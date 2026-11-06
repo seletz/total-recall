@@ -96,8 +96,8 @@ func TestMemoryCwd(t *testing.T) {
 		candidates []string
 		want       string
 	}{
-		{"-w-kompass", nil, "/w/kompass"},                                    // from the transcript
-		{"-w-kompass", []string{"/w/other"}, "/w/kompass"},                   // the transcript wins
+		{"-w-kompass", nil, "/w/kompass"},                                     // from the transcript
+		{"-w-kompass", []string{"/w/other"}, "/w/kompass"},                    // the transcript wins
 		{"-w-lighthouse", []string{"/x/y", "/w/lighthouse"}, "/w/lighthouse"}, // from an archived session
 		{"-w-lighthouse", []string{"/x/y"}, ""},
 		{"-w-gone", nil, ""},

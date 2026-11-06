@@ -64,7 +64,8 @@ type Report struct {
 // Every event loses its text, raw JSON, tool name and source path; the
 // sources and dirs tables are emptied and the full-text index is rebuilt,
 // so it is empty too. Meta records, project memory and every blob
-// (images, documents, system prompts, memory contents) are deleted.
+// (images, documents, system prompts, file history copies, memory contents)
+// are deleted.
 func Anonymize(ctx context.Context, src, dst string) (Report, error) {
 	if err := copyDB(ctx, src, dst); err != nil {
 		return Report{}, err

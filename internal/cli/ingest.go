@@ -186,6 +186,7 @@ func addSummary(a, b ingest.Summary) ingest.Summary {
 	a.MemoryRead += b.MemoryRead
 	a.MemoryVersions += b.MemoryVersions
 	a.MemoryDeleted += b.MemoryDeleted
+	a.MetaKept += b.MetaKept
 	a.Blobs += b.Blobs
 	a.BlobBytes += b.BlobBytes
 	a.Sessions += b.Sessions

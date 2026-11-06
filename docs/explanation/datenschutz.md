@@ -25,6 +25,8 @@ Je **Event** (Nachricht, Tool-Aufruf, Tool-Ergebnis):
 
 Je **Meta-Record** (seit Schema v7, Tabelle [`session_meta`](../reference/40-schema.md)): Records der Harness, die keine Nachricht sind, aber zur Session gehören, als ganze JSON-Zeile, maskiert und komprimiert. Bei Claude Code sind das vor allem: der Kontext, den die Harness in eine Runde eingefügt hat (die geladenen `CLAUDE.md`-Dateien, mit `@` erwähnte Dateien, Ausgaben der Hooks, Hinweise auf außerhalb geänderte Dateien, Umgebung), Text, den du getippt hast, während der Agent arbeitete (auch wieder entfernter), Modus und Pull Request der Session, Kosten und Dauer je Modell, der Index der Datei-Historie und das Workflow-Journal. Dateiinhalte stehen damit so im Archiv, wie der Agent sie gesehen hat. Dazu der **System-Prompt und die Tool-Definitionen** jeder Runde (`api-request-shape`, Attachment `prompt_snapshot`): einmal je Inhalt über alle Sessions als [Blob](../reference/40-schema.md#blobs), **maskiert** wie die Zeile (anders als Bilder; `ingest.store_blobs = false` lässt sie deshalb nicht aus). Der System-Prompt enthält, was die Harness beim Start geladen hat: Instruktionsdateien, Umgebung, Pfade, Git-Zustand. Abschaltbar mit `ingest.store_raw = false` (dann gar keine Meta-Records) oder je Typ mit `harness.claude.skip_record_types` (`"api-request-shape"`, `"attachment/prompt_snapshot"`).
 
+**Sicherungskopien bearbeiteter Dateien** (seit v1.3.0): Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab und löscht sie später mit dem Transkript. `total-recall` liest diese Kopien beim Ingest und legt sie einmal je Inhalt als [Blob](../reference/40-schema.md#session_meta) ab. Damit steht der **Quelltext jeder Datei, die ein Agent bearbeitet hat**, im Stand vor der Änderung im Archiv, auch Konfigurationsdateien, `.env`-Dateien und alles, was ein Agent anfasst. Textdateien werden **maskiert** wie der übrige Text (bekannte Token-Formate, Zuweisungen wie `password=…`, private Schlüssel); ein Geheimnis ohne erkennbares Format bleibt stehen. Binärdateien werden nicht maskiert und nur mit `ingest.store_blobs = true` gespeichert. Abschaltbar mit `ingest.store_file_history = false`; dann bleibt nur der Index (Pfad, Version, Zeitpunkt). `total-recall` schreibt nie in `~/.claude`.
+
 Nicht gespeichert werden der API-Request-Cache der Harness (`api-request`, `api-request-blob`: wiederholt nur die Nachrichten), `last-prompt` und die Kataloge und Erinnerungen der Harness (sieben Attachment-Subtypen, siehe [Design](design.md#session_meta)).
 
 ### Projekt-Gedächtnis { #gedaechtnis }
@@ -33,7 +35,7 @@ Das **Projekt-Gedächtnis** der Harness (seit Schema v8, [`memory`](../reference
 
 ## Maskierung von Geheimnissen
 
-Vor dem Schreiben werden `text` und `raw` durchsucht, auch das `raw` der Meta-Records und ihre JSON-Blobs sowie der Inhalt der Gedächtnis-Dateien (die Bilder und Dokumente nicht, siehe oben). Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:
+Vor dem Schreiben werden `text` und `raw` durchsucht, auch das `raw` der Meta-Records, ihre JSON-Blobs und die Text-Kopien der Datei-Historie sowie der Inhalt der Gedächtnis-Dateien (die Bilder, Dokumente und binären Kopien nicht, siehe oben). Treffer werden ersetzt durch `«redacted:<art>»`. Das betrifft unter anderem:
 
 - private Schlüssel (PEM-Blöcke),
 - Tokens von AWS, GitHub, Slack, OpenAI, Anthropic,

@@ -62,21 +62,33 @@ func Deps(cfg *config.Config, st *store.Store, log *logfile.Logger) (ingest.Deps
 		}
 		d.Redactor = r
 	}
-	d.Adapters = Adapters(cfg)
+	d.Adapters = adapters(cfg, d.Logf)
 	return d, nil
 }
 
 // Adapters returns the enabled harness adapters configured from cfg.
-func Adapters(cfg *config.Config) []harness.Adapter {
+func Adapters(cfg *config.Config) []harness.Adapter { return adapters(cfg, nil) }
+
+// adapters builds the adapters; logf receives their diagnostics (nil:
+// discarded).
+func adapters(cfg *config.Config, logf func(string, ...any)) []harness.Adapter {
 	var out []harness.Adapter
 	if c := cfg.Harness.Claude; c.Enabled {
-		out = append(out, claude.New(c.ProjectsDir,
+		opts := []claude.Option{
 			claude.WithToolResultMaxBytes(cfg.Ingest.ToolResultMaxBytes),
 			claude.WithPeerPrefixes(c.Actors.PeerPrefixes...),
 			claude.WithPeerPasteHeaders(c.Actors.PeerPasteHeaders...),
 			claude.WithAutomationPrefixes(c.Actors.AutomationPrefixes...),
 			claude.WithSkipRecordTypes(c.SkipRecordTypes...),
-		))
+			claude.WithLogf(logf),
+		}
+		if cfg.Ingest.StoreFileHistory && cfg.Ingest.StoreRaw {
+			// The backups live next to the transcripts: projects_dir is
+			// $CLAUDE_CONFIG_DIR/projects, the copies are in
+			// $CLAUDE_CONFIG_DIR/file-history.
+			opts = append(opts, claude.WithFileHistoryDir(filepath.Join(filepath.Dir(c.ProjectsDir), "file-history")))
+		}
+		out = append(out, claude.New(c.ProjectsDir, opts...))
 	}
 	return out
 }

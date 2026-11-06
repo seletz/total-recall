@@ -352,14 +352,30 @@ func TestActionsBackupSameDay(t *testing.T) {
 	requireRow(t, frame(m), "last backup", "~/Documents/total-recall/"+next)
 }
 
+func TestRetentionText(t *testing.T) {
+	tests := []struct {
+		daily, monthly int
+		want           string
+	}{
+		{7, 0, "keep 7 daily and all monthly backups"},
+		{7, 3, "keep 7 daily and 3 monthly backups"},
+		{0, 1, "keep 0 daily and 1 monthly backups"},
+	}
+	for _, tt := range tests {
+		if got := retentionText(tt.daily, tt.monthly); got != tt.want {
+			t.Errorf("retentionText(%d, %d) = %q, want %q", tt.daily, tt.monthly, got, tt.want)
+		}
+	}
+}
+
 // TestActionsConfirm: a writing action asks first, esc cancels and
 // nothing is written, y runs it; a reading one runs right away.
 func TestActionsConfirm(t *testing.T) {
 	h := newTestEnv(t, "")
 	m := drive(t, New(h.options(t)), "tab", "tab", "tab")
-	requireContains(t, frame(m), "▸ backup", "write a compressed copy to ~/Documents/total-recall, keep 7 daily and 0")
+	requireContains(t, frame(m), "▸ backup", "write a compressed copy to ~/Documents/total-recall, keep 7 daily and a")
 	m = press(t, m, "enter")
-	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.zst to ~/Documents/total-recall and prune older copies", "y confirms, esc cancels")
+	requireContains(t, frame(m), "backup: write archive-2026-10-20.db.zst to ~/Documents/total-recall and prune older backups", "y confirms, esc cancels")
 	m = press(t, m, "esc")
 	requireContains(t, frame(m), "backup: cancelled")
 	if _, err := os.Stat(h.cfg.Backup.Dir); err == nil {

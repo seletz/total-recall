@@ -3,7 +3,7 @@
  status settings projects [actions] setup                                            ~/.config/total-recall/config.toml
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ACTION                    WHAT IT DOES
-▸ backup                    write a compressed copy to ~/Documents/total-recall, keep 7 daily and 0 monthly
+▸ backup                    write a compressed copy to ~/Documents/total-recall, keep 7 daily and all monthly backups
   maintenance (dry run)     measure a rebuild with 16384-byte pages; changes nothing
   maintenance               rebuild the archive with 16384-byte pages after a backup; hooks skip meanwhile
   migrate                   schema v8 is current · nothing pending
@@ -12,7 +12,7 @@
   ingest all                read every transcript of every harness from the stored offset
   doctor                    check the transcripts for format drift; reads only
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- backup: write archive-2026-11-02-1000.db.zst to ~/Documents/total-recall and prune older copies
+ backup: write archive-2026-11-02-1000.db.zst to ~/Documents/total-recall and prune older backups
  y confirms, esc cancels
 
 

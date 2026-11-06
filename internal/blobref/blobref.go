@@ -7,6 +7,9 @@
 // stays as it was), and restores a line from its blobs (Restore). The
 // store keeps the blobs by their SHA-256 (tables blobs and event_blobs,
 // schema v6), so a line with references is small and reconstructable.
+// Lift does the same for whole JSON values a harness repeats (a system
+// prompt), Annotate adds a reference for data that was never in the line
+// (a backup file the harness keeps next to its transcripts).
 package blobref
 
 import (
@@ -363,4 +366,48 @@ func stringStart(raw []byte, from int) int {
 		return i
 	}
 	return from
+}
+
+// AnnotateRule decides whether an object of a line names data that lives
+// outside the line (a backup file the harness wrote next to its
+// transcripts). It sees the object's path and string fields and returns
+// the member to add to the object, the media type and the data; the
+// rule reads the data itself. A rule should decline an object that
+// already has the member (Annotate on an annotated line is then
+// idempotent).
+type AnnotateRule func(path string, f Fields) (key, mediaType string, data []byte, ok bool)
+
+// Annotate adds to every object the rule accepts a string member
+// `"<key>":"blob:sha256:<hex>"` with the hash of the data, before the
+// object's closing brace, and returns the line with the members and the
+// attachments in document order (Path is the object's path). Unlike
+// Extract and Lift it takes nothing out of the line: the data was never
+// in it. The rest of the line is copied byte for byte. A line that is
+// not valid JSON is an error, raw comes back unchanged.
+func Annotate(raw []byte, rule AnnotateRule) ([]byte, []Attachment, error) {
+	var atts []Attachment
+	var repl []replacement
+	err := walk(raw, nil, nil, func(f *frame, sp span) {
+		if !f.object || f.path == "" {
+			return
+		}
+		key, media, data, ok := rule(f.path, f.fields)
+		if !ok {
+			return
+		}
+		h := Hash(data)
+		atts = append(atts, Attachment{Path: f.path, MediaType: media, SHA256: h, Data: data})
+		member := strconv.Quote(key) + ":" + strconv.Quote(Ref{SHA256: h}.String())
+		if len(bytes.TrimSpace(raw[sp.start+1:sp.end-1])) > 0 {
+			member = "," + member
+		}
+		repl = append(repl, replacement{span: span{start: sp.end - 1, end: sp.end - 1}, text: member})
+	})
+	if err != nil {
+		return raw, nil, err
+	}
+	if len(repl) == 0 {
+		return raw, nil, nil
+	}
+	return splice(raw, repl), atts, nil
 }

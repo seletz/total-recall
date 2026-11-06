@@ -33,13 +33,47 @@ total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis a
 total-recall ingest --all  # 3. das Gedächtnis aufnehmen, wie es jetzt ist (sonst beim nächsten Hook)
 ```
 
-### Neu
+
+Außerdem neu im Archiv sind die **Sicherungskopien bearbeiteter Dateien**: Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab, und es löscht sie zusammen mit den Transkripten. Der normale Ingest liest sie jetzt mit und legt sie einmal je Inhalt als Blob ab; Textdateien werden dabei maskiert, Binärdateien folgen `ingest.store_blobs` ([#183](https://github.com/seletz/total-recall/issues/183), [Datenschutz](../explanation/datenschutz.md)). Wer das nicht will, setzt `ingest.store_file_history = false`.
+
+Für den Bestand gilt dasselbe wie bei v1.3.0: Was Claude Code schon gelöscht hat, ist weg. Die Kopien, die noch da sind, holt ein Reread:
+
+```sh
+total-recall backup                               # 1. sichern
+total-recall ingest --all --reread --rewrite-raw  # 2. Sicherungskopien aus den noch vorhandenen Transkripten nachtragen
+total-recall maintenance                          # 3. Platz der ersetzten Zeilen freigeben
+```
+
+Schritt 2 lässt sich abbrechen und wiederholen. Ein späterer Reread verliert nichts, wenn die Kopien inzwischen gelöscht sind: Ein Meta-Record, dessen gespeicherte Zeile auf mehr Blobs verweist als die neue, bleibt, wie er ist (`N meta records kept` in der Zusammenfassung).
+
+**Was die Datei-Historie kostet**, gemessen auf einer Kopie eines echten Archivs (Schema v7, 544 Sessions, 242 141 Events, 549 Transkripte):
+
+| | vorher | nach Reread | nach `maintenance` |
+|---|---|---|---|
+| Datei | 762 MiB | 942 MiB | 914 MiB |
+| Backup (`.db.zst`) | 476 MiB | | 596 MiB |
+| Dauer | | 6 min 0 s | 8 s |
+
+Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespeichert (zstd). 638 Kopien in 12 Transkripten waren schon gelöscht; ihre Records bleiben ohne Verweis, je Transkript steht eine Zeile im Log. Keine Kopie lag über der Grenze von 16 MiB. Die Zahlen enthalten auch, was seit dem letzten Ingest des Archivs neu war (345 Events, 1 648 Meta-Records).
+
+### Archiv
+
+- **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.
 
 - **[`memory`](10-befehle.md#memory)** zeigt das archivierte Projekt-Gedächtnis: je Projekt die Dateien, wie sie jetzt sind oder mit `--at DATUM` waren, mit `--deleted` auch gelöschte; `--history DATEI` listet alle Fassungen einer Datei, `--grep WÖRTER` sucht im aktuellen Inhalt (eigener Volltextindex, getrennt von `search`). `--project` schränkt auf Projekte ein, Namen wie bei `stats --by project`. Den Inhalt einer Fassung gibt [`blob`](10-befehle.md#blob) aus, `blob --json` nennt unter `memory` die Dateien, die ihn hatten ([#192](https://github.com/seletz/total-recall/issues/192)).
 - [`status`](10-befehle.md#status) hat eine Zeile `memory` (Dateien, Projekte, Löschungen, Fassungen, Größe), JSON `memory_projects`, `memory_files`, `memory_deleted`, `memory_versions`, `memory_bytes`, `memory_stored_bytes`. Die [Ingest-Zusammenfassung](10-befehle.md#ingest) meldet `memory: N new versions, M deleted`, wenn sich etwas geändert hat.
 - Neuer Schalter [`ingest.store_memory`](20-konfiguration.md#ingest) (Default `true`).
 
-## v1.3.1 (unveröffentlicht)
+### TUI
+
+- **Projektnamen in der Projektfarbe** ([#210](https://github.com/seletz/total-recall/issues/210)). Die Seite Projects der Ansicht Config zeigt die Namen in Liste und Formular in derselben Farbe wie Statistik und Aktivität: die konfigurierte Farbe, sonst die automatische. Die markierte Zeile hat ihren Hintergrund jetzt über die ganze Breite, und zu dunkle oder zu helle Farben bleiben auf ihm lesbar. Ohne Farben (`NO_COLOR`) bleibt der Name normal.
+
+### Behoben
+
+- **Letztes Backup nach Zeitpunkt statt nach Dateiname** ([#209](https://github.com/seletz/total-recall/issues/209)). Lagen an einem Tag `archive-YYYY-MM-DD-1505.db.gz` (15:05) und ein späteres `archive-YYYY-MM-DD.db.zst` (22:03), galt das ältere als neuestes. `status`, Config-Seite, Setup, `backup --if-older` und die Aufbewahrung (die letzte Kopie eines Monats) bestimmen den Zeitpunkt jetzt einheitlich, in jedem Format: Datum und Uhrzeit aus dem Namen, ohne Uhrzeit im Namen die Änderungszeit der Datei. Liegt sie nicht auf dem Tag des Namens, etwa nach dem Kopieren auf einen neuen Rechner, zählt der Beginn dieses Tages. Dateien mit unmöglichem Datum im Namen (`archive-2026-13-01.db.zst`) gelten nicht mehr als Backup; die Aufbewahrung lässt sie liegen.
+- **Text der Aktion `backup`** in der Config-Ansicht: Er nennt jetzt die Backups, und `keep_monthly = 0` heißt dort richtig `all monthly backups` statt `0 monthly`, denn `0` behält alle Monatskopien.
+
+## v1.3.1
 
 ### Behoben
 
