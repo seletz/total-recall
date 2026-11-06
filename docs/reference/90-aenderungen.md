@@ -6,6 +6,36 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.4.0 (unveröffentlicht)
+
+### Was dieses Update mit dem Archiv macht
+
+Kein neues Schema, keine Migration. Neu im Archiv sind die **Sicherungskopien bearbeiteter Dateien**: Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab, und es löscht sie zusammen mit den Transkripten. Der normale Ingest liest sie jetzt mit und legt sie einmal je Inhalt als Blob ab; Textdateien werden dabei maskiert, Binärdateien folgen `ingest.store_blobs` ([#183](https://github.com/seletz/total-recall/issues/183), [Datenschutz](../explanation/datenschutz.md)). Wer das nicht will, setzt `ingest.store_file_history = false`.
+
+Für den Bestand gilt dasselbe wie bei v1.3.0: Was Claude Code schon gelöscht hat, ist weg. Die Kopien, die noch da sind, holt ein Reread:
+
+```sh
+total-recall backup                               # 1. sichern
+total-recall ingest --all --reread --rewrite-raw  # 2. Sicherungskopien aus den noch vorhandenen Transkripten nachtragen
+total-recall maintenance                          # 3. Platz der ersetzten Zeilen freigeben
+```
+
+Schritt 2 lässt sich abbrechen und wiederholen. Ein späterer Reread verliert nichts, wenn die Kopien inzwischen gelöscht sind: Ein Meta-Record, dessen gespeicherte Zeile auf mehr Blobs verweist als die neue, bleibt, wie er ist (`N meta records kept` in der Zusammenfassung).
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Schema v7, 544 Sessions, 242 141 Events, 549 Transkripte):
+
+| | vorher | nach Reread | nach `maintenance` |
+|---|---|---|---|
+| Datei | 762 MiB | 942 MiB | 914 MiB |
+| Backup (`.db.zst`) | 476 MiB | | 596 MiB |
+| Dauer | | 6 min 0 s | 8 s |
+
+Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespeichert (zstd). 638 Kopien in 12 Transkripten waren schon gelöscht; ihre Records bleiben ohne Verweis, je Transkript steht eine Zeile im Log. Keine Kopie lag über der Grenze von 16 MiB. Die Zahlen enthalten auch, was seit dem letzten Ingest des Archivs neu war (345 Events, 1 648 Meta-Records).
+
+### Archiv
+
+- **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.
+
 ## v1.3.1 (unveröffentlicht)
 
 ### Behoben
