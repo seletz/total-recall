@@ -153,6 +153,28 @@ func TestStylesReadWithoutColour(t *testing.T) {
 	}
 }
 
+// TestOnSelection checks that every project colour reads on the selection
+// background of either theme, that a colour that reads already stays, and
+// that a colour too close to the background (configured freely) is moved
+// away from it.
+func TestOnSelection(t *testing.T) {
+	colours := append([]color.Color{lipgloss.Color("#101010"), lipgloss.Color("#f0f0f0"), lipgloss.Color("#243447")}, chart.Palette...)
+	for _, dark := range []bool{true, false} {
+		th := New(dark)
+		for _, c := range colours {
+			got := th.OnSelection(th.Tone(c))
+			if r := contrast(got, th.Selection); r < minContrast {
+				t.Errorf("dark=%v: %v on the selection has contrast %.2f", dark, c, r)
+			}
+		}
+	}
+	// Teal on the dark selection: 5.5:1 needs no change.
+	th := New(true)
+	if got := th.OnSelection(chart.Palette[5]); rgb(got) != rgb(chart.Palette[5]) {
+		t.Errorf("OnSelection(teal) = %v, want it unchanged", got)
+	}
+}
+
 // TestHelp checks that the help styles are coloured and the key is bold.
 func TestHelp(t *testing.T) {
 	h := New(true).Help()

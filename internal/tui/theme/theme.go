@@ -15,6 +15,7 @@ package theme
 
 import (
 	"image/color"
+	"math"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -116,6 +117,49 @@ func (t Theme) Tone(c color.Color) color.Color {
 		return c
 	}
 	return lipgloss.Darken(c, 0.25)
+}
+
+// minContrast is the contrast ratio (WCAG, the level for normal text) a
+// colour keeps on the selection background.
+const minContrast = 4.5
+
+// OnSelection returns c for text on the Selection background: as is when
+// it reads there, else moved towards white on a dark theme and black on a
+// light one just far enough, so it keeps its hue as far as possible. Pass
+// a toned colour (Tone).
+func (t Theme) OnSelection(c color.Color) color.Color {
+	move := lipgloss.Darken
+	if t.Dark {
+		move = lipgloss.Lighten
+	}
+	for step := 0.0; step < 1; step += 0.05 {
+		if got := move(c, step); contrast(got, t.Selection) >= minContrast {
+			return got
+		}
+	}
+	return move(c, 1)
+}
+
+// contrast is the WCAG contrast ratio of two colours, 1 to 21.
+func contrast(a, b color.Color) float64 {
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// luminance is the relative luminance of a colour, 0 to 1.
+func luminance(c color.Color) float64 {
+	channel := func(v uint32) float64 {
+		s := float64(v) / 0xffff
+		if s <= 0.03928 {
+			return s / 12.92
+		}
+		return math.Pow((s+0.055)/1.055, 2.4)
+	}
+	r, g, b, _ := c.RGBA()
+	return 0.2126*channel(r) + 0.7152*channel(g) + 0.0722*channel(b)
 }
 
 // Gradient renders s bold with its runes blended from Accent over Accent2

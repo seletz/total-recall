@@ -195,8 +195,8 @@ type Focused interface {
 // New builds the app for opts.
 func New(opts Options) (App, error) {
 	opts.defaults()
-	// One colour assignment for the stats and the activity view, so a
-	// project looks alike in both.
+	// One colour assignment for the stats, the activity and the config
+	// view, so a project looks alike in all of them.
 	colors := &chart.Colors{}
 	so, err := statsOptions(opts, colors)
 	if err != nil {
@@ -206,7 +206,7 @@ func New(opts Options) (App, error) {
 	if err != nil {
 		return App{}, err
 	}
-	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao), configview.New(configOptions(opts))}
+	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao), configview.New(configOptions(opts, colors))}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -238,9 +238,9 @@ func Run(ctx context.Context, opts Options, in io.Reader, out io.Writer) error {
 }
 
 // configOptions is what the config view gets from the app options.
-func configOptions(opts Options) configview.Options {
+func configOptions(opts Options, colors *chart.Colors) configview.Options {
 	co := opts.ConfigView
-	co.Config, co.Location, co.Now, co.Keys, co.Home = opts.Config, opts.Location, opts.Now, opts.Keys, opts.Home
+	co.Config, co.Location, co.Now, co.Keys, co.Home, co.Colors = opts.Config, opts.Location, opts.Now, opts.Keys, opts.Home, colors
 	if opts.Store != nil {
 		co.Store = opts.Store
 	}

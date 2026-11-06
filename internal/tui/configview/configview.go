@@ -37,6 +37,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
@@ -79,6 +80,9 @@ type Options struct {
 	// Wait is how long maintenance waits for running hooks; zero means a
 	// minute.
 	Wait time.Duration
+	// Colors maps the projects to their colours; share the app's with the
+	// other views. Nil means a private one.
+	Colors *chart.Colors
 }
 
 func (o *Options) defaults() {
@@ -102,6 +106,9 @@ func (o *Options) defaults() {
 	}
 	if o.Wait == 0 {
 		o.Wait = time.Minute
+	}
+	if o.Colors == nil {
+		o.Colors = &chart.Colors{}
 	}
 	if o.SettingsFile == "" {
 		dir := o.Getenv("CLAUDE_CONFIG_DIR")
