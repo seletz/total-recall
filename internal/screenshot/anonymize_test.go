@@ -33,6 +33,23 @@ func anonymized(t *testing.T) (Report, *sql.DB, string) {
 	if _, err := rw.Exec("UPDATE sessions SET git_branch = 'feature' WHERE cwd = ?", testfixture.ActivityAlphaWorktree); err != nil {
 		t.Fatal(err)
 	}
+	// Since v1.3.0 the archive holds images and the JSON values of meta
+	// records as blobs: a screenshot linked to an existing event and a
+	// meta record carrying a system prompt, both on existing rows so the
+	// counts the other tests compare stay as they are. The contents are
+	// plain bytes here; the store compresses them, which is why the text
+	// scan (Scan) cannot find them and the tables must be emptied.
+	for _, q := range []string{
+		`INSERT INTO blobs (sha256, media_type, bytes, encoding, data) VALUES ('aa11', 'image/png', 9, '', x'89504e47426574612073')`,
+		`INSERT INTO blobs (sha256, media_type, bytes, encoding, data) VALUES ('bb22', 'application/json', 22, '', CAST('{"prompt":"Beta release"}' AS BLOB))`,
+		`INSERT INTO event_blobs (event_id, position, sha256) SELECT id, 0, 'aa11' FROM events ORDER BY seq LIMIT 1`,
+		`INSERT INTO session_meta (id, session_id, ts, type, raw) SELECT 'claude:meta-1', id, started_at, 'api-request-shape', CAST('Beta release' AS BLOB) FROM sessions ORDER BY id LIMIT 1`,
+		`INSERT INTO meta_blobs (meta_id, position, sha256) VALUES ('claude:meta-1', 0, 'bb22')`,
+	} {
+		if _, err := rw.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
 	if err := rw.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +90,12 @@ func TestAnonymizeRemovesOriginals(t *testing.T) {
 		"SELECT count(*) FROM sources",
 		"SELECT count(*) FROM dirs",
 		`SELECT count(*) FROM events_fts WHERE events_fts MATCH '"release"'`,
+		// Attachments, system prompts and meta records hold content the
+		// text scan cannot see (compressed BLOBs): nothing of them stays.
+		"SELECT count(*) FROM blobs",
+		"SELECT count(*) FROM event_blobs",
+		"SELECT count(*) FROM meta_blobs",
+		"SELECT count(*) FROM session_meta",
 	} {
 		if n := count(t, db, q); n != 0 {
 			t.Errorf("%s = %d, want 0", q, n)
