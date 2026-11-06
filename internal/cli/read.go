@@ -733,10 +733,15 @@ type HitJSON struct {
 	Kind        string     `json:"kind"`
 	Snippet     NullString `json:"snippet"`
 	Rank        float64    `json:"rank"`
+	// Type is the hit type (always "event"), Project the name of the
+	// session's project like stats --by project (since v1.4.0).
+	Type    string     `json:"type"`
+	Project NullString `json:"project"`
 }
 
 // SessionHitsJSON is one session of search --by-session in JSON output.
 // Every key is always present; a NullString without a value is null.
+// The rows are aggregates of event hits, not hits: they have no type.
 type SessionHitsJSON struct {
 	SessionID   string     `json:"session_id"`
 	DisplayName NullString `json:"display_name"`
@@ -751,17 +756,28 @@ func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
 	var of outputFlags
 	var raw, bySession bool
-	var actor, session, order string
+	var actor, session, order, typeList, projectRef string
 	c := &cobra.Command{
 		Use:   "search QUERY",
-		Short: "Full-text search over event text (FTS5) with snippets",
-		Long: `Full-text search over event text. By default every word must occur
-(words are quoted, so special characters are safe). With --raw the query is
-passed to SQLite FTS5 unchanged: AND, OR, NOT, "exact phrase", prefix*.
+		Short: "Full-text search over events, sessions and project memory, with snippets",
+		Long: `Full-text search. By default every word must occur (words are quoted, so
+special characters are safe). With --raw the query is passed to SQLite FTS5
+unchanged: AND, OR, NOT, "exact phrase", prefix*.
 
-With --by-session the hits are grouped: one row per session (subagents
-included) with the first and last hit, the hit count and the snippet of the
-first hit, oldest session first (--order hits for most hits first).`,
+--type selects what is searched, comma-separated, default event:
+  event    messages, tool calls and tool results (field kind)
+  session  sessions by name, title or agent name
+  memory   the current content of the project memory files
+The hits come grouped by type in the order given; --limit counts per type.
+attachment, meta and file are reserved type names, not searchable yet. A
+filter that does not apply to a selected type is an error. --project
+narrows every type to a project (name as in stats --by project, else a
+part of name, path or remote URL).
+
+With --by-session the event hits are grouped: one row per session
+(subagents included) with the first and last hit, the hit count and the
+snippet of the first hit, oldest session first (--order hits for most hits
+first).`,
 		Args: usageArgs(cobra.MinimumNArgs(1)),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
@@ -773,6 +789,16 @@ first hit, oldest session first (--order hits for most hits first).`,
 		case "", store.OrderFirstHit, store.OrderHits:
 		default:
 			return usage(fmt.Errorf("--order must be first_hit or hits, not %q", order))
+		}
+		types, err := store.ParseHitTypes(typeList)
+		if err != nil {
+			return usage(err)
+		}
+		if bySession && (len(types) != 1 || types[0] != store.TypeEvent) {
+			return usage(errors.New("--by-session applies to type event only"))
+		}
+		if err := checkSearchFlags(types, searchFlagValues(f, projectRef, session, actor, raw)); err != nil {
+			return err
 		}
 		cfg, err := e.loadConfig()
 		if err != nil {
@@ -787,54 +813,56 @@ first hit, oldest session first (--order hits for most hits first).`,
 			return err
 		}
 		defer func() { _ = st.Close() }()
+		ctx := cmd.Context()
 		var sessionID string
 		if session != "" {
-			s, err := findSession(cmd.Context(), st, session)
+			s, err := findSession(ctx, st, session)
 			if err != nil {
 				return err
 			}
 			sessionID = s.ID
 		}
+		cat, err := loadProjectCatalog(ctx, st, cfg)
+		if err != nil {
+			return err
+		}
+		var scope *store.ProjectScope
+		if projectRef != "" {
+			if scope, err = cat.scope(projectRef); err != nil {
+				return err
+			}
+		}
 		query := strings.Join(args, " ")
-		sfilter := store.SearchFilter{SessionFilter: sf, SessionID: sessionID, Actor: actor, Raw: raw}
 		loc := cfg.Location()
 		if bySession {
-			rows, err := st.SearchBySession(cmd.Context(), query, sfilter, searchOrder)
+			sfilter := store.SearchFilter{SessionFilter: sf, SessionID: sessionID, Actor: actor, Raw: raw}
+			if scope != nil {
+				if len(scope.Keys) == 0 {
+					return e.writeSessionHits(o, nil, loc)
+				}
+				sfilter.ProjectKeys = scope.Keys
+			}
+			rows, err := st.SearchBySession(ctx, query, sfilter, searchOrder)
 			if err != nil {
 				return errKind(ErrKindSQL, err)
 			}
 			return e.writeSessionHits(o, rows, loc)
 		}
-		hits, err := st.Search(cmd.Context(), query, sfilter)
+		groups, err := st.SearchTyped(ctx, store.TypedQuery{Text: query, Raw: raw, Types: types, SessionFilter: sf,
+			SessionID: sessionID, Actor: actor, Project: scope})
 		if err != nil {
-			return errKind(ErrKindSQL, err)
+			return searchError(err)
 		}
-		if o.format.IsJSON() {
-			out := make([]HitJSON, 0, len(hits))
-			for _, h := range hits {
-				out = append(out, HitJSON{SessionID: h.Event.SessionID, SessionName: NullString(h.SessionName), Repo: NullString(h.Repo),
-					EventID: h.Event.ID, TS: isoTime(h.Event.TS), Actor: string(h.Event.Actor), Kind: string(h.Event.Kind),
-					Snippet: NullString(h.Snippet), Rank: h.Rank})
-			}
-			return writeList(o, out)
-		}
-		w := o.w
-		for _, h := range hits {
-			// The snippet line is indented by four spaces.
-			_, _ = fmt.Fprintf(w, "%s  %s  %s  %s  [%s]\n    %s\n", localTime(h.Event.TS, loc), o.cell(h.SessionName, 40),
-				shortRepo(h.Repo), h.Event.SessionID, h.Event.Actor, o.cell(h.Snippet, o.width-4))
-		}
-		if len(hits) == 0 {
-			_, _ = fmt.Fprintln(e.app.Stderr, "no matches")
-		}
-		return nil
+		return e.writeTypedHits(o, groups, cat, loc)
 	})
 	f.register(c, 20)
 	of.register(c)
-	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*)")
+	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*); types event and memory")
+	c.Flags().StringVar(&typeList, "type", "", "types to search, comma-separated: event (default), session, memory")
+	c.Flags().StringVar(&projectRef, "project", "", "only this project: name as in stats --by project, else a part of name, path or remote URL")
 	c.Flags().StringVar(&actor, "actor", "", "only events of this actor: human, agent, peer, automation, tool")
-	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix)")
-	c.Flags().BoolVar(&bySession, "by-session", false, "one row per session: first and last hit, hit count, snippet of the first hit")
+	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix); types event and session")
+	c.Flags().BoolVar(&bySession, "by-session", false, "one row per session: first and last hit, hit count, snippet of the first hit (type event)")
 	c.Flags().StringVar(&order, "order", "", "sort order with --by-session: first_hit (default, oldest first) or hits (most first)")
 	return c
 }

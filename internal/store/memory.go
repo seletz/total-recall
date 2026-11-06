@@ -449,6 +449,12 @@ type MemorySearchOptions struct {
 	Raw bool
 	// Limit caps the hits; 0 means no limit.
 	Limit int
+	// Since/Until restrict the time of the current version to
+	// [Since, Until); zero does not restrict.
+	Since, Until time.Time
+	// Repo is a case-insensitive substring of the project's working
+	// directory, git root or remote URL; Harness an exact harness name.
+	Repo, Harness string
 	// HighlightStart/End wrap matches in snippets; default "[" and "]".
 	HighlightStart, HighlightEnd string
 }
@@ -462,6 +468,11 @@ type MemoryHit struct {
 	// Changed is the time of the current version.
 	Changed time.Time
 	Rank    float64 // bm25, lower is better
+	// Harness and ProjectKey are the harness and its native key of the
+	// memory project; Project is its raw project key (the git root, else
+	// the working directory; empty while the directory is unknown).
+	Harness, ProjectKey string
+	Project             ProjectRef
 }
 
 // SearchMemory runs a full-text query over the current content of the
@@ -480,12 +491,33 @@ func (s *Store) SearchMemory(ctx context.Context, query string, o MemorySearchOp
 		hs, he = "[", "]"
 	}
 	args := []any{hs, he, query}
-	q := `SELECT f.project_id, f.path, COALESCE(f.sha256, ''), snippet(memory_fts, 0, ?, ?, '…', 16), bm25(memory_fts),
-		(SELECT v.ts FROM memory_versions v WHERE v.file_id = f.id ORDER BY v.seq DESC LIMIT 1)
+	const changed = `(SELECT v.ts FROM memory_versions v WHERE v.file_id = f.id ORDER BY v.seq DESC LIMIT 1)`
+	q := `SELECT f.project_id, f.path, COALESCE(f.sha256, ''), snippet(memory_fts, 0, ?, ?, '…', 16), bm25(memory_fts), ` + changed + `,
+		mp.harness, mp.key, COALESCE(NULLIF(d.git_root, ''), mp.cwd, ''), COALESCE(d.git_root, '') = '', COALESCE(d.git_remote_url, '')
 		FROM memory_fts JOIN memory_files f ON f.id = memory_fts.rowid
+		JOIN memory_projects mp ON mp.id = f.project_id
+		LEFT JOIN dirs d ON d.cwd = mp.cwd
 		WHERE memory_fts MATCH ?`
 	cond, args := projectCond("f.project_id", o.ProjectIDs, args)
-	q += cond + " ORDER BY bm25(memory_fts), f.project_id, f.path"
+	q += cond
+	if !o.Since.IsZero() {
+		q += " AND " + changed + " >= ?"
+		args = append(args, formatTime(o.Since))
+	}
+	if !o.Until.IsZero() {
+		q += " AND " + changed + " < ?"
+		args = append(args, formatTime(o.Until))
+	}
+	if o.Repo != "" {
+		q += ` AND (mp.cwd LIKE ? ESCAPE '\' OR d.git_root LIKE ? ESCAPE '\' OR d.git_remote_url LIKE ? ESCAPE '\')`
+		a := likeArg(o.Repo)
+		args = append(args, a, a, a)
+	}
+	if o.Harness != "" {
+		q += " AND mp.harness = ?"
+		args = append(args, o.Harness)
+	}
+	q += " ORDER BY bm25(memory_fts), f.project_id, f.path"
 	if o.Limit > 0 {
 		q += fmt.Sprintf(" LIMIT %d", o.Limit)
 	}
@@ -498,10 +530,14 @@ func (s *Store) SearchMemory(ctx context.Context, query string, o MemorySearchOp
 	for rows.Next() {
 		var h MemoryHit
 		var at sql.NullString
-		if err := rows.Scan(&h.ProjectID, &h.Path, &h.SHA256, &h.Snippet, &h.Rank, &at); err != nil {
+		if err := rows.Scan(&h.ProjectID, &h.Path, &h.SHA256, &h.Snippet, &h.Rank, &at,
+			&h.Harness, &h.ProjectKey, &h.Project.Key, &h.Project.Dir, &h.Project.Remote); err != nil {
 			return nil, fmt.Errorf("store: search memory: %w", err)
 		}
-		h.Changed = parseTime(at)
+		h.Changed, h.Project = parseTime(at), h.Project.clean()
+		if h.Project.Key == "" {
+			h.Project = ProjectRef{}
+		}
 		out = append(out, h)
 	}
 	if err := rows.Err(); err != nil {

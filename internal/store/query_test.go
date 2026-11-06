@@ -544,7 +544,8 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 				t.Fatal(err)
 			}
 			ast.Inspect(src, func(n ast.Node) bool {
-				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) {
+				// A bare word (the filter name "raw" of the typed search) is no query.
+				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING && word.MatchString(lit.Value) && lit.Value != `"`+col+`"` {
 					t.Errorf("%s: a query names %s: %s", f, col, lit.Value)
 				}
 				return true
