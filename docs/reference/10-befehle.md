@@ -958,7 +958,7 @@ total-recall mcp print --command             # die Zeile `claude mcp add …`
 total-recall mcp print --binary "$(command -v total-recall)"
 ```
 
-Der Server bietet die Tools `search`, `sessions`, `show`, `stats`, `memory` und `status`. Jedes führt den gleichnamigen Befehl mit `--json` aus; Ausgabe und [Fehlerobjekt](#ausgabe) sind die der CLI. Ein Ergebnis ist auf 64 KiB begrenzt: der erste Inhalt ist die (gekürzte) CLI-Ausgabe, ein zweiter nennt die Kürzung und, wo möglich, `next.offset`. Jeder Aufruf öffnet das Archiv neu und schreibgeschützt. Die persistenten Optionen `--config`, `--db` und `--tz` gelten auch für die Tools.
+Der Server bietet die Tools `search`, `sessions`, `show`, `stats`, `memory` und `status`. Jedes führt den gleichnamigen Befehl mit `--json` aus; Ausgabe und [Fehlerobjekt](#ausgabe) sind die der CLI. Ein Ergebnis ist bei jedem Tool auf 32 KiB begrenzt: der erste Inhalt ist die (gekürzte, weiter gültige) CLI-Ausgabe, ein zweiter nennt, was fehlt (`cut`), und, wo möglich, `next.offset`; Listen werden nach Einträgen gekürzt, in Objekten wie `stats` zuerst die verschachtelten Listen. Jeder Aufruf öffnet das Archiv neu und schreibgeschützt. Die persistenten Optionen `--config`, `--db` und `--tz` gelten auch für die Tools.
 
 | `mcp print` | Bedeutung |
 |---|---|

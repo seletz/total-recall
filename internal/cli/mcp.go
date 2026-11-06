@@ -17,8 +17,8 @@ import (
 // mcpInstructions is what a client shows the model about the server.
 const mcpInstructions = `Read-only access to the local archive of past coding-agent sessions. ` +
 	`Start with search (by_session=true gives one row per session), then show a session around a hit ` +
-	`(from_event, limit). Results are the JSON of the total-recall CLI. Lists are bounded: when the first ` +
-	`content item is cut, a second one says so and, where possible, gives next.offset.`
+	`(from_event, limit). Results are the JSON of the total-recall CLI. Every result is bounded (32 KiB): when the first ` +
+	`content item is cut it is still valid JSON, and a second one says what is missing and, where possible, gives next.offset.`
 
 var (
 	pSince = mcp.Param{Name: "since", Type: "string", Description: "from this time, local: YYYY-MM-DD, YYYY-MM-DDTHH:MM or RFC 3339"}
@@ -80,6 +80,7 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "stats", Title: "Activity statistics", Command: []string{"stats"}, FixedFlags: []string{"--json"},
+			Narrow:      "drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top",
 			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day, with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series. Same JSON as `total-recall stats --json`.",
 			Params: []mcp.Param{
 				{Name: "month", Type: "string", Description: "month YYYY-MM (default: current month)"},
