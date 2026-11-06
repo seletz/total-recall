@@ -219,6 +219,30 @@ FTS5 index over `events.text` (external content, `rowid` = `events.seq`).
 |---|---|
 | `text` | the indexed text; `snippet(events_fts, 0, …)` and `rank` work as usual |
 
+#### `memory_projects`, `memory_files`, `memory_versions` and `memory_fts`
+
+The project memory of the harness (Claude Code: the `memory/*.md` files of every project), versioned, since schema v8. Not conversation, no events, not in `events_fts` or any statistic. Prefer `total-recall memory`; the tables are for SQL.
+
+| column | meaning |
+|---|---|
+| `memory_projects.id` | primary key |
+| `memory_projects.harness` | e.g. `claude` |
+| `memory_projects.key` | the harness's native project key (Claude Code: the project directory name, the cwd with every non-alphanumeric character as `-`) |
+| `memory_projects.cwd` | the project's working directory, NULL while unknown; join `dirs` on `cwd` for the git root |
+| `memory_files.id` | primary key, `rowid` of `memory_fts` |
+| `memory_files.project_id` | `memory_projects.id` |
+| `memory_files.path` | path relative to the memory directory, e.g. `MEMORY.md` |
+| `memory_files.sha256` | the current content in `blobs` (redacted Markdown); NULL when the file is deleted |
+| `memory_files.size` | size on disk at the last scan (change detection) |
+| `memory_files.mtime` | mtime on disk at the last scan (change detection) |
+| `memory_versions.seq` | primary key, order of the versions |
+| `memory_versions.file_id` | `memory_files.id` |
+| `memory_versions.ts` | time of the version: the file's mtime, for a deletion the scan that noticed it (UTC) |
+| `memory_versions.observed_at` | the scan that recorded it (UTC) |
+| `memory_versions.sha256` | the content in `blobs`; NULL for a deletion |
+| `memory_versions.bytes` | size of the content |
+| `memory_fts.text` | FTS5 index over the current content of every existing file (`rowid` = `memory_files.id`) |
+
 #### `exchanges`
 
 View: one row per human message with the last agent reply (`role = 'assistant'`, `kind = 'message'`) before the next human message of the same session. Seven columns:
@@ -275,7 +299,7 @@ Example, the pull requests a session worked on: `SELECT DISTINCT json_extract(ra
 
 ## Scope
 
-The archive holds **conversation**, not artifacts. Files, READMEs, design documents and code are in the repositories, where they are faster to read and more current. Use the archive for the why and when: what was asked, what was decided, what was tried, in which session and repo.
+The archive holds **conversation**, not artifacts (the project memory of the harness is the exception: `memory`). Files, READMEs, design documents and code are in the repositories, where they are faster to read and more current. Use the archive for the why and when: what was asked, what was decided, what was tried, in which session and repo.
 
 ## Commands
 
@@ -285,7 +309,10 @@ The archive holds **conversation**, not artifacts. Files, READMEs, design docume
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit; every event lists its `attachments` |
-| `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE, or prints a JSON value of a meta record (a system prompt) to stdout; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices) or from `session_meta.raw`; `--json` prints type, size and the events and meta records that refer to it. Only when the user asks for the picture, document or prompt itself |
+| `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE, or prints a JSON value of a meta record (a system prompt) to stdout; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices) or from `session_meta.raw`; `--json` prints type, size and the events, meta records and memory files (`memory`: `project`, `project_key`, `harness`, `path`, `ts`) that refer to it. Only when the user asks for the picture, document or prompt itself |
+| `total-recall memory --json [--project P] [--at D] [--deleted]` | what the agent remembers: the memory files of every project the harness keeps outside the transcripts (Claude Code: `memory/*.md`), as they are now or were at `D`; `--project` matches the project name, path or harness key (exactly, else as a part); `total-recall blob SHA256` prints a file's content. Use it when the user asks what the agent remembered or noted about a project |
+| `total-recall memory --history FILE --json [--project P]` | the versions of one memory file, oldest first, deletions included (`sha256` null); `--project` when the file name is in several projects |
+| `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; apart from `search`, which only sees conversation |
 | `total-recall search WORDS --json [filters as sessions] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets, best first; all words must match; `--raw` passes FTS5 syntax through |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
@@ -388,6 +415,54 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `hits` | matching events in the session |
 | `snippet` | snippet of the earliest hit, matched words in `[…]` |
 
+#### `memory --json`
+
+One object per memory file, by project name and path; the version valid at `--at` (default now).
+
+| field | meaning |
+|---|---|
+| `project` | project name as in `stats --by project`; the harness key while the project's directory is unknown |
+| `project_key` | the harness's native project key |
+| `harness` | e.g. `claude` |
+| `cwd` | the project's working directory, `null` while unknown |
+| `git_root` | its git root, `null` without one |
+| `path` | path relative to the memory directory |
+| `sha256` | content hash (`total-recall blob SHA256`); `null` for a deleted file (`--deleted`) |
+| `bytes` | size of the content |
+| `deleted` | `true` for a deleted file |
+| `changed` | time of this version (UTC) |
+| `versions` | versions of the file up to then, deletions included |
+
+#### `memory --history --json`
+
+One object per version of the file, oldest first.
+
+| field | meaning |
+|---|---|
+| `project` | as in `memory --json` |
+| `project_key` | as in `memory --json` |
+| `harness` | as in `memory --json` |
+| `path` | the file |
+| `ts` | time of the version: the file's mtime, for a deletion the scan that noticed it (UTC) |
+| `observed_at` | the scan that recorded the version (UTC) |
+| `sha256` | content hash; `null` for a deletion |
+| `bytes` | size of the content |
+| `deleted` | `true` for a deletion |
+
+#### `memory --grep --json`
+
+One object per memory file whose current content matches, best first.
+
+| field | meaning |
+|---|---|
+| `project` | as in `memory --json` |
+| `project_key` | as in `memory --json` |
+| `harness` | as in `memory --json` |
+| `path` | the file |
+| `sha256` | hash of the current content |
+| `changed` | time of the current version (UTC) |
+| `snippet` | snippet with the matched words in `[…]` |
+
 #### `status --json`
 
 | field | meaning |
@@ -411,6 +486,12 @@ One object per session, sorted by `first_hit` (`--order hits`: by `hits` descend
 | `blob_kinds` | the blobs split by kind, each `{count, bytes, stored_bytes}`: `attachments` (images and documents of events), `json` (system prompts and tool definitions of meta records), `files` (backup copies of edited files, Claude Code file-history) |
 | `meta_rows` | stored meta records (table `session_meta`) |
 | `meta_bytes` | compressed size of all meta records |
+| `memory_projects` | projects with archived memory |
+| `memory_files` | existing memory files |
+| `memory_deleted` | deleted memory files |
+| `memory_versions` | all versions of memory files, deletions included |
+| `memory_bytes` | size of the distinct memory contents |
+| `memory_stored_bytes` | their compressed size (part of `blob_stored_bytes`) |
 | `last_ingest` | object harness → time (UTC) |
 | `backup_dir` | |
 | `last_backup` | path of the last backup, `null` if none |

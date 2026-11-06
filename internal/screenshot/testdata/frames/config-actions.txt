@@ -6,7 +6,7 @@
 ▸ backup                    write a compressed copy to ~/Documents/total-recall, keep 7 daily and all monthly backups
   maintenance (dry run)     measure a rebuild with 16384-byte pages; changes nothing
   maintenance               rebuild the archive with 16384-byte pages after a backup; hooks skip meanwhile
-  migrate                   schema v7 is current · nothing pending
+  migrate                   schema v8 is current · nothing pending
   reindex actors (dry run)  count the stored user messages whose actor the current rules would change
   reindex actors            apply the current actor rules to every stored user message
   ingest all                read every transcript of every harness from the stored offset

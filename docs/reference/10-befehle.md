@@ -59,8 +59,8 @@ total-recall ingest --hook --detach < hook.json                   # aus einem Ho
 
 | Option | Bedeutung |
 |---|---|
-| `--all` | alle Quellen aller aktiven Harnesses |
-| `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen. Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
+| `--all` | alle Quellen aller aktiven Harnesses, dazu ihr [Projekt-Gedächtnis](#memory) (`ingest.store_memory`) |
+| `--hook` | Hook-JSON von stdin lesen (`transcript_path`, `agent_transcript_path`, `session_id`, `cwd`, `hook_event_name`) und diese Datei(en) einlesen, danach das [Projekt-Gedächtnis](#memory). Bei `SessionStart` zusätzlich alles wie `--all`. Exit-Code immer 0, Fehler ins Log, nichts auf stdout |
 | `--regit` | Git-Root und Remote-URL für das Arbeitsverzeichnis jeder Session neu bestimmen (am Cache vorbei) und die Sessions aktualisieren. Für veraltete Git-Infos, etwa nach einem umbenannten Remote. Ein Verzeichnis, das sich nicht mehr auflösen lässt (gelöschter Worktree), behält seinen gespeicherten Wert. Allein oder zusammen mit `--all`; braucht `git.resolve = true` |
 | `--reread` | die angegebenen Dateien bzw. mit `--all` alle Quellen von Anfang an lesen statt ab dem gespeicherten Lesestand. Events sind idempotent (nichts wird doppelt), Sessions werden zusammengeführt; so bekommen Sessions nachträglich, was ältere Versionen noch nicht gespeichert haben, etwa Fortsetzung und Account (Schema v4). Nur mit `PATH…` oder `--all` |
 | `--rewrite-raw` | nur zusammen mit `--reread`: die gespeicherte Rohzeile (`raw`, `raw_truncated`) jedes bereits vorhandenen Events durch die neu gelesene, neu maskierte [vollständige Zeile](40-schema.md#raw) ersetzen und ihre Bilder und Dokumente als [Blobs](40-schema.md#blobs) nachtragen; auch Events, die bisher keine Rohzeile hatten (altes Limit), bekommen sie. `text`, `actor` und der Volltextindex bleiben unverändert, nichts wird doppelt. Bringt Archive aus der Zeit vor v1.3.0 (Auszüge, keine Blobs) auf den heutigen Stand und repariert solche, in denen frühere Versionen ganze Werte in `raw` maskiert ([#130](https://github.com/seletz/total-recall/issues/130)) oder Geheimnisse in Arrays nicht erkannt haben ([#162](https://github.com/seletz/total-recall/issues/162)). Braucht `ingest.store_raw = true`, sonst Fehler |
@@ -79,6 +79,7 @@ scanned 291 files: 4 changed, 287 unchanged, 0 locked; 22 new events, 9 meta rec
 - Mit `--reread` zählen alle gelesenen Dateien als `changed`, obwohl `new events` 0 bleibt.
 - Mit `--rewrite-raw` steht hinter `meta records` zusätzlich `N events and M meta records raw rewritten`: so viele vorhandene Events und Meta-Records haben eine neue Rohzeile bekommen. Gezählt werden Zeilen der Tabellen, jede einmal je Lauf, auch wenn ihr Record im Transkript mehrfach vorkommt; was derselbe Lauf neu angelegt hat, steht nur bei `new events` oder `meta records`. Dahinter steht gegebenenfalls `(N meta records kept: …)`: Meta-Records, deren gespeicherte Zeile auf mehr Blobs verweist als die neue, etwa weil Claude Code die Sicherungskopien einer Datei inzwischen gelöscht hat; sie bleiben, wie sie sind.
 - Wurden Blobs gespeichert (Bilder, Dokumente, System-Prompts, Sicherungskopien der Datei-Historie), folgt `N attachments (X MiB)`: so viele neue Blobs, mit ihrer Größe, wie geliefert. Kopien, die ein Record nennt, die aber nicht mehr auf der Platte liegen, stehen je Transkript als `INFO`-Zeile im Log (`backup files no longer on disk`).
+- Hat sich das [Projekt-Gedächtnis](#memory) geändert, folgt `memory: N new versions, M deleted`: so viele neue Fassungen von Gedächtnis-Dateien und so viele gelöschte. Gelesen werden nur Dateien, deren Größe oder Änderungszeit sich geändert hat; ein Lauf ohne Änderung kostet ein paar Millisekunden.
 
 **Altbestand nach einem Schema-Update.** Neue Session-Felder (seit Schema v4: `continued_in`, `account_id`, `organization_id`) stammen aus Records, die beim ersten Einlesen übersprungen wurden. Bereits gelesene Transkripte liefern sie erst nach einem einmaligen `total-recall ingest --all --reread`; das dauert so lange wie das erste Einlesen und ändert an den Events nichts.
 
@@ -140,6 +141,7 @@ sources               280
 raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
 blobs                 4935 blobs, 425.0 MiB (191.4 MiB stored): 1234 attachments 120.1 MiB, 517 JSON values 13.0 MiB, 3184 files 58.3 MiB
 meta records          38.1 MiB in 79412 records
+memory                905 files in 35 projects (3 deleted), 948 versions, 1.9 MiB (1.1 MiB stored)
 last ingest (claude)  2026-11-01 14:59  (2m ago)
 last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.zst  (5h12m ago)
 log                   /Users/me/Library/Application Support/total-recall/total-recall.log
@@ -151,7 +153,7 @@ older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Libra
 
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
-`raw` zeigt die komprimierte Größe der Rohzeilen und die Events ohne; `blobs` die Zahl der gespeicherten Blobs ([Schema](40-schema.md#blobs)) mit ihrer Größe, wie geliefert, und in Klammern, wie sie im Archiv liegen (PDF und Text zstd-komprimiert; JSON `blobs`, `blob_bytes`, `blob_stored_bytes`); gibt es mehr als Bilder und Dokumente, folgt die Aufteilung mit der gespeicherten Größe je Art: `attachments` (Bilder und Dokumente der Events), `JSON values` (System-Prompts und Tool-Definitionen der Meta-Records), `files` (Sicherungskopien bearbeiteter Dateien), im JSON `blob_kinds` mit `attachments`, `json`, `files`, je `count`, `bytes`, `stored_bytes`. `schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. `meta records` ist die Zahl und komprimierte Größe der [Meta-Records](40-schema.md#session_meta) (`session_meta`). Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `meta_rows`, `meta_bytes`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
+`raw` zeigt die komprimierte Größe der Rohzeilen und die Events ohne; `blobs` die Zahl der gespeicherten Blobs ([Schema](40-schema.md#blobs)) mit ihrer Größe, wie geliefert, und in Klammern, wie sie im Archiv liegen (PDF und Text zstd-komprimiert; JSON `blobs`, `blob_bytes`, `blob_stored_bytes`); gibt es mehr als Bilder und Dokumente, folgt die Aufteilung mit der gespeicherten Größe je Art: `attachments` (Bilder und Dokumente der Events), `JSON values` (System-Prompts und Tool-Definitionen der Meta-Records), `files` (Sicherungskopien bearbeiteter Dateien), im JSON `blob_kinds` mit `attachments`, `json`, `files`, je `count`, `bytes`, `stored_bytes`. `schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. `meta records` ist die Zahl und komprimierte Größe der [Meta-Records](40-schema.md#session_meta) (`session_meta`). `memory` zählt das archivierte [Projekt-Gedächtnis](#memory): vorhandene Dateien, Projekte, gelöschte Dateien, alle Fassungen, die Größe der verschiedenen Inhalte und in Klammern, wie sie komprimiert im Archiv liegen (JSON `memory_projects`, `memory_files`, `memory_deleted`, `memory_versions`, `memory_bytes`, `memory_stored_bytes`; die Inhalte zählen auch bei `blobs` mit). Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `meta_rows`, `meta_bytes`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
 
 ## `sessions` { #sessions }
 
@@ -240,7 +242,7 @@ Die Filter wirken in dieser Reihenfolge: erst `--all`, dann das Zeitfenster und 
 
 ## `blob` { #blob }
 
-Gibt ein Bild oder Dokument aus dem Archiv aus ([Schema](40-schema.md#blobs)), oder einen ausgelagerten Wert eines [Meta-Records](40-schema.md#session_meta) wie den System-Prompt einer Runde (JSON) oder die Sicherungskopie einer bearbeiteten Datei (Datei-Historie, Text maskiert). Den Hash nennt [`show`](#show) in der Zeile `attachment` bzw. unter `attachments` im JSON, bei Meta-Records steht er als `blob:sha256:<hex>` in `raw`; ein eindeutiges Präfix genügt.
+Gibt ein Bild oder Dokument aus dem Archiv aus ([Schema](40-schema.md#blobs)), oder einen ausgelagerten Wert eines [Meta-Records](40-schema.md#session_meta) wie den System-Prompt einer Runde (JSON) eine Sicherungskopie einer bearbeiteten Datei (Datei-Historie, Text maskiert) oder eine Fassung einer Gedächtnis-Datei (Markdown, den Hash nennt [`memory`](#memory)). Den Hash nennt [`show`](#show) in der Zeile `attachment` bzw. unter `attachments` im JSON, bei Meta-Records steht er als `blob:sha256:<hex>` in `raw`; ein eindeutiges Präfix genügt.
 
 ```sh
 total-recall blob 3b7c2e1f --out screenshot.png      # in eine Datei
@@ -255,9 +257,46 @@ wrote screenshot.png (image/png, 84.3 KiB)
 | Option | Bedeutung |
 |---|---|
 | `--out DATEI` | die Daten in diese Datei schreiben (wird überschrieben) statt nach stdout |
-| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); mit `--json` werden nur die Metadaten ausgegeben: `sha256`, `media_type`, `bytes` (wie geliefert), `stored_bytes` (im Archiv), `events` (IDs der Events, deren Zeile den Anhang trägt), `meta_records` (IDs der Meta-Records, die ihn tragen), `out` (die geschriebene Datei, sonst `null`). Mit `--out` wird die Datei trotzdem geschrieben |
+| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe); mit `--json` werden nur die Metadaten ausgegeben: `sha256`, `media_type`, `bytes` (wie geliefert), `stored_bytes` (im Archiv), `events` (IDs der Events, deren Zeile den Anhang trägt), `meta_records` (IDs der Meta-Records, die ihn tragen), `memory` (Gedächtnis-Dateien mit diesem Inhalt: `project`, `project_key`, `harness`, `path`, `ts` der ersten Fassung), `out` (die geschriebene Datei, sonst `null`). Mit `--out` wird die Datei trotzdem geschrieben |
 
 Ohne `--out` gehen die Bytes nach stdout, Binärdaten aber nur in eine Pipe oder Datei: Auf ein Terminal schreibt der Befehl sie nicht (`usage`-Fehler mit Hinweis auf `--out`); Text und JSON schon. Ein unbekannter Hash ist `not_found`, ein Präfix, das auf mehrere Anhänge passt, `ambiguous`. Die Daten kommen so zurück, wie sie im Transkript standen (PDF und Text werden entpackt). Der Hash ist der SHA-256 der Daten; `shasum -a 256 screenshot.png` prüft ihn.
+
+## `memory` { #memory }
+
+Zeigt das Projekt-Gedächtnis der Harness, wie es im Archiv liegt. Claude Code führt je Projekt Notizen als Markdown-Dateien (`~/.claude/projects/<projekt>/memory/*.md` mit dem Index `MEMORY.md`), die der Agent laufend schreibt, ändert und löscht. Sie stehen nicht in den Transkripten; `ingest --all` und jeder Hook archivieren sie **versioniert**: eine neue Fassung, wenn sich der Inhalt ändert, ein eigener Eintrag, wenn eine Datei verschwindet. Der Inhalt wird vorher [maskiert](../explanation/datenschutz.md#gedaechtnis). Frühere Stände gibt es ab dem ersten Lauf mit v1.4.0; was vorher geändert oder gelöscht wurde, ist nicht im Archiv.
+
+```sh
+total-recall memory                                # alle Dateien aller Projekte, wie sie jetzt sind
+total-recall memory --project kompass              # nur ein Projekt
+total-recall memory --at 2026-10-01                # wie sie am Ende dieses Tages waren
+total-recall memory --deleted                      # gelöschte Dateien mit anzeigen
+total-recall memory --history MEMORY.md --project kompass   # alle Fassungen einer Datei
+total-recall memory --grep "release workflow"      # Volltextsuche im aktuellen Inhalt
+total-recall blob 5e0c9a41d2b7                     # Inhalt einer Fassung
+```
+
+```text
+PROJECT  FILE                       CHANGED           SIZE     VERSIONS
+kompass  MEMORY.md                  2026-10-28 16:02  1.2 KiB  7
+kompass  trail-markers.md           2026-10-12 09:40  412 B    1
+iris     MEMORY.md                  2026-10-30 11:15  864 B    3
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--project P` | nur Projekte, deren Name, Pfad oder Schlüssel der Harness `P` ist; ohne genauen Treffer die, die `P` enthalten. Der Name ist derselbe wie bei [`stats --by project`](#stats-period) (Definitionen `[[project]]` zuerst); ein Projekt, dessen Verzeichnis unbekannt ist, heißt wie der Schlüssel der Harness (bei Claude Code der Verzeichnisname, etwa `-Users-me-src-kompass`). Kein Treffer ist `not_found` |
+| `--at ZEIT` | der Stand zu dieser Zeit (lokale Zeit, `YYYY-MM-DD` meint das Ende des Tages, sonst `YYYY-MM-DDTHH:MM`): je Datei die letzte Fassung bis dahin |
+| `--deleted` | gelöschte Dateien mit anzeigen (`SIZE` `deleted`, JSON `deleted: true`, `sha256: null`) |
+| `--history DATEI` | alle Fassungen einer Datei, älteste zuerst, Löschungen eingeschlossen; `DATEI` ist der Pfad im Gedächtnis-Verzeichnis. Liegt die Datei in mehreren Projekten (`MEMORY.md` fast immer), ist das ohne `--project` ein `ambiguous`-Fehler, der die Projekte nennt. Mit `--at` nur die Fassungen bis dahin |
+| `--grep WÖRTER` | Volltextsuche (FTS5) im aktuellen Inhalt der vorhandenen Dateien, beste Treffer zuerst, mit Textausschnitt; alle Wörter müssen vorkommen. Ein eigener Index, getrennt von dem der Events: [`search`](#search) findet kein Gedächtnis, `--grep` keine Gespräche |
+| `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
+| `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
+
+**Zeiten.** `CHANGED` (JSON `changed`, bei `--history` `ts`) ist die Änderungszeit der Datei, als das Archiv die Fassung sah; bei einer Löschung die Zeit des Laufs, der sie bemerkte. `--history` zeigt daneben `OBSERVED` (`observed_at`), wann der Lauf die Fassung aufgenommen hat. Ändert der Agent eine Datei zweimal zwischen zwei Läufen, kennt das Archiv nur die zweite Fassung; da jeder Hook nachsieht, ist das selten.
+
+**JSON.** Ohne Option je Datei ein Objekt: `project`, `project_key` (Schlüssel der Harness), `harness`, `cwd` und `git_root` des Projekts (`null`, solange unbekannt), `path`, `sha256` (`null` bei gelöschten), `bytes`, `deleted`, `changed` (UTC), `versions` (Fassungen bis dahin, Löschungen mitgezählt). `--history`: je Fassung `project`, `project_key`, `harness`, `path`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `deleted`. `--grep`: je Treffer `project`, `project_key`, `harness`, `path`, `sha256`, `changed`, `snippet` (Treffer in `[…]`).
+
+**Projektzuordnung.** Das Archiv kennt das Projekt über den Schlüssel der Harness. Das Verzeichnis dazu liest der Adapter aus einem Transkript des Projekts; gibt es keins mehr, sucht er unter den Sessions im Archiv ein Arbeitsverzeichnis, das zu dem Schlüssel passt. Findet er keins, bleibt `cwd` leer, und das Projekt heißt wie sein Schlüssel; ein späterer Lauf trägt das Verzeichnis nach, sobald eine Session dafür auftaucht.
 
 ## `search` { #search }
 

@@ -164,15 +164,7 @@ func (a *Adapter) Stats() Stats {
 // Sources implements harness.Adapter: every *.jsonl below the projects dir,
 // as absolute paths in lexical order. A missing projects dir yields no sources.
 func (a *Adapter) Sources() ([]string, error) {
-	dir := a.dir
-	if dir == "" {
-		d, err := DefaultProjectsDir()
-		if err != nil {
-			return nil, err
-		}
-		dir = d
-	}
-	dir, err := filepath.Abs(dir)
+	dir, err := a.root()
 	if err != nil {
 		return nil, err
 	}

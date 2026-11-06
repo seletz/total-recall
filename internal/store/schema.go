@@ -272,6 +272,54 @@ CREATE TABLE meta_blobs (
 ) WITHOUT ROWID;
 CREATE INDEX meta_blobs_sha256 ON meta_blobs(sha256);
 `,
+	// 8: project memory (#192): the memory files a harness keeps per
+	// project (Claude Code: <projects_dir>/<project>/memory/*.md),
+	// versioned. memory_projects holds one row per harness and native
+	// project key (the adapter's, e.g. the directory name) with the
+	// project's working directory once it is known (join dirs for the git
+	// root). memory_files is the current state of every file ever seen,
+	// relative to the memory directory: the hash of the current content
+	// (NULL = deleted) and size and mtime on disk, so a scan reads only
+	// files that changed. memory_versions has a row per content change
+	// and per deletion (sha256 NULL); ts is the file's mtime for content,
+	// the time of the scan for a deletion. The content is redacted text
+	// in blobs (text/markdown, zstd), once per hash across the archive.
+	// memory_fts indexes the current content of every existing file
+	// (rowid = memory_files.id), apart from events_fts: the event search
+	// and every statistic stay as they are. The migration moves no data;
+	// the next ingest --all takes up the memory as it is on disk.
+	`
+CREATE TABLE memory_projects (
+	id      INTEGER PRIMARY KEY,
+	harness TEXT NOT NULL,
+	key     TEXT NOT NULL,
+	cwd     TEXT,
+	UNIQUE (harness, key)
+);
+CREATE TABLE memory_files (
+	id         INTEGER PRIMARY KEY,
+	project_id INTEGER NOT NULL REFERENCES memory_projects(id),
+	path       TEXT NOT NULL,
+	sha256     TEXT REFERENCES blobs(sha256),
+	size       INTEGER NOT NULL DEFAULT 0,
+	mtime      TEXT,
+	UNIQUE (project_id, path)
+);
+CREATE TABLE memory_versions (
+	seq         INTEGER PRIMARY KEY,
+	file_id     INTEGER NOT NULL REFERENCES memory_files(id),
+	ts          TEXT NOT NULL,
+	observed_at TEXT NOT NULL,
+	sha256      TEXT REFERENCES blobs(sha256),
+	bytes       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX memory_versions_file ON memory_versions(file_id, seq);
+CREATE INDEX memory_versions_sha256 ON memory_versions(sha256);
+CREATE VIRTUAL TABLE memory_fts USING fts5(
+	text,
+	tokenize = 'unicode61 remove_diacritics 2'
+);
+`,
 }
 
 // migrationNotes describe the migrations for `total-recall migrate`, one
@@ -291,6 +339,8 @@ var migrationNotes = []migrationNote{
 		"run `ingest --all --reread --rewrite-raw` afterwards to fill raw and the blobs from the transcripts"},
 	{Summary: "session_meta and meta_blobs: harness records that are no message (attachments, queued commands, modes, system prompts, file-history snapshots, unknown types) as redacted, compressed lines; " +
 		"moves no data, the same `ingest --all --reread --rewrite-raw` fills them from the transcripts"},
+	{Summary: "memory_projects, memory_files, memory_versions and memory_fts: the project memory of the harness (Claude Code: memory/*.md per project), versioned and redacted; " +
+		"moves no data, the next `ingest --all` takes up the memory files as they are on disk"},
 }
 
 // migrationNote is the description of one migration.

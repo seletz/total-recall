@@ -177,6 +177,8 @@ type PageStats struct {
 	Events        int   `json:"events"`
 	Sources       int   `json:"sources"`
 	Meta          int   `json:"meta"`
+	// Memory is the number of memory versions (0 before schema v8).
+	Memory int `json:"memory"`
 	// Blobs is the number of stored attachments (0 before schema v6).
 	Blobs int `json:"blobs"`
 }
@@ -210,13 +212,19 @@ func (s *Store) PageStats(ctx context.Context) (PageStats, error) {
 	}
 	// session_meta arrives with v7; status reads an outdated archive too,
 	// and SQLite rejects a statement that names a missing table.
-	var hasMeta int
-	if err := s.db().QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'session_meta'").Scan(&hasMeta); err != nil {
-		return ps, fmt.Errorf("store: page stats: %w", err)
-	}
-	if hasMeta > 0 {
-		if err := s.db().QueryRowContext(ctx, "SELECT count(*) FROM session_meta").Scan(&ps.Meta); err != nil {
+	// The same for memory_versions (v8).
+	for _, t := range []struct {
+		table string
+		dst   *int
+	}{{"session_meta", &ps.Meta}, {"memory_versions", &ps.Memory}} {
+		var has int
+		if err := s.db().QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?", t.table).Scan(&has); err != nil {
 			return ps, fmt.Errorf("store: page stats: %w", err)
+		}
+		if has > 0 {
+			if err := s.db().QueryRowContext(ctx, "SELECT count(*) FROM "+t.table).Scan(t.dst); err != nil {
+				return ps, fmt.Errorf("store: page stats: %w", err)
+			}
 		}
 	}
 	ps.SizeBytes = fileSize(s.path)
@@ -301,9 +309,9 @@ var checkCopy = func(ctx context.Context, path string, want PageStats) (PageStat
 	if err != nil {
 		return PageStats{}, err
 	}
-	if got.Sessions != want.Sessions || got.Events != want.Events || got.Sources != want.Sources || got.Blobs != want.Blobs || got.Meta != want.Meta {
-		return PageStats{}, fmt.Errorf("row counts differ: copy has %d sessions, %d events, %d sources, %d blobs, %d meta records; original %d, %d, %d, %d, %d",
-			got.Sessions, got.Events, got.Sources, got.Blobs, got.Meta, want.Sessions, want.Events, want.Sources, want.Blobs, want.Meta)
+	if got.Sessions != want.Sessions || got.Events != want.Events || got.Sources != want.Sources || got.Blobs != want.Blobs || got.Meta != want.Meta || got.Memory != want.Memory {
+		return PageStats{}, fmt.Errorf("row counts differ: copy has %d sessions, %d events, %d sources, %d blobs, %d meta records, %d memory versions; original %d, %d, %d, %d, %d, %d",
+			got.Sessions, got.Events, got.Sources, got.Blobs, got.Meta, got.Memory, want.Sessions, want.Events, want.Sources, want.Blobs, want.Meta, want.Memory)
 	}
 	return got, nil
 }

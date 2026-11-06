@@ -10,7 +10,31 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ### Was dieses Update mit dem Archiv macht
 
-Kein neues Schema, keine Migration. Neu im Archiv sind die **Sicherungskopien bearbeiteter Dateien**: Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab, und es löscht sie zusammen mit den Transkripten. Der normale Ingest liest sie jetzt mit und legt sie einmal je Inhalt als Blob ab; Textdateien werden dabei maskiert, Binärdateien folgen `ingest.store_blobs` ([#183](https://github.com/seletz/total-recall/issues/183), [Datenschutz](../explanation/datenschutz.md)). Wer das nicht will, setzt `ingest.store_file_history = false`.
+Dieses Release bringt Schema **v8**, eine kurze Migration ohne Datenbewegung. Neu im Archiv ist das **Projekt-Gedächtnis** von Claude Code: die Markdown-Dateien, die der Agent je Projekt unter `~/.claude/projects/<projekt>/memory/` anlegt, ändert und löscht. Bisher standen sie nirgends im Archiv; wer wissen wollte, was der Agent sich zu einem Projekt gemerkt hatte, sah nur den Stand auf der Platte.
+
+- **Was gespeichert wird:** jede Fassung jeder Gedächtnis-Datei, **maskiert** wie der Text der Events, als Blob einmal je Inhalt; eine Löschung als eigener Eintrag. Nichts davon ist ein Event: Suche, Statistik und Arbeitszeit bleiben, wie sie sind.
+- **Ab wann:** ab dem ersten `ingest --all` (oder Hook) nach der Migration. Frühere Stände gibt es nicht, auch nicht aus den Transkripten.
+- **Datenschutz:** Das Gedächtnis enthält oft persönliche Notizen über dich, deine Arbeit und andere Menschen. Was der Agent löscht, bleibt im Archiv und in den Backups. Abschaltbar mit `ingest.store_memory = false` ([Datenschutz](../explanation/datenschutz.md#gedaechtnis)).
+
+**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Stand v7, 803 MB, 35 Projekte mit Gedächtnis, 905 Dateien, 1,9 MiB):
+
+| | `migrate` | erster `ingest --all` | Lauf ohne Änderung |
+|---|---|---|---|
+| Dauer | 0,9 s | 0,63 s für das Gedächtnis | 10 ms je Hook |
+| Datei | + 0,2 MB | + 4,8 MiB | |
+
+Die Inhalte liegen komprimiert mit 1,1 MiB in `blobs`, den Rest belegt der Volltextindex mit seiner Kopie des Texts. In 42 der 905 Dateien hat die Maskierung etwas ersetzt. 11 der 35 Projekte haben keine Transkripte mehr und keine passende Session im Archiv; sie heißen in `memory` wie ihr Verzeichnis bei Claude Code, bis eine Session dafür auftaucht.
+
+**Die Schritte** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+
+```sh
+total-recall backup      # 1. sichern
+total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an
+total-recall ingest --all  # 3. das Gedächtnis aufnehmen, wie es jetzt ist (sonst beim nächsten Hook)
+```
+
+
+Außerdem neu im Archiv sind die **Sicherungskopien bearbeiteter Dateien**: Bevor Claude Code eine Datei ändert, legt es eine Kopie unter `~/.claude/file-history` ab, und es löscht sie zusammen mit den Transkripten. Der normale Ingest liest sie jetzt mit und legt sie einmal je Inhalt als Blob ab; Textdateien werden dabei maskiert, Binärdateien folgen `ingest.store_blobs` ([#183](https://github.com/seletz/total-recall/issues/183), [Datenschutz](../explanation/datenschutz.md)). Wer das nicht will, setzt `ingest.store_file_history = false`.
 
 Für den Bestand gilt dasselbe wie bei v1.3.0: Was Claude Code schon gelöscht hat, ist weg. Die Kopien, die noch da sind, holt ein Reread:
 
@@ -22,7 +46,7 @@ total-recall maintenance                          # 3. Platz der ersetzten Zeile
 
 Schritt 2 lässt sich abbrechen und wiederholen. Ein späterer Reread verliert nichts, wenn die Kopien inzwischen gelöscht sind: Ein Meta-Record, dessen gespeicherte Zeile auf mehr Blobs verweist als die neue, bleibt, wie er ist (`N meta records kept` in der Zusammenfassung).
 
-**Was das kostet**, gemessen auf einer Kopie eines echten Archivs (Schema v7, 544 Sessions, 242 141 Events, 549 Transkripte):
+**Was die Datei-Historie kostet**, gemessen auf einer Kopie eines echten Archivs (Schema v7, 544 Sessions, 242 141 Events, 549 Transkripte):
 
 | | vorher | nach Reread | nach `maintenance` |
 |---|---|---|---|
@@ -35,6 +59,10 @@ Dazu kamen 3 207 Sicherungskopien als Blobs, 199 MiB wie geliefert, 71 MiB gespe
 ### Archiv
 
 - **Datei-Historie von Claude Code** ([#183](https://github.com/seletz/total-recall/issues/183)). Die Records `file-history-snapshot` und `file-history-delta` verweisen jetzt mit `"blob":"blob:sha256:<hex>"` auf den Inhalt der Kopie, der einmal je Inhalt in `blobs` liegt (`text/plain` maskiert, sonst `application/octet-stream`), verknüpft über `meta_blobs` ([Schema](40-schema.md#session_meta)). Neuer Schlüssel `ingest.store_file_history` (Default `true`, [Konfiguration](20-konfiguration.md)). [`blob HASH`](10-befehle.md#blob) gibt eine Kopie aus, Text auch auf ein Terminal. [`status`](10-befehle.md#status) teilt die Blobs nach Art auf (`attachments`, `JSON values`, `files`; JSON `blob_kinds`), die TUI nennt die Kopien auf der Seite *status*.
+
+- **[`memory`](10-befehle.md#memory)** zeigt das archivierte Projekt-Gedächtnis: je Projekt die Dateien, wie sie jetzt sind oder mit `--at DATUM` waren, mit `--deleted` auch gelöschte; `--history DATEI` listet alle Fassungen einer Datei, `--grep WÖRTER` sucht im aktuellen Inhalt (eigener Volltextindex, getrennt von `search`). `--project` schränkt auf Projekte ein, Namen wie bei `stats --by project`. Den Inhalt einer Fassung gibt [`blob`](10-befehle.md#blob) aus, `blob --json` nennt unter `memory` die Dateien, die ihn hatten ([#192](https://github.com/seletz/total-recall/issues/192)).
+- [`status`](10-befehle.md#status) hat eine Zeile `memory` (Dateien, Projekte, Löschungen, Fassungen, Größe), JSON `memory_projects`, `memory_files`, `memory_deleted`, `memory_versions`, `memory_bytes`, `memory_stored_bytes`. Die [Ingest-Zusammenfassung](10-befehle.md#ingest) meldet `memory: N new versions, M deleted`, wenn sich etwas geändert hat.
+- Neuer Schalter [`ingest.store_memory`](20-konfiguration.md#ingest) (Default `true`).
 
 ### TUI
 

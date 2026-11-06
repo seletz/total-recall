@@ -97,6 +97,7 @@ func skillEnv(t *testing.T) *testEnv {
 				"content": []any{map[string]any{"type": "text", "text": "syft and cyclonedx."}}}},
 		tf.Line{"type": "agent-name", "agentName": "researcher", "sessionId": s3, "agentId": "d01"},
 	))
+	tf.WriteFile(t, e.projects, "-w-gamma/memory/MEMORY.md", "# Memory\n- the sbom comes from syft\n")
 	e.mustRun(t, "ingest", "--all")
 	return e
 }
@@ -247,6 +248,9 @@ func TestSkillJSONFields(t *testing.T) {
 		{"search --json", []string{"search", "sbom", "--json"}, "[]", reflect.TypeOf(HitJSON{})},
 		{"search --by-session --json", []string{"search", "sbom", "--json", "--by-session"}, "[]", reflect.TypeOf(SessionHitsJSON{})},
 		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{})},
+		{"memory --json", []string{"memory", "--json"}, "[]", reflect.TypeOf(MemoryFileJSON{})},
+		{"memory --history --json", []string{"memory", "--json", "--history", "MEMORY.md"}, "[]", reflect.TypeOf(MemoryVersionJSON{})},
+		{"memory --grep --json", []string{"memory", "--json", "--grep", "sbom"}, "[]", reflect.TypeOf(MemoryHitJSON{})},
 		{"stats --json", []string{"stats", "--json", "--month", "2026-10"}, "", reflect.TypeOf(StatsJSON{})},
 		{"stats --json --period", []string{"stats", "--json", "--period", "week", "--by", "project", "--month", "2026-10"}, "", reflect.TypeOf(ActivitySeriesJSON{})},
 		{"stats --json --workday", workday, "", reflect.TypeOf(WorkdayJSON{})},

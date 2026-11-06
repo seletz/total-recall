@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/ingest"
 )
 
 func testConfig(t *testing.T) *config.Config {
@@ -67,5 +68,23 @@ func TestClaudeHooks(t *testing.T) {
 	}
 	if strings.Count(s, "/usr/local/bin/total-recall ingest --hook --detach") != 4 || strings.Count(s, "backup --if-older 24h --detach") != 1 {
 		t.Errorf("commands: %s", s)
+	}
+}
+
+func TestFormatIngestMemory(t *testing.T) {
+	for _, c := range []struct {
+		s    ingest.Summary
+		want string
+		not  string
+	}{
+		{s: ingest.Summary{Scanned: 1}, not: "memory"},
+		{s: ingest.Summary{Scanned: 1, MemoryRead: 3}, not: "memory"},
+		{s: ingest.Summary{Scanned: 1, MemoryVersions: 3, MemoryDeleted: 1}, want: ", memory: 3 new versions, 1 deleted"},
+		{s: ingest.Summary{MemoryVersions: 2}, want: ", memory: 2 new versions, 0 deleted"},
+	} {
+		got := FormatIngest(c.s, false)
+		if c.want != "" && !strings.Contains(got, c.want) || c.not != "" && strings.Contains(got, c.not) {
+			t.Errorf("FormatIngest(%+v) = %q", c.s, got)
+		}
 	}
 }

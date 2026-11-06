@@ -56,6 +56,9 @@ raw_max_bytes = 0
 # (`total-recall blob`). They cannot be redacted; false keeps only a
 # reference in raw.
 store_blobs = true
+# Archive the project memory of the harness (Claude Code: the memory/*.md
+# files of every project), versioned and redacted (`total-recall memory`).
+store_memory = true
 # Keep the backup copies of edited files the harness writes next to its
 # transcripts (Claude Code: file-history, deleted with the transcripts) as
 # blobs, once per content. Text is redacted; binary files follow

@@ -3,6 +3,7 @@ package harness
 
 import (
 	"context"
+	"time"
 
 	"github.com/seletz/total-recall/internal/model"
 )
@@ -44,4 +45,39 @@ func All() []Adapter {
 		out = append(out, a)
 	}
 	return out
+}
+
+// MemorySource is implemented by adapters whose harness keeps a memory
+// per project outside the transcripts (Claude Code: memory/*.md in each
+// project directory). Ingest archives it versioned (store.WriteMemory);
+// the store knows only the project key and paths relative to the memory
+// directory, the adapter knows where the files are.
+type MemorySource interface {
+	// Memory lists the memory files of every project that has a memory
+	// directory. ok is false when the harness's data directory does not
+	// exist at all: then nothing is known, and ingest records no deletions.
+	Memory() (projects []MemoryProject, ok bool, err error)
+	// MemoryCwd returns the working directory of the project with key:
+	// from the harness's own data (a transcript of the project), else the
+	// first of candidates (working directories of archived sessions) that
+	// maps to key; "" when neither tells.
+	MemoryCwd(key string, candidates []string) string
+}
+
+// MemoryProject is the memory directory of one project.
+type MemoryProject struct {
+	// Key is the harness's native project key, stable across runs.
+	Key string
+	// Files are the memory files, by path.
+	Files []MemoryFile
+}
+
+// MemoryFile is one file of a project's memory.
+type MemoryFile struct {
+	// Path is relative to the memory directory, slash-separated.
+	Path string
+	// Abs is the absolute path to read the file from.
+	Abs   string
+	Size  int64
+	MTime time.Time
 }

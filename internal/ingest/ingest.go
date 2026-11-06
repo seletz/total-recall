@@ -73,6 +73,9 @@ type Deps struct {
 	// stay untouched. Only useful together with Reread, which is what makes
 	// the existing events come by again (ingest --reread --rewrite-raw).
 	RewriteRaw bool
+	// StoreMemory makes All archive the project memory of the adapters
+	// that have one (Memory, harness.MemorySource).
+	StoreMemory bool
 	// Logf receives diagnostics; default discard.
 	Logf func(format string, args ...any)
 }
@@ -107,8 +110,12 @@ type Summary struct {
 	Blobs     int
 	BlobBytes int64
 	Sessions  int // distinct sessions touched by new records
-	Errors    []FileError
-	Duration  time.Duration
+	// MemoryRead counts memory files read because their size or mtime
+	// changed, MemoryVersions the new versions (contents) among them,
+	// MemoryDeleted the files recorded as deleted (Memory).
+	MemoryRead, MemoryVersions, MemoryDeleted int
+	Errors                                    []FileError
+	Duration                                  time.Duration
 }
 
 // runner is the state of one Run/All call.
@@ -172,7 +179,8 @@ func Run(ctx context.Context, d Deps, paths []string) (Summary, error) {
 	return r.finish(start), nil
 }
 
-// All ingests every source of every adapter in d.
+// All ingests every source of every adapter in d and, with
+// d.StoreMemory, their project memory (Memory).
 func All(ctx context.Context, d Deps) (Summary, error) {
 	r := newRun(d)
 	start := time.Now()
@@ -187,6 +195,11 @@ func All(ctx context.Context, d Deps) (Summary, error) {
 				return r.finish(start), err
 			}
 			r.file(ctx, a, p)
+		}
+	}
+	if d.StoreMemory {
+		if err := r.memory(ctx); err != nil {
+			return r.finish(start), err
 		}
 	}
 	return r.finish(start), nil

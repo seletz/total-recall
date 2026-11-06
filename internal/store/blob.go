@@ -388,3 +388,28 @@ func (s *Store) RawLine(ctx context.Context, eventID string) (string, error) {
 	}
 	return string(line), nil
 }
+
+// insertBlob stores data under its hash h unless the archive has it
+// (memory files; events and meta records use blobWriter). isNew reports
+// whether the blob was new.
+func insertBlob(ctx context.Context, tx *sql.Tx, h, mediaType string, data []byte) (isNew bool, err error) {
+	stored, enc, err := encodeBlob(mediaType, data)
+	if err != nil {
+		return false, err
+	}
+	r, err := tx.ExecContext(ctx, `INSERT INTO blobs (sha256, media_type, bytes, encoding, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(sha256) DO NOTHING`,
+		h, mediaType, len(data), enc, stored)
+	if err != nil {
+		return false, fmt.Errorf("store blob %s: %w", h, err)
+	}
+	n, _ := r.RowsAffected()
+	return n > 0, nil
+}
+
+// blobSizes counts the blobs whose hash the subquery hashes returns, their
+// size as delivered and as stored.
+func (s *Store) blobSizes(ctx context.Context, hashes string) (count, bytes, stored int64, err error) {
+	err = s.db().QueryRowContext(ctx, `SELECT count(*), COALESCE(sum(bytes), 0), COALESCE(sum(length(data)), 0) FROM blobs WHERE sha256 IN (`+hashes+`)`).
+		Scan(&count, &bytes, &stored)
+	return count, bytes, stored, err
+}
