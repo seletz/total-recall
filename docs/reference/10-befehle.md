@@ -278,7 +278,7 @@ total-recall blob 5e0c9a41d2b7                     # Inhalt einer Fassung
 ```text
 PROJECT  FILE                       CHANGED           SIZE     VERSIONS
 kompass  MEMORY.md                  2026-10-28 16:02  1.2 KiB  7
-kompass  feedback-no-trailers.md    2026-10-12 09:40  412 B    1
+kompass  trail-markers.md           2026-10-12 09:40  412 B    1
 iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 ```
 
