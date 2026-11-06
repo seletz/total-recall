@@ -489,6 +489,42 @@ func TestEndToEnd(t *testing.T) {
 	}
 }
 
+// TestStatsTokens: the JSON has the token counts under "tokens" (always),
+// --tokens appends them to the table, and the flag refuses the other modes.
+func TestStatsTokens(t *testing.T) {
+	e := newTestEnv(t)
+	e.mustRun(t, "ingest", "--all")
+	st := decode[StatsJSON](t, e.mustRun(t, "stats", "--month", "2026-10", "--json"))
+	tk := st.Tokens
+	if tk.Events == 0 || tk.Input == 0 || tk.Output == 0 {
+		t.Fatalf("tokens = %+v, want counts from the fixture", tk)
+	}
+	if tk.Input != tk.Fresh+tk.CacheRead+tk.CacheWrite+tk.Unsplit || tk.Unsplit != 0 {
+		t.Errorf("parts do not add up: %+v", tk)
+	}
+	if tk.CacheRead == 0 || tk.CacheWrite == 0 {
+		t.Errorf("cache counts missing: %+v", tk)
+	}
+	if len(tk.ByDay) == 0 || len(tk.ByModel) == 0 {
+		t.Errorf("breakdowns missing: %+v", tk)
+	}
+	if empty := decode[StatsJSON](t, e.mustRun(t, "stats", "--month", "2026-09", "--json")); empty.Tokens.Events != 0 || empty.Tokens.ByDay == nil || empty.Tokens.ByModel == nil {
+		t.Errorf("empty range tokens = %+v (arrays must be [] not null)", empty.Tokens)
+	}
+	plain := e.mustRun(t, "stats", "--month", "2026-10")
+	if strings.Contains(plain, "CACHE READ") {
+		t.Errorf("plain table has the token section:\n%s", plain)
+	}
+	if tbl := e.mustRun(t, "stats", "--month", "2026-10", "--tokens"); !strings.Contains(tbl, plain) || !strings.Contains(tbl, "CACHE READ") || !strings.Contains(tbl, "MODEL") {
+		t.Errorf("--tokens table:\n%s", tbl)
+	}
+	for _, args := range [][]string{{"--workday"}, {"--worktime"}, {"--period", "week"}, {"--by", "project"}} {
+		if r := e.run(t, "", append([]string{"stats", "--tokens"}, args...)...); r.code == 0 || !strings.Contains(r.stderr, "--tokens") {
+			t.Errorf("stats --tokens %v = %+v, want a usage error", args, r)
+		}
+	}
+}
+
 func TestSearch(t *testing.T) {
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")

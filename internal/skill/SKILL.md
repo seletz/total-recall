@@ -187,7 +187,9 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `text` | readable, redacted text; tool results truncated to 4 KiB |
 | `tool_name` | for `tool_use` |
 | `model` | model of the assistant message |
-| `tokens_in` | input tokens, NULL if unknown |
+| `tokens_in` | input tokens: fresh input plus cache writes plus cache reads, NULL if unknown |
+| `tokens_cache_read` | the cache-read part of `tokens_in`, NULL if unknown (events without usage, or archived without `raw`) |
+| `tokens_cache_write` | the cache-write part of `tokens_in`, NULL if unknown |
 | `tokens_out` | output tokens, NULL if unknown |
 | `source_id` | `sources.id` of the transcript file the line came from (`JOIN sources s ON s.id = e.source_id` for the path) |
 | `source_offset` | byte offset of the line in that file |

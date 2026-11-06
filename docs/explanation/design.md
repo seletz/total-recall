@@ -249,7 +249,8 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 | `text` | TEXT | lesbarer Text (redigiert); bei Tool-Ergebnissen gekürzt auf 4 KiB |
 | `tool_name` | TEXT NULL | |
 | `model` | TEXT NULL | |
-| `tokens_in` / `tokens_out` | INTEGER NULL | |
+| `tokens_in` / `tokens_out` | INTEGER NULL | `tokens_in` ist die Summe aus Eingabe, Cache-Schreiben und -Lesen |
+| `tokens_cache_read` / `tokens_cache_write` | INTEGER NULL | Teile von `tokens_in`, seit v9; NULL = unbekannt |
 | `source_id` / `source_offset` | INTEGER FK / INTEGER | Rückverweis: `sources.id` (Migration 5, vorher `source_path` TEXT) und Byte-Offset der Zeile |
 | `raw` | BLOB NULL | die vollständige Original-Zeile als zstd-Frame (siehe [`raw`](#raw)), redigiert, Bild- und Dokumentdaten durch `blob:sha256:<hex>` ersetzt (siehe [`blobs`](#blobs)); NULL mit `store_raw = false` oder über `ingest.raw_max_bytes` (Default 0 = unbegrenzt) |
 | `raw_truncated` | INTEGER | 1, wenn `raw` wegen der Größe weggelassen wurde (Migration 3); `text` bleibt wie sonst. Seit v1.3.0 nur noch Altlast: `ingest --all --reread --rewrite-raw` trägt die Zeile nach, solange das Transkript existiert |
@@ -327,7 +328,7 @@ Summe, gemessen nach dem Reread auf einer Kopie des Archivs: 49 MiB komprimiert 
 
 Gemessen lokal (nur lesend, 152 Session-Verzeichnisse): 3 431 Kopien mit 210 MiB, davon 10 binär (0,5 MiB); 3 184 verschiedene Inhalte mit 199 MiB, mit zstd (Stufe 3, ohne Wörterbuch) 71 MiB. Die größte Kopie hat 0,9 MiB, die Grenze von 16 MiB greift lokal nie. Die Records nennen 4 069 Kopien je Transkript, 638 davon sind schon gelöscht; jede Kopie auf der Platte wird von einem Record genannt. Auf einer Kopie des Archivs (549 Transkripte) brachte `ingest --all --reread --rewrite-raw` 3 207 Kopien als Blobs, 199 MiB wie geliefert, 71 MiB gespeichert; die Datei wuchs nach `maintenance` von 762 auf 914 MiB, das Backup von 476 auf 596 MiB, der Reread dauerte 6 min ([Änderungen](../reference/90-aenderungen.md)).
 
-**`usage`**, gemessen an 84 752 Assistant-Antworten: `input_tokens` 1,3 M, `cache_creation_input_tokens` 449 M (davon `ephemeral_1h` 395 M, `ephemeral_5m` 54 M), `cache_read_input_tokens` 23,8 G, `output_tokens` 68 M, davon `thinking_tokens` 15,3 M. `tokens_in` ist die Summe der drei Eingabezahlen und damit zu 99,9 % Cache-Reads; getrennte Spalten für Cache-Lesen und -Schreiben (und Thinking) kommen mit einem eigenen Issue nach [#180](https://github.com/seletz/total-recall/issues/180), wenn `raw` die `usage` wieder enthält und sich die Spalten daraus nachfüllen lassen; `tokens_in` bleibt dann die Summe, damit bestehende Zahlen stabil bleiben.
+**`usage`**, gemessen an 84 752 Assistant-Antworten: `input_tokens` 1,3 M, `cache_creation_input_tokens` 449 M (davon `ephemeral_1h` 395 M, `ephemeral_5m` 54 M), `cache_read_input_tokens` 23,8 G, `output_tokens` 68 M, davon `thinking_tokens` 15,3 M. `tokens_in` ist die Summe der drei Eingabezahlen und damit zu 99,9 % Cache-Reads; Cache-Lesen und -Schreiben haben seit Schema v9 ([#185](https://github.com/seletz/total-recall/issues/185)) eigene Spalten (`tokens_cache_read`, `tokens_cache_write`), nachgefüllt aus `raw`; `tokens_in` bleibt die Summe, damit bestehende Zahlen stabil sind. Thinking-Tokens sind in `output_tokens` enthalten und nicht einzeln gespeichert (nur in `raw`).
 
 ### Projekt-Gedächtnis { #memory }
 

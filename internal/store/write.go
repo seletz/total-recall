@@ -284,8 +284,8 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 	if len(events) > 0 {
 		sources := map[string]int64{}
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO events
-			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, source_id, source_offset, raw, raw_truncated)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, source_id, source_offset, raw, raw_truncated)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
 			return res, fmt.Errorf("store: prepare: %w", err)
@@ -342,7 +342,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			}
 			r, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
-				nullInt(e.TokensOut), srcID, e.SourceOffset, rawBlob(e.Raw), e.RawTruncated)
+				nullInt(e.TokensOut), cacheInt(e, e.TokensCacheRead), cacheInt(e, e.TokensCacheWrite), srcID, e.SourceOffset, rawBlob(e.Raw), e.RawTruncated)
 			if err != nil {
 				return res, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}
@@ -543,4 +543,14 @@ func (s *Store) SetSessionGit(ctx context.Context, cwd, root, remoteURL string) 
 		return 0, fmt.Errorf("store: set session git %s: %w", cwd, err)
 	}
 	return res.RowsAffected()
+}
+
+// cacheInt is the value for events.tokens_cache_read and _write: NULL for an
+// event without usage (TokensIn 0), else n, also 0: a known zero is not an
+// unknown.
+func cacheInt(e model.Event, n int64) any {
+	if e.TokensIn == 0 {
+		return nil
+	}
+	return n
 }

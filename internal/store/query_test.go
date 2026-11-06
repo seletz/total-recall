@@ -526,7 +526,7 @@ func TestReadPathsDoNotLoadRaw(t *testing.T) {
 	// writer, MetaStats and the single-row reader for tests) and the
 	// migrations may name the columns.
 	allowed := map[string]map[string]bool{
-		"raw":  {"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true, "blob.go": true, "meta.go": true},
+		"raw":  {"write.go": true, "reclassify.go": true, "schema.go": true, "raw.go": true, "migrate_v5.go": true, "migrate_v9.go": true, "blob.go": true, "meta.go": true},
 		"data": {"write.go": true, "schema.go": true, "blob.go": true},
 	}
 	files, err := filepath.Glob("*.go")
