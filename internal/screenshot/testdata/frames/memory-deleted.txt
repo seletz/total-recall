@@ -33,4 +33,4 @@
                                                │
  2 versions
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ move • b/f scroll text • esc back • 1 search • 2 stats • 3 activity • ? help • q quit
+ ↑/↓ move • d diff on/off • c compare with this version • t timeline • b/f scroll text • esc back • 1 search • 2 stats …

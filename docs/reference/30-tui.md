@@ -105,7 +105,7 @@ In den Ansichten:
 |---|---|
 | Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
 | Klick auf die Vorschau | öffnet den markierten Treffer wie ++enter++, egal ob Eingabe oder Liste den Fokus hat |
-| Klick auf eine Datei oder Version im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei öffnet ihren Verlauf wie ++enter++ |
+| Klick auf eine Datei, Version oder Änderung im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei oder Änderung öffnet ihren Verlauf wie ++enter++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
 | Klick auf einen Typ in der Linie der Suche (`event`, `session`, `memory`) | schaltet den Typ ein oder aus wie `e`, `s`, `m` |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
@@ -221,7 +221,7 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 *Memory-Viewer eines Projekts: links die Dateien mit MEMORY.md als Index, die gelöschte Datei zuletzt, rechts der Inhalt als lesbares Markdown*
 
-Der Viewer hat zwei Seiten; ++esc++ geht immer eine Seite zurück, von der ersten schließt es die Ebene.
+Der Viewer hat drei Seiten; ++esc++ geht immer eine Seite zurück, von den Dateien schließt es die Ebene.
 
 - **Dateien:** links die Dateien des Projekts, `MEMORY.md` (der Index) zuerst, dann die übrigen nach Pfad, **gelöschte Dateien zuletzt**, gedämpft und mit `✗`. Rechts steht der Inhalt der markierten Datei wie in der Vorschau der Suche, als lesbares Markdown; die Suchwörter sind hervorgehoben, liegt der erste Treffer tief in der Datei, steht die Ansicht dort. Die Datei des Treffers ist beim Öffnen markiert. Je Zeile steht die Zahl der Versionen (`3×`). Die Statuszeile zählt Dateien und Löschungen.
 - **Verlauf:** ++enter++ auf einer Datei listet ihre Versionen, die neueste oben: Zeitpunkt, Größe, `now` für den heutigen Stand, `✗ … deleted` für eine Löschung. Rechts steht der Inhalt der markierten Version, im Kopf `version 2 of 3`: so zeigt die Ansicht einen **früheren Stand**. Bei einer Löschung steht dort ein Hinweis; die Version darunter zeigt, was die Datei zuletzt enthielt.
@@ -230,11 +230,22 @@ Der Viewer hat zwei Seiten; ++esc++ geht immer eine Seite zurück, von der erste
 
 *Verlauf einer Memory-Datei: links die Versionen, neueste zuerst, rechts ein früherer Stand*
 
+- **Diff:** `d` schaltet die rechte Spalte des Verlaufs auf den **Zeilendiff** um, zuerst gegen die Version davor (die erste Version gegen nichts, alle Zeilen sind neu). `c` merkt die markierte Version als **Basis** (`base` in der Liste): Der Diff läuft dann von der Basis zur markierten Version, egal in welcher Reihenfolge, bis ein zweites `c` auf derselben Version die Basis wieder löst. So lassen sich zwei beliebige Versionen vergleichen. Hinzugefügte Zeilen stehen grün hinter `+`, entfernte rot hinter `-`, je Änderung ein Block mit drei Zeilen Kontext und der Kopfzeile `@@ -alt +neu @@`; die Farben sind nur die Zugabe, `+` und `-` tragen die Information. Der Kopf nennt beide Versionen mit Zeit und die Zahl der Zeilen (`+8 -3`). Eine Löschung hat keinen Diff; die Version nach einer Löschung gilt als neu.
+- **Zeitleiste:** `t` (auf den Dateien oder im Verlauf) zeigt, **was im Projekt wann geschah**: eine Zeile je Version einer Datei, die neueste oben, mit Zeit, Zeichen (`+` hinzugefügt, `~` geändert, `✗` gelöscht), Pfad und der Änderung der Größe. Eine Datei, die nach einer Löschung wiederkommt, gilt als hinzugefügt. Rechts steht der Diff der markierten Änderung, bei einer Ergänzung der Inhalt, bei einer Löschung ein Hinweis. ++enter++ öffnet den Verlauf der Datei auf dieser Version; ++esc++ führt von dort in die Zeitleiste zurück.
+
+![Diff zweier Versionen einer Memory-Datei: hinzugefügte Zeilen grün mit +, entfernte rot mit -, je Änderung ein Block mit Kontext](../assets/screenshots/memory-diff.png)
+
+*Diff zweier Versionen einer Memory-Datei: hinzugefügte Zeilen grün mit +, entfernte rot mit -, je Änderung ein Block mit Kontext*
+
+![Zeitleiste eines Projekts: was wann hinzukam, sich änderte oder gelöscht wurde, rechts der Diff der markierten Änderung](../assets/screenshots/memory-timeline.png)
+
+*Zeitleiste eines Projekts: was wann hinzukam, sich änderte oder gelöscht wurde, rechts der Diff der markierten Änderung*
+
 ![Verlauf einer gelöschten Memory-Datei: die Löschung steht als eigene Version oben](../assets/screenshots/memory-deleted.png)
 
 *Verlauf einer gelöschten Memory-Datei: die Löschung steht als eigene Version oben*
 
-Der Zeitpunkt einer Version ist die Änderungszeit der Datei, bei einer Löschung der Zeitpunkt des Scans, der sie vermisst hat. Gesehen wird nur, was ab dem ersten Lauf nach [Migration 8](../explanation/design.md#memory) archiviert wurde; frühere Stände gibt es nicht. Blättern im Text mit `b`/`f` (++pgup++/++pgdn++) oder dem Mausrad über der rechten Spalte, die Markierung mit ++up++/++down++ oder dem Mausrad über der Liste.
+Der Zeitpunkt einer Version ist die Änderungszeit der Datei, bei einer Löschung der Zeitpunkt des Scans, der sie vermisst hat. Gesehen wird nur, was ab dem ersten Lauf nach [Migration 8](../explanation/design.md#memory) archiviert wurde; frühere Stände gibt es nicht. Der Zeitpunkt in der Zeitleiste ist der der Version. Blättern im Text mit `b`/`f` (++pgup++/++pgdn++) oder dem Mausrad über der rechten Spalte, die Markierung mit ++up++/++down++ oder dem Mausrad über der Liste.
 
 ## Statistik
 
@@ -472,7 +483,10 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | Taste | Aktion | Wirkung |
 |---|---|---|
 | ++up++ / `k`, ++down++ / `j` | `memory_up`, `memory_down` | Markierung bewegen (Dateien oder Versionen) |
-| ++enter++ | `memory_open` | Verlauf der markierten Datei |
+| ++enter++ | `memory_open` | Verlauf der markierten Datei; in der Zeitleiste der Verlauf der Datei auf der markierten Version |
+| `d` | `memory_diff` | im Verlauf: Diff statt Inhalt, ein/aus |
+| `c` | `memory_base` | im Verlauf: die markierte Version als Basis des Diffs merken oder lösen |
+| `t` | `memory_timeline` | Zeitleiste des Projekts |
 | `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | `memory_page_up`, `memory_page_down` | den Text blättern |
 | ++esc++ | `global_back` | eine Seite zurück, von den Dateien zur Suche |
 
