@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.5.0 (unveröffentlicht)
+
+### Behoben
+
+- **`doctor` meldet drei Record-Typen von Claude Code nicht mehr als unbekannt** (#229). `frame-link` (Artifact-Rahmen einer Session mit URL und Titel) bleibt als Meta-Record im Archiv. `artifact-autoreact-ledger` und `artifact-comment-monitor` sind reiner Laufzeitzustand (Merker, Zeitstempel, PID des haltenden Prozesses) und werden verworfen; Kommentartexte und Artifact-Inhalte kommen über die Events ins Archiv. Bereits archivierte Zeilen bleiben unberührt.
+
 ## v1.4.0
 
 ### Was dieses Update mit dem Archiv macht
