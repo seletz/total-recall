@@ -24,6 +24,9 @@ type Param struct {
 	Default any
 	// Max bounds an integer; a larger value is a usage error.
 	Max int
+	// Server marks an argument the server handles itself (cursor): it is
+	// in the schema but never passed to the command.
+	Server bool
 }
 
 // Tool is one read-only tool: a command of the CLI with a fixed set of
@@ -37,9 +40,12 @@ type Tool struct {
 	Params  []Param
 	// FixedFlags are always passed, e.g. "--json".
 	FixedFlags []string
-	// Paged says the result can be continued with the offset parameter
-	// (Offset names it); truncated results then carry next.offset.
-	Offset string
+	// Units lists the candidates for the paged list of the result, the
+	// natural unit to split along: the first of them that is a list in the
+	// top-level object is paged, "" is a top-level array. A tool with Units
+	// gets a cursor parameter; a result larger than the bound is then
+	// returned page by page (see paginate).
+	Units []string
 	// Narrow tells the model how to ask for less when a result was cut,
 	// e.g. "sessions:false or a smaller range".
 	Narrow string
@@ -127,6 +133,9 @@ func (t Tool) argv(raw json.RawMessage) ([]string, error) {
 	var positional []string
 	set := map[string]bool{}
 	for _, p := range t.Params {
+		if p.Server {
+			continue
+		}
 		v, ok := args[p.Name]
 		if !ok || string(v) == "null" {
 			if p.Required {
@@ -203,13 +212,10 @@ func (t Tool) argv(raw json.RawMessage) ([]string, error) {
 	return argv, nil
 }
 
-// offset returns the value of the paging argument, 0 when absent.
-func (t Tool) offset(raw json.RawMessage) int {
-	if t.Offset == "" {
-		return 0
-	}
+// cursor returns the value of the cursor argument, "" when absent.
+func (t Tool) cursor(raw json.RawMessage) string {
 	args, _ := decodeArgs(raw)
-	var n int
-	_ = json.Unmarshal(args[t.Offset], &n)
-	return n
+	var c string
+	_ = json.Unmarshal(args["cursor"], &c)
+	return c
 }

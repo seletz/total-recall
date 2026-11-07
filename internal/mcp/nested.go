@@ -138,14 +138,14 @@ func (n *node) walk(f func(*node)) {
 // cutNested shortens b, a compact JSON document, to at most max bytes when
 // it can: it drops trailing entries of nested lists, deepest tier first and
 // the largest list within a tier first, one entry at a time, then shortens
-// the longest strings. With keepTop the top-level list and the events of the
-// document are not touched (their count is what next.offset refers to).
-func cutNested(b []byte, max int, keepTop bool) ([]byte, *Hint) {
+// the longest strings. It is the last resort for a result that cannot be
+// split into pages (see paginate).
+func cutNested(b []byte, max int) ([]byte, *Hint) {
 	root := parse(b, nil, "")
 	var lists []*node
 	var strs []*node
 	root.walk(func(n *node) {
-		if n.kind == 'a' && (!keepTop || !protected(n, root)) {
+		if n.kind == 'a' {
 			lists = append(lists, n)
 		}
 	})
@@ -245,22 +245,6 @@ func max2(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// protected reports whether n is the top-level array or the events of the
-// top-level object.
-func protected(n, root *node) bool {
-	if n == root {
-		return true
-	}
-	if n.parent == root && root.kind == 'o' {
-		for i, k := range root.kids {
-			if k == n {
-				return root.keys[i] == "events"
-			}
-		}
-	}
-	return false
 }
 
 // shorten cuts the text of s by about need bytes (at least down to minString

@@ -279,7 +279,9 @@ func TestPageTotalsOnEveryPage(t *testing.T) {
 			seen++
 		}
 	}
-	var tot struct{ Raw int `json:"raw_seconds"` }
+	var tot struct {
+		Raw int `json:"raw_seconds"`
+	}
 	_ = json.Unmarshal(full.Total, &tot)
 	if seen != 31 || sum != tot.Raw {
 		t.Errorf("%d days, sum %d, total %d", seen, sum, tot.Raw)
@@ -342,17 +344,5 @@ func TestPageCursorErrors(t *testing.T) {
 				t.Errorf("isError=%v: %s", isErr, first)
 			}
 		})
-	}
-}
-
-func TestPageShowKeepsOffset(t *testing.T) {
-	s := pagedServer(eventsDoc(300), []string{"events"}, 1500)
-	s.Tools[0].Offset = "offset"
-	s.Tools[0].Params = append(s.Tools[0].Params, Param{Name: "offset", Type: "integer"})
-	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"x","arguments":{"offset":1000}}}`)
-	var h Hint
-	text := m["result"].(map[string]any)["content"].([]any)[1].(map[string]any)["text"].(string)
-	if err := json.Unmarshal([]byte(text), &h); err != nil || h.Next == nil || h.Next.Offset <= 1000 || h.Next.Cursor == "" {
-		t.Errorf("next = %+v, %v", h.Next, err)
 	}
 }
