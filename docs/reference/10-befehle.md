@@ -675,12 +675,12 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
 
 ## `chart` { #chart }
 
-Zeichnet die Grafiken eines Monatsberichts als SVG (Default) oder PNG: eine Grafik nach stdout oder mit `--out DIR` als Dateien, `all` alle vier. Rezept mit Beispielbildern: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md).
+Zeichnet die Grafiken eines Monatsberichts als SVG (Default) oder PNG: eine Grafik nach stdout oder mit `--out DIR` als Dateien, `all` alle fünf. Rezept mit Beispielbildern: [Grafiken für einen Monatsbericht](../how-to/47-monatsbericht.md).
 
 ```sh
-total-recall chart <calendar|projects|punchcard|worktime|all> [--month YYYY-MM | --since/--until | --range NAME]
+total-recall chart <calendar|projects|punchcard|worktime|workday|all> [--month YYYY-MM | --since/--until | --range NAME]
                    [--format svg|png] [--scale N | --width PX | --height PX] [--out DIR]
-                   [--no-title] [--no-legend] [--transparent] [--top N] [--lang en|de] [--title TEXT]
+                   [--no-title] [--no-legend] [--background COLOR | --transparent] [--top N] [--lang en|de] [--title TEXT]
 ```
 
 | Grafik | Inhalt | Richtwert |
@@ -689,8 +689,23 @@ total-recall chart <calendar|projects|punchcard|worktime|all> [--month YYYY-MM |
 | `projects` | je Projekt zwei horizontale Balken: Anteil an den Agenten-Events und Anteil an den eigenen Nachrichten, in Prozent des Zeitraums; die `--top` größten Projekte (Default 12 aus `[chart]`), der Rest als `other` | 610 × 370 |
 | `punchcard` | Wochentag × Stunde (7 × 24): großer heller Kreis = Agenten-Events, kleiner dunkler = eigene Nachrichten, Radius nach Wurzel des Anteils am jeweiligen Maximum | 760 × 290 |
 | `worktime` | gestapelte Balken je ISO-Woche und Kategorie aus [`--worktime`](#stats-worktime) (gerundete Zeit), Strich je Woche beim Soll: Tagessoll aus [`[work]`](20-konfiguration.md#work) × Arbeitstage der Woche im Zeitraum (Mo–Fr ohne Feiertag, bis heute) | 560 × 260 |
+| `workday` | die Arbeitstage der TUI: eine Zeile je Tag mit Wochentag und Datum, Balken von der ersten bis zur letzten Aktivität auf einer Zeitachse ab `day_start` (blau in der Kernzeit, orange davor und danach, dunkleres Orange nach Mitternacht mit `(+1)` im Text), Kernzeit als Band, Soll als gestrichelte Linie, Wochenende grau, Feiertage rot mit Namen; rechts erste und letzte Aktivität, Spanne und Abweichung vom Soll; Kopf mit Summe, Soll und Saldo. Zählweise und Grenzen wie [`stats --workday`](#stats) (`[work]`) | 720 × (60 + 17 je Tag) |
 
-Der Zeitraum ist der laufende Monat, `--month YYYY-MM`, `--since`/`--until` (ein Datum schließt den Tag ein) oder `--range today|this-week|last-week|this-month|last-month`. Gezählt wird wie bei [`stats`](#stats): eigene Nachrichten sind Events mit `actor = human`, Aufträge anderer Agenten (`peer`) und Automatisches zählen nicht; `calendar`, `projects` und `punchcard` nehmen Kalendertage ab Mitternacht, `worktime` die Tagesgrenze `day_start` wie `stats --worktime`.
+Die Beispiele zeigen jede Grafik für Oktober 2026, gerendert aus dem synthetischen Demo-Archiv (`mise run docs:charts`):
+
+![calendar](../assets/charts/2026-10-calendar.svg)
+
+![projects](../assets/charts/2026-10-projects.svg)
+
+![punchcard](../assets/charts/2026-10-punchcard.svg)
+
+![worktime](../assets/charts/2026-10-worktime.svg)
+
+![workday](../assets/charts/2026-10-workday.svg)
+
+Der Zeitraum ist der laufende Monat, `--month YYYY-MM`, `--since`/`--until` (ein Datum schließt den Tag ein) oder `--range today|this-week|last-week|this-month|last-month`. Gezählt wird wie bei [`stats`](#stats): eigene Nachrichten sind Events mit `actor = human`, Aufträge anderer Agenten (`peer`) und Automatisches zählen nicht; `calendar`, `projects` und `punchcard` nehmen Kalendertage ab Mitternacht, `worktime` und `workday` die Tagesgrenze `day_start` wie `stats --worktime` bzw. `stats --workday`.
+
+Der Hintergrund ist transparent, die Grafik passt in Notizen mit hellem und dunklem Grund; `--background #rrggbb` setzt eine Farbe, `--transparent` erzwingt keine. Jedes Element trägt seine Werte als Tooltip (`<title>`).
 
 Dateien heißen `<YYYY-MM>-<grafik>.<format>` für einen ganzen Monat, sonst `<von>_<bis>-<grafik>.<format>` mit dem ersten und letzten Tag (`2026-10-05_2026-10-11-calendar.svg`); die Pfade werden ausgegeben. `all` braucht `--out`.
 
@@ -701,7 +716,7 @@ Dateien heißen `<YYYY-MM>-<grafik>.<format>` für einen ganzen Monat, sonst `<v
 :   `--scale` multipliziert die natürliche Größe (Default aus `[chart]`: 1). `--width` oder `--height` setzen die Größe in Pixeln, die andere Seite folgt; beide zusammen bilden einen Rahmen, in dem die Grafik zentriert sitzt. Ein SVG trägt die Größe als `width`/`height`, die `viewBox` bleibt die natürliche Größe.
 
 `--no-title`, `--no-legend`, `--transparent`
-:   Überschrift (`<Grafik> · Oktober 2026`), Legende und weißer Hintergrund weg. Defaults aus `[chart]`: `title`, `legend`, `transparent`.
+:   Überschrift (`<Grafik> · Oktober 2026`) und Legende weg. Defaults aus `[chart]`: `title`, `legend`.
 
 `--lang en|de`
 :   Sprache der Beschriftungen: Titel, Legende, Achsen, Wochentage und Monatsnamen, dazu Datums- und Zahlenformat (`W41` / `KW 41`, `2026-10-05` / `05.10.2026`, `7.5h` / `7,5 h`, `other` / `Sonstige`). Die Dateinamen bleiben gleich. Default aus `[chart]`: `en`.
@@ -712,7 +727,7 @@ Dateien heißen `<YYYY-MM>-<grafik>.<format>` für einen ganzen Monat, sonst `<v
 `--top N`
 :   `projects`: die N größten Projekte, der Rest als `other`; `0` = alle. Default aus `[chart]`: 12.
 
-Farben: ein Projekt mit `color` in [`[[project]]`](20-konfiguration.md#project) behält sie, die anderen bekommen die Reihenfarben in der Reihenfolge des Volumens, `other` grau; eine Kategorie mit `color` in [`[[worktime.category]]`](20-konfiguration.md#worktime) ebenso, die anderen die freien Reihenfarben in der Reihenfolge der Regeln, Projekte ohne Regel danach alphabetisch; die Stufen des Kalenders stehen in `heatmap` von `[chart]`. Ein Fehler in `[chart]` oder in einer Farbe bricht `chart` ab, keinen anderen Befehl ([Prüfung](20-konfiguration.md#pruefung)).
+Farben: ein Projekt mit `color` in [`[[project]]`](20-konfiguration.md#project) behält sie, die anderen bekommen die Reihenfarben in der Reihenfolge des Volumens, `other` grau; eine Kategorie mit `color` in [`[[worktime.category]]`](20-konfiguration.md#worktime) ebenso, die anderen die freien Reihenfarben in der Reihenfolge der Regeln, Projekte ohne Regel danach alphabetisch; die Stufen des Kalenders stehen in `scale_orange` (oder `heatmap`), die der Arbeitstage in `scale_blue`/`scale_orange`, die Palette der Projekte in `palette` von `[chart]`. Ein Fehler in `[chart]` oder in einer Farbe bricht `chart` ab, keinen anderen Befehl ([Prüfung](20-konfiguration.md#pruefung)).
 
 ## `tui` { #tui }
 

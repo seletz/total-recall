@@ -16,6 +16,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"image/color"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/seletz/total-recall/internal/canvas"
 	"github.com/seletz/total-recall/internal/figure"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/tui/keys"
@@ -270,14 +272,29 @@ type Chart struct {
 	// --no-legend switch them off for one run).
 	Title  bool `toml:"title"`
 	Legend bool `toml:"legend"`
-	// Transparent leaves the white background out (--transparent).
+	// Background is "transparent" (the default: the page shows through)
+	// or a #rrggbb colour (--background).
+	Background string `toml:"background"`
+	// Transparent forces the transparent background (--transparent); it
+	// is the short form of background = "transparent", kept for old files.
 	Transparent bool `toml:"transparent"`
+	// Text is the colour of titles, labels and values, a mid grey that
+	// reads on light and dark pages.
+	Text string `toml:"text"`
 	// Top is how many projects the project chart shows; the rest is
 	// folded into "other" (--top, 0 = all).
 	Top int `toml:"top"`
 	// Heatmap is the colour scale of the calendar, light to dark: names
-	// of project.Palette or #rrggbb values, one per level.
+	// of project.Palette or #rrggbb values, one per level. Empty takes
+	// ScaleOrange.
 	Heatmap []string `toml:"heatmap"`
+	// ScaleOrange and ScaleBlue are the stepped scales from light to dark
+	// (the heatmaps, the segments of the working days); Palette is the
+	// categorical palette of projects and categories without a colour of
+	// their own. Names of project.Palette or #rrggbb values.
+	ScaleOrange []string `toml:"scale_orange"`
+	ScaleBlue   []string `toml:"scale_blue"`
+	Palette     []string `toml:"palette"`
 	// Lang is the language of the labels: en or de (--lang).
 	Lang string `toml:"lang"`
 }
@@ -288,6 +305,8 @@ const (
 	DefaultChartScale  = 1.0
 	DefaultChartTop    = 12
 	DefaultChartLang   = string(figure.EN)
+	// DefaultChartBackground is the transparent background.
+	DefaultChartBackground = "transparent"
 )
 
 // ChartFormats are the allowed values of [chart] format.
@@ -299,16 +318,19 @@ var ChartLangs = figure.Langs
 // ChartSettings is the validated [chart] table with the category colours
 // of [[worktime.category]], as `total-recall chart` uses them.
 type ChartSettings struct {
-	Format      string
-	Scale       float64
-	Title       bool
-	Legend      bool
-	Transparent bool
-	Top         int
+	Format string
+	Scale  float64
+	Title  bool
+	Legend bool
+	Top    int
+	// Theme holds the background (transparent unless configured), the
+	// text colour, the stepped scales and the categorical palette.
+	Theme figure.Theme
 	// Lang is the language of the labels.
 	Lang figure.Lang
-	// Heatmap holds the colours of the calendar scale as #rrggbb.
-	Heatmap []string
+	// Heatmap holds the colours of the calendar scale; empty takes
+	// Theme.Orange.
+	Heatmap []color.NRGBA
 	// CategoryColors maps a category name to its colour as #rrggbb;
 	// categories without a colour are absent.
 	CategoryColors map[string]string
@@ -520,9 +542,14 @@ var fields = []struct {
 	{"chart.scale", func(c *Config) string { return strconv.FormatFloat(c.Chart.Scale, 'f', -1, 64) }},
 	{"chart.title", func(c *Config) string { return strconv.FormatBool(c.Chart.Title) }},
 	{"chart.legend", func(c *Config) string { return strconv.FormatBool(c.Chart.Legend) }},
+	{"chart.background", func(c *Config) string { return c.Chart.Background }},
 	{"chart.transparent", func(c *Config) string { return strconv.FormatBool(c.Chart.Transparent) }},
+	{"chart.text", func(c *Config) string { return c.Chart.Text }},
 	{"chart.top", func(c *Config) string { return strconv.Itoa(c.Chart.Top) }},
 	{"chart.heatmap", func(c *Config) string { return formatList(c.Chart.Heatmap) }},
+	{"chart.scale_orange", func(c *Config) string { return formatList(c.Chart.ScaleOrange) }},
+	{"chart.scale_blue", func(c *Config) string { return formatList(c.Chart.ScaleBlue) }},
+	{"chart.palette", func(c *Config) string { return formatList(c.Chart.Palette) }},
 	{"chart.lang", func(c *Config) string { return c.Chart.Lang }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
 	{"project", func(c *Config) string { return formatProjects(c.Projects) }},
@@ -616,7 +643,9 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
 	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{DefaultReload}}
-	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Heatmap: slices.Clone(figure.DefaultHeatmap), Lang: DefaultChartLang}
+	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Lang: DefaultChartLang,
+		Background: DefaultChartBackground, Text: figure.DefaultText, Heatmap: []string{},
+		ScaleOrange: slices.Clone(figure.DefaultOrange), ScaleBlue: slices.Clone(figure.DefaultBlue), Palette: slices.Clone(figure.DefaultPalette)}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
 	c.Projects = []Project{}
@@ -941,7 +970,7 @@ func (c *Config) ValidateTUI() error {
 // bad value; commands that draw no charts never see it.
 func (c *Config) ChartSettings() (ChartSettings, error) {
 	ch := c.Chart
-	s := ChartSettings{Format: ch.Format, Scale: ch.Scale, Title: ch.Title, Legend: ch.Legend, Transparent: ch.Transparent, Top: ch.Top, CategoryColors: map[string]string{}}
+	s := ChartSettings{Format: ch.Format, Scale: ch.Scale, Title: ch.Title, Legend: ch.Legend, Top: ch.Top, CategoryColors: map[string]string{}}
 	if !slices.Contains(ChartFormats, ch.Format) {
 		return s, fmt.Errorf("config: chart.format %q: use %s", ch.Format, orList(ChartFormats))
 	}
@@ -956,15 +985,42 @@ func (c *Config) ChartSettings() (ChartSettings, error) {
 		return s, fmt.Errorf("config: chart.lang %q: use %s", ch.Lang, orList(ChartLangs))
 	}
 	s.Lang = lang
-	if len(ch.Heatmap) == 0 {
-		return s, fmt.Errorf("config: chart.heatmap: want at least one colour")
-	}
-	for i, h := range ch.Heatmap {
-		p, err := project.ParseColor(h)
+	// An unset background is transparent, like the transparent switch.
+	if bg := strings.TrimSpace(ch.Background); bg != "" && !strings.EqualFold(bg, "transparent") && !ch.Transparent {
+		p, err := project.ParseColor(bg)
 		if err != nil || p == "" {
-			return s, fmt.Errorf("config: chart.heatmap[%d]: %s", i, colorError(h, err))
+			return s, fmt.Errorf("config: chart.background: %s", bgError(bg, err))
 		}
-		s.Heatmap = append(s.Heatmap, p)
+		s.Theme.Background = canvas.Hex(p)
+	}
+	if ch.Text != "" {
+		p, err := project.ParseColor(ch.Text)
+		if err != nil {
+			return s, fmt.Errorf("config: chart.text: %w", err)
+		}
+		s.Theme.Text = canvas.Hex(p)
+	}
+	for _, l := range []struct {
+		name string
+		in   []string
+		out  *[]color.NRGBA
+		min  int
+	}{
+		{"heatmap", ch.Heatmap, &s.Heatmap, 0},
+		{"scale_orange", ch.ScaleOrange, &s.Theme.Orange, 2},
+		{"scale_blue", ch.ScaleBlue, &s.Theme.Blue, 2},
+		{"palette", ch.Palette, &s.Theme.Palette, 1},
+	} {
+		if len(l.in) < l.min {
+			return s, fmt.Errorf("config: chart.%s: want at least %d colour%s", l.name, l.min, map[bool]string{true: "s", false: ""}[l.min > 1])
+		}
+		for i, h := range l.in {
+			p, err := project.ParseColor(h)
+			if err != nil || p == "" {
+				return s, fmt.Errorf("config: chart.%s[%d]: %s", l.name, i, colorError(h, err))
+			}
+			*l.out = append(*l.out, canvas.Hex(p))
+		}
 	}
 	for i, cat := range c.Worktime.Categories {
 		p, err := project.ParseColor(cat.Color)
@@ -976,6 +1032,14 @@ func (c *Config) ChartSettings() (ChartSettings, error) {
 		}
 	}
 	return s, nil
+}
+
+// bgError words the error of a bad chart background.
+func bgError(s string, err error) string {
+	if err != nil {
+		return err.Error() + `, or "transparent"`
+	}
+	return fmt.Sprintf("color %q: want transparent or a colour", s)
 }
 
 // colorError words the error of an empty or bad colour.

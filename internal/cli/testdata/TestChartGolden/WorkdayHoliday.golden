@@ -1,0 +1,267 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="690" height="594" viewBox="0 0 690 594" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<text x="0" y="14" font-size="14" font-weight="600" fill="#8b8b8b">Working days · June 2026</text>
+<text x="0" y="32" font-size="11" fill="#8b8b8b">220h38m in 23 days · target 168h00m (21 workdays × 8h00m) · balance +52h38m</text>
+<text x="66" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">4</text>
+<text x="100" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">6</text>
+<text x="134" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">8</text>
+<text x="168" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">10</text>
+<text x="202" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">12</text>
+<text x="236" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">14</text>
+<text x="270" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">16</text>
+<text x="304" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">18</text>
+<text x="338" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">20</text>
+<text x="372" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">22</text>
+<text x="406" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">0</text>
+<text x="440" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">2</text>
+<line x1="66" y1="56" x2="66" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="100" y1="56" x2="100" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="134" y1="56" x2="134" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="168" y1="56" x2="168" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="202" y1="56" x2="202" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="236" y1="56" x2="236" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="270" y1="56" x2="270" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="304" y1="56" x2="304" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="338" y1="56" x2="338" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="372" y1="56" x2="372" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="406" y1="56" x2="406" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="440" y1="56" x2="440" y2="566" stroke="#7f7f7f" stroke-width="1" stroke-opacity="0.3"/>
+<line x1="406" y1="56" x2="406" y2="566" stroke="#8b8b8b" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="151" y="57" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="68" font-size="11" fill="#8b8b8b">Mon 06-01</text>
+<rect x="148.73" y="60" width="2.27" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-01: 08:52 – 17:35, 8h43m, +0h43m</title></rect>
+<rect x="151" y="60" width="136" height="9" rx="2" fill="#3b73b0"><title>Mon 06-01: 08:52 – 17:35, 8h43m, +0h43m</title></rect>
+<rect x="287" y="60" width="9.92" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-01: 08:52 – 17:35, 8h43m, +0h43m</title></rect>
+<line x1="148.73" y1="71" x2="284.73" y2="71" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="68" font-size="10" text-anchor="end" fill="#8b8b8b">08:52</text>
+<text x="584" y="68" font-size="10" text-anchor="end" fill="#8b8b8b">17:35</text>
+<text x="634" y="68" font-size="10" text-anchor="end" fill="#8b8b8b">8h43m</text>
+<text x="690" y="68" font-size="10" text-anchor="end" fill="#8b8b8b">+0h43m</text>
+<rect x="151" y="74" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="85" font-size="11" fill="#8b8b8b">Tue 06-02</text>
+<rect x="153.83" y="77" width="133.17" height="9" rx="2" fill="#3b73b0"><title>Tue 06-02: 09:10 – 00:45 (+1), 15h35m, +7h35m</title></rect>
+<rect x="287" y="77" width="119" height="9" rx="2" fill="#ee9a5f"><title>Tue 06-02: 09:10 – 00:45 (+1), 15h35m, +7h35m</title></rect>
+<rect x="406" y="77" width="12.75" height="9" rx="2" fill="#d9733a"><title>Tue 06-02: 09:10 – 00:45 (+1), 15h35m, +7h35m</title></rect>
+<line x1="153.83" y1="88" x2="289.83" y2="88" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="85" font-size="10" text-anchor="end" fill="#8b8b8b">09:10</text>
+<text x="584" y="85" font-size="10" text-anchor="end" fill="#8b8b8b">00:45 (+1)</text>
+<text x="634" y="85" font-size="10" text-anchor="end" fill="#8b8b8b">15h35m</text>
+<text x="690" y="85" font-size="10" text-anchor="end" fill="#8b8b8b">+7h35m</text>
+<rect x="151" y="91" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="102" font-size="11" fill="#8b8b8b">Wed 06-03</text>
+<rect x="142.5" y="94" width="8.5" height="9" rx="2" fill="#ee9a5f"><title>Wed 06-03: 08:30 – 16:05, 7h35m, -0h25m</title></rect>
+<rect x="151" y="94" width="120.42" height="9" rx="2" fill="#3b73b0"><title>Wed 06-03: 08:30 – 16:05, 7h35m, -0h25m</title></rect>
+<line x1="142.5" y1="105" x2="278.5" y2="105" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="102" font-size="10" text-anchor="end" fill="#8b8b8b">08:30</text>
+<text x="584" y="102" font-size="10" text-anchor="end" fill="#8b8b8b">16:05</text>
+<text x="634" y="102" font-size="10" text-anchor="end" fill="#8b8b8b">7h35m</text>
+<text x="690" y="102" font-size="10" text-anchor="end" fill="#8b8b8b">-0h25m</text>
+<rect x="66" y="108" width="408" height="15" rx="2" fill="#e15759" fill-opacity="0.12"/>
+<text x="0" y="119" font-size="11" fill="#8b8b8b">Thu 06-04</text>
+<rect x="278.5" y="111" width="19.83" height="9" rx="2" fill="#e15759"><title>Thu 06-04: 16:30 – 17:40, 1h10m, +1h10m (Fronleichnam)</title></rect>
+<text x="304.33" y="119" font-size="10" fill="#e15759">Fronleichnam</text>
+<text x="520" y="119" font-size="10" text-anchor="end" fill="#8b8b8b">16:30</text>
+<text x="584" y="119" font-size="10" text-anchor="end" fill="#8b8b8b">17:40</text>
+<text x="634" y="119" font-size="10" text-anchor="end" fill="#8b8b8b">1h10m</text>
+<text x="690" y="119" font-size="10" text-anchor="end" fill="#8b8b8b">+1h10m</text>
+<rect x="151" y="125" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="136" font-size="11" fill="#8b8b8b">Fri 06-05</text>
+<rect x="159.5" y="128" width="63.75" height="9" rx="2" fill="#3b73b0"><title>Fri 06-05: 09:30 – 13:15, 3h45m, -4h15m</title></rect>
+<line x1="159.5" y1="139" x2="295.5" y2="139" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="136" font-size="10" text-anchor="end" fill="#8b8b8b">09:30</text>
+<text x="584" y="136" font-size="10" text-anchor="end" fill="#8b8b8b">13:15</text>
+<text x="634" y="136" font-size="10" text-anchor="end" fill="#8b8b8b">3h45m</text>
+<text x="690" y="136" font-size="10" text-anchor="end" fill="#8b8b8b">-4h15m</text>
+<rect x="66" y="142" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="153" font-size="11" fill="#8b8b8b">Sat 06-06</text>
+<rect x="172.25" y="145" width="41.08" height="9" rx="2" fill="#8b8b8b" fill-opacity="0.55"><title>Sat 06-06: 10:15 – 12:40, 2h25m, +2h25m</title></rect>
+<text x="520" y="153" font-size="10" text-anchor="end" fill="#8b8b8b">10:15</text>
+<text x="584" y="153" font-size="10" text-anchor="end" fill="#8b8b8b">12:40</text>
+<text x="634" y="153" font-size="10" text-anchor="end" fill="#8b8b8b">2h25m</text>
+<text x="690" y="153" font-size="10" text-anchor="end" fill="#8b8b8b">+2h25m</text>
+<rect x="66" y="159" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="170" font-size="11" fill="#8b8b8b">Sun 06-07</text>
+<rect x="151" y="176" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="187" font-size="11" fill="#8b8b8b">Mon 06-08</text>
+<rect x="156.1" y="179" width="130.9" height="9" rx="2" fill="#3b73b0"><title>Mon 06-08: 09:18 – 21:43, 12h25m, +4h25m</title></rect>
+<rect x="287" y="179" width="80.18" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-08: 09:18 – 21:43, 12h25m, +4h25m</title></rect>
+<line x1="156.1" y1="190" x2="292.1" y2="190" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="187" font-size="10" text-anchor="end" fill="#8b8b8b">09:18</text>
+<text x="584" y="187" font-size="10" text-anchor="end" fill="#8b8b8b">21:43</text>
+<text x="634" y="187" font-size="10" text-anchor="end" fill="#8b8b8b">12h25m</text>
+<text x="690" y="187" font-size="10" text-anchor="end" fill="#8b8b8b">+4h25m</text>
+<rect x="151" y="193" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="204" font-size="11" fill="#8b8b8b">Tue 06-09</text>
+<rect x="157.52" y="196" width="125.52" height="9" rx="2" fill="#3b73b0"><title>Tue 06-09: 09:23 – 16:46, 7h23m, -0h37m</title></rect>
+<line x1="157.52" y1="207" x2="293.52" y2="207" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="204" font-size="10" text-anchor="end" fill="#8b8b8b">09:23</text>
+<text x="584" y="204" font-size="10" text-anchor="end" fill="#8b8b8b">16:46</text>
+<text x="634" y="204" font-size="10" text-anchor="end" fill="#8b8b8b">7h23m</text>
+<text x="690" y="204" font-size="10" text-anchor="end" fill="#8b8b8b">-0h37m</text>
+<rect x="151" y="210" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="221" font-size="11" fill="#8b8b8b">Wed 06-10</text>
+<rect x="163.47" y="213" width="123.53" height="9" rx="2" fill="#3b73b0"><title>Wed 06-10: 09:44 – 17:29, 7h45m, -0h15m</title></rect>
+<rect x="287" y="213" width="8.22" height="9" rx="2" fill="#ee9a5f"><title>Wed 06-10: 09:44 – 17:29, 7h45m, -0h15m</title></rect>
+<line x1="163.47" y1="224" x2="299.47" y2="224" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="221" font-size="10" text-anchor="end" fill="#8b8b8b">09:44</text>
+<text x="584" y="221" font-size="10" text-anchor="end" fill="#8b8b8b">17:29</text>
+<text x="634" y="221" font-size="10" text-anchor="end" fill="#8b8b8b">7h45m</text>
+<text x="690" y="221" font-size="10" text-anchor="end" fill="#8b8b8b">-0h15m</text>
+<rect x="151" y="227" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="238" font-size="11" fill="#8b8b8b">Thu 06-11</text>
+<rect x="143.35" y="230" width="7.65" height="9" rx="2" fill="#ee9a5f"><title>Thu 06-11: 08:33 – 17:59, 9h26m, +1h26m</title></rect>
+<rect x="151" y="230" width="136" height="9" rx="2" fill="#3b73b0"><title>Thu 06-11: 08:33 – 17:59, 9h26m, +1h26m</title></rect>
+<rect x="287" y="230" width="16.72" height="9" rx="2" fill="#ee9a5f"><title>Thu 06-11: 08:33 – 17:59, 9h26m, +1h26m</title></rect>
+<line x1="143.35" y1="241" x2="279.35" y2="241" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="238" font-size="10" text-anchor="end" fill="#8b8b8b">08:33</text>
+<text x="584" y="238" font-size="10" text-anchor="end" fill="#8b8b8b">17:59</text>
+<text x="634" y="238" font-size="10" text-anchor="end" fill="#8b8b8b">9h26m</text>
+<text x="690" y="238" font-size="10" text-anchor="end" fill="#8b8b8b">+1h26m</text>
+<rect x="151" y="244" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="255" font-size="11" fill="#8b8b8b">Fri 06-12</text>
+<rect x="145.05" y="247" width="5.95" height="9" rx="2" fill="#ee9a5f"><title>Fri 06-12: 08:39 – 01:15 (+1), 16h36m, +8h36m</title></rect>
+<rect x="151" y="247" width="136" height="9" rx="2" fill="#3b73b0"><title>Fri 06-12: 08:39 – 01:15 (+1), 16h36m, +8h36m</title></rect>
+<rect x="287" y="247" width="119" height="9" rx="2" fill="#ee9a5f"><title>Fri 06-12: 08:39 – 01:15 (+1), 16h36m, +8h36m</title></rect>
+<rect x="406" y="247" width="21.25" height="9" rx="2" fill="#d9733a"><title>Fri 06-12: 08:39 – 01:15 (+1), 16h36m, +8h36m</title></rect>
+<line x1="145.05" y1="258" x2="281.05" y2="258" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="255" font-size="10" text-anchor="end" fill="#8b8b8b">08:39</text>
+<text x="584" y="255" font-size="10" text-anchor="end" fill="#8b8b8b">01:15 (+1)</text>
+<text x="634" y="255" font-size="10" text-anchor="end" fill="#8b8b8b">16h36m</text>
+<text x="690" y="255" font-size="10" text-anchor="end" fill="#8b8b8b">+8h36m</text>
+<rect x="66" y="261" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="272" font-size="11" fill="#8b8b8b">Sat 06-13</text>
+<rect x="66" y="278" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="289" font-size="11" fill="#8b8b8b">Sun 06-14</text>
+<rect x="151" y="295" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="306" font-size="11" fill="#8b8b8b">Mon 06-15</text>
+<rect x="144.48" y="298" width="6.52" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-15: 08:37 – 22:00, 13h23m, +5h23m</title></rect>
+<rect x="151" y="298" width="136" height="9" rx="2" fill="#3b73b0"><title>Mon 06-15: 08:37 – 22:00, 13h23m, +5h23m</title></rect>
+<rect x="287" y="298" width="85" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-15: 08:37 – 22:00, 13h23m, +5h23m</title></rect>
+<line x1="144.48" y1="309" x2="280.48" y2="309" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="306" font-size="10" text-anchor="end" fill="#8b8b8b">08:37</text>
+<text x="584" y="306" font-size="10" text-anchor="end" fill="#8b8b8b">22:00</text>
+<text x="634" y="306" font-size="10" text-anchor="end" fill="#8b8b8b">13h23m</text>
+<text x="690" y="306" font-size="10" text-anchor="end" fill="#8b8b8b">+5h23m</text>
+<rect x="151" y="312" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="323" font-size="11" fill="#8b8b8b">Tue 06-16</text>
+<rect x="152.13" y="315" width="134.87" height="9" rx="2" fill="#3b73b0"><title>Tue 06-16: 09:04 – 01:33 (+1), 16h29m, +8h29m</title></rect>
+<rect x="287" y="315" width="119" height="9" rx="2" fill="#ee9a5f"><title>Tue 06-16: 09:04 – 01:33 (+1), 16h29m, +8h29m</title></rect>
+<rect x="406" y="315" width="26.35" height="9" rx="2" fill="#d9733a"><title>Tue 06-16: 09:04 – 01:33 (+1), 16h29m, +8h29m</title></rect>
+<line x1="152.13" y1="326" x2="288.13" y2="326" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="323" font-size="10" text-anchor="end" fill="#8b8b8b">09:04</text>
+<text x="584" y="323" font-size="10" text-anchor="end" fill="#8b8b8b">01:33 (+1)</text>
+<text x="634" y="323" font-size="10" text-anchor="end" fill="#8b8b8b">16h29m</text>
+<text x="690" y="323" font-size="10" text-anchor="end" fill="#8b8b8b">+8h29m</text>
+<rect x="151" y="329" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="340" font-size="11" fill="#8b8b8b">Wed 06-17</text>
+<rect x="162.9" y="332" width="124.1" height="9" rx="2" fill="#3b73b0"><title>Wed 06-17: 09:42 – 17:22, 7h40m, -0h20m</title></rect>
+<rect x="287" y="332" width="6.23" height="9" rx="2" fill="#ee9a5f"><title>Wed 06-17: 09:42 – 17:22, 7h40m, -0h20m</title></rect>
+<line x1="162.9" y1="343" x2="298.9" y2="343" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="340" font-size="10" text-anchor="end" fill="#8b8b8b">09:42</text>
+<text x="584" y="340" font-size="10" text-anchor="end" fill="#8b8b8b">17:22</text>
+<text x="634" y="340" font-size="10" text-anchor="end" fill="#8b8b8b">7h40m</text>
+<text x="690" y="340" font-size="10" text-anchor="end" fill="#8b8b8b">-0h20m</text>
+<rect x="151" y="346" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="357" font-size="11" fill="#8b8b8b">Thu 06-18</text>
+<rect x="164.6" y="349" width="122.4" height="9" rx="2" fill="#3b73b0"><title>Thu 06-18: 09:48 – 18:12, 8h24m, +0h24m</title></rect>
+<rect x="287" y="349" width="20.4" height="9" rx="2" fill="#ee9a5f"><title>Thu 06-18: 09:48 – 18:12, 8h24m, +0h24m</title></rect>
+<line x1="164.6" y1="360" x2="300.6" y2="360" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="357" font-size="10" text-anchor="end" fill="#8b8b8b">09:48</text>
+<text x="584" y="357" font-size="10" text-anchor="end" fill="#8b8b8b">18:12</text>
+<text x="634" y="357" font-size="10" text-anchor="end" fill="#8b8b8b">8h24m</text>
+<text x="690" y="357" font-size="10" text-anchor="end" fill="#8b8b8b">+0h24m</text>
+<rect x="151" y="363" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="374" font-size="11" fill="#8b8b8b">Fri 06-19</text>
+<rect x="163.18" y="366" width="123.82" height="9" rx="2" fill="#3b73b0"><title>Fri 06-19: 09:43 – 01:52 (+1), 16h09m, +8h09m</title></rect>
+<rect x="287" y="366" width="119" height="9" rx="2" fill="#ee9a5f"><title>Fri 06-19: 09:43 – 01:52 (+1), 16h09m, +8h09m</title></rect>
+<rect x="406" y="366" width="31.73" height="9" rx="2" fill="#d9733a"><title>Fri 06-19: 09:43 – 01:52 (+1), 16h09m, +8h09m</title></rect>
+<line x1="163.18" y1="377" x2="299.18" y2="377" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="374" font-size="10" text-anchor="end" fill="#8b8b8b">09:43</text>
+<text x="584" y="374" font-size="10" text-anchor="end" fill="#8b8b8b">01:52 (+1)</text>
+<text x="634" y="374" font-size="10" text-anchor="end" fill="#8b8b8b">16h09m</text>
+<text x="690" y="374" font-size="10" text-anchor="end" fill="#8b8b8b">+8h09m</text>
+<rect x="66" y="380" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="391" font-size="11" fill="#8b8b8b">Sat 06-20</text>
+<rect x="66" y="397" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="408" font-size="11" fill="#8b8b8b">Sun 06-21</text>
+<rect x="151" y="414" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="425" font-size="11" fill="#8b8b8b">Mon 06-22</text>
+<rect x="149.87" y="417" width="2" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-22: 08:56 – 16:52, 7h56m, -0h04m</title></rect>
+<rect x="151" y="417" width="133.73" height="9" rx="2" fill="#3b73b0"><title>Mon 06-22: 08:56 – 16:52, 7h56m, -0h04m</title></rect>
+<line x1="149.87" y1="428" x2="285.87" y2="428" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="425" font-size="10" text-anchor="end" fill="#8b8b8b">08:56</text>
+<text x="584" y="425" font-size="10" text-anchor="end" fill="#8b8b8b">16:52</text>
+<text x="634" y="425" font-size="10" text-anchor="end" fill="#8b8b8b">7h56m</text>
+<text x="690" y="425" font-size="10" text-anchor="end" fill="#8b8b8b">-0h04m</text>
+<rect x="151" y="431" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="442" font-size="11" fill="#8b8b8b">Tue 06-23</text>
+<rect x="149.58" y="434" width="2" height="9" rx="2" fill="#ee9a5f"><title>Tue 06-23: 08:55 – 17:12, 8h17m, +0h17m</title></rect>
+<rect x="151" y="434" width="136" height="9" rx="2" fill="#3b73b0"><title>Tue 06-23: 08:55 – 17:12, 8h17m, +0h17m</title></rect>
+<rect x="287" y="434" width="3.4" height="9" rx="2" fill="#ee9a5f"><title>Tue 06-23: 08:55 – 17:12, 8h17m, +0h17m</title></rect>
+<line x1="149.58" y1="445" x2="285.58" y2="445" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="442" font-size="10" text-anchor="end" fill="#8b8b8b">08:55</text>
+<text x="584" y="442" font-size="10" text-anchor="end" fill="#8b8b8b">17:12</text>
+<text x="634" y="442" font-size="10" text-anchor="end" fill="#8b8b8b">8h17m</text>
+<text x="690" y="442" font-size="10" text-anchor="end" fill="#8b8b8b">+0h17m</text>
+<rect x="151" y="448" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="459" font-size="11" fill="#8b8b8b">Wed 06-24</text>
+<rect x="163.18" y="451" width="120.98" height="9" rx="2" fill="#3b73b0"><title>Wed 06-24: 09:43 – 16:50, 7h07m, -0h53m</title></rect>
+<line x1="163.18" y1="462" x2="299.18" y2="462" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="459" font-size="10" text-anchor="end" fill="#8b8b8b">09:43</text>
+<text x="584" y="459" font-size="10" text-anchor="end" fill="#8b8b8b">16:50</text>
+<text x="634" y="459" font-size="10" text-anchor="end" fill="#8b8b8b">7h07m</text>
+<text x="690" y="459" font-size="10" text-anchor="end" fill="#8b8b8b">-0h53m</text>
+<rect x="151" y="465" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="476" font-size="11" fill="#8b8b8b">Thu 06-25</text>
+<rect x="143.92" y="468" width="7.08" height="9" rx="2" fill="#ee9a5f"><title>Thu 06-25: 08:35 – 21:45, 13h10m, +5h10m</title></rect>
+<rect x="151" y="468" width="136" height="9" rx="2" fill="#3b73b0"><title>Thu 06-25: 08:35 – 21:45, 13h10m, +5h10m</title></rect>
+<rect x="287" y="468" width="80.75" height="9" rx="2" fill="#ee9a5f"><title>Thu 06-25: 08:35 – 21:45, 13h10m, +5h10m</title></rect>
+<line x1="143.92" y1="479" x2="279.92" y2="479" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">08:35</text>
+<text x="584" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">21:45</text>
+<text x="634" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">13h10m</text>
+<text x="690" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">+5h10m</text>
+<rect x="151" y="482" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="493" font-size="11" fill="#8b8b8b">Fri 06-26</text>
+<rect x="160.07" y="485" width="121.55" height="9" rx="2" fill="#3b73b0"><title>Fri 06-26: 09:32 – 16:41, 7h09m, -0h51m</title></rect>
+<line x1="160.07" y1="496" x2="296.07" y2="496" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="493" font-size="10" text-anchor="end" fill="#8b8b8b">09:32</text>
+<text x="584" y="493" font-size="10" text-anchor="end" fill="#8b8b8b">16:41</text>
+<text x="634" y="493" font-size="10" text-anchor="end" fill="#8b8b8b">7h09m</text>
+<text x="690" y="493" font-size="10" text-anchor="end" fill="#8b8b8b">-0h51m</text>
+<rect x="66" y="499" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="510" font-size="11" fill="#8b8b8b">Sat 06-27</text>
+<rect x="66" y="516" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
+<text x="0" y="527" font-size="11" fill="#8b8b8b">Sun 06-28</text>
+<rect x="151" y="533" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="544" font-size="11" fill="#8b8b8b">Mon 06-29</text>
+<rect x="139.38" y="536" width="11.62" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-29: 08:19 – 21:53, 13h34m, +5h34m</title></rect>
+<rect x="151" y="536" width="136" height="9" rx="2" fill="#3b73b0"><title>Mon 06-29: 08:19 – 21:53, 13h34m, +5h34m</title></rect>
+<rect x="287" y="536" width="83.02" height="9" rx="2" fill="#ee9a5f"><title>Mon 06-29: 08:19 – 21:53, 13h34m, +5h34m</title></rect>
+<line x1="139.38" y1="547" x2="275.38" y2="547" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="544" font-size="10" text-anchor="end" fill="#8b8b8b">08:19</text>
+<text x="584" y="544" font-size="10" text-anchor="end" fill="#8b8b8b">21:53</text>
+<text x="634" y="544" font-size="10" text-anchor="end" fill="#8b8b8b">13h34m</text>
+<text x="690" y="544" font-size="10" text-anchor="end" fill="#8b8b8b">+5h34m</text>
+<rect x="151" y="550" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
+<text x="0" y="561" font-size="11" fill="#8b8b8b">Tue 06-30</text>
+<rect x="142.78" y="553" width="8.22" height="9" rx="2" fill="#ee9a5f"><title>Tue 06-30: 08:31 – 17:03, 8h32m, +0h32m</title></rect>
+<rect x="151" y="553" width="136" height="9" rx="2" fill="#3b73b0"><title>Tue 06-30: 08:31 – 17:03, 8h32m, +0h32m</title></rect>
+<rect x="287" y="553" width="2" height="9" rx="2" fill="#ee9a5f"><title>Tue 06-30: 08:31 – 17:03, 8h32m, +0h32m</title></rect>
+<line x1="142.78" y1="564" x2="278.78" y2="564" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="520" y="561" font-size="10" text-anchor="end" fill="#8b8b8b">08:31</text>
+<text x="584" y="561" font-size="10" text-anchor="end" fill="#8b8b8b">17:03</text>
+<text x="634" y="561" font-size="10" text-anchor="end" fill="#8b8b8b">8h32m</text>
+<text x="690" y="561" font-size="10" text-anchor="end" fill="#8b8b8b">+0h32m</text>
+<rect x="0" y="580" width="12" height="9" rx="2" fill="#3b73b0"/>
+<text x="17" y="589" font-size="11" fill="#8b8b8b">core hours</text>
+<rect x="93" y="580" width="12" height="9" rx="2" fill="#ee9a5f"/>
+<text x="110" y="589" font-size="11" fill="#8b8b8b">outside the core hours</text>
+<rect x="260.4" y="580" width="12" height="9" rx="2" fill="#d9733a"/>
+<text x="277.4" y="589" font-size="11" fill="#8b8b8b">after midnight (+1)</text>
+<rect x="409.2" y="580" width="12" height="9" rx="2" fill="#8b8b8b" fill-opacity="0.55"/>
+<text x="426.2" y="589" font-size="11" fill="#8b8b8b">weekend</text>
+<rect x="483.6" y="580" width="12" height="9" rx="2" fill="#e15759"/>
+<text x="500.6" y="589" font-size="11" fill="#8b8b8b">public holiday</text>
+<line x1="601.4" y1="585" x2="615.4" y2="585" stroke="#8b8b8b" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="620.4" y="589" font-size="11" fill="#8b8b8b">target span</text>
+</svg>

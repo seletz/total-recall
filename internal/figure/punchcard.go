@@ -19,9 +19,10 @@ type PunchcardData struct {
 // its own maximum, the hours below and a legend. About 760×290.
 func Punchcard(d PunchcardData, o Options) canvas.Scene {
 	const cw, rh, left = 30.0, 30.0, 30.0
-	s := canvas.Scene{Background: background(o)}
+	th := o.theme()
+	s := canvas.Scene{Background: th.Background}
 	tx := o.Lang.text()
-	top := heading(&s, o, tx.punchcardTitle) + 18
+	top := heading(&s, o, tx.punchcardTitle) + 16
 	mh, ma := 1, 1
 	for i := range 7 {
 		for h := range 24 {
@@ -31,32 +32,32 @@ func Punchcard(d PunchcardData, o Options) canvas.Scene {
 	}
 	for i, wd := range tx.weekdays {
 		y := top + float64(i)*rh
-		s.Add(label(0, y+4, wd[:2], canvas.Start))
-		s.Add(canvas.Line{X1: left, Y1: y, X2: left + 24*cw, Y2: y, Stroke: EmptyColor})
+		s.Add(label(th, 0, y+4, wd[:2], canvas.Start))
+		s.Add(canvas.Line{X1: left, Y1: y, X2: left + 24*cw, Y2: y, Stroke: gridColor})
 		for h := range 24 {
 			cx := left + float64(h)*cw + cw/2
 			if a := d.Agent[i][h]; a > 0 {
-				s.Add(canvas.Circle{CX: cx, CY: y, R: 2 + 12*math.Sqrt(float64(a)/float64(ma)), Fill: canvas.Alpha(AgentColor, 0.45),
+				s.Add(canvas.Circle{CX: cx, CY: y, R: 2 + 12*math.Sqrt(float64(a)/float64(ma)), Fill: canvas.Alpha(th.agent(), 0.45),
 					Title: fmt.Sprintf("%s %02d–%02d: %d %s", wd, h, h+1, a, tx.agentEvents)})
 			}
 			if v := d.Human[i][h]; v > 0 {
-				s.Add(canvas.Circle{CX: cx, CY: y, R: 1.5 + 8*math.Sqrt(float64(v)/float64(mh)), Fill: HumanColor,
+				s.Add(canvas.Circle{CX: cx, CY: y, R: 1.5 + 8*math.Sqrt(float64(v)/float64(mh)), Fill: th.human(),
 					Title: fmt.Sprintf("%s %02d–%02d: %d %s", wd, h, h+1, v, tx.ownMessages)})
 			}
 		}
 	}
 	y := top + 7*rh - 10
 	for h := range 24 {
-		s.Add(label(left+float64(h)*cw+cw/2, y, itoa(h), canvas.Middle))
+		s.Add(label(th, left+float64(h)*cw+cw/2, y, itoa(h), canvas.Middle))
 	}
 	s.Width = left + 24*cw + 10
-	s.Height = y + 8
+	s.Height = y + 4
 	if !o.NoLegend {
-		s.Add(canvas.Circle{CX: left + 6, CY: y + 20, R: 6, Fill: HumanColor})
-		s.Add(label(left+16, y+24, tx.ownMessages, canvas.Start))
-		s.Add(canvas.Circle{CX: left + 176, CY: y + 20, R: 6, Fill: canvas.Alpha(AgentColor, 0.45)})
-		s.Add(label(left+186, y+24, tx.agentActivity, canvas.Start))
-		s.Height = y + 32
+		s.Add(canvas.Circle{CX: left + 6, CY: y + 20, R: 6, Fill: th.human()})
+		s.Add(label(th, left+16, y+24, tx.ownMessages, canvas.Start))
+		s.Add(canvas.Circle{CX: left + 176, CY: y + 20, R: 6, Fill: canvas.Alpha(th.agent(), 0.45)})
+		s.Add(label(th, left+186, y+24, tx.agentActivity, canvas.Start))
+		s.Height = y + 30
 	}
 	return s
 }

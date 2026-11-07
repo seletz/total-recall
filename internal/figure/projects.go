@@ -22,20 +22,21 @@ type ProjectRow struct {
 // width. About 610×370 for twelve rows.
 func Projects(rows []ProjectRow, o Options) canvas.Scene {
 	const left, bar, rowH, plotW, right = 170.0, 9.0, 26.0, 380.0, 60.0
-	s := canvas.Scene{Background: background(o)}
+	th := o.theme()
+	s := canvas.Scene{Background: th.Background}
 	tx := o.Lang.text()
 	top := heading(&s, o, tx.projectsTitle)
 	if !o.NoLegend {
-		swatch := canvas.Hex("#8c8c8c")
+		swatch := th.Text
 		for i, l := range []struct {
 			text string
 			fill color.NRGBA
 		}{{tx.agentWork, swatch}, {tx.ownAttention, canvas.Alpha(swatch, 0.5)}} {
 			x := left + float64(i)*200
 			s.Add(canvas.Rect{X: x, Y: top + 2, W: 12, H: 10, Radius: 2, Fill: l.fill})
-			s.Add(label(x+18, top+11, l.text, canvas.Start))
+			s.Add(label(th, x+18, top+11, l.text, canvas.Start))
 		}
-		top += 20
+		top += 18
 	}
 	top += 2
 	sumH, sumA := 0, 0
@@ -58,7 +59,7 @@ func Projects(rows []ProjectRow, o Options) canvas.Scene {
 	}
 	for i, r := range rows {
 		y := top + float64(i)*rowH
-		s.Add(label(left-8, y+14, cut(r.Name, 26), canvas.End))
+		s.Add(label(th, left-8, y+14, cut(r.Name, 26), canvas.End))
 		for j, b := range []struct {
 			v, sum int
 			fill   color.NRGBA
@@ -68,10 +69,10 @@ func Projects(rows []ProjectRow, o Options) canvas.Scene {
 			by := y + float64(j)*(bar+1)
 			s.Add(canvas.Rect{X: left, Y: by, W: w, H: bar, Radius: 2, Fill: b.fill,
 				Title: fmt.Sprintf("%s: %d %s (%s)", r.Name, b.v, b.what, percent(b.v, b.sum))})
-			s.Add(canvas.Text{X: left + w + 4, Y: by + 8, Text: percent(b.v, b.sum), Size: smallSize, Fill: TextColor})
+			s.Add(value(th, left+w+4, by+8, percent(b.v, b.sum), canvas.Start))
 		}
 	}
 	s.Width = left + plotW + right
-	s.Height = top + float64(len(rows))*rowH + 10
+	s.Height = top + float64(len(rows))*rowH + 4
 	return s
 }

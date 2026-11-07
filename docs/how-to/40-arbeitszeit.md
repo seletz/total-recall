@@ -54,6 +54,16 @@ Die Summenzeile rechnet das Soll als Tagessoll × Arbeitstage des Zeitraums: Mon
 
 Für Skripte liefert `--json` dieselben Werte mit Zeiten in UTC und Dauern in Sekunden. Alle Optionen und das JSON: [`stats --workday`](../reference/10-befehle.md#stats-workday).
 
+## Als Grafik
+
+```sh
+total-recall chart workday --month 2026-10 --lang de > arbeitstage.svg
+```
+
+`chart workday` zeichnet dieselben Tage wie `stats --workday` und die TUI als SVG oder PNG, mit denselben Grenzen aus [`[work]`](../reference/20-konfiguration.md#work): Kernzeit als Band, Soll als gestrichelte Linie, Aktivität nach Mitternacht dunkler und mit `(+1)`, Wochenenden grau, Feiertage rot mit Namen. Das Bild stammt aus dem Demo-Archiv, mehr dazu im [Monatsbericht](47-monatsbericht.md).
+
+![Arbeitstage im Oktober, aus dem Demo-Archiv](../assets/charts/de/2026-10-workday.svg)
+
 ## In der TUI
 
 ```sh

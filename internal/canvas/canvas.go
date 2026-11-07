@@ -37,11 +37,13 @@ type Rect struct {
 	Title      string
 }
 
-// Line is a straight stroke of the given width.
+// Line is a straight stroke of the given width. A Dash with a positive
+// first element draws it dashed: the dash and the gap length.
 type Line struct {
 	X1, Y1, X2, Y2 float64
 	Width          float64
 	Stroke         color.NRGBA
+	Dash           [2]float64
 }
 
 // Circle is a filled circle; Title as for Rect.

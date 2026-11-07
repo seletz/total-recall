@@ -15,12 +15,13 @@ import (
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/figure"
 	"github.com/seletz/total-recall/internal/ops"
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // Chart names of `total-recall chart`, in the order `all` draws them.
-var chartNames = []string{"calendar", "projects", "punchcard", "worktime"}
+var chartNames = []string{"calendar", "projects", "punchcard", "worktime", "workday"}
 
 // OtherColor is the colour of the folded projects (store.OtherKey) in the
 // project chart.
@@ -35,6 +36,7 @@ type chartFlags struct {
 	out                      string
 	noTitle, noLegend        bool
 	transparent              bool
+	background               string
 	top                      int
 	lang, title              string
 }
@@ -44,13 +46,16 @@ func (e *env) chartCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "chart <" + strings.Join(chartNames, "|") + "|all>",
 		Short: "Draw the figures of a monthly report as SVG or PNG",
-		Long: `Draws one figure or all four of them for a time range, as SVG (default) or
+		Long: `Draws one figure or all five of them for a time range, as SVG (default) or
 PNG, into files below --out or, for a single figure, to stdout:
 
   calendar   own messages per day as a calendar heatmap (weeks as columns)
   projects   share of agent work and own attention per project, two bars each
   punchcard  own messages and agent activity per weekday × hour
   worktime   working time per week and category, stacked, with the target
+  workday    the working days like the activity view of the TUI: first and last
+             activity per day as a bar on a time axis, core hours, target,
+             weekends and holidays, the balance of the period
 
 The range is the current month, --month YYYY-MM, --since/--until or --range
 today|this-week|last-week|this-month|last-month. The counts are those of
@@ -58,14 +63,20 @@ stats: own messages are events of actor human, so prompts of other agents
 (peer) and automation do not count. worktime uses the rules of
 stats --worktime and [worktime]; its target per week is the daily target of
 [work] times the workdays of the week (weekdays that are no public holiday,
-up to today).
+up to today). workday counts like stats --workday ([work] count, day_start,
+core hours, target, holidays).
 
 Files are named <YYYY-MM>-<figure>.<format> for a month, else
 <since>_<until>-<figure>.<format>. --scale multiplies the natural size,
 --width or --height set it instead (both: the figure is centred in the box).
-Colours: projects take the color of their [[project]] definition, else the
-palette in order of volume; categories the color of [[worktime.category]],
-else the palette in order of the rules; the heatmap [chart] heatmap.
+The background is transparent, so a figure fits notes with a light and a dark
+page; --background #rrggbb (or [chart] background) sets one, --transparent
+forces none. The text is a mid grey ([chart] text). Colours: projects take the
+color of their [[project]] definition, else the categorical palette
+([chart] palette) in order of volume; categories the color of
+[[worktime.category]], else the palette in order of the rules; the heatmap
+the orange scale ([chart] scale_orange, or heatmap), the working days the
+blue and orange scales ([chart] scale_blue, scale_orange).
 --lang en|de sets the language of the labels (titles, legends, weekdays,
 months, number formats); file names stay the same. --title replaces the
 heading. [chart] holds the defaults of the format, the language and the
@@ -86,7 +97,8 @@ switches.`,
 	c.Flags().StringVar(&f.out, "out", "", "directory for the files (required for all; default: a single figure to stdout)")
 	c.Flags().BoolVar(&f.noTitle, "no-title", false, "leave the heading out")
 	c.Flags().BoolVar(&f.noLegend, "no-legend", false, "leave the legend out")
-	c.Flags().BoolVar(&f.transparent, "transparent", false, "transparent instead of white background")
+	c.Flags().BoolVar(&f.transparent, "transparent", false, "transparent background (the default; overrides --background and [chart] background)")
+	c.Flags().StringVar(&f.background, "background", "", "background colour #rrggbb or transparent (default from [chart], transparent)")
 	c.Flags().IntVar(&f.top, "top", -1, "projects: keep the N largest, fold the rest into \"other\" (0 = all; default from [chart], 12)")
 	c.Flags().StringVar(&f.lang, "lang", "", "language of the labels: "+strings.Join(figure.Langs, ", ")+" (default from [chart], en)")
 	c.Flags().StringVar(&f.title, "title", "", "own heading instead of the default one with the period")
@@ -165,13 +177,27 @@ func (e *env) runChart(cmd *cobra.Command, which string, f chartFlags) error {
 	if r.daySince, r.dayUntil, err = chartRange(f, r.now, loc, cfg.DayStartOffset()); err != nil {
 		return err
 	}
+	theme := settings.Theme
+	if f.background != "" {
+		theme.Background = canvas.Transparent
+		if !strings.EqualFold(f.background, "transparent") {
+			p, err := project.ParseColor(f.background)
+			if err != nil || p == "" {
+				return usagef("--background %q: want transparent or #rrggbb", f.background)
+			}
+			theme.Background = canvas.Hex(p)
+		}
+	}
+	if f.transparent {
+		theme.Background = canvas.Transparent
+	}
 	r.opts = figure.Options{
-		Period:      figure.PeriodName(r.since, r.until, loc, lang),
-		Title:       f.title,
-		Lang:        lang,
-		NoTitle:     !settings.Title || f.noTitle,
-		NoLegend:    !settings.Legend || f.noLegend,
-		Transparent: settings.Transparent || f.transparent,
+		Period:   figure.PeriodName(r.since, r.until, loc, lang),
+		Title:    f.title,
+		Lang:     lang,
+		NoTitle:  !settings.Title || f.noTitle,
+		NoLegend: !settings.Legend || f.noLegend,
+		Theme:    theme,
 	}
 	if r.st, err = e.openRead(cfg); err != nil {
 		return err
@@ -240,6 +266,8 @@ func (r *chartRun) draw(cmd *cobra.Command, name string) (canvas.Scene, error) {
 		return r.punchcard(cmd)
 	case "worktime":
 		return r.worktime(cmd)
+	case "workday":
+		return r.workday(cmd)
 	}
 	return canvas.Scene{}, fmt.Errorf("chart: unknown figure %q", name)
 }
@@ -283,11 +311,7 @@ func (r *chartRun) calendar(cmd *cobra.Command) (canvas.Scene, error) {
 	if d.Last.IsZero() {
 		d.Last = d.First
 	}
-	scale, err := figure.Colors(r.settings.Heatmap)
-	if err != nil {
-		return canvas.Scene{}, errKind(ErrKindConfig, err)
-	}
-	return figure.Calendar(d, scale, r.opts), nil
+	return figure.Calendar(d, r.settings.Heatmap, r.opts), nil
 }
 
 func (r *chartRun) projects(cmd *cobra.Command) (canvas.Scene, error) {
@@ -329,7 +353,7 @@ func (r *chartRun) projects(cmd *cobra.Command) (canvas.Scene, error) {
 			fixed[row.Name] = c
 		}
 	}
-	colors := figure.AssignColors(keys, fixed)
+	colors := figure.AssignColors(keys, fixed, r.settings.Theme.Palette)
 	for i := range rows {
 		rows[i].Color = colors[rows[i].Name]
 		if as.Keys[i] == store.OtherKey {
@@ -404,7 +428,7 @@ func (r *chartRun) worktime(cmd *cobra.Command) (canvas.Scene, error) {
 	}
 	sort.Strings(rest)
 	order = append(order, rest...)
-	colors := figure.AssignColors(order, r.settings.CategoryColors)
+	colors := figure.AssignColors(order, r.settings.CategoryColors, r.settings.Theme.Palette)
 	d := figure.WorktimeData{}
 	for _, n := range order {
 		d.Categories = append(d.Categories, figure.WorktimeCategory{Name: n, Color: colors[n]})
@@ -431,6 +455,54 @@ func (r *chartRun) worktime(cmd *cobra.Command) (canvas.Scene, error) {
 		d.Weeks = append(d.Weeks, *weeks[key])
 	}
 	return figure.Worktime(d, r.opts), nil
+}
+
+// workday builds the working days like stats --workday: the days of the
+// range under the day rule with their first and last activity, the core
+// hours, the target and the public holidays.
+func (r *chartRun) workday(cmd *cobra.Command) (canvas.Scene, error) {
+	cfg := r.cfg
+	work, err := ops.WorkHours(cfg)
+	if err != nil {
+		return canvas.Scene{}, err
+	}
+	loc := cfg.Location()
+	dayStart := cfg.DayStartOffset()
+	days, err := r.st.Workday(cmd.Context(), store.WorkdayFilter{
+		Since: r.daySince, Until: r.dayUntil, Location: loc, DayStart: dayStart,
+		HumanOnly: cfg.Work.HumanOnly(), Holidays: ops.Holidays(cfg),
+	})
+	if err != nil {
+		return canvas.Scene{}, err
+	}
+	asOf := store.DayOf(r.now, loc, dayStart)
+	b := work.Balance(days, asOf)
+	d := figure.WorkdayData{
+		DayStart: dayStart.Hours(), Midnight: 24 - dayStart.Hours(),
+		Span: b.Span, Target: b.Target, Balance: b.Balance, Active: b.Active, Workdays: b.Workdays,
+		DayTarget: work.Target, HasTarget: !work.IsZero(),
+	}
+	for _, day := range days {
+		start := store.DayBoundary(day.Day, dayStart)
+		pos := func(t time.Time) float64 { return t.Sub(start).Hours() }
+		row := figure.WorkdayRow{
+			Day: day.Day, Active: day.Active(), Weekend: store.IsWeekend(day.Day), Holiday: day.Holiday,
+			Span: day.Span(), HasCore: !work.IsZero() && !day.IsOff(), Target: work.TargetFor(day).Hours(),
+		}
+		if row.Active {
+			row.First, row.Last = pos(day.First), pos(day.Last)
+			row.FirstText, row.LastText = day.FirstClock(loc), day.LastClock(loc)
+		}
+		if diff, ok := work.Diff(day); ok {
+			row.Diff, row.HasDiff = diff, true
+		}
+		if row.HasCore {
+			cs, ce := work.Core(day.Day)
+			row.CoreStart, row.CoreEnd = pos(cs), pos(ce)
+		}
+		d.Rows = append(d.Rows, row)
+	}
+	return figure.Workday(d, r.opts), nil
 }
 
 // midnight returns the local midnight of the calendar day of t.
