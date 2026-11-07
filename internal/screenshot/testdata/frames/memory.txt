@@ -1,0 +1,36 @@
+ total-recall                  updated 10:00:00                   [1 search] › memory  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ kompass  memory  claude
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   MEMORY.md                                4× │ release-process.md
+   conventions.md                           1× │ kompass  claude
+ ▸ release-process.md                       3× │ 2026-10-31 22:35
+   ✗ old-notes.md                      deleted │────────────────────────────────────────────────────────────────────────
+                                               │ ---
+                                               │ name: release-process
+                                               │ description: How a kompass release is cut and published
+                                               │ metadata:
+                                               │   type: project
+                                               │ ---
+                                               │
+                                               │ A release is a signed tag on main. The release workflow then runs
+                                               │ goreleaser, which builds the binaries for darwin/arm64 and linux/amd64
+                                               │ and publishes the Homebrew cask to the tap.
+                                               │
+                                               │ Steps
+                                               │
+                                               │ 1. Update the changelog under the next version.
+                                               │ 2. Tag with git tag -s vX.Y.Z and push the tag.
+                                               │ 3. Wait for the workflow; the cask lands in mara/homebrew-tap.
+                                               │
+                                               │ Why: a missing HOMEBREW_TAP_GITHUB_TOKEN used to leave a half-published
+                                               │ release. The workflow now fails early.
+                                               │
+                                               │ How to apply: never publish the cask by hand; if the workflow fails,
+                                               │ fix the cause and re-run it.
+                                               │
+                                               │
+                                               │
+ 3 files, 1 deleted
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter history of file • b/f scroll text • esc back • 1 search • 2 stats • 3 activity • ? help • q quit

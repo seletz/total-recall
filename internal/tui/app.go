@@ -18,6 +18,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/theme"
@@ -52,6 +53,10 @@ type App struct {
 	// while showDetail is set and keeps the keyboard then.
 	detail     session.Model
 	showDetail bool
+	// memory is the memory view, a layer like the detail: shown while
+	// showMemory is set.
+	memory     memview.Model
+	showMemory bool
 	keys       KeyMap
 	help       bool
 	width      int
@@ -79,7 +84,7 @@ func (a App) Init() tea.Cmd {
 	for _, v := range a.views {
 		cmds = append(cmds, v.Init())
 	}
-	return tea.Batch(append(cmds, a.detail.Init(), tea.RequestBackgroundColor, a.tick())...)
+	return tea.Batch(append(cmds, a.detail.Init(), a.memory.Init(), tea.RequestBackgroundColor, a.tick())...)
 }
 
 // tick schedules the next change check, or nothing when the reload is off
@@ -138,7 +143,7 @@ func (a App) reopened(msg reopenMsg) (tea.Model, tea.Cmd) {
 // reload loads the view on screen again and marks every other one stale;
 // the header shows the time.
 func (a *App) reload() tea.Cmd {
-	a.stale = make([]bool, len(a.views)+1)
+	a.stale = make([]bool, len(a.views)+2)
 	for i := range a.stale {
 		a.stale[i] = true
 	}
@@ -149,6 +154,12 @@ func (a *App) reload() tea.Cmd {
 // reloadCurrent reloads the view on screen (the detail while it is shown)
 // and clears its stale mark.
 func (a *App) reloadCurrent() tea.Cmd {
+	if a.showMemory {
+		a.setStale(len(a.views)+1, false)
+		m, cmd := a.memory.Reload()
+		a.memory = m.(memview.Model)
+		return cmd
+	}
 	if a.showDetail {
 		a.setStale(len(a.views), false)
 		m, cmd := a.detail.Reload()
@@ -173,7 +184,7 @@ func (a *App) setStale(i int, v bool) {
 // show switches to view i, closing the detail, and reloads the view when
 // its data went stale while it was hidden.
 func (a *App) show(i int) tea.Cmd {
-	a.active, a.showDetail = i, false
+	a.active, a.showDetail, a.showMemory = i, false, false
 	if !a.stale[i] {
 		return nil
 	}
@@ -201,7 +212,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.showDetail = true
 		a.setStale(len(a.views), false) // Open loads afresh
 		return a.updateDetail(session.Open{SessionID: msg.SessionID, EventID: msg.EventID, Terms: msg.Terms})
-	case session.Back:
+	case memview.Open:
+		a.showMemory, a.showDetail = true, false
+		a.setStale(len(a.views)+1, false) // Open loads afresh
+		return a.updateMemory(msg)
+	case session.Back, memview.Back:
 		return a, a.show(a.active)
 	case tickMsg:
 		if a.opts.Store == nil {
@@ -391,6 +406,7 @@ func (a *App) setKeys(cfg *config.Config) {
 		}
 	}
 	a.detail = a.detail.SetKeys(km).(session.Model)
+	a.memory = a.memory.SetKeys(km).(memview.Model)
 }
 
 // broadcastModel is broadcast on a value receiver.
@@ -436,6 +452,9 @@ func (a App) mouse(msg tea.MouseMsg, shift func(y int) tea.Msg) (tea.Model, tea.
 // current is the view that owns the body: the detail while it is shown,
 // else the active view.
 func (a App) current() View {
+	if a.showMemory {
+		return a.memory
+	}
 	if a.showDetail {
 		return a.detail
 	}
@@ -444,6 +463,9 @@ func (a App) current() View {
 
 // forward passes msg to the current view only.
 func (a App) forward(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.showMemory {
+		return a.updateMemory(msg)
+	}
 	if a.showDetail {
 		return a.updateDetail(msg)
 	}
@@ -459,9 +481,16 @@ func (a App) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
-// broadcast passes msg to every view and the detail.
+// updateMemory passes msg to the memory view.
+func (a App) updateMemory(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m, cmd := a.memory.Update(msg)
+	a.memory = m.(memview.Model)
+	return a, cmd
+}
+
+// broadcast passes msg to every view, the detail and the memory view.
 func (a *App) broadcast(msg tea.Msg) tea.Cmd {
-	cmds := make([]tea.Cmd, len(a.views)+1)
+	cmds := make([]tea.Cmd, len(a.views)+2)
 	for i, v := range a.views {
 		m, cmd := v.Update(msg)
 		a.views = a.replace(i, m)
@@ -469,6 +498,8 @@ func (a *App) broadcast(msg tea.Msg) tea.Cmd {
 	}
 	m, cmd := a.detail.Update(msg)
 	a.detail, cmds[len(a.views)] = m.(session.Model), cmd
+	m, cmd = a.memory.Update(msg)
+	a.memory, cmds[len(a.views)+1] = m.(memview.Model), cmd
 	return tea.Batch(cmds...)
 }
 
@@ -577,7 +608,10 @@ func (a App) tabs() []string {
 			continue
 		}
 		t := a.th.Active.Render("[" + itoa(i+1) + " " + v.Title() + "]")
-		if a.showDetail {
+		switch {
+		case a.showMemory:
+			t += a.th.AccentText.Render(" › " + a.memory.Title())
+		case a.showDetail:
 			t += a.th.AccentText.Render(" › " + a.detail.Title())
 		}
 		tabs[i] = t

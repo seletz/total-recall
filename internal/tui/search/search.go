@@ -31,6 +31,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
 )
@@ -643,7 +644,8 @@ func (m Model) filter(now time.Time) store.SearchFilter {
 	return f
 }
 
-// open emits OpenSession for the marked hit.
+// open emits OpenSession for the marked hit, memview.Open for a memory
+// file: the app shows the memory of its project with the file marked.
 func (m Model) open() tea.Cmd {
 	h := m.marked()
 	if h == nil {
@@ -657,8 +659,10 @@ func (m Model) open() tea.Cmd {
 	case h.Session != nil:
 		o := OpenSession{SessionID: h.Session.ID, Terms: ts}
 		return func() tea.Msg { return o }
+	case h.Memory != nil:
+		o := memview.Open{ProjectID: h.Memory.ProjectID, Project: m.projectName(*h), Harness: h.Memory.Harness, Path: h.Memory.Path, Terms: ts}
+		return func() tea.Msg { return o }
 	}
-	// A memory file has no detail view yet; its preview shows the file.
 	return nil
 }
 

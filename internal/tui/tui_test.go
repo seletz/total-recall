@@ -559,3 +559,49 @@ func TestActivityProjects(t *testing.T) {
 		}
 	}
 }
+
+// TestMemoryView drives search → memory view → back over the demo
+// archive: Enter on a memory hit opens the memory of its project with the
+// file marked, the tab names the layer, the history opens with enter, esc
+// goes back page by page, and a number key leaves the layer.
+func TestMemoryView(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	app, err := New(Options{Store: st, Query: demo.Query, Now: func() time.Time { return demo.Now }, Location: demo.Location})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tm tea.Model = app
+	tm = tuitest.Drive(t, tm, append([]tea.Msg{tea.WindowSizeMsg{Width: 120, Height: 30}}, tuitest.Keys("tab", "m", "e")...)...)
+	tests := []struct {
+		name  string
+		steps []string
+		want  []string
+		not   []string
+	}{
+		{"open", []string{"enter"}, []string{"› memory", "memory  claude", "release-process.md", "✗ old-notes.md", "1 deleted"}, []string{"history of release"}},
+		{"history", []string{"enter", "enter"}, []string{"history of release-process.md", "version 3 of 3"}, nil},
+		{"history back", []string{"enter", "enter", "esc"}, []string{"memory  claude", "1 deleted"}, []string{"history of release"}},
+		{"back to the search", []string{"enter", "esc"}, []string{"1 hit", "[1 search]"}, []string{"› memory"}},
+		{"number key", []string{"enter", "2"}, []string{"[2 stats]"}, []string{"› memory"}},
+		{"help", []string{"enter", "?"}, []string{"keys: memory", "history of file"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tm
+			for _, s := range tt.steps {
+				m = tuitest.Send(t, m, tuitest.Key(s))
+			}
+			frame := tuitest.Frame(m)
+			for _, w := range tt.want {
+				if !strings.Contains(frame, w) {
+					t.Errorf("frame lacks %q:\n%s", w, frame)
+				}
+			}
+			for _, w := range tt.not {
+				if strings.Contains(frame, w) {
+					t.Errorf("frame has %q:\n%s", w, frame)
+				}
+			}
+		})
+	}
+}

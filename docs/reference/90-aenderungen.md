@@ -6,6 +6,14 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.5.0 (unveröffentlicht)
+
+### Memory in der TUI
+
+- **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.
+- **Verlauf je Datei:** ++enter++ auf einer Datei listet ihre Versionen mit Zeitpunkt und Größe, eine Löschung als eigene Zeile, und zeigt einen früheren Stand. Maus und Tasten wie im Rest der TUI; die Tasten sind als `memory_*` in `[keys]` änderbar.
+- **Demo-Archiv:** das erfundene Gedächtnis von `kompass` hat jetzt mehrere Versionen, einen wechselnden Index und eine gelöschte Datei, damit Verlauf und Screenshots etwas zu zeigen haben.
+
 ## v1.4.0
 
 ### Was dieses Update mit dem Archiv macht
