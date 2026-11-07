@@ -54,14 +54,21 @@ var (
 		"tools-used",            // tools used so far, no timestamp
 		"history-suppression",   // cause and account a history suppression was vetoed against; ts, no timestamp
 		"started", "result",     // workflow journal.jsonl: start and result of a workflow agent
+		"frame-link", // artifact frame of the session (URL, title, artifact count); the URL and title are not repeated elsewhere
 	}
 	// skippedTypes carry nothing the archive needs: the API request cache
 	// (hashes of prompt blocks and the message content behind them, which
 	// repeats the events; 1.25 GiB of 1.7 GiB skipped lines locally) and
-	// the last prompt, which repeats the latest user message.
+	// the last prompt, which repeats the latest user message. The two
+	// artifact records are runtime state of Claude Code, rewritten every
+	// few minutes: the autoreact ledger (baseline flags, high-water
+	// stamp, turn timestamps per artifact) and the comment monitor (armed
+	// state and the PID, job and host of the process holding it). Comment
+	// text and artifact content reach the archive through the events.
 	// skip_record_types in the config adds to the list.
 	skippedTypes = []string{
 		"api-request", "api-request-blob", "last-prompt",
+		"artifact-autoreact-ledger", "artifact-comment-monitor",
 	}
 	// skippedAttachmentTypes are the attachment subtypes dropped on
 	// purpose: the harness's catalogs of tools, skills, agents and MCP
