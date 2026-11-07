@@ -213,11 +213,47 @@ func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) tool
 	if max <= 0 {
 		max = DefaultMaxBytes
 	}
-	first, hint := truncate(strings.TrimSpace(out), max, t.offset(rawArgs), t.Offset != "", t.Narrow)
+	first, hint, err := s.bound(t, strings.TrimSpace(out), t.cursor(rawArgs), max)
+	if err != nil {
+		return errorResult("usage", err.Error())
+	}
 	res := toolResult{Content: []content{text(first)}}
 	if hint != nil {
 		b, _ := json.Marshal(hint)
 		res.Content = append(res.Content, text(string(b)))
 	}
 	return res
+}
+
+// bound makes out fit into max bytes: verbatim when it fits, compacted when
+// that is enough, else one page of the paged list of the tool, else cut as
+// a last resort (see truncate). A cursor selects the page.
+func (s *Server) bound(t Tool, out, cursor string, max int) (string, *Hint, error) {
+	if cursor == "" && len(out) <= max {
+		return out, nil, nil
+	}
+	var cb bytes.Buffer
+	if json.Compact(&cb, []byte(out)) != nil {
+		if cursor != "" {
+			return "", nil, errNoPages
+		}
+		return out, nil, nil
+	}
+	if cursor == "" && cb.Len() <= max {
+		return cb.String(), nil, nil
+	}
+	if len(t.Units) > 0 {
+		page, hint, ok, err := paginate(cb.Bytes(), t.Units, cursor, max, t.Narrow)
+		if err != nil {
+			return "", nil, err
+		}
+		if ok {
+			return string(page), hint, nil
+		}
+	}
+	if cursor != "" {
+		return "", nil, errNoPages
+	}
+	first, hint := truncate(cb.String(), max, t.Narrow)
+	return first, hint, nil
 }

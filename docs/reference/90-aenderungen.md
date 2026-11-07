@@ -6,6 +6,31 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.5.0 (unveröffentlicht)
+
+### Bruch
+
+**Die Ergebnisse der MCP-Tools werden nicht mehr gekürzt, sondern in Seiten geliefert** ([#230](https://github.com/seletz/total-recall/issues/230)). Dieser Bruch kommt ausnahmsweise in einer Minor-Version, weil es noch keine externen Nutzer des MCP-Servers gibt (wie bei v1.3.0). Seit v1.4.0 ([#226](https://github.com/seletz/total-recall/issues/226)) schnitt jedes Tool bei 32 KiB Listen ab; bei `stats` mit `worktime` und `sessions` für einen Monat blieben so 62 von 66 Kategorien und 37 von 117 Projekten übrig, und die Summen passten nicht mehr zu ihren Teilen. Ein MCP-Tool lässt jetzt nie mehr still Teile einer Liste weg, über die eine Summe gebildet wird.
+
+Was sich an den Ergebnissen ändert:
+
+- Ist das Ergebnis größer als 32 KiB, ist der erste Inhalt **eine Seite**: gültiges CLI-JSON mit denselben Feldern, aber nur mit einem Teil der Seitenliste (`days` bei `stats` mit `worktime` oder `workday`, `buckets` bei `period`/`by`, sonst `by_day`; `events` bei `show`; die Zeilen bei `search`, `sessions`, `memory`). Eine Seite enthält ganze Einträge: bei `stats` ganze Tage mit allen Kategorien, Projekten, Referenzen und Sessions.
+- **Alles andere steht vollständig auf jeder Seite**, vor allem `total` und die Summen je Kategorie über den Zeitraum. Alle Seiten zusammen sind byte-gleich die kompakte CLI-Ausgabe.
+- Der zweite Inhalt ist der Hinweis `{"page":{"index":2,"of":5,"unit":"days","from":8,"to":16,"total":31},"next":{"cursor":"…"},"hint":"…"}`. Die letzte Seite hat kein `next`.
+- **`next.offset` entfällt.** Auch `show` meldet nur noch `next.cursor`. Der Parameter `offset` von `show` bleibt, er wählt wie `--offset` das Fenster der CLI.
+- **Neuer Parameter `cursor`** bei `search`, `sessions`, `show`, `stats` und `memory`. `truncated` steht nur noch im Hinweis, wenn wirklich etwas fehlt (siehe unten); `cut` und `shortened_strings` gibt es nur noch dann.
+- Nur ein **einzelner Eintrag**, der allein über 32 KiB liegt (zum Beispiel ein Tag mit sehr vielen Sessions), wird noch gekürzt, wie in v1.4.0. Das steht dann mit `truncated: true` und `cut` im Hinweis; Summen müssen dort nicht zu ihren Teilen passen. Eingrenzen hilft (`sessions` oder `summary` weglassen, kleinerer Zeitraum).
+
+**So stellt ein Agent um:**
+
+1. Bei jedem Ergebnis den zweiten Inhalt lesen. Hat er `next`, ist das Ergebnis nicht vollständig.
+2. Dasselbe Tool mit **denselben Argumenten** und zusätzlich `cursor` = `next.cursor` (unverändert) aufrufen, bis `next` fehlt.
+3. Summen über Seiten nie aus den Seitensummen bilden, sondern aus den Einträgen der Seitenliste (`total` steht ohnehin auf jeder Seite vollständig).
+4. Ein Cursor-Fehler (`usage`, „the result changed …“) heißt: Das Archiv hat sich zwischen zwei Seiten geändert. Ohne `cursor` neu beginnen.
+5. Wer `offset` aus `next.offset` von `show` weitergegeben hat, nimmt jetzt `cursor`.
+
+Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder neu. Wer nur die Summen braucht, grenzt vorher ein (kleinerer Zeitraum, `sessions`/`summary` aus) und kommt oft mit einer Seite aus. Die Anleitung für Agenten (`total-recall llm --skill`) und das [How-to](../how-to/55-mcp-anbinden.md#seiten) beschreiben das neue Verhalten.
+
 ## v1.4.0
 
 ### Was dieses Update mit dem Archiv macht
