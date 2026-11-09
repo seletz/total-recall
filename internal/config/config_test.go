@@ -410,7 +410,7 @@ func TestEntries(t *testing.T) {
 		"redact.enabled", "redact.extra_patterns", "redact.allow", "ingest.tool_result_max_bytes", "ingest.raw_max_bytes", "ingest.store_raw", "ingest.store_blobs", "ingest.store_file_history", "ingest.store_memory",
 		"harness.claude.enabled", "harness.claude.projects_dir", "harness.claude.skip_record_types",
 		"harness.claude.actors.peer_prefixes", "harness.claude.actors.peer_paste_headers", "harness.claude.actors.automation_prefixes", "git.resolve",
-		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland", "work.count", "accounts"} {
+		"work.hours", "work.target", "work.daily_low", "work.daily_high", "work.weekly_low", "work.weekly_high", "work.bundesland", "work.count", "work.block_gap", "accounts"} {
 		if _, ok := got[k]; !ok {
 			t.Errorf("missing entry %q", k)
 		}
@@ -663,6 +663,8 @@ func TestWorkErrors(t *testing.T) {
 		{"work weekly reversed", "[work]\nweekly_low = \"48h\"\nweekly_high = \"32h\"\n", "work.weekly"},
 		{"work weekly negative", "[work]\nweekly_low = \"-1h\"\n", "work.weekly_low"},
 		{"work count unknown", "[work]\ncount = \"agents\"\n", "work.count"},
+		{"work block gap zero", "[work]\nblock_gap = \"0s\"\n", "work.block_gap"},
+		{"work block gap negative", "[work]\nblock_gap = \"-5m\"\n", "work.block_gap"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1027,6 +1029,30 @@ func TestProjectErrors(t *testing.T) {
 			}
 			if ps := c.Problems(); len(ps) != 1 || !strings.Contains(ps[0].Error(), tt.wantErr) {
 				t.Errorf("Problems = %v, want one containing %q", ps, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestWorkBlockGap checks the default of [work] block_gap and that a file
+// value replaces it.
+func TestWorkBlockGap(t *testing.T) {
+	tests := []struct {
+		name, content string
+		want          time.Duration
+	}{
+		{"default", "", 30 * time.Minute},
+		{"file", "[work]\nblock_gap = \"45m\"\n", 45 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", tt.content)
+			c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Work.BlockGap.Duration != tt.want {
+				t.Errorf("block_gap = %s, want %s", c.Work.BlockGap, tt.want)
 			}
 		})
 	}

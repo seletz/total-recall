@@ -93,7 +93,7 @@ func mcpTools() []mcp.Tool {
 			Name: "stats", Title: "Activity statistics", Command: []string{"stats"}, FixedFlags: []string{"--json"},
 			Narrow:      "drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top",
 			Units:       []string{"days", "buckets", "by_day"},
-			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day, with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series. Same JSON as `total-recall stats --json`." + pagingNote,
+			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day (blocks adds the blocks of activity with pauses), with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series. Same JSON as `total-recall stats --json`." + pagingNote,
 			Params: []mcp.Param{
 				pCursor,
 				{Name: "month", Type: "string", Description: "month YYYY-MM (default: current month)"},
@@ -102,6 +102,7 @@ func mcpTools() []mcp.Tool {
 				{Name: "by", Type: "string", Enum: []string{"project", "agent", "directory", "account"}, Description: "break the series down by this key"},
 				{Name: "top", Type: "integer", Description: "with by: keep the N largest keys, fold the rest into other"},
 				{Name: "workday", Type: "boolean", Description: "first and last activity per day"},
+				{Name: "blocks", Type: "boolean", Description: "with workday: the blocks of activity per day (a gap above [work] block_gap, default 30m, ends a block) with their sum and the pauses, for booking attendance"},
 				{Name: "worktime", Type: "boolean", Description: "working time per day and category"},
 				{Name: "sessions", Type: "boolean", Description: "with worktime: list the sessions of every day and category"},
 				{Name: "summary", Type: "boolean", Description: "with worktime: issue/PR references and booking text"},

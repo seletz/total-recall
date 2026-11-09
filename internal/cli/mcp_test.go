@@ -105,6 +105,7 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 		{"sessions", "sessions", map[string]any{"limit": 5}, []string{"sessions", "--limit=5"}},
 		{"show", "show", map[string]any{"session": id, "limit": 3}, []string{"show", id, "--limit=3"}},
 		{"stats", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday"}},
+		{"stats blocks", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true, "blocks": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday", "--blocks"}},
 		{"memory", "memory", map[string]any{}, []string{"memory"}},
 		{"status", "status", map[string]any{}, []string{"status"}},
 	} {
