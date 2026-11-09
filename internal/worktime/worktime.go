@@ -214,6 +214,17 @@ type Report struct {
 	Categories []Total
 	// Total sums everything.
 	Total Total
+	// Uncategorized lists the projects with time in the range that no rule
+	// maps to a category (each is its own category, so they are part of
+	// Categories and Total): largest first, then by name.
+	Uncategorized []Uncategorized
+}
+
+// Uncategorized is a project no category rule matches, with the credited
+// time of the whole report range.
+type Uncategorized struct {
+	Name, Key, Remote string
+	Raw               time.Duration
 }
 
 // Day is one day of a Report.
@@ -308,7 +319,7 @@ func Compute(events []Event, s Settings, opts Options) Report {
 		sessions map[string]*sessAcc
 	}
 	names := projectNames(sorted, opts.Home, opts.Projects)
-	category := categories(names, sorted, s.Rules, opts.Home)
+	category, uncategorized := categories(names, sorted, s.Rules, opts.Home)
 	days := map[time.Time]map[string]*catAcc{}
 	var prev time.Time
 	var prevDay time.Time
@@ -439,6 +450,37 @@ func Compute(events []Event, s Settings, opts Options) Report {
 		out.Categories = append(out.Categories, *tc)
 	}
 	sort.Slice(out.Categories, func(i, j int) bool { return out.Categories[i].Name < out.Categories[j].Name })
+	// Uncategorized sums the projects of the output days, so it is always a
+	// part of Total.
+	unc := map[string]*Uncategorized{}
+	for _, d := range out.Days {
+		for _, c := range d.Categories {
+			for _, p := range c.Projects {
+				if !uncategorized[p.Key] {
+					continue
+				}
+				u := unc[p.Key]
+				if u == nil {
+					u = &Uncategorized{Name: p.Name, Key: p.Key, Remote: p.Remote}
+					unc[p.Key] = u
+				}
+				u.Raw += p.Raw
+			}
+		}
+	}
+	for _, u := range unc {
+		out.Uncategorized = append(out.Uncategorized, *u)
+	}
+	sort.Slice(out.Uncategorized, func(i, j int) bool {
+		a, b := out.Uncategorized[i], out.Uncategorized[j]
+		if a.Raw != b.Raw {
+			return a.Raw > b.Raw
+		}
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.Key < b.Key
+	})
 	return out
 }
 
@@ -462,30 +504,40 @@ func projectNames(events []Event, home string, r project.Resolver) map[string]st
 }
 
 // categories maps every project key to its category: the name of the
-// first matching rule, else the project name.
-func categories(names map[string]string, events []Event, rules []Rule, home string) map[string]string {
+// first matching rule, else the project name. The second result is the set
+// of project keys no rule matched.
+func categories(names map[string]string, events []Event, rules []Rule, home string) (map[string]string, map[string]bool) {
 	out := map[string]string{}
+	unmatched := map[string]bool{}
 	for _, e := range events {
 		if _, done := out[e.Project]; done {
 			continue
 		}
-		out[e.Project] = Categorize(names[e.Project], e.Project, e.Remote, home, rules)
+		cat, ok := match(names[e.Project], e.Project, e.Remote, home, rules)
+		out[e.Project] = cat
+		unmatched[e.Project] = !ok
 	}
-	return out
+	return out, unmatched
 }
 
 // Categorize returns the category of a project: the name of the first
 // rule that matches its name, its key (as a path and with home as "~"),
 // or its remote URL; without a match the project name.
 func Categorize(name, key, remote, home string, rules []Rule) string {
+	cat, _ := match(name, key, remote, home, rules)
+	return cat
+}
+
+// match is Categorize that also reports whether a rule matched.
+func match(name, key, remote, home string, rules []Rule) (string, bool) {
 	targets := []string{name, key, project.Tilde(key, home)}
 	if remote != "" {
 		targets = append(targets, remote)
 	}
 	for _, r := range rules {
 		if r.Matches(targets...) {
-			return r.Name
+			return r.Name, true
 		}
 	}
-	return name
+	return name, false
 }

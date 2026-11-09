@@ -8,6 +8,11 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.5.0 (unveröffentlicht)
 
+### Arbeitszeit
+
+- **Projekte ohne Kategorie:** `stats --worktime` ([#238](https://github.com/seletz/total-recall/issues/238)) führt ein Projekt ohne `[[worktime.category]]` weiter als eigene Kategorie, weist es aber aus: das JSON hat die Liste `uncategorized` (Projekt, Schlüssel, Remote, `raw_seconds`), ein Teil der Zeit in `days`, `categories` und `total`, die Summen bleiben gleich. Die Tabelle meldet sie auf stderr, wenn Kategorien konfiguriert sind.
+- **`doctor` mit Hinweis:** nennt Projekte mit Aktivität in den letzten `--days` Tagen (Default 30), die kein `[[project]]` oder keine Kategorie haben; ohne Einfluss auf Exit-Code und JSON.
+
 ### Memory in der TUI
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.

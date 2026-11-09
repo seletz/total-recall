@@ -264,6 +264,7 @@ func TestSkillJSONFields(t *testing.T) {
 		{"stats --json --worktime days[].categories[].projects[]", worktime, "days[].categories[].projects[]", reflect.TypeOf(WorktimeProjectJSON{})},
 		{"stats --json --worktime days[].categories[].sessions[]", worktime, "days[].categories[].sessions[]", reflect.TypeOf(WorktimeSessionJSON{})},
 		{"stats --json --worktime categories[]", worktime, "categories[]", reflect.TypeOf(WorktimeCategoryTotalJSON{})},
+		{"stats --json --worktime uncategorized[]", worktime, "uncategorized[]", reflect.TypeOf(WorktimeUncategorizedJSON{})},
 		{"stats --json --worktime total", worktime, "total", reflect.TypeOf(WorktimeTotalJSON{})},
 	}
 	for _, tt := range tests {

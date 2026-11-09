@@ -141,6 +141,7 @@
       "days": 1
     }
   ],
+  "uncategorized": [],
   "total": {
     "raw_seconds": 2160,
     "rounded_seconds": 3600,
