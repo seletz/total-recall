@@ -28,42 +28,56 @@ type inputKindOut struct {
 func TestInputKindDemoInvariants(t *testing.T) {
 	e, db := chartEnv(t)
 	st, _ := fixturedb.Demo(t)
-	var sessions []struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal([]byte(e.mustRun(t, "--db", db, "sessions", "--json")), &sessions); err != nil {
-		t.Fatal(err)
-	}
-	if len(sessions) < 100 {
-		t.Fatalf("sessions = %d, the demo archive is smaller than expected", len(sessions))
+	// One timeline run lists every event of the archive with its kind; show
+	// is then compared for the sessions that have a kind other than typed.
+	all := decode[[]struct {
+		inputKindOut
+		SessionID string `json:"session_id"`
+	}](t, e.mustRun(t, "--db", db, "timeline", "--json", "--actor", "all", "--all", "--limit", "0", "--since", "2000-01-01", "--until", "2100-01-01"))
+	if len(all) < 1000 {
+		t.Fatalf("events = %d, the demo archive is smaller than expected", len(all))
 	}
 	byKind := map[string]int{}
 	human, unknown := 0, 0
 	kindOf := map[string]string{}
-	for _, s := range sessions {
+	special := map[string]bool{}
+	for _, ev := range all {
+		if ev.Actor != string(model.ActorHuman) {
+			if ev.InputKind != nil {
+				t.Fatalf("%s: %s event has input_kind %q", ev.EventID, ev.Actor, *ev.InputKind)
+			}
+			continue
+		}
+		human++
+		if ev.InputKind == nil {
+			unknown++
+			continue
+		}
+		if !model.InputKind(*ev.InputKind).Valid() {
+			t.Fatalf("%s: invalid input_kind %q", ev.EventID, *ev.InputKind)
+		}
+		byKind[*ev.InputKind]++
+		kindOf[ev.EventID] = *ev.InputKind
+		if *ev.InputKind != "typed" {
+			special[ev.SessionID] = true
+		}
+	}
+	// show reports the same kind for every event of those sessions.
+	for id := range special {
 		var shown struct {
 			Events []inputKindOut `json:"events"`
 		}
-		if err := json.Unmarshal([]byte(e.mustRun(t, "--db", db, "show", s.ID, "--all", "--json")), &shown); err != nil {
-			t.Fatalf("show %s: %v", s.ID, err)
+		if err := json.Unmarshal([]byte(e.mustRun(t, "--db", db, "show", id, "--all", "--json")), &shown); err != nil {
+			t.Fatalf("show %s: %v", id, err)
 		}
 		for _, ev := range shown.Events {
-			if ev.Actor != string(model.ActorHuman) {
-				if ev.InputKind != nil {
-					t.Fatalf("%s: %s event has input_kind %q", ev.ID, ev.Actor, *ev.InputKind)
-				}
-				continue
+			got := ""
+			if ev.InputKind != nil {
+				got = *ev.InputKind
 			}
-			human++
-			if ev.InputKind == nil {
-				unknown++
-				continue
+			if got != kindOf[ev.ID] && ev.Actor == "human" {
+				t.Errorf("show %s: input_kind %q, timeline has %q", ev.ID, got, kindOf[ev.ID])
 			}
-			if !model.InputKind(*ev.InputKind).Valid() {
-				t.Fatalf("%s: invalid input_kind %q", ev.ID, *ev.InputKind)
-			}
-			byKind[*ev.InputKind]++
-			kindOf[ev.ID] = *ev.InputKind
 		}
 	}
 	sum := unknown
@@ -89,10 +103,10 @@ func TestInputKindDemoInvariants(t *testing.T) {
 			t.Fatalf("count %s: %v", k, err)
 		}
 		if got := rows[0][0]; got != int64(n) {
-			t.Errorf("show reports %d %s events, the database has %v", n, k, got)
+			t.Errorf("timeline reports %d %s events, the database has %v", n, k, got)
 		}
 	}
-	// search --json shows the same kind as show for the same event.
+	// search --json shows the same kind as timeline for the same event.
 	var hits []inputKindOut
 	if err := json.Unmarshal([]byte(e.mustRun(t, "--db", db, "search", "--json", "--actor", "human", "lint")), &hits); err != nil {
 		t.Fatal(err)
@@ -107,7 +121,7 @@ func TestInputKindDemoInvariants(t *testing.T) {
 			got = *h.InputKind
 		}
 		if got != want {
-			t.Errorf("search %s: input_kind %q, show has %q", h.EventID, got, want)
+			t.Errorf("search %s: input_kind %q, timeline has %q", h.EventID, got, want)
 		}
 	}
 	// The text output of show names the kind next to the actor.
@@ -117,43 +131,42 @@ func TestInputKindDemoInvariants(t *testing.T) {
 	}
 }
 
-// TestMCPInputKindAddsUp pages the show tool of every demo session with a
-// small bound: over all pages the input kinds plus the unknown ones add up
-// to the human events, only human events carry a kind, and the event count
-// of the pages equals the CLI output.
+// TestMCPInputKindAddsUp pages the show tool of the demo sessions that have
+// a kind other than typed (a handful, about three pages each): over all
+// pages the input kinds plus the unknown ones add up to the human events,
+// only human events carry a kind, and the pages hold the events of the CLI.
 func TestMCPInputKindAddsUp(t *testing.T) {
-	p := newPagedDemo(t, 4<<10)
-	list, _, _ := newPagedDemo(t, 16<<20).call("sessions", map[string]any{"limit": 500})
-	var rows []struct {
-		ID string `json:"id"`
+	whole := newPagedDemo(t, 16<<20)
+	var tl []struct {
+		inputKindOut
+		SessionID string `json:"session_id"`
 	}
-	if err := json.Unmarshal([]byte(list), &rows); err != nil || len(rows) == 0 {
-		t.Fatalf("sessions: %v", err)
+	if err := json.Unmarshal([]byte(whole.cli("timeline", "--actor=all", "--since=2000-01-01", "--until=2100-01-01", "--limit=0")), &tl); err != nil {
+		t.Fatal(err)
 	}
-	type ev struct {
-		ID        string  `json:"event_id"`
-		Actor     string  `json:"actor"`
-		InputKind *string `json:"input_kind"`
+	special := map[string]bool{}
+	for _, e := range tl {
+		if e.InputKind != nil && *e.InputKind != "typed" {
+			special[e.SessionID] = true
+		}
+	}
+	if len(special) == 0 {
+		t.Fatal("no session with a pasted or remote input")
 	}
 	kinds := map[string]int{}
-	human, unknown, paged := 0, 0, 0
-	for _, r := range rows {
-		var cliOut struct{ Events []ev }
-		if err := json.Unmarshal([]byte(p.cli("show", r.ID, "--all", "--limit=1000")), &cliOut); err != nil {
-			t.Fatalf("show %s: %v", r.ID, err)
-		}
-		pages, _ := p.crawl("show", map[string]any{"session": r.ID, "all": true, "limit": 1000})
+	human, unknown, maxPages := 0, 0, 0
+	for id := range special {
+		cliArgs := []string{"show", id, "--all", "--limit=1000"}
+		want := decode[struct{ Events []inputKindOut }](t, whole.cli(cliArgs...))
+		p := newPagedDemo(t, max(timelineBound(whole, 3, cliArgs...), 3<<10)) // the head of the session must fit
+		pages, _ := p.crawl("show", map[string]any{"session": id, "all": true, "limit": 1000})
 		n := 0
 		for _, pg := range pages {
-			var d struct{ Events []ev }
-			if err := json.Unmarshal([]byte(pg), &d); err != nil {
-				t.Fatalf("show %s page: %v", r.ID, err)
-			}
-			for _, e := range d.Events {
+			for _, e := range decode[struct{ Events []inputKindOut }](t, pg).Events {
 				n++
 				switch {
 				case e.Actor != "human" && e.InputKind != nil:
-					t.Errorf("%s: %s event has input_kind %q", r.ID, e.Actor, *e.InputKind)
+					t.Errorf("%s: %s event has input_kind %q", id, e.Actor, *e.InputKind)
 				case e.Actor == "human" && e.InputKind == nil:
 					human++
 					unknown++
@@ -163,29 +176,23 @@ func TestMCPInputKindAddsUp(t *testing.T) {
 				}
 			}
 		}
-		if n != len(cliOut.Events) {
-			t.Errorf("%s: pages hold %d events, CLI %d", r.ID, n, len(cliOut.Events))
+		maxPages = max(maxPages, len(pages))
+		if n != len(want.Events) {
+			t.Errorf("%s: %d pages hold %d events, CLI %d", id, len(pages), n, len(want.Events))
 		}
-		paged += n
+	}
+	if maxPages < 2 {
+		t.Errorf("no session came in several pages")
 	}
 	sum := unknown
 	for _, c := range kinds {
 		sum += c
 	}
-	if sum != human || human == 0 || paged == 0 {
+	if sum != human || human == 0 || kinds["pasted"] == 0 || kinds["remote"] == 0 {
 		t.Errorf("kinds %v + %d unknown = %d, human events %d", kinds, unknown, sum, human)
-	}
-	for _, k := range []string{"typed", "pasted", "remote"} {
-		if kinds[k] == 0 {
-			t.Errorf("no %s event over MCP: %v", k, kinds)
-		}
 	}
 }
 
-// TestTimelineInputKind: every event of timeline --json has the key
-// input_kind; over the whole demo archive the kinds plus the unknown ones add
-// up to the human events, and only human events carry a kind. The same
-// counts come out of the MCP pages of the tool.
 type tev struct {
 	Actor     string
 	InputKind *string `json:"input_kind"`
