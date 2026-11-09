@@ -11,6 +11,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
+- **MCP:** das Tool `stats` hat die Parameter `tools` und `path`, `by` dazu die Werte `day`, `session` und `repo` ([MCP anbinden](../how-to/55-mcp-anbinden.md)). Das Ergebnis kommt wie alle großen Ergebnisse seitenweise (Seitenliste `groups`), `total` und `by_tool` stehen auf jeder Seite.
 
 ## v1.5.0 (unveröffentlicht)
 
