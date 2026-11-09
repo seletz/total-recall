@@ -422,3 +422,48 @@ func mustDefinition(t *testing.T, name string, match ...string) project.Definiti
 	}
 	return d
 }
+
+func TestComputeUncategorized(t *testing.T) {
+	// alpha: 3m + 10m + 3m + 5m = 21m on Monday; beta: 5m on Monday and
+	// 3m on Tuesday (first of the day).
+	events := []Event{
+		ev(at(0, 9, 0), "a1", alpha),
+		ev(at(0, 9, 10), "a1", alpha),
+		ev(at(0, 9, 40), "a1", alpha),
+		ev(at(0, 9, 45), "b1", beta),
+		ev(at(0, 9, 50), "a1", alpha),
+		ev(at(1, 10, 0), "b2", beta),
+	}
+	opts := Options{Location: cet, DayStart: 4 * time.Hour}
+	tests := []struct {
+		name  string
+		rules []Rule
+		opts  Options
+		want  string // "project:raw" largest first, then by name
+	}{
+		{"no rules: every project is its own category", nil, opts, "alpha:21m0s beta:8m0s"},
+		{"a rule takes alpha out", rules(t, "work", "alpha"), opts, "beta:8m0s"},
+		{"every project matched", rules(t, "work", "https://example.test/o/*"), opts, ""},
+		{"only the days of the range count", rules(t, "work", "alpha"), Options{Location: cet, DayStart: 4 * time.Hour, From: at(1, 0, 0), To: at(1, 0, 0)}, "beta:3m0s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := defaults()
+			s.Rules = tt.rules
+			r := Compute(events, s, tt.opts)
+			var got []string
+			var sum time.Duration
+			for _, u := range r.Uncategorized {
+				got = append(got, u.Name+":"+u.Raw.String())
+				sum += u.Raw
+			}
+			want := strings.Fields(tt.want)
+			if strings.Join(got, " ") != strings.Join(want, " ") {
+				t.Errorf("uncategorized = %v, want %v", got, want)
+			}
+			if sum > r.Total.Raw {
+				t.Errorf("uncategorized %s exceeds the total %s", sum, r.Total.Raw)
+			}
+		})
+	}
+}

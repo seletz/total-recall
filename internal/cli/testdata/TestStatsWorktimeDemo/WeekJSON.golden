@@ -158,6 +158,20 @@
       "days": 1
     }
   ],
+  "uncategorized": [
+    {
+      "project": "fahrtenbuch",
+      "key": "/home/mara/src/fahrtenbuch",
+      "remote": "https://git.invalid/mara/fahrtenbuch",
+      "raw_seconds": 2700
+    },
+    {
+      "project": "wetterwarte",
+      "key": "/home/mara/src/wetterwarte",
+      "remote": "https://git.invalid/mara/wetterwarte",
+      "raw_seconds": 1560
+    }
+  ],
   "total": {
     "raw_seconds": 13402,
     "rounded_seconds": 14400,

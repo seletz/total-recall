@@ -683,6 +683,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `holiday_region` | region of the public holidays |
 | `days` | all days of the range, see below |
 | `categories` | per category over the range, see below |
+| `uncategorized` | projects with time that no category rule matches, largest first, see below; `[]` when every project has a category |
 | `total` | see below |
 
 #### `stats --json --worktime` days[]
@@ -737,6 +738,17 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `raw_seconds` | |
 | `rounded_seconds` | sum of the rounded day cells |
 | `days` | days with time |
+
+#### `stats --json --worktime` uncategorized[]
+
+Projects that no `[[worktime.category]]` matches. Each is its own category in `days`, `categories` and `total`, so this list is a part of that time, not an addition. Mention them to the user before booking: a new repository usually needs a category.
+
+| field | meaning |
+|---|---|
+| `project` | project name as in `stats --by project` (also the category name in `days`) |
+| `key` | git root, else working directory |
+| `remote` | remote URL, `null` without a repository |
+| `raw_seconds` | credited time over the whole range (sum of its cells) |
 
 #### `stats --json --worktime` total
 
