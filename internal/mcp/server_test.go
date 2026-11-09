@@ -248,3 +248,34 @@ func TestServe(t *testing.T) {
 		t.Errorf("output = %q", out.String())
 	}
 }
+
+// TestUsageErrorNamesArguments: a usage error of the CLI names its flags
+// (--by-session); the MCP caller knows arguments (by_session), so the
+// server says argument "by_session". Only flags of the tool are renamed,
+// other kinds of errors are kept as they are.
+func TestUsageErrorNamesArguments(t *testing.T) {
+	for _, tt := range []struct {
+		name, out, want string
+	}{
+		{"flag of the tool", `{"error":{"kind":"usage","message":"--actor does not apply to type session"}}`,
+			`{"error":{"kind":"usage","message":"argument \"actor\" does not apply to type session"}}`},
+		{"hyphen becomes underscore, several flags", `{"error":{"kind":"usage","message":"--limit (3) must be below --by-session"}}`,
+			`{"error":{"kind":"usage","message":"argument \"limit\" (3) must be below argument \"by_session\""}}`},
+		{"longer flag name is not cut", `{"error":{"kind":"usage","message":"--limits is unknown, --limit is fine"}}`,
+			`{"error":{"kind":"usage","message":"--limits is unknown, argument \"limit\" is fine"}}`},
+		{"flag the tool has no argument for", `{"error":{"kind":"usage","message":"--db is wrong"}}`,
+			`{"error":{"kind":"usage","message":"--db is wrong"}}`},
+		{"other kinds stay", `{"error":{"kind":"sql","message":"--actor in the SQL"}}`,
+			`{"error":{"kind":"sql","message":"--actor in the SQL"}}`},
+		{"not an error object", "plain text --actor", "plain text --actor"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := testServer(func(context.Context, []string) (string, bool) { return tt.out + "\n", true })
+			m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"x"}}}`)
+			got := m["result"].(map[string]any)["content"].([]any)[0].(map[string]any)["text"]
+			if got != tt.want {
+				t.Errorf("text = %v\nwant   %v", got, tt.want)
+			}
+		})
+	}
+}

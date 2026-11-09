@@ -153,6 +153,7 @@ func TestMCPErrors(t *testing.T) {
 		{"bad fts", "search", map[string]any{"query": "AND AND (", "raw": true}, "sql"},
 		{"timeline bad actor", "timeline", map[string]any{"actor": "bogus"}, "usage"},
 		{"timeline since after until", "timeline", map[string]any{"since": "2026-10-21", "until": "2026-10-20"}, "usage"},
+
 		{"bad type", "search", map[string]any{"query": "x", "type": []string{"attachment"}}, "usage"},
 		{"type needs by_session event", "search", map[string]any{"query": "x", "type": "session", "by_session": true}, "usage"},
 		{"missing query", "search", map[string]any{}, "usage"},
@@ -258,5 +259,24 @@ func TestMCPSkillDocumentsTools(t *testing.T) {
 				t.Errorf("tool %s: argument %s is not documented", tool.Name, p.Name)
 			}
 		}
+	}
+}
+
+// TestMCPTimelineSinceUntilMessage: the MCP error for a window that ends
+// before it starts names the arguments, like the other argument errors of
+// the MCP; the CLI keeps the flag names.
+func TestMCPTimelineSinceUntilMessage(t *testing.T) {
+	s, e := demoMCP(t)
+	got, isErr := s.call("timeline", map[string]any{"since": "2026-10-21", "until": "2026-10-20"})
+	if !isErr {
+		t.Fatalf("no error: %v", got)
+	}
+	msg := decode[ErrorJSON](t, got[0]).Error.Message
+	if !strings.Contains(msg, `argument "since"`) || !strings.Contains(msg, `argument "until"`) || strings.Contains(msg, "--") {
+		t.Errorf("MCP message = %q, want argument \"since\" … argument \"until\" without --", msg)
+	}
+	r := e.run(t, "", append(s.args, "timeline", "--json", "--since", "2026-10-21", "--until", "2026-10-20")...)
+	if cm := decode[ErrorJSON](t, r.stdout).Error.Message; !strings.Contains(cm, "--since") || !strings.Contains(cm, "--until") {
+		t.Errorf("CLI message = %q, want the flag names", cm)
 	}
 }

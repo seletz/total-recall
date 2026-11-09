@@ -13,7 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -207,7 +209,7 @@ func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) tool
 	}
 	out, failed := s.Run(ctx, argv)
 	if failed {
-		return toolResult{Content: []content{text(strings.TrimSpace(out))}, IsError: true}
+		return toolResult{Content: []content{text(argumentNames(t, strings.TrimSpace(out)))}, IsError: true}
 	}
 	max := s.MaxBytes
 	if max <= 0 {
@@ -223,6 +225,48 @@ func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) tool
 		res.Content = append(res.Content, text(string(b)))
 	}
 	return res
+}
+
+// argumentNames rewrites the flags a usage error of the CLI names (--by-session)
+// to the arguments of the tool (argument "by_session"): the caller of a
+// tool never saw a flag. Only flags that are an argument of t are renamed
+// and only in errors of kind usage; any other output is returned as it is.
+func argumentNames(t Tool, out string) string {
+	var e struct {
+		Error struct {
+			Kind    string `json:"kind"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(out), &e) != nil || e.Error.Kind != "usage" {
+		return out
+	}
+	msg := e.Error.Message
+	for _, p := range t.Params {
+		if p.Server || p.Positional {
+			continue
+		}
+		flag := p.Flag
+		if flag == "" {
+			flag = strings.ReplaceAll(p.Name, "_", "-")
+		}
+		// A flag ends at a character a flag name cannot contain, so --limit
+		// does not match inside --limits.
+		msg = flagRef(flag).ReplaceAllString(msg, "${1}argument "+strconv.Quote(p.Name)+"${2}")
+	}
+	if msg == e.Error.Message {
+		return out
+	}
+	b, err := json.Marshal(map[string]any{"error": map[string]string{"kind": "usage", "message": msg}})
+	if err != nil {
+		return out
+	}
+	return string(b)
+}
+
+// flagRef matches --flag as a whole word; group 1 is what precedes it.
+func flagRef(flag string) *regexp.Regexp {
+	return regexp.MustCompile(`(^|[^A-Za-z0-9-])--` + regexp.QuoteMeta(flag) + `($|[^A-Za-z0-9_-])`)
 }
 
 // bound makes out fit into max bytes: verbatim when it fits, compacted when
