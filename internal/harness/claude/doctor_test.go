@@ -301,3 +301,30 @@ func TestCheckFormatArtifactRecords(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckFormatWorkflowJournalLaunched: the workflow journal also holds
+// a launched marker (#247). It is known to doctor and skipped on purpose.
+// The fixture is synthetic.
+func TestCheckFormatWorkflowJournalLaunched(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+	}{
+		{"launched marker", `{"type":"launched"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !slices.Contains(SkippedRecordTypes(), "launched") {
+				t.Error("launched is not in skippedTypes")
+			}
+			dir := writeTree(t, map[string]string{"-w/s.jsonl": tt.line + "\n"})
+			r, err := New(dir).CheckFormat(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !r.Clean() {
+				t.Errorf("launched reported as drift: %+v", r)
+			}
+		})
+	}
+}
