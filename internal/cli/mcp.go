@@ -74,7 +74,7 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "show", Title: "Show a session", Command: []string{"show"}, FixedFlags: []string{"--json"}, Units: []string{"events"},
 			Description: "Show the conversation of one session (human and agent messages; all=true adds tool calls and results). Select a window with since/until, from_event (an event_id of a search hit) or limit with offset. " +
-				"Without limit at most 200 events are returned. Same JSON as `total-recall show --json`.",
+				"Without limit at most 200 events are returned. Human events carry input_kind (typed, pasted, bash, remote; null when unknown). Same JSON as `total-recall show --json`.",
 			Defaults: map[string]int{"limit": 200},
 			Params: withLimit(200, 1000, pCursor,
 				mcp.Param{Name: "session", Type: "string", Required: true, Positional: true, Description: "session id, native id or unique prefix"},

@@ -115,3 +115,68 @@ func TestInputKindDemoInvariants(t *testing.T) {
 		t.Errorf("show text lacks the input kind:\n%s", out)
 	}
 }
+
+// TestMCPInputKindAddsUp pages the show tool of every demo session with a
+// small bound: over all pages the input kinds plus the unknown ones add up
+// to the human events, only human events carry a kind, and the event count
+// of the pages equals the CLI output.
+func TestMCPInputKindAddsUp(t *testing.T) {
+	p := newPagedDemo(t, 4<<10)
+	list, _, _ := newPagedDemo(t, 16<<20).call("sessions", map[string]any{"limit": 500})
+	var rows []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(list), &rows); err != nil || len(rows) == 0 {
+		t.Fatalf("sessions: %v", err)
+	}
+	type ev struct {
+		ID        string  `json:"event_id"`
+		Actor     string  `json:"actor"`
+		InputKind *string `json:"input_kind"`
+	}
+	kinds := map[string]int{}
+	human, unknown, paged := 0, 0, 0
+	for _, r := range rows {
+		var cliOut struct{ Events []ev }
+		if err := json.Unmarshal([]byte(p.cli("show", r.ID, "--all", "--limit=1000")), &cliOut); err != nil {
+			t.Fatalf("show %s: %v", r.ID, err)
+		}
+		pages, _ := p.crawl("show", map[string]any{"session": r.ID, "all": true, "limit": 1000})
+		n := 0
+		for _, pg := range pages {
+			var d struct{ Events []ev }
+			if err := json.Unmarshal([]byte(pg), &d); err != nil {
+				t.Fatalf("show %s page: %v", r.ID, err)
+			}
+			for _, e := range d.Events {
+				n++
+				switch {
+				case e.Actor != "human" && e.InputKind != nil:
+					t.Errorf("%s: %s event has input_kind %q", r.ID, e.Actor, *e.InputKind)
+				case e.Actor == "human" && e.InputKind == nil:
+					human++
+					unknown++
+				case e.Actor == "human":
+					human++
+					kinds[*e.InputKind]++
+				}
+			}
+		}
+		if n != len(cliOut.Events) {
+			t.Errorf("%s: pages hold %d events, CLI %d", r.ID, n, len(cliOut.Events))
+		}
+		paged += n
+	}
+	sum := unknown
+	for _, c := range kinds {
+		sum += c
+	}
+	if sum != human || human == 0 || paged == 0 {
+		t.Errorf("kinds %v + %d unknown = %d, human events %d", kinds, unknown, sum, human)
+	}
+	for _, k := range []string{"typed", "pasted", "remote"} {
+		if kinds[k] == 0 {
+			t.Errorf("no %s event over MCP: %v", k, kinds)
+		}
+	}
+}

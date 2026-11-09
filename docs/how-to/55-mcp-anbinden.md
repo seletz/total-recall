@@ -60,6 +60,7 @@ Der erste Inhalt eines Tool-Ergebnisses ist höchstens **32 KiB** groß, bei **j
 Der Grundsatz: **Die Zahlen müssen stimmen.** Ein Tool lässt nie still Teile einer Liste weg, über die eine Summe gebildet wird. Ist die CLI-Ausgabe größer als die Grenze, kommt sie in **Seiten**, und der Agent holt den Rest mit Folgeaufrufen. Passt sie, ändert sich nichts: Der erste Inhalt ist die CLI-Ausgabe, ein zweiter fehlt.
 
 - **Eine Seite** ist gültiges CLI-JSON mit denselben Feldern. Sie enthält **ganze Einträge** einer Liste, der Seitenliste: `days` bei `stats` mit `worktime` oder `workday`, `buckets` bei `period`/`by`, sonst `by_day`; `events` bei `show`; die Zeilen bei `search`, `sessions` und `memory`. Bei `stats` mit Arbeitszeit ist ein Tag also nie mitten in seinen Kategorien geteilt: Jeder Tag kommt mit allen Kategorien, Projekten, Referenzen und Sessions.
+- **Die Eingabeart** (`input_kind` bei `show` und `search`, seit v1.6.0) steht in jedem Event der Seite. Über alle Seiten ergeben `typed`, `pasted`, `bash`, `remote` und `null` bei menschlichen Events genau deren Anzahl; Events anderer Actor haben immer `null`.
 - **Alles andere steht vollständig auf jeder Seite**, vor allem `total` und die Summen je Kategorie über den ganzen Zeitraum. Auf jeder Seite ist ein Tag die Summe seiner Kategorien, und die Summe der Tage aller Seiten ist der Gesamtwert.
 - **Alle Seiten zusammen** sind byte-gleich die kompakte CLI-Ausgabe: Seite 1 mit den Einträgen der Seitenliste aller Seiten.
 
