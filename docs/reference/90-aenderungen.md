@@ -8,6 +8,11 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.6.0 (unveröffentlicht)
 
+### Zeitleiste
+
+- **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit, `--project` (Name wie bei `stats --by project`), `--repo`, `--actor`; je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).
+- **MCP-Tool `timeline`:** dasselbe als Tool ([MCP anbinden](../how-to/55-mcp-anbinden.md)), mit `cursor`: ein Abend über alle Sessions kommt in Seiten aus ganzen Events, jede Seite gültiges CLI-JSON, alle Seiten zusammen sind byte-gleich die Ausgabe des Befehls. Neues Tool, Minor.
+
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
