@@ -108,7 +108,7 @@ LIMIT 50"
 | `search` | `query*`, `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (default 20, at most 200; per type) |
 | `sessions` | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (default 50, at most 500) |
 | `show` | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (default 200, at most 1000) |
-| `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
+| `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | none |
 | `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`), `all`, `text_width` (default 160), `limit` (leave out for all; large windows come in pages) |
@@ -340,7 +340,7 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | `total-recall timeline --json [--since T] [--until T] [--project P] [--repo R] [--actor human\|agent\|…\|all] [--all] [--text-width N] [--limit N]` | what happened in a time window across all sessions, oldest first; default the human's messages, so "was the evening after 20:00 still work, and on what?" is one call. `--since`/`--until` take a time (`YYYY-MM-DDTHH:MM`, local) or a date; each event has `ts` (UTC), `ts_local`, `session_id`, `session_name`, `project`, `repo`, `actor`, `kind` and `text` (one line, cut to `--text-width`; `text_chars` and `text_truncated` say so). Lists exactly the events `stats` counts as `human` in the same window |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory\|account] [--top N]` | time series per period, optionally per key (`account`: configured names, else ids, `unknown` without one) |
-| `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events]` | first and last activity per day with span and target |
+| `total-recall stats --json --workday [--range today\|this-week\|last-week\|this-month\|last-month] [--all-events] [--blocks]` | first and last activity per day with span and target; `--blocks` adds the blocks of activity per day (a gap above `[work] block_gap`, default 30m, ends a block) with their sum and the pauses, for booking attendance |
 | `total-recall stats --json --worktime [--range …] [--since D] [--until D]` | estimated working time per day, category and project for timesheets, raw and rounded, with the sessions of every cell, the issue/PR references of their titles and the user's messages (`refs`) and a booking text (`text`); `--sessions` and `--summary` add them to the text output. Only gaps between the user's own messages are counted (up to 20m in full, longer ones 3m), so meetings and work without an agent are missing: a lower bound |
 | `total-recall chart <calendar\|projects\|punchcard\|worktime\|all> [--month YYYY-MM] [--out DIR] [--format svg\|png]` | figures for a monthly report as files (`<YYYY-MM>-<chart>.svg`); counted like `stats`. Only when the user asks for a picture |
 | `total-recall doctor --json` | format drift of the transcripts; exit 2 = findings. Not needed for queries |
@@ -635,6 +635,33 @@ One object per memory file whose current content matches, best first.
 | `span_seconds` | |
 | `target_seconds` | target x workdays |
 | `balance_seconds` | span minus target |
+
+#### `stats --json --workday --blocks`
+
+Added to the object above, only with `--blocks`.
+
+| field | meaning |
+|---|---|
+| `block_gap_seconds` | the gap between two events that ends a block (`[work] block_gap`) |
+
+#### `stats --json --workday --blocks` days[]
+
+Added to every day, only with `--blocks`. Blocks plus pauses make up `span_seconds`.
+
+| field | meaning |
+|---|---|
+| `blocks` | runs of activity in order, `[]` without activity; each has `start`, `end` (UTC), `start_local`, `end_local` (local clock, `(+1)` past midnight) and `seconds` (a single event: 0) |
+| `block_seconds` | sum of the blocks |
+| `break_seconds` | sum of the pauses between the blocks |
+
+#### `stats --json --workday --blocks` total
+
+Added to `total`, only with `--blocks`.
+
+| field | meaning |
+|---|---|
+| `block_seconds` | sum of the blocks of all days |
+| `break_seconds` | sum of the pauses of all days |
 
 #### `stats --json --worktime`
 

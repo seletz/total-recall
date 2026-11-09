@@ -13,6 +13,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit, `--project` (Name wie bei `stats --by project`), `--repo`, `--actor`; je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).
 - **MCP-Tool `timeline`:** dasselbe als Tool ([MCP anbinden](../how-to/55-mcp-anbinden.md)), mit `cursor`: ein Abend über alle Sessions kommt in Seiten aus ganzen Events, jede Seite gültiges CLI-JSON, alle Seiten zusammen sind byte-gleich die Ausgabe des Befehls. Neues Tool, Minor.
 
+### Arbeitstage
+
+- **Aktivitätsblöcke:** `stats --workday --blocks` ([#237](https://github.com/seletz/total-recall/issues/237)) liefert je Tag die Blöcke `{start, end, seconds}` statt nur erster und letzter Aktivität, dazu die Summe der Blöcke und der Pausen je Tag und im Total; die Blöcke ergeben mit den Pausen immer die Spanne. Ein Block endet bei einer Lücke über `block_gap` in `[work]` (neu, Default `30m`). Zählweise, Tagesgrenze und Mitternacht wie bei `--workday`. Nur neue Felder und ein neuer Schlüssel, ohne `--blocks` bleibt die Ausgabe unverändert. Im MCP-Tool `stats` ist es der Parameter `blocks`; die Blöcke bleiben mit ihrem Tag auf einer Seite des [Pagings](../how-to/55-mcp-anbinden.md).
+
 ## v1.5.0
 
 ### Bruch
