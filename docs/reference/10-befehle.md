@@ -390,11 +390,11 @@ LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
 
 | Option | Bedeutung |
 |---|---|
-| `--since`, `--until` | Zeitfenster, lokale Zeit: `YYYY-MM-DD` oder `YYYY-MM-DDTHH:MM`. `--since` ist inklusiv, `--until` exklusiv; ein Datum als `--until` schließt den ganzen Tag ein |
+| `--since`, `--until` | Zeitfenster, lokale Zeit: `YYYY-MM-DD` oder `YYYY-MM-DDTHH:MM`. `--since` ist inklusiv, `--until` exklusiv; ein Datum als `--until` schließt den ganzen Tag ein. `--since` muss vor `--until` liegen, sonst ist es ein `usage`-Fehler (auch im MCP-Tool) |
 | `--project P` | nur dieses Projekt: der Name wie bei [`stats --by project`](#stats-period), sonst ein Teil von Name, Pfad oder Remote-URL; Subagenten gehören zum Projekt ihrer Eltern-Session |
 | `--repo R`, `--harness H`, `--name N`, `--account A` | Filter wie bei [`sessions`](#sessions) |
-| `--actor A` | wessen Events: `human` (Default), `agent`, `peer`, `automation`, `tool` oder `all` |
-| `--all` | auch Tool-Aufrufe und -Ergebnisse, System- und Meta-Events; Default nur Nachrichten |
+| `--actor A` | wessen Events: `human` (Default), `agent`, `peer`, `automation`, `tool` oder `all`; ein anderer Wert ist ein `usage`-Fehler mit den erlaubten Werten |
+| `--all` | auch Tool-Aufrufe und -Ergebnisse, System- und Meta-Events; Default nur Nachrichten. Ohne ausdrückliches `--actor` gilt dann `--actor all` (der Default `human` hätte keine Tool-Aufrufe); ein gesetztes `--actor`, auch `human`, gewinnt |
 | `--text-width N` | Zeichen des Textes je Event (Default 160, 0 = ganzer Text) |
 | `--limit N` | höchstens die ältesten N Events (Default 0 = alle); ein abgeschnittenes Fenster steht auf stderr |
 
