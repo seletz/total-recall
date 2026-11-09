@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.5.0 (unveröffentlicht)
+## v1.5.0
 
 ### Bruch
 
@@ -33,7 +33,7 @@ Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder n
 
 ### Cursor-Fehler und Hinweis im zweiten Block
 
-- **Drei Meldungen für einen Cursor, der nicht passt** ([#230](https://github.com/seletz/total-recall/issues/230)): `invalid cursor` (kaputt oder keine Seite dieses Ergebnisses), `cursor belongs to a different query` (andere Argumente, etwa `since=2026-09-01` statt `10-01`, oder ein anderes Tool) und nur bei gleichen Argumenten und geändertem Archiv `the result changed since this cursor was issued`. Bisher kam immer die letzte, was bei anderen Argumenten in die Irre führte. Dazu trägt der Cursor jetzt einen Hash der Argumente ohne `cursor`; ein Cursor aus dem Vorschau-Stand ist ungültig (`invalid cursor`), der Agent beginnt ohne ihn neu.
+- **Drei Meldungen für einen Cursor, der nicht passt** ([#230](https://github.com/seletz/total-recall/issues/230)): `invalid cursor` (kaputt oder keine Seite dieses Ergebnisses), `cursor belongs to a different query` (andere Argumente, etwa `since=2026-09-01` statt `10-01`, oder ein anderes Tool) und nur bei gleichen Argumenten und geändertem Archiv `the result changed since this cursor was issued`. Dazu trägt der Cursor jetzt einen Hash der Argumente ohne `cursor`.
 - **Wo `page`, `next` und `hint` stehen:** im **zweiten** Content-Block, nicht im Daten-JSON des ersten. Das steht jetzt in der Beschreibung jedes Tools (`tools/list`) und im [How-to](../how-to/55-mcp-anbinden.md#seiten).
 
 ### Memory in der TUI
