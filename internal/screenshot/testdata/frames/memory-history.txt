@@ -1,0 +1,36 @@
+ total-recall                  updated 10:00:00                   [1 search] › memory  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ kompass  history of release-process.md
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   2026-10-31 22:35                  695 B now │ release-process.md
+ ▸ 2026-10-24 09:50                      362 B │ kompass  claude
+   2026-10-12 21:45                      190 B │ 2026-10-24 09:50  version 2 of 3
+                                               │────────────────────────────────────────────────────────────────────────
+                                               │ ---
+                                               │ name: release-process
+                                               │ description: How a kompass release is cut and published
+                                               │ metadata:
+                                               │   type: project
+                                               │ ---
+                                               │
+                                               │ A release is a signed tag on main. The release workflow then runs
+                                               │ goreleaser, which builds the binaries for darwin/arm64 and linux/amd64.
+                                               │
+                                               │ Steps
+                                               │
+                                               │ 1. Update the changelog under the next version.
+                                               │ 2. Tag with git tag -s vX.Y.Z and push the tag.
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+ 3 versions
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • b/f scroll text • esc back • 1 search • 2 stats • 3 activity • ? help • q quit
