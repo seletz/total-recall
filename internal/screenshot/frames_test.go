@@ -61,6 +61,8 @@ func TestRenderAll(t *testing.T) {
 		"memory":                  {"› memory", "kompass  memory  claude", "▸ release-process.md", "✗ old-notes.md", "deleted", "3 files, 1 deleted", "goreleaser"},
 		"memory-history":          {"› memory", "history of release-process.md", "version 2 of 3", "now", "2026-10-24 09:50"},
 		"memory-deleted":          {"› memory", "history of old-notes.md", "✗ 2026-10-28 10:00", "The file was deleted at this point.", "2 versions"},
+		"memory-diff":             {"› memory", "history of release-process.md", "· diff", "version 1 of 3 → ", "+8 -3", "@@ -1,9 +1,14 @@", " - A release is a tag on", " + A release is a signed tag on"},
+		"memory-timeline":         {"› memory", "kompass  timeline", "2026-10-28 10:00 ✗ old-notes.md", "2026-10-28 09:35 ~ MEMORY.md", "10 changes", "@@"},
 		"stats":                   {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
 		"heatmap":                 {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
 		"activity-week":           {"[3 activity]", "period: day [week] month", "week:", "Thu 2026-06-04", "Fronleichnam", "00:45 (+1)", "count: all [human]"},

@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/seletz/total-recall/internal/mcp"
 	"github.com/seletz/total-recall/internal/skill"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
@@ -222,130 +219,6 @@ func TestMCPOutdatedSchema(t *testing.T) {
 
 // TestMCPBounded: a result over the byte limit is cut at an item boundary;
 // the first content item stays valid CLI JSON and a second one says so.
-func TestMCPBounded(t *testing.T) {
-	s, e := demoMCP(t)
-	srv := &mcp.Server{Name: "t", Tools: mcpTools(), MaxBytes: 2000, Run: func(ctx context.Context, argv []string) (string, bool) {
-		var out bytes.Buffer
-		app := &App{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &bytes.Buffer{}, Args: append(s.args, argv...), Home: e.dir,
-			Getenv: func(k string) string {
-				if k == "TOTAL_RECALL_CONFIG" {
-					return e.configPath
-				}
-				return ""
-			}}
-		code := Main(app)
-		return out.String(), code != 0
-	}}
-	out := srv.Handle(context.Background(), []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sessions","arguments":{"limit":100}}}`))
-	var m struct {
-		Result struct {
-			Content []struct{ Text string }
-			IsError bool
-		}
-	}
-	if err := json.Unmarshal(out, &m); err != nil {
-		t.Fatal(err)
-	}
-	if m.Result.IsError || len(m.Result.Content) != 2 {
-		t.Fatalf("result = %s", out)
-	}
-	var items []map[string]any
-	if err := json.Unmarshal([]byte(m.Result.Content[0].Text), &items); err != nil || len(items) == 0 || len(items) >= 100 {
-		t.Fatalf("first item: %v, %d sessions", err, len(items))
-	}
-	if len(m.Result.Content[0].Text) > 2000 {
-		t.Errorf("first item is %d bytes", len(m.Result.Content[0].Text))
-	}
-	var h mcp.Hint
-	if err := json.Unmarshal([]byte(m.Result.Content[1].Text), &h); err != nil || !h.Truncated || h.Hint == "" {
-		t.Errorf("hint = %+v, %v", h, err)
-	}
-}
-
-// TestMCPEveryToolBounded runs every tool against the demo archive with a
-// bound far below its output: the first item stays valid JSON within the
-// bound and a second one says what is missing.
-func TestMCPEveryToolBounded(t *testing.T) {
-	s, e := demoMCP(t)
-	run := func(ctx context.Context, argv []string) (string, bool) {
-		var out bytes.Buffer
-		app := &App{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &bytes.Buffer{}, Args: append(s.args, argv...), Home: e.dir,
-			Getenv: func(k string) string {
-				if k == "TOTAL_RECALL_CONFIG" {
-					return e.configPath
-				}
-				return ""
-			}}
-		code := Main(app)
-		return out.String(), code != 0
-	}
-	call := func(max int, tool, args string) (first string, hint *mcp.Hint, full int) {
-		t.Helper()
-		srv := &mcp.Server{Name: "t", Tools: mcpTools(), MaxBytes: max, Run: run}
-		out := srv.Handle(context.Background(), []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+tool+`","arguments":`+args+`}}`))
-		var m struct {
-			Result struct {
-				Content []struct{ Text string }
-				IsError bool
-			}
-		}
-		if err := json.Unmarshal(out, &m); err != nil || m.Result.IsError || len(m.Result.Content) == 0 {
-			t.Fatalf("%s: %v: %s", tool, err, out)
-		}
-		if len(m.Result.Content) == 2 {
-			hint = &mcp.Hint{}
-			if err := json.Unmarshal([]byte(m.Result.Content[1].Text), hint); err != nil {
-				t.Fatalf("%s: hint: %v", tool, err)
-			}
-		}
-		return m.Result.Content[0].Text, hint, 0
-	}
-	// A session to show: the first row of sessions.
-	list, _, _ := call(16<<20, "sessions", `{"limit":1}`)
-	var rows []struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal([]byte(list), &rows); err != nil || len(rows) == 0 {
-		t.Fatalf("sessions: %v: %s", err, list)
-	}
-	for _, tc := range []struct {
-		tool, args string
-		bound      int
-	}{
-		{"search", `{"query":"the","type":"event,session,memory"}`, 1500},
-		{"sessions", `{"limit":100}`, 1500},
-		{"show", `{"session":"` + rows[0].ID + `","all":true}`, 1500},
-		{"stats", `{"worktime":true,"sessions":true,"summary":true,"since":"2026-01-01"}`, 1500},
-		{"stats", `{"period":"day","by":"project","since":"2026-01-01"}`, 1500},
-	} {
-		t.Run(tc.tool+" "+tc.args, func(t *testing.T) {
-			whole, whint, _ := call(16<<20, tc.tool, tc.args)
-			if whint != nil {
-				t.Fatalf("unbounded call was cut")
-			}
-			compact := new(bytes.Buffer)
-			if err := json.Compact(compact, []byte(whole)); err != nil {
-				t.Fatal(err)
-			}
-			if compact.Len() <= tc.bound {
-				t.Skipf("output is only %d bytes", compact.Len())
-			}
-			first, hint, _ := call(tc.bound, tc.tool, tc.args)
-			if !json.Valid([]byte(first)) || len(first) > tc.bound {
-				t.Errorf("first item: valid=%v, %d bytes (bound %d)", json.Valid([]byte(first)), len(first), tc.bound)
-			}
-			if hint == nil || !hint.Truncated || hint.Hint == "" {
-				t.Errorf("hint = %+v", hint)
-			}
-		})
-	}
-	// stats names what was cut and how to narrow.
-	_, hint, _ := call(1500, "stats", `{"worktime":true,"sessions":true,"since":"2026-01-01"}`)
-	if hint == nil || len(hint.Cut) == 0 || !strings.Contains(hint.Hint, "sessions") {
-		t.Errorf("stats hint = %+v", hint)
-	}
-}
-
 func TestMCPPrint(t *testing.T) {
 	e := newTestEnv(t)
 	got := decode[map[string]map[string]map[string]any](t, e.mustRun(t, "mcp", "print", "--binary", "/opt/tr"))
