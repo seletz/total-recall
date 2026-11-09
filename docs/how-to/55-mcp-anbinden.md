@@ -63,13 +63,21 @@ Der Grundsatz: **Die Zahlen müssen stimmen.** Ein Tool lässt nie still Teile e
 - **Alles andere steht vollständig auf jeder Seite**, vor allem `total` und die Summen je Kategorie über den ganzen Zeitraum. Auf jeder Seite ist ein Tag die Summe seiner Kategorien, und die Summe der Tage aller Seiten ist der Gesamtwert.
 - **Alle Seiten zusammen** sind byte-gleich die kompakte CLI-Ausgabe: Seite 1 mit den Einträgen der Seitenliste aller Seiten.
 
-Der zweite Inhalt sagt, wo man ist und wie es weitergeht:
+Der zweite Inhalt sagt, wo man ist und wie es weitergeht. **`page`, `next` und `hint` stehen im zweiten Content-Block des Ergebnisses, nicht im Daten-JSON des ersten**; im ersten ist nur das CLI-JSON, in dem es diese Felder nicht gibt. Die Beschreibung jedes Tools in `tools/list` sagt das ausdrücklich. Der zweite Block ist ein eigener Text mit diesem JSON:
 
 ```json
 {"page":{"index":2,"of":5,"unit":"days","from":8,"to":16,"total":31},"next":{"cursor":"16-9dc0292a4f5d"},"hint":"page 2 of 5 (days 9 to 16 of 31); totals and all other fields are complete on every page; call again with cursor=\"16-9dc0292a4f5d\" for the next page; or narrow the query first: …"}
 ```
 
-`from` und `to` zählen ab 0 (`[from, to)`), `total` ist die Zahl der Einträge der Seitenliste. Für die nächste Seite ruft der Agent **dasselbe Tool mit denselben Argumenten** und zusätzlich `cursor` = `next.cursor` auf, unverändert; die letzte Seite hat kein `next`. Der Cursor ist ein undurchsichtiger Text. Er hält keinen Zustand im Server: Jeder Aufruf führt den Befehl neu aus und teilt wieder auf. Hat sich das Archiv zwischen zwei Seiten geändert (die Summen oder der Kopf sind andere), ist das ein `usage`-Fehler („the result changed since this cursor was issued“), und der Agent beginnt ohne `cursor` von vorn, statt Seiten zu mischen, die nicht zusammenpassen. Ein `cursor` bei einem Ergebnis ohne Seiten und bei `status` ist ebenfalls ein `usage`-Fehler.
+`from` und `to` zählen ab 0 (`[from, to)`), `total` ist die Zahl der Einträge der Seitenliste. Für die nächste Seite ruft der Agent **dasselbe Tool mit denselben Argumenten** und zusätzlich `cursor` = `next.cursor` auf, unverändert; die letzte Seite hat kein `next`. Der Cursor ist ein undurchsichtiger Text. Er hält keinen Zustand im Server: Jeder Aufruf führt den Befehl neu aus und teilt wieder auf. Hat sich das Archiv zwischen zwei Seiten geändert, beginnt der Agent ohne `cursor` von vorn, statt Seiten zu mischen, die nicht zusammenpassen. Ein Cursor, der nicht passt, ist immer ein `usage`-Fehler, und die Meldung sagt, warum:
+
+| Meldung | Bedeutung | Was tun |
+|---|---|---|
+| `invalid cursor` | der Text ist kein Cursor oder nicht der einer Seite dieses Ergebnisses | `next.cursor` unverändert übergeben |
+| `cursor belongs to a different query` | die anderen Argumente (`since`, `month`, `limit`, …) sind nicht die des Aufrufs, der den Cursor ausgegeben hat, oder es ist ein anderes Tool | dieselben Argumente nehmen, oder ohne `cursor` neu beginnen |
+| `the result changed since this cursor was issued` | gleiche Argumente, aber das Archiv hat sich zwischen den Seiten geändert | ohne `cursor` neu beginnen |
+
+Dazu trägt der Cursor einen Hash der Argumente (ohne `cursor`) und einen des Ergebnisses neben dem Eintrag, bei dem die Seite beginnt. Ein `cursor` bei einem Ergebnis ohne Seiten ist ebenfalls ein `usage`-Fehler (`this result has no pages`), bei `status` ein unbekanntes Argument.
 
 **Vorab eingrenzen** spart Seiten: Jede Seite trägt die Summen und alle anderen Felder neu, mehr Seiten kosten also mehr Tokens. Der Hinweis nennt, wie man eingrenzt: ein kleinerer Zeitraum (`month`, `since`, `until`, `range`), `sessions` oder `summary` weglassen, `period`/`by` mit `top`, ein kleineres `limit`. Wer nur Summen braucht, kommt damit oft mit einer Seite aus.
 

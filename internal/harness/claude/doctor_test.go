@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/seletz/total-recall/internal/harness"
@@ -263,5 +265,39 @@ func TestCheckFormatHistorySuppression(t *testing.T) {
 	}
 	if r.Lines != 2 {
 		t.Errorf("lines = %d, want 2", r.Lines)
+	}
+}
+
+// TestCheckFormatArtifactRecords: Claude Code writes three record types
+// for artifacts (#229). doctor must not report any of them as unknown.
+// The fixtures are synthetic.
+func TestCheckFormatArtifactRecords(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		keep bool // kept as a meta record (metaTypes), else skipped
+	}{
+		{"autoreact ledger", `{"type":"artifact-autoreact-ledger","v":1,"sessionId":"s","artifacts":{"a1":{"savedAt":1,"threads":[]}}}`, true},
+		{"comment monitor", `{"type":"artifact-comment-monitor","v":1,"sessionId":"s","artifacts":{"a1":{"state":"armed","holderPid":1}}}`, false},
+		{"frame link", `{"type":"frame-link","sessionId":"s","frameUrl":"https://example.invalid/artifact/x","title":"t","artifactCount":1,"timestamp":"2026-01-01T00:00:00.000Z"}`, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typ := strings.Split(strings.Split(tt.line, `"type":"`)[1], `"`)[0]
+			if got := slices.Contains(MetaRecordTypes(), typ); got != tt.keep {
+				t.Errorf("%s in metaTypes = %v, want %v", typ, got, tt.keep)
+			}
+			if got := slices.Contains(SkippedRecordTypes(), typ); got == tt.keep {
+				t.Errorf("%s in skippedTypes = %v, want %v", typ, got, !tt.keep)
+			}
+			dir := writeTree(t, map[string]string{"-w/s.jsonl": tt.line + "\n"})
+			r, err := New(dir).CheckFormat(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !r.Clean() {
+				t.Errorf("%s reported as drift: %+v", typ, r)
+			}
+		})
 	}
 }
