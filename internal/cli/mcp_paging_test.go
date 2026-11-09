@@ -207,6 +207,9 @@ func TestMCPPagesAddUp(t *testing.T) {
 		{"stats workday", "stats",
 			map[string]any{"workday": true, "since": "2026-01-01", "until": "2026-12-31"},
 			[]string{"stats", "--workday", "--since=2026-01-01", "--until=2026-12-31"}, "days", 0},
+		{"stats workday with blocks", "stats",
+			map[string]any{"workday": true, "blocks": true, "since": "2026-01-01", "until": "2026-12-31"},
+			[]string{"stats", "--workday", "--blocks", "--since=2026-01-01", "--until=2026-12-31"}, "days", 0},
 		{"stats per day", "stats",
 			map[string]any{"since": "2026-01-01", "until": "2026-12-31"},
 			[]string{"stats", "--since=2026-01-01", "--until=2026-12-31"}, "by_day", 14 << 10},
@@ -371,5 +374,85 @@ func TestMCPCursorErrors(t *testing.T) {
 	// status has no pages: the argument is unknown there.
 	if first, _, isErr := p.call("status", map[string]any{"cursor": "0-x"}); !isErr || !strings.Contains(first, `"kind":"usage"`) {
 		t.Errorf("status with cursor: %v %s", isErr, first)
+	}
+}
+
+// TestMCPWorkdayBlocksSumsOnEveryPage: with a bound that forces many pages
+// of days, the blocks of a day add up on every page (blocks plus breaks are
+// the span), the totals are the same on every page and equal the sums of
+// the days of all pages, and no block is missing.
+func TestMCPWorkdayBlocksSumsOnEveryPage(t *testing.T) {
+	type page struct {
+		Days []struct {
+			Day          string
+			Span         int `json:"span_seconds"`
+			BlockSeconds int `json:"block_seconds"`
+			BreakSeconds int `json:"break_seconds"`
+			Blocks       []struct {
+				Seconds int
+			}
+		}
+		Total json.RawMessage
+	}
+	args := map[string]any{"workday": true, "blocks": true, "since": "2026-05-01", "until": "2026-10-31"}
+	want := newPagedDemo(t, 16<<20).cli("stats", "--workday", "--blocks", "--since=2026-05-01", "--until=2026-10-31")
+	var whole page
+	if err := json.Unmarshal([]byte(want), &whole); err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]json.RawMessage
+	_ = json.Unmarshal([]byte(want), &m)
+	var days []json.RawMessage
+	_ = json.Unmarshal(m["days"], &days)
+	rest, biggest := len(want), 0
+	for _, d := range days {
+		rest -= len(d) + 1
+		biggest = max(biggest, len(d))
+	}
+	bound := rest + 5*biggest
+	pages, hints := newPagedDemo(t, bound).crawl("stats", args)
+	if len(pages) < len(days)/10 {
+		t.Fatalf("%d pages for %d days", len(pages), len(days))
+	}
+	var nDays, nBlocks, spanSum int
+	for i, pg := range pages {
+		if len(pg) > bound || hints[i] == nil || hints[i].Truncated {
+			t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), bound, hints[i])
+		}
+		var w page
+		if err := json.Unmarshal([]byte(pg), &w); err != nil {
+			t.Fatal(err)
+		}
+		if string(w.Total) != string(whole.Total) {
+			t.Errorf("page %d: totals differ from the whole", i+1)
+		}
+		for _, d := range w.Days {
+			sum := 0
+			for _, b := range d.Blocks {
+				sum += b.Seconds
+			}
+			if sum != d.BlockSeconds || sum+d.BreakSeconds != d.Span {
+				t.Errorf("%s: blocks %d, block_seconds %d, break_seconds %d, span %d", d.Day, sum, d.BlockSeconds, d.BreakSeconds, d.Span)
+			}
+			nDays++
+			nBlocks += len(d.Blocks)
+			spanSum += d.Span
+		}
+	}
+	wholeBlocks := 0
+	for _, d := range whole.Days {
+		wholeBlocks += len(d.Blocks)
+	}
+	var tot struct {
+		Span  int `json:"span_seconds"`
+		Block int `json:"block_seconds"`
+		Break int `json:"break_seconds"`
+	}
+	_ = json.Unmarshal(whole.Total, &tot)
+	if nDays != len(whole.Days) || nBlocks != wholeBlocks || wholeBlocks == 0 || spanSum != tot.Span || tot.Block+tot.Break != tot.Span {
+		t.Errorf("%d of %d days, %d of %d blocks, span %d (total %d), blocks %d + breaks %d", nDays, len(whole.Days), nBlocks, wholeBlocks, spanSum, tot.Span, tot.Block, tot.Break)
+	}
+	if got := reassemble(t, pages, "days"); got != want {
+		t.Errorf("pages do not add up to the CLI JSON")
 	}
 }
