@@ -362,14 +362,41 @@ func TestMCPCursorErrors(t *testing.T) {
 	if h == nil || h.Next == nil {
 		t.Fatalf("no second page: %+v", h)
 	}
-	for name, c := range map[string]string{"malformed": "x", "mid-page": "1-" + strings.SplitN(h.Next.Cursor, "-", 2)[1]} {
-		first, _, isErr := p.call("sessions", map[string]any{"limit": 500, "cursor": c})
-		if !isErr || !strings.Contains(first, `"kind":"usage"`) {
-			t.Errorf("%s: %v %s", name, isErr, first)
+	for _, tc := range []struct {
+		name, tool string
+		args       map[string]any
+		want       string
+	}{
+		{"malformed", "sessions", map[string]any{"limit": 500, "cursor": "x"}, "invalid cursor"},
+		{"mid-page", "sessions", map[string]any{"limit": 500, "cursor": "1-" + strings.SplitN(h.Next.Cursor, "-", 2)[1]}, "invalid cursor"},
+		{"other arguments", "sessions", map[string]any{"limit": 499, "cursor": h.Next.Cursor}, "cursor belongs to a different query"},
+		{"other tool", "search", map[string]any{"query": "the", "cursor": h.Next.Cursor}, "cursor belongs to a different query"},
+	} {
+		first, _, isErr := p.call(tc.tool, tc.args)
+		if !isErr || !strings.Contains(first, `"kind":"usage"`) || !strings.Contains(first, tc.want) {
+			t.Errorf("%s: %v %s", tc.name, isErr, first)
 		}
+	}
+	// The same call with the cursor works.
+	if first, _, isErr := p.call("sessions", map[string]any{"limit": 500, "cursor": h.Next.Cursor}); isErr {
+		t.Errorf("good cursor: %s", first)
 	}
 	// status has no pages: the argument is unknown there.
 	if first, _, isErr := p.call("status", map[string]any{"cursor": "0-x"}); !isErr || !strings.Contains(first, `"kind":"usage"`) {
 		t.Errorf("status with cursor: %v %s", isErr, first)
+	}
+}
+
+// TestMCPDescriptionsSayWherePagingIs: the tool descriptions (tools/list)
+// say that page, next and hint are in the second content block.
+func TestMCPDescriptionsSayWherePagingIs(t *testing.T) {
+	for _, tool := range mcpTools() {
+		has := false
+		for _, p := range tool.Params {
+			has = has || p.Name == "cursor"
+		}
+		if got := strings.Contains(tool.Description, "SECOND content block"); got != has {
+			t.Errorf("%s: cursor=%v, description mentions the second content block=%v", tool.Name, has, got)
+		}
 	}
 }

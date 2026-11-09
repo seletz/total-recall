@@ -157,21 +157,48 @@ func (d *doc) starts(max int) []int {
 	return starts
 }
 
-// cursorOf is the opaque token for the page starting at entry from.
-func (d *doc) cursorOf(from int) string { return strconv.Itoa(from) + "-" + d.hash }
+// cursorOf is the opaque token for the page starting at entry from of the
+// query with the argument hash query: "from-query-hash".
+func (d *doc) cursorOf(from int, query string) string {
+	return strconv.Itoa(from) + "-" + query + "-" + d.hash
+}
 
-// parseCursor returns the first entry the cursor names.
-func (d *doc) parseCursor(c string) (int, error) {
-	n, hash, ok := strings.Cut(c, "-")
-	from, err := strconv.Atoi(n)
-	if !ok || err != nil || from < 0 || hash == "" {
-		return 0, fmt.Errorf("invalid cursor %q: pass next.cursor of the previous page unchanged", c)
+// splitCursor takes a cursor apart: the first entry, the hash of the
+// arguments of the call that issued it, and the hash of the result.
+func splitCursor(c string) (from int, query, hash string, err error) {
+	parts := strings.Split(c, "-")
+	if len(parts) == 3 {
+		from, err = strconv.Atoi(parts[0])
+		if err == nil && from >= 0 && parts[1] != "" && parts[2] != "" {
+			return from, parts[1], parts[2], nil
+		}
 	}
-	if hash != d.hash {
-		return 0, fmt.Errorf("the result changed since this cursor was issued (new data in the archive): start again without cursor")
+	return 0, "", "", fmt.Errorf("invalid cursor %q: pass next.cursor of the previous page unchanged", c)
+}
+
+// checkCursor validates the cursor of a call with the argument hash query
+// and returns the first entry it names. It tells apart a cursor that is
+// broken, one of a different query (other arguments) and, for the same
+// query, a result that changed since the cursor was issued. d may be nil
+// when the result has no pages (only the first two are checked).
+func checkCursor(c, query string, d *doc) (int, error) {
+	from, q, hash, err := splitCursor(c)
+	if err != nil {
+		return 0, err
+	}
+	if q != query {
+		return 0, errDifferentQuery
+	}
+	if d != nil && hash != d.hash {
+		return 0, errChanged
 	}
 	return from, nil
 }
+
+var (
+	errDifferentQuery = fmt.Errorf("cursor belongs to a different query: it only works with the arguments of the call that returned it; leave out cursor to start this query")
+	errChanged        = fmt.Errorf("the result changed since this cursor was issued (new data in the archive): start again without cursor")
+)
 
 // errNoPages is returned for a cursor on a result that has no pages.
 var errNoPages = fmt.Errorf("this result has no pages: leave out cursor")
@@ -183,7 +210,7 @@ var errNoPages = fmt.Errorf("this result has no pages: leave out cursor")
 // max although it holds one entry only loses detail lists (t.Detail) and
 // long texts, flagged in the hint, never sums; if that is not enough it is
 // an error. ok is false when b has no paged list.
-func paginate(b []byte, t Tool, cursor string, max int) (page []byte, hint *Hint, ok bool, err error) {
+func paginate(b []byte, t Tool, cursor, query string, max int) (page []byte, hint *Hint, ok bool, err error) {
 	d, ok := splitDoc(b, t.Units)
 	if !ok {
 		return nil, nil, false, nil
@@ -191,7 +218,7 @@ func paginate(b []byte, t Tool, cursor string, max int) (page []byte, hint *Hint
 	starts := d.starts(max)
 	idx := 0
 	if cursor != "" {
-		from, err := d.parseCursor(cursor)
+		from, err := checkCursor(cursor, query, d)
 		if err != nil {
 			return nil, nil, true, err
 		}
@@ -220,7 +247,7 @@ func paginate(b []byte, t Tool, cursor string, max int) (page []byte, hint *Hint
 		}
 		text = append(text, fmt.Sprintf("page %d of %d (%s %d to %d of %d); totals and all other fields are complete on every page", idx+1, len(starts), what, from+1, to, len(d.units)))
 		if idx+1 < len(starts) {
-			hint.Next = &Next{Cursor: d.cursorOf(starts[idx+1])}
+			hint.Next = &Next{Cursor: d.cursorOf(starts[idx+1], query)}
 			text = append(text, fmt.Sprintf("call again with cursor=%q for the next page", hint.Next.Cursor))
 		} else {
 			text = append(text, "last page")
