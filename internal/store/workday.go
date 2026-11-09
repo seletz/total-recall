@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -24,6 +25,10 @@ type WorkdayFilter struct {
 	HumanOnly bool
 	// Holidays names the public holidays; nil means there are none.
 	Holidays Holidays
+	// BlockGap, when above zero, makes Workday fill Workday.Blocks: a gap
+	// between two counted events longer than BlockGap ends a block (a gap
+	// of exactly BlockGap does not). Zero leaves Blocks empty.
+	BlockGap time.Duration
 	// Project renames the project keys of ProjectDays before they are
 	// counted, like ActivityFilter.Project (project.Resolver.Key), so the
 	// activity view shows the same projects as the stats; nil keeps the
@@ -49,7 +54,57 @@ type Workday struct {
 	// Holiday is the name of the public holiday on the day, "" on an
 	// ordinary day (see WorkdayFilter.Holidays).
 	Holiday string
+	// Blocks are the runs of activity of the day, in order, set when
+	// WorkdayFilter.BlockGap is above zero; the first block starts at First,
+	// the last ends at Last.
+	Blocks []Block
 	Activity
+}
+
+// Block is a run of counted activity without a gap above the block gap.
+type Block struct {
+	Start, End time.Time
+}
+
+// Duration is the elapsed time of the block; zero for a single event.
+func (b Block) Duration() time.Duration { return b.End.Sub(b.Start) }
+
+// BlockSum is the total duration of the blocks of the day.
+func (d Workday) BlockSum() time.Duration {
+	var sum time.Duration
+	for _, b := range d.Blocks {
+		sum += b.Duration()
+	}
+	return sum
+}
+
+// BreakSum is the total of the gaps between the blocks of the day: with
+// blocks, BlockSum + BreakSum is always Span.
+func (d Workday) BreakSum() time.Duration {
+	var sum time.Duration
+	for i := 1; i < len(d.Blocks); i++ {
+		sum += d.Blocks[i].Start.Sub(d.Blocks[i-1].End)
+	}
+	return sum
+}
+
+// buildBlocks groups the event times into blocks: a gap above gap starts a
+// new block. times is sorted in place.
+func buildBlocks(times []time.Time, gap time.Duration) []Block {
+	if len(times) == 0 {
+		return nil
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	blocks := []Block{{Start: times[0], End: times[0]}}
+	for _, t := range times[1:] {
+		last := &blocks[len(blocks)-1]
+		if t.Sub(last.End) > gap {
+			blocks = append(blocks, Block{Start: t, End: t})
+			continue
+		}
+		last.End = t
+	}
+	return blocks
 }
 
 // Active reports whether the day has any counted activity.
@@ -77,6 +132,9 @@ func (d Workday) FirstClock(loc *time.Location) string { return d.clock(d.First,
 
 // LastClock formats Last like FirstClock.
 func (d Workday) LastClock(loc *time.Location) string { return d.clock(d.Last, loc) }
+
+// Clock formats t like FirstClock, relative to the day.
+func (d Workday) Clock(t time.Time, loc *time.Location) string { return d.clock(t, loc) }
 
 func (d Workday) clock(t time.Time, loc *time.Location) string {
 	if t.IsZero() {
@@ -164,6 +222,7 @@ func (s *Store) Workday(ctx context.Context, f WorkdayFilter) ([]Workday, error)
 	type dayAcc struct {
 		bucket
 		first, last time.Time
+		times       []time.Time // all event times, only with BlockGap
 	}
 	days := map[time.Time]*dayAcc{}
 	var firstDay, lastDay time.Time
@@ -184,6 +243,9 @@ func (s *Store) Workday(ctx context.Context, f WorkdayFilter) ([]Workday, error)
 			days[day] = a
 		}
 		a.add(session, actor)
+		if f.BlockGap > 0 {
+			a.times = append(a.times, t)
+		}
 		if t.Before(a.first) {
 			a.first = t
 		}
@@ -219,6 +281,9 @@ func (s *Store) Workday(ctx context.Context, f WorkdayFilter) ([]Workday, error)
 		}
 		if a := days[day]; a != nil {
 			w.First, w.Last, w.Activity = a.first, a.last, a.activity()
+			if f.BlockGap > 0 {
+				w.Blocks = buildBlocks(a.times, f.BlockGap)
+			}
 		}
 		out = append(out, w)
 	}

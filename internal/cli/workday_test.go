@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
 
@@ -163,6 +164,8 @@ func TestStatsWorkdayErrors(t *testing.T) {
 		{"workday and period", []string{"--workday", "--period", "week"}, "--period"},
 		{"workday and by", []string{"--workday", "--by", "project"}, "--by"},
 		{"human only without workday", []string{"--human-only"}, "--workday"},
+		{"blocks without workday", []string{"--blocks"}, "--workday"},
+		{"blocks with worktime", []string{"--worktime", "--blocks"}, "--workday"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -347,5 +350,134 @@ func TestStatsWorkdayCount(t *testing.T) {
 	r := runActivity(t, e, db, "--workday", "--human-only")
 	if !strings.Contains(r.stderr, "deprecated") {
 		t.Errorf("--human-only without a deprecation note: %q", r.stderr)
+	}
+}
+
+// TestStatsWorkdayBlocks compares the output of --workday --blocks with
+// golden files.
+func TestStatsWorkdayBlocks(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"LastWeek", []string{"--range", "last-week", "--blocks"}},
+		{"LastWeekAllEvents", []string{"--range", "last-week", "--blocks", "--all-events"}},
+		{"LastWeekJSON", []string{"--range", "last-week", "--blocks", "--json"}},
+		{"EmptyJSON", []string{"--since", "2026-03-02", "--until", "2026-03-08", "--blocks", "--json"}},
+	}
+	e := newTestEnv(t)
+	e.now = activityNow
+	_, db := fixturedb.Activity(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := runActivity(t, e, db, append([]string{"--workday"}, tt.args...)...)
+			if r.code != 0 {
+				t.Fatalf("exit %d: %s", r.code, r.stderr)
+			}
+			golden.RequireEqual(t, []byte(r.stdout))
+		})
+	}
+}
+
+// TestStatsWorkdayBlocksOptional checks that the block fields are absent
+// without --blocks (the JSON of a plain --workday does not change).
+func TestStatsWorkdayBlocksOptional(t *testing.T) {
+	e := newTestEnv(t)
+	e.now = activityNow
+	_, db := fixturedb.Activity(t)
+	r := runActivity(t, e, db, "--workday", "--range", "last-week", "--json")
+	for _, key := range []string{"blocks", "block_seconds", "break_seconds", "block_gap_seconds"} {
+		if strings.Contains(r.stdout, `"`+key+`"`) {
+			t.Errorf("plain --workday JSON has %q", key)
+		}
+	}
+}
+
+// TestStatsWorkdayBlocksSums is the sum invariant against the real --json
+// output of the demo archive, for several thresholds and both counting
+// modes: per day the blocks add up to block_seconds, blocks plus breaks to
+// span_seconds, the blocks are ordered, apart by more than the threshold
+// and bounded by first and last; the total adds up its days; the days
+// match a plain --workday run of the same range.
+func TestStatsWorkdayBlocksSums(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	for _, gap := range []string{"1m", "30m", "2h", "24h"} {
+		for _, all := range []bool{false, true} {
+			t.Run(gap+map[bool]string{false: "", true: "/all-events"}[all], func(t *testing.T) {
+				e := newTestEnv(t)
+				e.now = demo.Now
+				e.home = demo.Home
+				appendConfig(t, e, "\n[work]\nblock_gap = \""+gap+"\"\n")
+				args := []string{"--workday", "--month", "2026-10", "--json"}
+				if all {
+					args = append(args, "--all-events")
+				}
+				plain := decode[WorkdayJSON](t, runActivity(t, e, db, args...).stdout)
+				r := runActivity(t, e, db, append(args, "--blocks")...)
+				if r.code != 0 {
+					t.Fatalf("exit %d: %s", r.code, r.stderr)
+				}
+				out := decode[WorkdayJSON](t, r.stdout)
+				gapDur, _ := time.ParseDuration(gap)
+				if out.BlockGapSeconds == nil || *out.BlockGapSeconds != int(gapDur.Seconds()) {
+					t.Fatalf("block_gap_seconds = %v, want %v", out.BlockGapSeconds, gapDur.Seconds())
+				}
+				if len(out.Days) != len(plain.Days) || len(out.Days) == 0 {
+					t.Fatalf("days = %d, plain %d", len(out.Days), len(plain.Days))
+				}
+				var sumBlocks, sumBreaks, sumSpan, nBlocks int
+				for i, d := range out.Days {
+					if d.SpanSeconds != plain.Days[i].SpanSeconds || d.First != plain.Days[i].First || d.Last != plain.Days[i].Last {
+						t.Errorf("%s: differs from plain --workday", d.Day)
+					}
+					if d.Blocks == nil || d.BlockSeconds == nil || d.BreakSeconds == nil {
+						t.Fatalf("%s: block fields missing: %+v", d.Day, d)
+					}
+					blocks := *d.Blocks
+					if (d.First == "") != (len(blocks) == 0) {
+						t.Errorf("%s: first=%q with %d blocks", d.Day, d.First, len(blocks))
+					}
+					var sum, breaks int
+					for j, b := range blocks {
+						if b.Seconds < 0 {
+							t.Errorf("%s block %d: negative", d.Day, j)
+						}
+						bs, _ := time.Parse(time.RFC3339, b.Start)
+						be, _ := time.Parse(time.RFC3339, b.End)
+						if int(be.Sub(bs).Seconds()) != b.Seconds {
+							t.Errorf("%s block %d: seconds %d != end-start", d.Day, j, b.Seconds)
+						}
+						if j == 0 && b.Start != string(d.First) {
+							t.Errorf("%s: first block starts %s, first activity %s", d.Day, b.Start, d.First)
+						}
+						if j == len(blocks)-1 && b.End != string(d.Last) {
+							t.Errorf("%s: last block ends %s, last activity %s", d.Day, b.End, d.Last)
+						}
+						if j > 0 {
+							pe, _ := time.Parse(time.RFC3339, blocks[j-1].End)
+							g := int(bs.Sub(pe).Seconds())
+							if g <= int(gapDur.Seconds()) {
+								t.Errorf("%s block %d: only %ds after the previous one, threshold %s", d.Day, j, g, gap)
+							}
+							breaks += g
+						}
+						sum += b.Seconds
+					}
+					if sum != *d.BlockSeconds || breaks != *d.BreakSeconds || sum+breaks != d.SpanSeconds {
+						t.Errorf("%s: blocks %d + breaks %d vs block_seconds %d, break_seconds %d, span %d", d.Day, sum, breaks, *d.BlockSeconds, *d.BreakSeconds, d.SpanSeconds)
+					}
+					sumBlocks, sumBreaks, sumSpan, nBlocks = sumBlocks+sum, sumBreaks+breaks, sumSpan+d.SpanSeconds, nBlocks+len(blocks)
+				}
+				if out.Total.BlockSeconds == nil || out.Total.BreakSeconds == nil {
+					t.Fatal("total block fields missing")
+				}
+				if *out.Total.BlockSeconds != sumBlocks || *out.Total.BreakSeconds != sumBreaks || sumBlocks+sumBreaks != out.Total.SpanSeconds || sumSpan != out.Total.SpanSeconds {
+					t.Errorf("total: block %d break %d span %d; days add up to %d + %d, span %d", *out.Total.BlockSeconds, *out.Total.BreakSeconds, out.Total.SpanSeconds, sumBlocks, sumBreaks, sumSpan)
+				}
+				if nBlocks == 0 {
+					t.Error("demo month has no blocks")
+				}
+			})
+		}
 	}
 }
