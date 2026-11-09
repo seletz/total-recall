@@ -646,6 +646,8 @@ total        15h53m  16h45m   4
 
 **Kategorien.** Projekte (Git-Root, sonst Arbeitsverzeichnis, Namen wie bei `--by project`, also zuerst aus [`[[project]]`](20-konfiguration.md#project)) werden über die Regeln `[[worktime.category]]` zugeordnet, die erste passende gewinnt; die Regeln sehen den konfigurierten Projektnamen. Ein Projekt ohne Regel ist seine eigene Kategorie und heißt wie das Projekt, Verzeichnisse ohne Repository als Pfad mit `~`. Eine letzte Regel mit `match = "*"` sammelt den Rest.
 
+**Projekte ohne Kategorie.** Weil so ein Projekt still als eigene Kategorie läuft, fällt ein neues Repository sonst erst beim Buchen auf. Das JSON hat dafür `uncategorized`: die Projekte mit Zeit im Zeitraum, auf die keine Regel passt, mit `project`, `key`, `remote` und `raw_seconds` (Summe über den Zeitraum), die größten zuerst; `[]`, wenn jedes Projekt eine Kategorie hat. Die Liste ist ein **Teil** der Zeit, kein Zusatz: dieselben Sekunden stehen auch in `days`, `categories` und `total`, jedes Projekt als Kategorie mit seinem Namen. Die Tabellenausgabe meldet sie nach der Tabelle **auf stderr** (`stats: 2 projects without a category …`), damit stdout unverändert bleibt. Die Meldung erscheint nur, wenn überhaupt Kategorien konfiguriert sind; ohne `[[worktime.category]]` ist „jedes Projekt eine Kategorie“ gewollt. [`doctor`](#doctor) weist auf Repositories hin, die schon aktiv sind, bevor man eine Buchung macht.
+
 | Option | Bedeutung |
 |---|---|
 | `--range`, `--since`, `--until`, `--month` | wie bei [`--workday`](#stats-workday): Tage ab der Tagesgrenze, `--until` einschließlich, ohne Zeitraum `this-week` |
@@ -710,6 +712,7 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
     }
   ],
   "categories": [{"category": "kompass", "raw_seconds": 9142, "rounded_seconds": 9900, "days": 1}],
+  "uncategorized": [],
   "total": {"raw_seconds": 13402, "rounded_seconds": 14400, "days": 1}
 }
 ```
@@ -982,9 +985,20 @@ Gemeldet werden:
 
 Je Befund steht die erste Fundstelle (`Datei:Zeile`) dabei. Inhalte werden nicht ausgegeben.
 
+**Hinweis auf nicht eingerichtete Projekte.** Ist das Archiv da, nennt `doctor` zusätzlich die Projekte mit eigenen Nachrichten in den letzten `--days` Tagen (Default 30), auf die kein [`[[project]]`](20-konfiguration.md#project) passt oder die keine `[[worktime.category]]` abdeckt:
+
+```text
+hint: 2 projects with activity in the last 30 days not fully set up in the config:
+  dotfiles: no [[project]]
+  wetterwarte: no [[project]], no category
+```
+
+Jede Prüfung gilt nur, wenn die Tabelle Einträge hat: ohne `[[project]]` gibt es kein „kein Projekt“, ohne Kategorien kein „keine Kategorie“. Die Kategorie wird wie bei [`stats --worktime`](#stats-worktime) bestimmt. Der Hinweis ist kein Befund: Der Exit-Code bleibt, die Zeilen stehen im Text auf stdout, mit `--json` auf stderr, die JSON-Ausgabe bleibt unverändert. `--days 0` schaltet ihn ab.
+
 | Option | Bedeutung |
 |---|---|
 | `--harness NAME` | zu prüfende Harness, Default `claude` |
+| `--days N` | Zeitfenster des Hinweises auf nicht eingerichtete Projekte, Default 30; 0 schaltet ihn ab |
 | `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`); Konfigurationsprobleme gehen dann auf stderr |
 
 Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).

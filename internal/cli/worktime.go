@@ -42,7 +42,22 @@ type WorktimeJSON struct {
 	Days []WorktimeDayJSON `json:"days"`
 	// Categories sums every category over the range, sorted by name.
 	Categories []WorktimeCategoryTotalJSON `json:"categories"`
-	Total      WorktimeTotalJSON           `json:"total"`
+	// Uncategorized lists the projects with time in the range that no
+	// [[worktime.category]] matches, largest first. Each of them counts as
+	// a category of its own in Days, Categories and Total; the list is a
+	// part of that time, not an addition.
+	Uncategorized []WorktimeUncategorizedJSON `json:"uncategorized"`
+	Total         WorktimeTotalJSON           `json:"total"`
+}
+
+// WorktimeUncategorizedJSON is a project without a category: its credited
+// time over the range, the sum of its cells. Remote is null without a
+// repository.
+type WorktimeUncategorizedJSON struct {
+	Project    string     `json:"project"`
+	Key        string     `json:"key"` // git root, else working directory
+	Remote     NullString `json:"remote"`
+	RawSeconds int        `json:"raw_seconds"`
 }
 
 // WorktimeDayJSON is one day.
@@ -165,7 +180,29 @@ func (e *env) runWorktime(cmd *cobra.Command, cfg *config.Config, o *output, rng
 	if o.format.IsJSON() {
 		return o.object(r.json())
 	}
-	return r.text(o.w)
+	if err := r.text(o.w); err != nil {
+		return err
+	}
+	// With no category configured every project is its own category on
+	// purpose; the hint is for a setup that has categories and misses one.
+	if len(settings.Rules) > 0 {
+		r.hintUncategorized(cmd.ErrOrStderr())
+	}
+	return nil
+}
+
+// hintUncategorized names the projects without a category on w, one line.
+func (r worktimeReport) hintUncategorized(w io.Writer) {
+	u := r.rep.Uncategorized
+	if len(u) == 0 {
+		return
+	}
+	parts := make([]string, len(u))
+	for i, p := range u {
+		parts[i] = p.Name + " " + store.FormatSpan(p.Raw)
+	}
+	_, _ = fmt.Fprintf(w, "stats: %s without a category (each counts as its own category): %s; add them to a [[worktime.category]]\n",
+		plural(len(u), "project"), strings.Join(parts, ", "))
 }
 
 // seconds converts a duration to whole seconds.
@@ -212,6 +249,10 @@ func (r worktimeReport) json() WorktimeJSON {
 	}
 	for _, c := range r.rep.Categories {
 		out.Categories = append(out.Categories, WorktimeCategoryTotalJSON{Category: c.Name, WorktimeTotalJSON: totalJSON(c)})
+	}
+	out.Uncategorized = make([]WorktimeUncategorizedJSON, 0, len(r.rep.Uncategorized))
+	for _, u := range r.rep.Uncategorized {
+		out.Uncategorized = append(out.Uncategorized, WorktimeUncategorizedJSON{Project: u.Name, Key: u.Key, Remote: NullString(u.Remote), RawSeconds: seconds(u.Raw)})
 	}
 	out.Total = totalJSON(r.rep.Total)
 	return out

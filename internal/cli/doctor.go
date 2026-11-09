@@ -1,9 +1,14 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -11,6 +16,7 @@ import (
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // doctorFindings is the exit code of doctor when something unknown was found.
@@ -18,6 +24,7 @@ const doctorFindings = exitCode(2)
 
 func (e *env) doctorCmd() *cobra.Command {
 	var name string
+	var days int
 	var of outputFlags
 	c := &cobra.Command{
 		Use:   "doctor",
@@ -27,7 +34,11 @@ and report what the adapter does not know: record types that are neither
 ingested nor known to be skipped, content block types it does not handle,
 missing expected fields, malformed lines; plus the harness versions seen.
 Problems in the config tables that are only checked when used ([work],
-[tui], [keys]) are reported first.
+[tui], [keys]) are reported first. Then a hint (no finding, the exit code
+stays) names the projects with your own messages in the last --days days
+(default 30) that no [[project]] matches or that no [[worktime.category]]
+covers, so a new repository does not go unnoticed until booking time. Each
+check applies only if the table has entries; --days 0 skips the hint.
 
 Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 		Args: usageArgs(cobra.NoArgs),
@@ -63,6 +74,19 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 			}
 			_, _ = fmt.Fprintln(w)
 		}
+		if days > 0 {
+			hints, err := setupHints(cmd.Context(), cfg, e.app.Now(), days)
+			if err != nil {
+				return err
+			}
+			if len(hints) > 0 {
+				w := o.w
+				if o.format.IsJSON() {
+					w = o.errw
+				}
+				writeSetupHints(w, hints, days)
+			}
+		}
 		if note := schemaNote(cfg); note != "" {
 			clean = false
 			w := o.w
@@ -94,6 +118,7 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 		return nil
 	})
 	c.Flags().StringVar(&name, "harness", "claude", "harness to check")
+	c.Flags().IntVar(&days, "days", 30, "hint at projects with activity in the last N days that have no [[project]] or no category (0 = off)")
 	of.register(c)
 	return c
 }
@@ -118,4 +143,109 @@ func schemaNote(cfg *config.Config) string {
 	}
 	return fmt.Sprintf("MIGRATION PENDING: the archive has schema v%d, this binary v%d; hooks write nothing until you %s",
 		st.Version(), store.LatestSchemaVersion(), migrateHint)
+}
+
+// setupHint is a project with recent activity that the config does not
+// fully cover.
+type setupHint struct {
+	name                  string
+	noProject, noCategory bool
+}
+
+// setupHints lists the projects with own messages in the last days days
+// that no [[project]] matches (only if [[project]] entries exist) or that
+// no [[worktime.category]] covers (only if categories exist), by name. The
+// categories are those of stats --worktime: the report of the same events
+// names the projects without one. Nothing is returned when the archive is
+// missing, unreadable or needs a migration: doctor does not depend on it.
+func setupHints(ctx context.Context, cfg *config.Config, now time.Time, days int) ([]setupHint, error) {
+	if _, err := os.Stat(cfg.DB); err != nil {
+		return nil, nil
+	}
+	settings, err := cfg.WorktimeSettings()
+	if err != nil {
+		return nil, nil // reported as a config problem already
+	}
+	res, err := cfg.ProjectResolver()
+	if err != nil {
+		return nil, nil
+	}
+	checkProjects, checkCategories := !res.Empty(), len(settings.Rules) > 0
+	if !checkProjects && !checkCategories {
+		return nil, nil
+	}
+	st, err := store.OpenReadOnly(cfg.DB, store.WithLocation(cfg.Location()))
+	if err != nil {
+		return nil, nil
+	}
+	defer func() { _ = st.Close() }()
+	if st.MigrationPending() {
+		return nil, nil
+	}
+	events, err := st.HumanEvents(ctx, store.HumanEventsFilter{Since: now.AddDate(0, 0, -days)})
+	if err != nil {
+		return nil, err
+	}
+	in := make([]worktime.Event, len(events))
+	keys, dirs := []string{}, []string{}
+	seen := map[string]bool{}
+	noProject := map[string]bool{}
+	for i, ev := range events {
+		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL}
+		if seen[ev.Project] {
+			continue
+		}
+		seen[ev.Project] = true
+		resolved := res.Key(ev.Project, ev.Dir, ev.RemoteURL)
+		if _, ok := res.Definition(resolved); !ok {
+			noProject[resolved] = true
+		}
+		keys = append(keys, resolved)
+		if ev.Dir && resolved == ev.Project {
+			dirs = append(dirs, resolved)
+		}
+	}
+	names := res.Names(keys, dirs, cfg.Home)
+	hints := map[string]*setupHint{}
+	get := func(key string) *setupHint {
+		h := hints[key]
+		if h == nil {
+			h = &setupHint{name: names[key]}
+			hints[key] = h
+		}
+		return h
+	}
+	if checkProjects {
+		for key := range noProject {
+			get(key).noProject = true
+		}
+	}
+	if checkCategories {
+		rep := worktime.Compute(in, settings, worktime.Options{Location: cfg.Location(), DayStart: cfg.DayStartOffset(), Home: cfg.Home, Projects: res})
+		for _, u := range rep.Uncategorized {
+			get(u.Key).noCategory = true
+		}
+	}
+	out := make([]setupHint, 0, len(hints))
+	for _, h := range hints {
+		out = append(out, *h)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
+	return out, nil
+}
+
+// writeSetupHints prints the hints, one line per project.
+func writeSetupHints(w io.Writer, hints []setupHint, days int) {
+	_, _ = fmt.Fprintf(w, "hint: %s with activity in the last %d days not fully set up in the config:\n", plural(len(hints), "project"), days)
+	for _, h := range hints {
+		var what []string
+		if h.noProject {
+			what = append(what, "no [[project]]")
+		}
+		if h.noCategory {
+			what = append(what, "no category")
+		}
+		_, _ = fmt.Fprintf(w, "  %s: %s\n", h.name, strings.Join(what, ", "))
+	}
+	_, _ = fmt.Fprintln(w)
 }

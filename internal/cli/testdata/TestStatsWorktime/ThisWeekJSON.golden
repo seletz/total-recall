@@ -167,6 +167,20 @@
       "days": 1
     }
   ],
+  "uncategorized": [
+    {
+      "project": "alpha",
+      "key": "/w/alpha",
+      "remote": "https://example.test/o/alpha",
+      "raw_seconds": 540
+    },
+    {
+      "project": "beta",
+      "key": "/w/beta",
+      "remote": "https://example.test/o/beta",
+      "raw_seconds": 180
+    }
+  ],
   "total": {
     "raw_seconds": 720,
     "rounded_seconds": 2700,
