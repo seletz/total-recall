@@ -11,6 +11,7 @@ import (
 // Move exists for the footer only: it names the pair ↑/↓ in one entry.
 type KeyMap struct {
 	Up, Down, Open, PageUp, PageDown, Back key.Binding
+	Diff, Base, Timeline                   key.Binding
 	Move, Scroll                           key.Binding
 }
 
@@ -22,21 +23,27 @@ func newKeyMap(m keys.Map) KeyMap {
 		PageUp:   m.Binding(keys.MemoryPageUp),
 		PageDown: m.Binding(keys.MemoryPageDown),
 		Back:     m.Binding(keys.GlobalBack),
+		Diff:     m.Binding(keys.MemoryDiff),
+		Base:     m.Binding(keys.MemoryBase),
+		Timeline: m.Binding(keys.MemoryTimeline),
 		Move:     m.Group("move", keys.MemoryUp, keys.MemoryDown),
 		Scroll:   m.Group("scroll text", keys.MemoryPageUp, keys.MemoryPageDown),
 	}
 }
 
-// ShortHelp returns the bindings shown in the footer of a page: the history
-// key belongs to the files page only.
+// ShortHelp returns the bindings shown in the footer of a page: history,
+// diff and base belong to the pages that have them.
 func (k KeyMap) ShortHelp(p page) []key.Binding {
-	if p == pageHistory {
-		return []key.Binding{k.Move, k.Scroll, k.Back}
+	switch p {
+	case pageHistory:
+		return []key.Binding{k.Move, k.Diff, k.Base, k.Timeline, k.Scroll, k.Back}
+	case pageTimeline:
+		return []key.Binding{k.Move, k.Open, k.Scroll, k.Back}
 	}
-	return []key.Binding{k.Move, k.Open, k.Scroll, k.Back}
+	return []key.Binding{k.Move, k.Open, k.Timeline, k.Scroll, k.Back}
 }
 
 // FullHelp returns the bindings shown in the help overlay.
 func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.PageUp, k.PageDown}, {k.Open, k.Back}}
+	return [][]key.Binding{{k.Up, k.Down, k.PageUp, k.PageDown}, {k.Open, k.Diff, k.Base, k.Timeline, k.Back}}
 }
