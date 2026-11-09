@@ -69,7 +69,7 @@ func (c Classifier) Classify(text string, f userFlags) model.Actor {
 	switch f.originKind {
 	case "peer":
 		return model.ActorPeer
-	case "", "human":
+	case "", "human", "remote", "remote-control", "bridge":
 	default: // task-notification, scheduled, system, ...
 		return model.ActorAutomation
 	}

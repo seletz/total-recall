@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -52,6 +53,9 @@ var sampleRows = []string{
 	// the test sets them after migrating).
 	`INSERT INTO sessions (id, harness, native_id, name, cwd, started_at, ended_at)
 		VALUES ('claude:s0', 'claude', 's0', 'Earlier', '/w', '2026-09-30T10:00:00.000Z', '2026-09-30T11:00:00.000Z')`,
+	// s2 holds the human inputs migration 10 classifies.
+	`INSERT INTO sessions (id, harness, native_id, cwd, started_at, ended_at)
+		VALUES ('claude:s2', 'claude', 's2', '/w', '2026-10-03T10:00:00.000Z', '2026-10-03T11:00:00.000Z')`,
 	// A session of another harness: no trimmer, its raw is only compressed.
 	`INSERT INTO sessions (id, harness, native_id, cwd, started_at, ended_at)
 		VALUES ('other:x1', 'other', 'x1', '/w', '2026-10-02T10:00:00.000Z', '2026-10-02T11:00:00.000Z')`,
@@ -65,6 +69,20 @@ var sampleRows = []string{
 // known. e2: a source that has no sources row (migration 5 creates one).
 // e3: raw dropped for size. x1: another harness, raw kept as it is. From
 // version 6 on, e3 has an attachment (blobs, event_blobs).
+// inputKindRows are the human inputs of session s2 as (id, actor, text, raw
+// line, kind migration 10 derives; "" stays NULL): the raw line decides typed
+// against remote, the text alone decides bash and pasted.
+var inputKindRows = []struct{ id, actor, text, raw, want string }{
+	{"claude:i1", "human", "typed words", `{"type":"user","entrypoint":"cli","origin":{"kind":"human"}}`, "typed"},
+	{"claude:i2", "human", "<pasted_content id=\"1\">x</pasted_content id=\"1\">", "", "pasted"},
+	{"claude:i3", "human", "<bash-input>ls</bash-input>", "", "bash"},
+	{"claude:i4", "human", "from the phone", `{"type":"user","entrypoint":"remote"}`, "remote"},
+	{"claude:i5", "human", "no raw line", "", ""},
+	{"claude:i6", "human", "garbled raw", "not json", ""},
+	{"claude:i7", "agent", "<bash-input>ls</bash-input>", `{"type":"user"}`, ""},
+	{"claude:i8", "peer", "Another Claude session sent a message: hi", `{"type":"user","origin":{"kind":"peer"}}`, ""},
+}
+
 func sampleEvents(version int) []struct {
 	q    string
 	args []any
@@ -75,12 +93,20 @@ func sampleEvents(version int) []struct {
 	}
 	if version < 5 {
 		q := `INSERT INTO events (id, session_id, ts, kind, role, actor, text, source_path, source_offset, raw) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-		return []r{
+		var in []r
+		for i, k := range inputKindRows {
+			var raw any
+			if k.raw != "" {
+				raw = k.raw
+			}
+			in = append(in, r{q, []any{k.id, "claude:s2", "2026-10-03T10:0" + fmt.Sprint(i) + ":00.000Z", "message", "user", k.actor, k.text, "/p/a.jsonl", 100 + i, raw}})
+		}
+		return append(in, []r{
 			{q, []any{"claude:e1", "claude:s1", "2026-10-01T10:00:00.000Z", "message", "user", "human", "hello migration world", "/p/a.jsonl", 0, sampleRaw}},
 			{q, []any{"claude:e2", "claude:s1", "2026-10-01T10:01:00.000Z", "message", "assistant", "agent", "reply", "/p/gone.jsonl", 10, `{"type":"assistant","noise":1}`}},
 			{q, []any{"claude:e3", "claude:s1", "2026-10-01T10:02:00.000Z", "tool_result", "tool", "tool", "big result", "/p/a.jsonl", 20, nil}},
 			{q, []any{"other:x1", "other:x1", "2026-10-02T10:00:00.000Z", "message", "user", "human", "foreign", "/q/x.log", 0, `{"foreign":"record","junk":1}`}},
-		}
+		}...)
 	}
 	q := `INSERT INTO events (id, session_id, ts, kind, role, actor, text, source_id, source_offset, raw) VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT id FROM sources WHERE path = ?), ?, ?)`
 	rows := []r{
@@ -89,6 +115,13 @@ func sampleEvents(version int) []struct {
 		{q, []any{"claude:e2", "claude:s1", "2026-10-01T10:01:00.000Z", "message", "assistant", "agent", "reply", "/p/gone.jsonl", 10, rawz.Encode(`{"type":"assistant"}`)}},
 		{q, []any{"claude:e3", "claude:s1", "2026-10-01T10:02:00.000Z", "tool_result", "tool", "tool", "big result", "/p/a.jsonl", 20, nil}},
 		{q, []any{"other:x1", "other:x1", "2026-10-02T10:00:00.000Z", "message", "user", "human", "foreign", "/q/x.log", 0, rawz.Encode(`{"foreign":"record","junk":1}`)}},
+	}
+	for i, k := range inputKindRows {
+		var raw any
+		if k.raw != "" {
+			raw = rawz.Encode(k.raw)
+		}
+		rows = append(rows, r{q, []any{k.id, "claude:s2", "2026-10-03T10:0" + fmt.Sprint(i) + ":00.000Z", "message", "user", k.actor, k.text, "/p/a.jsonl", 100 + i, raw}})
 	}
 	if version >= 6 {
 		rows = append(rows,
@@ -188,9 +221,9 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			if k >= 5 {
 				rawE1 = sampleRawV5
 			}
-			// A database created at v9 never ran the migration: its rows stay NULL.
+			// A database already at v9 never ran the migration: its rows stay NULL.
 			wantCache := func(v string) string {
-				if k == LatestSchemaVersion() {
+				if k >= 9 {
 					return "NULL"
 				}
 				return v
@@ -239,6 +272,21 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 				"SELECT count(*) FROM events WHERE id IN ('claude:e3', 'other:x1', 'claude:e1') AND tokens_cache_read IS NULL AND tokens_cache_write IS NULL":                          3,
 				"SELECT count(*) FROM events WHERE id = 'claude:e3' AND tokens_in = 5":                                                                                                 1,
 			}
+			// Migration 10: input_kind of human messages of the claude harness,
+			// from raw and text; a database created at v10 never ran it.
+			for _, ik := range inputKindRows {
+				want := "'" + ik.want + "'"
+				if ik.want == "" || k >= 10 {
+					want = "NULL"
+				}
+				checks["SELECT count(*) FROM events WHERE id = '"+ik.id+"' AND input_kind IS "+want] = 1
+			}
+			e1Kind := "'typed'"
+			if k >= 10 {
+				e1Kind = "NULL"
+			}
+			checks["SELECT count(*) FROM events WHERE id = 'claude:e1' AND input_kind IS "+e1Kind] = 1
+			checks["SELECT count(*) FROM events WHERE id IN ('claude:e2', 'claude:e3', 'other:x1') AND input_kind IS NULL"] = 3
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
 					t.Errorf("%s = %d, want %d", q, got, want)
@@ -255,7 +303,7 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			// UserMessages decompresses raw for reindex --actors.
 			var raws []string
 			_ = s.UserMessages(ctx, "claude", func(m UserMessage) error { raws = append(raws, m.Raw); return nil })
-			if len(raws) != 1 || raws[0] != rawE1 {
+			if !slices.Contains(raws, rawE1) {
 				t.Errorf("UserMessages raw = %q", raws)
 			}
 			// Attachments work on the migrated archive: write, read, restore.
@@ -313,8 +361,20 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 						last = pr
 					}
 				}
-				if last != (Progress{Version: 5, Done: 4, Total: 4}) {
-					t.Errorf("last progress of v5 = %+v, want done 4/4", last)
+				if last != (Progress{Version: 5, Done: 12, Total: 12}) {
+					t.Errorf("last progress of v5 = %+v, want done 12/12", last)
+				}
+			}
+			// Migration 10 reports its work: the seven human messages of the claude harness.
+			if k < 10 {
+				var last10 Progress
+				for _, pr := range progress {
+					if pr.Version == 10 {
+						last10 = pr
+					}
+				}
+				if last10 != (Progress{Version: 10, Done: 7, Total: 7}) {
+					t.Errorf("last progress of v10 = %+v, want done 7/7", last10)
 				}
 			}
 			// Migration 9 reports its work: two events had raw and counts.
@@ -337,7 +397,7 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			}
 			v4 := map[string]int{
 				"SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name IN ('sessions_continued_in', 'sessions_account_id')": 2,
-				"SELECT count(*) FROM sessions WHERE continued_in IS NULL AND account_id IS NULL AND organization_id IS NULL":          2,
+				"SELECT count(*) FROM sessions WHERE continued_in IS NULL AND account_id IS NULL AND organization_id IS NULL":          3,
 			}
 			for q, want := range v4 {
 				if got := countRows(t, s, q); got != want {

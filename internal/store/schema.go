@@ -326,6 +326,12 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
 ALTER TABLE events ADD COLUMN tokens_cache_read INTEGER;
 ALTER TABLE events ADD COLUMN tokens_cache_write INTEGER;
 `,
+	// 10: how a human input reached the harness (typed, pasted, bash,
+	// remote). NULL = unknown or not a human input. migrateInputKindV10
+	// fills it from text and raw.
+	`
+ALTER TABLE events ADD COLUMN input_kind TEXT;
+`,
 }
 
 // migrationNotes describe the migrations for `total-recall migrate`, one
@@ -349,6 +355,8 @@ var migrationNotes = []migrationNote{
 		"moves no data, the next `ingest --all` takes up the memory files as they are on disk"},
 	{Summary: "events: tokens_cache_read and tokens_cache_write, the cached parts of tokens_in; " +
 		"fills them from raw (usage) for the events that have it, a few seconds per 100,000 events with usage; the rest stays NULL"},
+	{Summary: "events: input_kind (typed, pasted, bash, remote) of human messages; " +
+		"fills it from text and raw for the human messages of the claude harness, a few seconds per 100,000 such events; events without raw stay NULL (bash and pasted are told from the text)"},
 }
 
 // migrationNote is the description of one migration.
@@ -377,8 +385,9 @@ type migrationStep func(ctx context.Context, tx *sql.Tx, report func(done, total
 // step can use the store's options. Most migrations are SQL only and have
 // no entry.
 var migrationSteps = map[int]func(s *Store) migrationStep{
-	5: func(s *Store) migrationStep { return s.migrateRawV5 },
-	9: func(s *Store) migrationStep { return s.migrateTokensV9 },
+	5:  func(s *Store) migrationStep { return s.migrateRawV5 },
+	9:  func(s *Store) migrationStep { return s.migrateTokensV9 },
+	10: func(s *Store) migrationStep { return s.migrateInputKindV10 },
 }
 
 // eventsIndexSQL creates the indexes and the full-text triggers of events.

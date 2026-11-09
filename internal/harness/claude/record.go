@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/seletz/total-recall/internal/blobref"
+	"github.com/seletz/total-recall/internal/inputkind"
 	"github.com/seletz/total-recall/internal/model"
 )
 
@@ -189,6 +190,7 @@ type rawRecord struct {
 	IsCompactSummary bool            `json:"isCompactSummary"`
 	ScheduledTaskID  string          `json:"scheduledTaskId"`
 	Origin           json.RawMessage `json:"origin"`
+	Entrypoint       string          `json:"entrypoint"`
 	Message          *rawMessage     `json:"message"`
 	Subtype          string          `json:"subtype"`
 	Content          json.RawMessage `json:"content"` // system records
@@ -470,9 +472,13 @@ func (p *parser) userEvents(r *rawRecord, base model.Event, evID string, atts []
 		scheduled:     r.ScheduledTaskID != "",
 		subagentInput: p.file.parentUUID != "",
 	}
+	remote := inputkind.RemoteSignal(r.Entrypoint, flags.originKind)
 	text := func(t string) model.Event {
 		e := base
 		e.Kind, e.Role, e.Actor, e.Text = model.KindMessage, "user", p.a.classifier.Classify(t, flags), t
+		if e.Actor == model.ActorHuman {
+			e.InputKind = inputkind.Of(t, remote)
+		}
 		return e
 	}
 	if s, ok := asString(r.Message.Content); ok {
@@ -503,6 +509,9 @@ func (p *parser) userEvents(r *rawRecord, base model.Event, evID string, atts []
 			// A pasted image or document: an event of its own, so the
 			// line and its blob are archived; the text is a placeholder.
 			e = text(placeholder(b, sizes))
+			if e.Actor == model.ActorHuman && e.InputKind != model.InputRemote {
+				e.InputKind = model.InputPasted
+			}
 		default:
 			continue
 		}
