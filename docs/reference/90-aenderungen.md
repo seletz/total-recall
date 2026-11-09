@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.5.0 (unveröffentlicht)
 
+### Arbeitstage
+
+- **Aktivitätsblöcke:** `stats --workday --blocks` ([#237](https://github.com/seletz/total-recall/issues/237)) liefert je Tag die Blöcke `{start, end, seconds}` statt nur erster und letzter Aktivität, dazu die Summe der Blöcke und der Pausen je Tag und im Total; die Blöcke ergeben mit den Pausen immer die Spanne. Ein Block endet bei einer Lücke über `block_gap` in `[work]` (neu, Default `30m`). Zählweise, Tagesgrenze und Mitternacht wie bei `--workday`. Nur neue Felder und ein neuer Schlüssel, ohne `--blocks` bleibt die Ausgabe unverändert.
+
 ### Memory in der TUI
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.
