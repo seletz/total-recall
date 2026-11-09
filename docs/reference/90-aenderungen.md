@@ -6,11 +6,13 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.5.0 (unveröffentlicht)
+## v1.6.0 (unveröffentlicht)
 
 ### Zeitleiste
 
 - **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit, `--project` (Name wie bei `stats --by project`), `--repo`, `--actor`; je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).
+
+## v1.5.0 (unveröffentlicht)
 
 ### Memory in der TUI
 
