@@ -374,7 +374,7 @@ Die Zeilen von `--by-session` fassen Event-Treffer zusammen und haben kein `type
 
 ## `stats` { #stats }
 
-Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
+Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
 
 ```sh
 total-recall stats                                   # aktueller Monat
@@ -493,6 +493,36 @@ JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in
   ]
 }
 ```
+
+### Tool-Nutzung: `--tools`, `--by`, `--path` { #stats-tools }
+
+Mit `--tools` zählt `stats` statt der Aktivität die `tool_use`-Events: wie oft die Agenten welches Tool aufgerufen haben (`Bash`, `Read`, `Edit`, MCP-Tools, …). Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`. `--by day|session|repo|project` gruppiert (`repo` und `project` wie bei den anderen Statistiken, Subagenten zählen bei `project` für ihre Hauptsession); `--top N` fasst die kleinsten Gruppen in `other` zusammen. **Die Gruppen ergeben immer die Gesamtzahl**, ebenso die Tools: nichts fällt weg, auch mit `--top` nicht. `--tools` lässt sich nicht mit `--workday`, `--worktime`, `--tokens` oder `--period` kombinieren; `--by` hat hier die Werte `day`, `session`, `repo`, `project` (nicht die der Zeitreihe).
+
+```sh
+total-recall stats --tools --month 2026-10                      # Aufrufe je Tool
+total-recall stats --tools --by day --since 2026-10-01           # je Tag und Tool
+total-recall stats --tools --by project --top 5 --json
+total-recall stats --tools --path '*/internal/store/*' --json    # nur Aufrufe auf dieses Verzeichnis
+```
+
+```json
+{
+  "since": "2026-09-30T22:00:00.000Z", "until": "2026-10-31T23:00:00.000Z", "timezone": "Europe/Berlin",
+  "by": "day", "path": null, "total": 412,
+  "by_tool": [{"tool": "Bash", "count": 230}, {"tool": "Read", "count": 120}, {"tool": "Edit", "count": 62}],
+  "groups": [{"key": "2026-10-01", "count": 40, "by_tool": [{"tool": "Bash", "count": 25}, {"tool": "Edit", "count": 15}]}]
+}
+```
+
+`by` und `path` sind `null` ohne die Flags, `groups` ist dann leer. Tage laufen chronologisch, alle anderen Gruppen nach Anzahl absteigend, `other` zuletzt; die Tools einer Liste ebenso nach Anzahl, dann nach Name. Ein `tool_use` ohne Toolnamen zählt als `unknown`.
+
+**`--path GLOB` und seine Grenzen.** Der Filter prüft die *Argumente* des Aufrufs, so wie das Archiv sie speichert: im Event steht von der Eingabe des Tools nur ein Text (`events.text`), nicht die ganze Eingabe. Es ist das erste vorhandene Feld aus `command`, `file_path`, `path`, `url`, `query`, `pattern`, `description`, `prompt`, `message`, `skill`, sonst das JSON der Eingabe, **auf 1 KiB gekürzt**. Daraus folgt:
+
+- **Datei-Tools** (`Read`, `Edit`, `Write`, …): der Glob muss auf den **ganzen** Pfad passen, also `*/internal/store/*` oder `/home/me/proj/*.go`, nicht `internal/store`. SQLite-GLOB: `*`, `?` und `[a-z]` (auch über `/` hinweg), Groß- und Kleinschreibung zählt.
+- **Bash**: der Glob darf **irgendwo im Befehl** passen (der Filter setzt `*` davor und dahinter). `--path /w/app` findet `ls /w/app/src` und `git -C /w/app status`, aber auch `echo /w/app`. Ob der Pfad Ziel oder nur Teil eines Arguments ist, erkennt der Filter nicht; Pfade in Variablen, Shell-Expansion (`$HOME`, `~`, relative Pfade nach einem `cd`) und Pipes über mehrere Verzeichnisse werden nicht aufgelöst.
+- **Lange Befehle**: ein Pfad hinter der 1-KiB-Grenze wird nicht gefunden. Wer das Original braucht, liest es mit `sql` aus `raw_text(raw)` (nur mit `store_raw`).
+- **Andere Tools** (`Grep`, `WebFetch`, MCP-Tools, …) werden auf ihr erstes bekanntes Feld oder ihr JSON als Ganzes geprüft; ein Glob wie `*pfad*` trifft dort zuverlässiger als ein genauer Pfad.
+- Die Pfade stehen so im Archiv, wie der Agent sie geschrieben hat (maskiert wie jeder Text); es gibt keine Normalisierung zwischen absolut und relativ.
 
 ### Arbeitszeit: `--workday` { #stats-workday }
 
