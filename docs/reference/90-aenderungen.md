@@ -25,6 +25,8 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 ### Behoben
 
 - **`doctor` meldet den Record-Typ `launched` nicht mehr als unbekannt** (#247). Er steht im Workflow-Journal neben `started` und `result` und ist ein reiner Marker ohne Felder; er wird verworfen. Den Agenten tragen `started` und `result`, die als Meta-Records im Archiv bleiben.
+- **`doctor --json` zeigt den Hinweis auf nicht eingerichtete Projekte** ([#238](https://github.com/seletz/total-recall/issues/238)). Er stand bisher nur im Text, Agenten lesen `--json` und sahen ihn nie. Jetzt hat jeder Bericht der Liste das Feld `hints` (`project`, `key`, `missing`: `project` und/oder `category`, `last_active`), getrennt von den Befunden, deren Felder gleich bleiben. Hinweise sind keine Befunde: Der Exit-Code bleibt 0, auch wenn es nur Hinweise gibt; Exit-Code 2 heißt weiter Befunde.
+
 
 ## v1.5.0
 

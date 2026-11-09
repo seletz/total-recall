@@ -993,15 +993,23 @@ hint: 2 projects with activity in the last 30 days not fully set up in the confi
   wetterwarte: no [[project]], no category
 ```
 
-Jede Prüfung gilt nur, wenn die Tabelle Einträge hat: ohne `[[project]]` gibt es kein „kein Projekt“, ohne Kategorien kein „keine Kategorie“. Die Kategorie wird wie bei [`stats --worktime`](#stats-worktime) bestimmt. Der Hinweis ist kein Befund: Der Exit-Code bleibt, die Zeilen stehen im Text auf stdout, mit `--json` auf stderr, die JSON-Ausgabe bleibt unverändert. `--days 0` schaltet ihn ab.
+Jede Prüfung gilt nur, wenn die Tabelle Einträge hat: ohne `[[project]]` gibt es kein „kein Projekt“, ohne Kategorien kein „keine Kategorie“. Die Kategorie wird wie bei [`stats --worktime`](#stats-worktime) bestimmt. Der Hinweis ist kein Befund: **Der Exit-Code bleibt 0**, auch wenn es nur Hinweise gibt (Exit-Code 2 bedeutet ausschließlich Befunde). Im Text stehen die Zeilen auf stdout. Mit `--json` stehen sie als Feld `hints` in **jedem** Bericht der Liste, getrennt von den Befunden (deren Felder bleiben, wie sie sind), und zusätzlich als Text auf stderr. `--days 0` schaltet den Hinweis ab, `hints` ist dann `[]`.
+
+```json
+"hints": [
+  {"project": "wetterwarte", "key": "/home/mara/src/wetterwarte", "missing": ["project", "category"], "last_active": "2026-10-28T16:57:00Z"}
+]
+```
+
+`project` ist der Anzeigename, `key` der Schlüssel des Projekts (wie bei `stats --worktime`), `missing` nennt `project` (kein `[[project]]` passt) und/oder `category` (keine Kategorie deckt es ab), `last_active` die Zeit der letzten eigenen Nachricht (UTC). Ohne Hinweise ist `hints` `[]`.
 
 | Option | Bedeutung |
 |---|---|
 | `--harness NAME` | zu prüfende Harness, Default `claude` |
 | `--days N` | Zeitfenster des Hinweises auf nicht eingerichtete Projekte, Default 30; 0 schaltet ihn ab |
-| `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`); Konfigurationsprobleme gehen dann auf stderr |
+| `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`, dazu `hints`); Konfigurationsprobleme gehen dann auf stderr |
 
-Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).
+Exit-Code 0: nichts Unbekanntes (Hinweise zählen nicht). Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).
 
 ## `hooks print` { #hooks-print }
 
