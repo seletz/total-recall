@@ -1041,7 +1041,8 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks bool
+	var toolPath string
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -1060,6 +1061,16 @@ and cache reads (the prices differ by a factor of 10 to 20), and output. The
 JSON of the plain form always has them under "tokens". Events archived
 without their raw line have no split; their input shows as "unsplit".
 
+With --tools the output is the number of tool_use events per tool (Bash,
+Read, Edit, MCP tools, ...) in the range instead. --by day, session, repo or
+project breaks it down (--top N folds the smallest groups into "other"); the
+groups always sum to the total. --path GLOB keeps the calls whose arguments
+match: the stored input of the call, i.e. the file path of the file tools
+(matched as a whole, so use */dir/*) and the command of Bash (matched
+anywhere in it). Arguments are cut at 1 KiB at ingest, a path
+behind the cut is not found; other tools are matched on their first
+well-known field (command, file_path, path, url, query, pattern, ...).
+
 With --workday the output is the first and the last activity per day (for
 filling in forgotten clock-ins): one row per day with the local clock times
 and the elapsed span, plus a total. A day begins at the configured day_start
@@ -1073,7 +1084,11 @@ sets the default. Each weekday that is no public holiday is a workday with the
 daily target of the [work] config (default 8h): DIFF is the span minus the
 target, the total line balances all spans against target × workdays of the
 range (up to today). Holidays come from the configured Bundesland and are
-named in the HOLIDAY column.
+named in the HOLIDAY column. --blocks adds the blocks of activity of each day
+(for booking attendance): a gap between two counted events above [work]
+block_gap (default 30m) ends a block. Per day the blocks, their sum (WORK) and
+the pauses between them (BREAKS) are listed; WORK plus BREAKS is the span. The
+JSON has blocks, block_seconds and break_seconds per day and in the total.
 
 With --worktime the output is the estimated working time per day and
 category (for timesheets): the gap between two of your own messages, across
@@ -1096,9 +1111,18 @@ messages: the values are a lower bound.`,
 			return err
 		}
 		loc := cfg.Location()
-		series := period != "" || by != "" || cmd.Flags().Changed("top")
+		series := !tools && (period != "" || by != "" || cmd.Flags().Changed("top"))
+		if tools && (workday || worktime || tokens || period != "") {
+			return usagef("--tools cannot be combined with --workday, --worktime, --tokens or --period")
+		}
+		if !tools && toolPath != "" {
+			return usagef("--path requires --tools")
+		}
 		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
+		}
+		if blocks && !workday {
+			return usagef("--blocks requires --workday")
 		}
 		if tokens && (workday || worktime || series) {
 			return usagef("--tokens belongs to the plain stats tables: it cannot be combined with --workday, --worktime, --period, --by or --top")
@@ -1125,15 +1149,19 @@ messages: the values are a lower bound.`,
 			}
 			defer func() { _ = st.Close() }()
 			cal := ops.Holidays(cfg)
+			var blockGap time.Duration
+			if blocks {
+				blockGap = cfg.Work.BlockGap.Duration
+			}
 			days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
-				Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal,
+				Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal, BlockGap: blockGap,
 			})
 			if err != nil {
 				return err
 			}
 			r := workdayReport{
 				days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
-				work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
+				work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()), blockGap: blockGap,
 			}
 			if o.format.IsJSON() {
 				return o.object(r.json())
@@ -1143,6 +1171,9 @@ messages: the values are a lower bound.`,
 		since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
 		if err != nil {
 			return err
+		}
+		if tools {
+			return e.runToolStats(cmd, cfg, o, since, until, by, toolPath, top)
 		}
 		var opts seriesOptions
 		if series {
@@ -1199,12 +1230,15 @@ messages: the values are a lower bound.`,
 	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
 	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory or account (implies --period day)")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
+	c.Flags().BoolVar(&tools, "tools", false, "count tool_use events per tool; --by day, session, repo or project groups them, --path GLOB filters on the arguments")
+	c.Flags().StringVar(&toolPath, "path", "", "with --tools: only calls whose arguments match this glob (file tools: the whole path; Bash: anywhere in the command)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
 	c.Flags().BoolVar(&summary, "summary", false, "with --worktime: issue/PR references and a booking text per day and category (JSON always has them)")
 	c.Flags().BoolVar(&tokens, "tokens", false, "append the token counts (fresh input, cache writes, cache reads, output) per day and model to the day/repo/hour tables (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
+	c.Flags().BoolVar(&blocks, "blocks", false, "with --workday: the blocks of activity per day, split at gaps above [work] block_gap (default 30m), with sums and pauses")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
 	_ = c.Flags().MarkHidden("human-only")

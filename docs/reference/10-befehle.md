@@ -378,7 +378,7 @@ Die Zeilen von `--by-session` fassen Event-Treffer zusammen und haben kein `type
 
 ## `stats` { #stats }
 
-Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
+Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
 
 ```sh
 total-recall stats                                   # aktueller Monat
@@ -498,6 +498,36 @@ JSON hat immer dieselben Felder. `since`/`until` sind der gefilterte Zeitraum in
 }
 ```
 
+### Tool-Nutzung: `--tools`, `--by`, `--path` { #stats-tools }
+
+Mit `--tools` zählt `stats` statt der Aktivität die `tool_use`-Events: wie oft die Agenten welches Tool aufgerufen haben (`Bash`, `Read`, `Edit`, MCP-Tools, …). Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`. `--by day|session|repo|project` gruppiert (`repo` und `project` wie bei den anderen Statistiken, Subagenten zählen bei `project` für ihre Hauptsession); `--top N` fasst die kleinsten Gruppen in `other` zusammen. **Die Gruppen ergeben immer die Gesamtzahl**, ebenso die Tools: nichts fällt weg, auch mit `--top` nicht. `--tools` lässt sich nicht mit `--workday`, `--worktime`, `--tokens` oder `--period` kombinieren; `--by` hat hier die Werte `day`, `session`, `repo`, `project` (nicht die der Zeitreihe).
+
+```sh
+total-recall stats --tools --month 2026-10                      # Aufrufe je Tool
+total-recall stats --tools --by day --since 2026-10-01           # je Tag und Tool
+total-recall stats --tools --by project --top 5 --json
+total-recall stats --tools --path '*/internal/store/*' --json    # nur Aufrufe auf dieses Verzeichnis
+```
+
+```json
+{
+  "since": "2026-09-30T22:00:00.000Z", "until": "2026-10-31T23:00:00.000Z", "timezone": "Europe/Berlin",
+  "by": "day", "path": null, "total": 412,
+  "by_tool": [{"tool": "Bash", "count": 230}, {"tool": "Read", "count": 120}, {"tool": "Edit", "count": 62}],
+  "groups": [{"key": "2026-10-01", "count": 40, "by_tool": [{"tool": "Bash", "count": 25}, {"tool": "Edit", "count": 15}]}]
+}
+```
+
+`by` und `path` sind `null` ohne die Flags, `groups` ist dann leer. Tage laufen chronologisch, alle anderen Gruppen nach Anzahl absteigend, `other` zuletzt; die Tools einer Liste ebenso nach Anzahl, dann nach Name. Ein `tool_use` ohne Toolnamen zählt als `unknown`.
+
+**`--path GLOB` und seine Grenzen.** Der Filter prüft die *Argumente* des Aufrufs, so wie das Archiv sie speichert: im Event steht von der Eingabe des Tools nur ein Text (`events.text`), nicht die ganze Eingabe. Es ist das erste vorhandene Feld aus `command`, `file_path`, `path`, `url`, `query`, `pattern`, `description`, `prompt`, `message`, `skill`, sonst das JSON der Eingabe, **auf 1 KiB gekürzt**. Daraus folgt:
+
+- **Datei-Tools** (`Read`, `Edit`, `Write`, …): der Glob muss auf den **ganzen** Pfad passen, also `*/internal/store/*` oder `/home/me/proj/*.go`, nicht `internal/store`. SQLite-GLOB: `*`, `?` und `[a-z]` (auch über `/` hinweg), Groß- und Kleinschreibung zählt.
+- **Bash**: der Glob darf **irgendwo im Befehl** passen (der Filter setzt `*` davor und dahinter). `--path /w/app` findet `ls /w/app/src` und `git -C /w/app status`, aber auch `echo /w/app`. Ob der Pfad Ziel oder nur Teil eines Arguments ist, erkennt der Filter nicht; Pfade in Variablen, Shell-Expansion (`$HOME`, `~`, relative Pfade nach einem `cd`) und Pipes über mehrere Verzeichnisse werden nicht aufgelöst.
+- **Lange Befehle**: ein Pfad hinter der 1-KiB-Grenze wird nicht gefunden. Wer das Original braucht, liest es mit `sql` aus `raw_text(raw)` (nur mit `store_raw`).
+- **Andere Tools** (`Grep`, `WebFetch`, MCP-Tools, …) werden auf ihr erstes bekanntes Feld oder ihr JSON als Ganzes geprüft; ein Glob wie `*pfad*` trifft dort zuverlässiger als ein genauer Pfad.
+- Die Pfade stehen so im Archiv, wie der Agent sie geschrieben hat (maskiert wie jeder Text); es gibt keine Normalisierung zwischen absolut und relativ.
+
 ### Arbeitszeit: `--workday` { #stats-workday }
 
 Mit `--workday` zeigt `stats` je Tag die **erste und letzte Aktivität**, die Spanne dazwischen und die Differenz zum Tagessoll: ein Notnagel, wenn das Ein- oder Ausstempeln vergessen wurde. Dieselbe Ansicht hat die [TUI](30-tui.md#aktivitat) als Reiter „activity“.
@@ -530,6 +560,7 @@ total: 5 days with activity, 41h40m · target 40h00m (5 workdays × 8h00m) · ba
 | `--since`, `--until`, `--month` | wie oben; ein Datum meint den ganzen Tag ab der Tagesgrenze, `--until` einschließlich. Ohne Zeitraum gilt `this-week` |
 | `--all-events` | eigene Nachrichten und Agent-Events zählen wie die Aktivitätsstatistik. Standard sind nur eigene Nachrichten (`human events only`): Agent-Events laufen nachts weiter und dehnen die Spanne. Den Standard setzt `count` in [`[work]`](20-konfiguration.md#work) |
 | `--human-only` | veraltet, da Standard; wird noch angenommen (mit Hinweis auf stderr) und setzt auch bei `count = "all"` auf eigene Nachrichten |
+| `--blocks` | je Tag die **Aktivitätsblöcke** statt nur erster und letzter Aktivität, siehe unten. Nur mit `--workday` |
 
 **Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](20-konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
 
@@ -562,6 +593,18 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
   "total": {"days": 5, "workdays": 5, "holidays": 1, "span_seconds": 150000, "target_seconds": 144000, "balance_seconds": 6000}
 }
 ```
+
+**Blöcke.** `--blocks` zerlegt die Spanne jedes Tags in Blöcke, etwa für eine Anwesenheitsbuchung: 07:48–09:05 und 11:24–12:40 statt 07:48–12:40. Eine Lücke zwischen zwei gezählten Events **über** `block_gap` in [`[work]`](20-konfiguration.md#work) (Standard `30m`) beendet einen Block; eine Lücke von genau `block_gap` tut es nicht. Gezählt wird wie sonst bei `--workday` (`count`, `--all-events`), die Tagesgrenze gilt auch hier: Blöcke über Mitternacht gehören zum Tag davor, bis `day_start`. Ein einzelnes Event ist ein Block von 0 s. Die Tabelle bekommt die Spalten `BLOCKS` (`08:12-09:05 11:24-12:40`), `WORK` (Summe der Blöcke) und `BREAKS` (Summe der Pausen dazwischen); `WORK` plus `BREAKS` ist immer die Spanne, und der Zeitraum wird nie gekürzt.
+
+```json
+"blocks": [
+  {"start": "2026-10-27T06:48:00.000Z", "end": "2026-10-27T08:05:00.000Z", "start_local": "07:48", "end_local": "09:05", "seconds": 4620},
+  {"start": "2026-10-27T10:24:00.000Z", "end": "2026-10-27T11:40:00.000Z", "start_local": "11:24", "end_local": "12:40", "seconds": 4560}
+],
+"block_seconds": 9180, "break_seconds": 8340
+```
+
+Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_seconds` und `break_seconds`; oben steht `block_gap_seconds`, in `total` die Summen `block_seconds` und `break_seconds` über alle Tage. Ohne `--blocks` fehlen diese Felder. Im [MCP-Tool](#mcp) `stats` heißt der Parameter `blocks`.
 
 `--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
 

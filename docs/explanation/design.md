@@ -77,6 +77,7 @@ weekly_low = "32h"               # Wochenarbeitszeit (5 Arbeitstage) darunter: u
 weekly_high = "48h"              # darüber: deutlich über Soll
 bundesland = "Baden-Württemberg" # gesetzliche Feiertage (internal/holiday); unbekannt/leer = bundesweit
 count = "human"                  # was die Aktivität je Tag zählt: "human" oder "all"
+block_gap = "30m"                # Lücke, die einen Aktivitätsblock beendet (--workday --blocks)
 
 [worktime]
 max_gap = "20m"                  # Lücke zwischen eigenen Nachrichten, die voll zählt (stats --worktime)

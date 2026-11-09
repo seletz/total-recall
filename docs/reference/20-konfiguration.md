@@ -72,6 +72,7 @@ weekly_low = "32h"               # Wochenarbeitszeit (5 Arbeitstage) darunter: u
 weekly_high = "48h"              # darüber: deutlich über Soll
 bundesland = "Baden-Württemberg" # gesetzliche Feiertage; unbekannt/leer = bundesweit
 count = "human"                  # was zählt: "human" (eigene Nachrichten) oder "all"
+block_gap = "30m"                # Lücke, die einen Block beendet (stats --workday --blocks)
 
 [worktime]
 max_gap = "20m"                  # Lücke zwischen eigenen Nachrichten, die voll zählt
@@ -275,6 +276,9 @@ Normalarbeitszeit und Feiertage für die Aktivität je Tag ([`stats --workday`](
 
 `count`
 :   Was die Aktivität je Tag zählt: `human` (nur eigene Nachrichten; Agent-Events laufen nachts weiter und dehnen die Spanne) oder `all` (eigene Nachrichten und Agent-Events wie die Aktivitätsstatistik). `stats --workday --all-events` und die Taste `h` in der TUI schalten für einen Lauf um. Default: `human`.
+
+`block_gap`
+:   Die Lücke zwischen zwei gezählten Events, **über** der ein Aktivitätsblock endet ([`stats --workday --blocks`](10-befehle.md#stats-workday)); eine Lücke von genau diesem Wert hält den Block zusammen. Muss größer als 0 sein. Default: `30m`.
 
 ### `[worktime]` { #worktime }
 

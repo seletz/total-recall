@@ -382,6 +382,9 @@ type Work struct {
 	// Count says which events the activity per day counts by default:
 	// CountHuman (own messages only) or CountAll (human and agent events).
 	Count string `toml:"count"`
+	// BlockGap is the gap between two events that ends an activity block
+	// (stats --workday --blocks); a gap of exactly BlockGap does not.
+	BlockGap Duration `toml:"block_gap"`
 }
 
 // Values of Work.Count.
@@ -406,6 +409,7 @@ const (
 	DefaultWorkWeeklyHigh = 48 * time.Hour
 	DefaultWorkBundesland = "Baden-Württemberg"
 	DefaultWorkCount      = CountHuman
+	DefaultWorkBlockGap   = 30 * time.Minute
 )
 
 // Backup configures `total-recall backup`.
@@ -522,6 +526,7 @@ var fields = []struct {
 	{"work.weekly_high", func(c *Config) string { return c.Work.WeeklyHigh.String() }},
 	{"work.bundesland", func(c *Config) string { return c.Work.Bundesland }},
 	{"work.count", func(c *Config) string { return c.Work.Count }},
+	{"work.block_gap", func(c *Config) string { return c.Work.BlockGap.String() }},
 	{"worktime.max_gap", func(c *Config) string { return c.Worktime.MaxGap.String() }},
 	{"worktime.min_credit", func(c *Config) string { return c.Worktime.MinCredit.String() }},
 	{"worktime.grid", func(c *Config) string { return c.Worktime.Grid.String() }},
@@ -636,7 +641,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Hours: DefaultWorkHours, Target: Duration{DefaultWorkTarget},
 		DailyLow: Duration{DefaultWorkDailyLow}, DailyHigh: Duration{DefaultWorkDailyHigh},
 		WeeklyLow: Duration{DefaultWorkWeeklyLow}, WeeklyHigh: Duration{DefaultWorkWeeklyHigh},
-		Bundesland: DefaultWorkBundesland, Count: DefaultWorkCount,
+		Bundesland: DefaultWorkBundesland, Count: DefaultWorkCount, BlockGap: Duration{DefaultWorkBlockGap},
 	}
 	c.Worktime = Worktime{
 		MaxGap: Duration{DefaultWorktimeMaxGap}, MinCredit: Duration{DefaultWorktimeMinCredit}, Grid: Duration{DefaultWorktimeGrid},
@@ -876,6 +881,9 @@ func (c *Config) validateWorkBounds() error {
 	}
 	if c.Work.Count != CountHuman && c.Work.Count != CountAll {
 		return fmt.Errorf("config: work.count %q: want %s or %s", c.Work.Count, CountHuman, CountAll)
+	}
+	if c.Work.BlockGap.Duration <= 0 {
+		return fmt.Errorf("config: work.block_gap %s: want more than 0", c.Work.BlockGap)
 	}
 	return nil
 }

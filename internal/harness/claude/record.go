@@ -70,6 +70,7 @@ var (
 	skippedTypes = []string{
 		"api-request", "api-request-blob", "last-prompt",
 		"artifact-comment-monitor",
+		"launched", // workflow journal.jsonl: bare marker `{"type":"launched"}` without a field, no content; started and result carry the agent
 	}
 	// skippedAttachmentTypes are the attachment subtypes dropped on
 	// purpose: the harness's catalogs of tools, skills, agents and MCP
