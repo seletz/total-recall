@@ -101,7 +101,7 @@ LIMIT 50"
 
 ## MCP server
 
-`total-recall mcp` is a read-only MCP server on stdio; the harness starts it as a child process (no port, no daemon). When the tools `search`, `sessions`, `show`, `stats`, `memory` and `status` of a server named `total-recall` are available in this session, **use them instead of shell commands**: they return exactly the `--json` output of the commands of the same name, so everything above (fields, error kinds, time stamps) applies unchanged. Without the server, use the CLI as described above. `sql`, `blob`, `ingest`, `backup`, `migrate` and every other writing command have no tool; for grouping, counting and joining, `sql` through the CLI stays the way.
+`total-recall mcp` is a read-only MCP server on stdio; the harness starts it as a child process (no port, no daemon). When the tools `search`, `sessions`, `show`, `stats`, `memory`, `status` and `timeline` of a server named `total-recall` are available in this session, **use them instead of shell commands**: they return exactly the `--json` output of the commands of the same name, so everything above (fields, error kinds, time stamps) applies unchanged. Without the server, use the CLI as described above. `sql`, `blob`, `ingest`, `backup`, `migrate` and every other writing command have no tool; for grouping, counting and joining, `sql` through the CLI stays the way.
 
 | Tool | Arguments (`*` = required) |
 | --- | --- |
@@ -111,6 +111,7 @@ LIMIT 50"
 | `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `tools`, `path`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | none |
+| `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`), `all`, `text_width` (default 160), `limit` (leave out for all; large windows come in pages) |
 
 The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version (v1.5.0 replaced the cut-off results of v1.4 by pages).
 
@@ -341,6 +342,7 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; the same as `search --type memory` |
 | `total-recall search WORDS --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets; all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first; type `event` only |
+| `total-recall timeline --json [--since T] [--until T] [--project P] [--repo R] [--actor human\|agent\|…\|all] [--all] [--text-width N] [--limit N]` | what happened in a time window across all sessions, oldest first; default the human's messages, so "was the evening after 20:00 still work, and on what?" is one call. `--since`/`--until` take a time (`YYYY-MM-DDTHH:MM`, local) or a date; each event has `ts` (UTC), `ts_local`, `session_id`, `session_name`, `project`, `repo`, `actor`, `kind` and `text` (one line, cut to `--text-width`; `text_chars` and `text_truncated` say so). Lists exactly the events `stats` counts as `human` in the same window |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory\|account] [--top N]` | time series per period, optionally per key (`account`: configured names, else ids, `unknown` without one) |
 | `total-recall stats --tools --json [--by day\|session\|repo\|project] [--top N] [--path GLOB] [--since D] [--until D]` | number of `tool_use` events per tool (`by_tool`), optionally per group (`groups[].by_tool`); groups and tools always sum to `total`, `--top` folds the rest into `other`. `--path` filters on the call's arguments: file tools must match the whole path (`*/dir/*`), Bash anywhere in the command; arguments are cut at 1 KiB, so a path behind the cut is missed. Use it instead of ad-hoc `sql` to compare Bash with Edit/Write or to measure a new tool before and after |
@@ -688,6 +690,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `holiday_region` | region of the public holidays |
 | `days` | all days of the range, see below |
 | `categories` | per category over the range, see below |
+| `uncategorized` | projects with time that no category rule matches, largest first, see below; `[]` when every project has a category |
 | `total` | see below |
 
 #### `stats --json --worktime` days[]
@@ -742,6 +745,17 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `raw_seconds` | |
 | `rounded_seconds` | sum of the rounded day cells |
 | `days` | days with time |
+
+#### `stats --json --worktime` uncategorized[]
+
+Projects that no `[[worktime.category]]` matches. Each is its own category in `days`, `categories` and `total`, so this list is a part of that time, not an addition. Mention them to the user before booking: a new repository usually needs a category.
+
+| field | meaning |
+|---|---|
+| `project` | project name as in `stats --by project` (also the category name in `days`) |
+| `key` | git root, else working directory |
+| `remote` | remote URL, `null` without a repository |
+| `raw_seconds` | credited time over the whole range (sum of its cells) |
 
 #### `stats --json --worktime` total
 

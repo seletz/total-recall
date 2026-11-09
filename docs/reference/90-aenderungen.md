@@ -36,6 +36,11 @@ total-recall backup     # 1. sichern
 total-recall migrate    # 2. Sekunden: legt die Spalte an und füllt sie
 ```
 
+### Zeitleiste
+
+- **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit, `--project` (Name wie bei `stats --by project`), `--repo`, `--actor`; je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).
+- **MCP-Tool `timeline`:** dasselbe als Tool ([MCP anbinden](../how-to/55-mcp-anbinden.md)), mit `cursor`: ein Abend über alle Sessions kommt in Seiten aus ganzen Events, jede Seite gültiges CLI-JSON, alle Seiten zusammen sind byte-gleich die Ausgabe des Befehls. Neues Tool, Minor.
+
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
@@ -44,6 +49,11 @@ total-recall migrate    # 2. Sekunden: legt die Spalte an und füllt sie
 ### Arbeitstage
 
 - **Aktivitätsblöcke:** `stats --workday --blocks` ([#237](https://github.com/seletz/total-recall/issues/237)) liefert je Tag die Blöcke `{start, end, seconds}` statt nur erster und letzter Aktivität, dazu die Summe der Blöcke und der Pausen je Tag und im Total; die Blöcke ergeben mit den Pausen immer die Spanne. Ein Block endet bei einer Lücke über `block_gap` in `[work]` (neu, Default `30m`). Zählweise, Tagesgrenze und Mitternacht wie bei `--workday`. Nur neue Felder und ein neuer Schlüssel, ohne `--blocks` bleibt die Ausgabe unverändert. Im MCP-Tool `stats` ist es der Parameter `blocks`; die Blöcke bleiben mit ihrem Tag auf einer Seite des [Pagings](../how-to/55-mcp-anbinden.md).
+
+### Arbeitszeit
+
+- **Projekte ohne Kategorie:** `stats --worktime` ([#238](https://github.com/seletz/total-recall/issues/238)) führt ein Projekt ohne `[[worktime.category]]` weiter als eigene Kategorie, weist es aber aus: das JSON hat die Liste `uncategorized` (Projekt, Schlüssel, Remote, `raw_seconds`), ein Teil der Zeit in `days`, `categories` und `total`, die Summen bleiben gleich. Die Tabelle meldet sie auf stderr, wenn Kategorien konfiguriert sind.
+- **`doctor` mit Hinweis:** nennt Projekte mit Aktivität in den letzten `--days` Tagen (Default 30), die kein `[[project]]` oder keine Kategorie haben; ohne Einfluss auf Exit-Code und JSON.
 
 ### Behoben
 

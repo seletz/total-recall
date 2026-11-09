@@ -376,6 +376,38 @@ memory: 20 of 31 hits, --limit 0 for all
 
 Die Zeilen von `--by-session` fassen Event-Treffer zusammen und haben kein `type`.
 
+## `timeline` { #timeline }
+
+Die Events eines Zeitfensters über alle Sessions, älteste zuerst. Ohne weitere Option sind es die Nachrichten des Menschen: Der Befehl beantwortet „War der Abend nach 20:00 noch Arbeit, und woran?“ in einer Ausgabe, ohne Suchbegriff und ohne SQL.
+
+```sh
+total-recall timeline --since 2026-10-20T20:00 --until 2026-10-21T06:00
+total-recall timeline --since 2026-10-20 --project kompass --json
+total-recall timeline --since 2026-10-20 --until 2026-10-20 --actor all --all   # alles, auch Tool-Aufrufe
+```
+
+```text
+LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
+2026-10-20 20:31:00  18:31:00Z  7d1e02a6  Höhenprofil der Route  kompass  Benenne das Paket route/cache in route/tiles um.
+2026-10-20 21:30:00  19:30:00Z  7d1e02a7  Flaky route cache test kompass  Zeig mir, wo die Steigung berechnet wird.
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--since`, `--until` | Zeitfenster, lokale Zeit: `YYYY-MM-DD` oder `YYYY-MM-DDTHH:MM`. `--since` ist inklusiv, `--until` exklusiv; ein Datum als `--until` schließt den ganzen Tag ein |
+| `--project P` | nur dieses Projekt: der Name wie bei [`stats --by project`](#stats-period), sonst ein Teil von Name, Pfad oder Remote-URL; Subagenten gehören zum Projekt ihrer Eltern-Session |
+| `--repo R`, `--harness H`, `--name N`, `--account A` | Filter wie bei [`sessions`](#sessions) |
+| `--actor A` | wessen Events: `human` (Default), `agent`, `peer`, `automation`, `tool` oder `all` |
+| `--all` | auch Tool-Aufrufe und -Ergebnisse, System- und Meta-Events; Default nur Nachrichten |
+| `--text-width N` | Zeichen des Textes je Event (Default 160, 0 = ganzer Text) |
+| `--limit N` | höchstens die ältesten N Events (Default 0 = alle); ein abgeschnittenes Fenster steht auf stderr |
+
+**JSON.** Eine Liste mit einem Objekt je Event, alle Schlüssel immer vorhanden: `event_id`, `ts` (UTC), `ts_local` (RFC 3339 in der konfigurierten Zeitzone), `session_id`, `session_name`, `project` (Name wie bei `stats --by project`), `repo`, `actor`, `kind`, `text` (einzeilig, gekürzt), `text_chars` (Länge des ganzen Textes) und `text_truncated`. Gekürzt wird also nie unbemerkt.
+
+**Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv, auch über die Seiten des MCP-Tools.
+
+**MCP.** Das Tool `timeline` hat dieselben Parameter (`text_width` statt `--text-width`) und liefert die Liste in Seiten, siehe [MCP anbinden](../how-to/55-mcp-anbinden.md#seiten).
+
 ## `stats` { #stats }
 
 Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
@@ -650,6 +682,8 @@ total        15h53m  16h45m   4
 
 **Kategorien.** Projekte (Git-Root, sonst Arbeitsverzeichnis, Namen wie bei `--by project`, also zuerst aus [`[[project]]`](20-konfiguration.md#project)) werden über die Regeln `[[worktime.category]]` zugeordnet, die erste passende gewinnt; die Regeln sehen den konfigurierten Projektnamen. Ein Projekt ohne Regel ist seine eigene Kategorie und heißt wie das Projekt, Verzeichnisse ohne Repository als Pfad mit `~`. Eine letzte Regel mit `match = "*"` sammelt den Rest.
 
+**Projekte ohne Kategorie.** Weil so ein Projekt still als eigene Kategorie läuft, fällt ein neues Repository sonst erst beim Buchen auf. Das JSON hat dafür `uncategorized`: die Projekte mit Zeit im Zeitraum, auf die keine Regel passt, mit `project`, `key`, `remote` und `raw_seconds` (Summe über den Zeitraum), die größten zuerst; `[]`, wenn jedes Projekt eine Kategorie hat. Die Liste ist ein **Teil** der Zeit, kein Zusatz: dieselben Sekunden stehen auch in `days`, `categories` und `total`, jedes Projekt als Kategorie mit seinem Namen. Die Tabellenausgabe meldet sie nach der Tabelle **auf stderr** (`stats: 2 projects without a category …`), damit stdout unverändert bleibt. Die Meldung erscheint nur, wenn überhaupt Kategorien konfiguriert sind; ohne `[[worktime.category]]` ist „jedes Projekt eine Kategorie“ gewollt. [`doctor`](#doctor) weist auf Repositories hin, die schon aktiv sind, bevor man eine Buchung macht.
+
 | Option | Bedeutung |
 |---|---|
 | `--range`, `--since`, `--until`, `--month` | wie bei [`--workday`](#stats-workday): Tage ab der Tagesgrenze, `--until` einschließlich, ohne Zeitraum `this-week` |
@@ -714,6 +748,7 @@ JSON hat oben die wirksamen Einstellungen (`max_gap_seconds`, `min_credit_second
     }
   ],
   "categories": [{"category": "kompass", "raw_seconds": 9142, "rounded_seconds": 9900, "days": 1}],
+  "uncategorized": [],
   "total": {"raw_seconds": 13402, "rounded_seconds": 14400, "days": 1}
 }
 ```
@@ -986,9 +1021,20 @@ Gemeldet werden:
 
 Je Befund steht die erste Fundstelle (`Datei:Zeile`) dabei. Inhalte werden nicht ausgegeben.
 
+**Hinweis auf nicht eingerichtete Projekte.** Ist das Archiv da, nennt `doctor` zusätzlich die Projekte mit eigenen Nachrichten in den letzten `--days` Tagen (Default 30), auf die kein [`[[project]]`](20-konfiguration.md#project) passt oder die keine `[[worktime.category]]` abdeckt:
+
+```text
+hint: 2 projects with activity in the last 30 days not fully set up in the config:
+  dotfiles: no [[project]]
+  wetterwarte: no [[project]], no category
+```
+
+Jede Prüfung gilt nur, wenn die Tabelle Einträge hat: ohne `[[project]]` gibt es kein „kein Projekt“, ohne Kategorien kein „keine Kategorie“. Die Kategorie wird wie bei [`stats --worktime`](#stats-worktime) bestimmt. Der Hinweis ist kein Befund: Der Exit-Code bleibt, die Zeilen stehen im Text auf stdout, mit `--json` auf stderr, die JSON-Ausgabe bleibt unverändert. `--days 0` schaltet ihn ab.
+
 | Option | Bedeutung |
 |---|---|
 | `--harness NAME` | zu prüfende Harness, Default `claude` |
+| `--days N` | Zeitfenster des Hinweises auf nicht eingerichtete Projekte, Default 30; 0 schaltet ihn ab |
 | `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`); Konfigurationsprobleme gehen dann auf stderr |
 
 Exit-Code 0: nichts Unbekanntes. Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).

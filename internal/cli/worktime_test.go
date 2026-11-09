@@ -376,3 +376,128 @@ func TestStatsWorktimeProjects(t *testing.T) {
 		t.Errorf("broken definition: exit %d, stderr %q", r.code, r.stderr)
 	}
 }
+
+// demoCategories maps two of the demo archive's projects to categories; the
+// others (wetterwarte, fahrtenbuch, …) have none.
+const demoCategories = `
+[[worktime.category]]
+name = "kompass"
+match = ["https://git.invalid/mara/kompass"]
+
+[[worktime.category]]
+name = "privat"
+match = ["~/dotfiles", "~/notizen"]
+`
+
+// TestStatsWorktimeUncategorized is the sum invariant of "uncategorized"
+// against the real --json output of the demo archive: a project of a
+// category is not listed, every listed project is one without a category,
+// its seconds are the sum of its cells over the range, the list is a part
+// of the total, and the cells add up to the total.
+func TestStatsWorktimeUncategorized(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	e.home = demo.Home
+	appendConfig(t, e, demoCategories)
+	r := runActivity(t, e, db, "--worktime", "--month", "2026-10", "--json")
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	if r.stderr != "" {
+		t.Errorf("JSON mode wrote to stderr: %q", r.stderr)
+	}
+	out := decode[WorktimeJSON](t, r.stdout)
+	perProject := map[string]int{} // project key → raw seconds over the range
+	catOf := map[string]string{}
+	var cells int
+	for _, d := range out.Days {
+		for _, c := range d.Categories {
+			var sum int
+			for _, p := range c.Projects {
+				perProject[p.Key] += p.RawSeconds
+				catOf[p.Key] = c.Category
+				sum += p.RawSeconds
+			}
+			if sum != c.RawSeconds {
+				t.Errorf("%s %s: projects %d != cell %d", d.Day, c.Category, sum, c.RawSeconds)
+			}
+			cells += c.RawSeconds
+		}
+	}
+	if cells != out.Total.RawSeconds {
+		t.Errorf("cells add up to %d, total %d", cells, out.Total.RawSeconds)
+	}
+	if len(out.Uncategorized) == 0 {
+		t.Fatal("demo has projects without a category, uncategorized is empty")
+	}
+	var sum int
+	listed := map[string]bool{}
+	for _, u := range out.Uncategorized {
+		listed[u.Key] = true
+		if u.RawSeconds != perProject[u.Key] || u.RawSeconds <= 0 {
+			t.Errorf("%s: raw_seconds %d, cells %d", u.Project, u.RawSeconds, perProject[u.Key])
+		}
+		if catOf[u.Key] != u.Project {
+			t.Errorf("%s is listed but sits in category %q", u.Project, catOf[u.Key])
+		}
+		sum += u.RawSeconds
+	}
+	for key, cat := range catOf {
+		if (cat == "kompass" || cat == "privat") && listed[key] {
+			t.Errorf("%s has the category %s and is listed", key, cat)
+		}
+		if cat != "kompass" && cat != "privat" && !listed[key] {
+			t.Errorf("%s has no category and is not listed", key)
+		}
+	}
+	if sum > out.Total.RawSeconds || sum == out.Total.RawSeconds {
+		t.Errorf("uncategorized %d vs total %d: want a proper part", sum, out.Total.RawSeconds)
+	}
+	for i := 1; i < len(out.Uncategorized); i++ {
+		if out.Uncategorized[i-1].RawSeconds < out.Uncategorized[i].RawSeconds {
+			t.Errorf("not sorted by seconds: %+v", out.Uncategorized)
+		}
+	}
+}
+
+// TestStatsWorktimeUncategorizedText checks the hint of the table output:
+// on stderr, once, with the projects and their time; no hint without
+// uncategorized projects and none when no category is configured at all.
+func TestStatsWorktimeUncategorizedText(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	tests := []struct {
+		name, config string
+		want         []string // substrings of stderr; none: stderr empty
+	}{
+		{"projects without a category", demoCategories, []string{"without a category", "wetterwarte", "fahrtenbuch"}},
+		{"no categories configured", "", nil},
+		{"every project categorized", demoCategories + "\n[[worktime.category]]\nname = \"rest\"\nmatch = \"*\"\n", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.now = demo.Now
+			e.home = demo.Home
+			appendConfig(t, e, tt.config)
+			r := runActivity(t, e, db, "--worktime", "--month", "2026-10")
+			if r.code != 0 {
+				t.Fatalf("exit %d: %s", r.code, r.stderr)
+			}
+			if strings.Contains(r.stdout, "without a category") {
+				t.Errorf("hint on stdout:\n%s", r.stdout)
+			}
+			if tt.want == nil && r.stderr != "" {
+				t.Errorf("stderr = %q, want empty", r.stderr)
+			}
+			for _, w := range tt.want {
+				if !strings.Contains(r.stderr, w) {
+					t.Errorf("stderr %q lacks %q", r.stderr, w)
+				}
+			}
+			if tt.want != nil && strings.Count(r.stderr, "without a category") != 1 {
+				t.Errorf("hint not exactly once: %q", r.stderr)
+			}
+		})
+	}
+}
