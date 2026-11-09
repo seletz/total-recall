@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.5.0 (unveröffentlicht)
+## v1.6.0 (unveröffentlicht)
 
 ### Was dieses Update mit dem Archiv macht
 
@@ -35,6 +35,8 @@ Danach: 3 091 `typed`, 1 `pasted`, 1 `remote`, keine unbekannte Art, weil alle E
 total-recall backup     # 1. sichern
 total-recall migrate    # 2. Sekunden: legt die Spalte an und füllt sie
 ```
+
+## v1.5.0 (unveröffentlicht)
 
 ### Memory in der TUI
 
