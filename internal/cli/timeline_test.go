@@ -156,3 +156,77 @@ func TestTimelineActorAndErrors(t *testing.T) {
 		}
 	}
 }
+
+// TestTimelineArgErrors: a value timeline cannot use is a usage error like
+// those of the other commands (same kind and exit code), never an empty
+// list: an unknown actor, and a window that ends before it starts.
+func TestTimelineArgErrors(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	ref := e.run(t, "", "--db", db, "sessions", "--json", "--since", "bogus")
+	if ref.code == 0 || decode[ErrorJSON](t, ref.stdout).Error.Kind != "usage" {
+		t.Fatalf("reference usage error: exit %d %s", ref.code, ref.stdout)
+	}
+	for _, tt := range []struct {
+		name string
+		args []string
+		want string // in the message
+	}{
+		{"unknown actor", []string{"--actor", "bogus"}, "human, agent, peer, automation, tool, all"},
+		{"since after until", []string{"--since", "2026-10-21", "--until", "2026-10-20"}, "--since"},
+		{"since after until with times", []string{"--since", "2026-10-20T20:00", "--until", "2026-10-20T19:00"}, "--since"},
+		{"since equals until", []string{"--since", "2026-10-20T20:00", "--until", "2026-10-20T20:00"}, "--since"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := e.run(t, "", append([]string{"--db", db, "timeline", "--json"}, tt.args...)...)
+			if r.code != ref.code {
+				t.Errorf("exit %d, want %d like other usage errors", r.code, ref.code)
+			}
+			got := decode[ErrorJSON](t, r.stdout)
+			if got.Error.Kind != "usage" || !strings.Contains(got.Error.Message, tt.want) {
+				t.Errorf("error = %+v, want usage mentioning %q", got.Error, tt.want)
+			}
+		})
+	}
+	// Valid bounds still work: a date as --until includes its day, and
+	// since before until on one day is fine.
+	for _, args := range [][]string{
+		{"--since", "2026-10-20", "--until", "2026-10-20"},
+		{"--since", "2026-10-20T19:00", "--until", "2026-10-20T20:00"},
+		{"--actor", "all"},
+	} {
+		if r := e.run(t, "", append([]string{"--db", db, "timeline", "--json"}, args...)...); r.code != 0 {
+			t.Errorf("%v: exit %d: %s", args, r.code, r.stdout)
+		}
+	}
+}
+
+// TestTimelineAllImpliesActorAll: --all without --actor takes every actor
+// (tool calls and results belong to agent and tool); an explicit --actor
+// wins, also an explicit human.
+func TestTimelineAllImpliesActorAll(t *testing.T) {
+	w := []string{"--since", "2026-10-20", "--until", "2026-10-20"}
+	actors := func(evs []TimelineEventJSON) map[string]int {
+		m := map[string]int{}
+		for _, ev := range evs {
+			m[ev.Actor]++
+		}
+		return m
+	}
+	implied := runTimeline(t, append([]string{"--all"}, w...)...)
+	explicit := runTimeline(t, append([]string{"--all", "--actor", "all"}, w...)...)
+	if len(implied) == 0 || len(implied) != len(explicit) {
+		t.Fatalf("--all: %d events, --all --actor all: %d", len(implied), len(explicit))
+	}
+	if a := actors(implied); a["agent"] == 0 || a["human"] == 0 {
+		t.Errorf("--all by actor = %v, want every actor", a)
+	}
+	human := runTimeline(t, append([]string{"--all", "--actor", "human"}, w...)...)
+	if a := actors(human); len(a) != 1 || a["human"] == 0 {
+		t.Errorf("--all --actor human by actor = %v, want only human", a)
+	}
+	if plain := runTimeline(t, w...); len(plain) >= len(implied) {
+		t.Errorf("plain %d events, --all %d: --all must add events", len(plain), len(implied))
+	}
+}
