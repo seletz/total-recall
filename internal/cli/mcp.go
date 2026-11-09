@@ -28,9 +28,14 @@ var (
 	pRepo  = mcp.Param{Name: "repo", Type: "string", Description: "repo substring (remote URL, git root or cwd)"}
 )
 
+// pagingNote ends the description of every tool with pages: where the
+// paging information is.
+const pagingNote = " A result over 32 KiB comes in pages: the first content block is one page of the CLI JSON (totals complete on every page); " +
+	"page, next and hint are in the SECOND content block, not in the JSON of the first. Pass next.cursor as cursor, with the same other arguments, to get the next page."
+
 // pCursor is the paging argument of every tool whose result can be split.
 var pCursor = mcp.Param{Name: "cursor", Type: "string", Server: true,
-	Description: "next.cursor of the previous page of the same call (same other arguments); omit for the first page. Large results come in pages"}
+	Description: "next.cursor from the second content block of the previous page of the same call (same other arguments); omit for the first page. Large results come in pages"}
 
 func withLimit(def, max int, extra ...mcp.Param) []mcp.Param {
 	return append(extra, mcp.Param{Name: "limit", Type: "integer", Max: max, Default: def,
@@ -45,7 +50,7 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "search", Title: "Search the archive", Command: []string{"search"}, FixedFlags: []string{"--json"},
 			Description: "Full-text search over the text of past agent sessions. Every word must occur (words are quoted); with raw=true the query is FTS5 syntax (AND, OR, NOT, \"phrase\", prefix*). " +
-				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`.",
+				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`." + pagingNote,
 			Defaults: map[string]int{"limit": 20}, Units: []string{""},
 			Params: withLimit(20, 200, pCursor,
 				mcp.Param{Name: "query", Type: "string", Required: true, Positional: true, Description: "words to search for"},
@@ -62,7 +67,7 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "sessions", Title: "List sessions", Command: []string{"sessions"}, FixedFlags: []string{"--json"},
-			Description: "List archived sessions, newest first, with id, name, repo, times, duration and event counts. Same JSON as `total-recall sessions --json`.",
+			Description: "List archived sessions, newest first, with id, name, repo, times, duration and event counts. Same JSON as `total-recall sessions --json`." + pagingNote,
 			Defaults:    map[string]int{"limit": 50}, Units: []string{""},
 			Params: withLimit(50, 500, pCursor, pSince, pUntil, pRepo,
 				mcp.Param{Name: "harness", Type: "string", Description: "harness name, e.g. claude"},
@@ -74,7 +79,7 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "show", Title: "Show a session", Command: []string{"show"}, FixedFlags: []string{"--json"}, Units: []string{"events"},
 			Description: "Show the conversation of one session (human and agent messages; all=true adds tool calls and results). Select a window with since/until, from_event (an event_id of a search hit) or limit with offset. " +
-				"Without limit at most 200 events are returned. Same JSON as `total-recall show --json`.",
+				"Without limit at most 200 events are returned. Same JSON as `total-recall show --json`." + pagingNote,
 			Defaults: map[string]int{"limit": 200},
 			Params: withLimit(200, 1000, pCursor,
 				mcp.Param{Name: "session", Type: "string", Required: true, Positional: true, Description: "session id, native id or unique prefix"},
@@ -88,7 +93,7 @@ func mcpTools() []mcp.Tool {
 			Name: "stats", Title: "Activity statistics", Command: []string{"stats"}, FixedFlags: []string{"--json"},
 			Narrow:      "drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top",
 			Units:       []string{"days", "buckets", "by_day"},
-			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day, with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series. Same JSON as `total-recall stats --json`.",
+			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day, with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series. Same JSON as `total-recall stats --json`." + pagingNote,
 			Params: []mcp.Param{
 				pCursor,
 				{Name: "month", Type: "string", Description: "month YYYY-MM (default: current month)"},
@@ -106,7 +111,7 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "memory", Title: "Project memory", Command: []string{"memory"}, FixedFlags: []string{"--json"},
-			Description: "The archived project memory of the harness (Claude Code: the memory files of every project): the files as they are now (or at a date), the versions of one file (history), or a text search over the current content (grep). Same JSON as `total-recall memory --json`.",
+			Description: "The archived project memory of the harness (Claude Code: the memory files of every project): the files as they are now (or at a date), the versions of one file (history), or a text search over the current content (grep). Same JSON as `total-recall memory --json`." + pagingNote,
 			Units:       []string{""},
 			Params: []mcp.Param{
 				pCursor,
@@ -126,7 +131,7 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "timeline", Title: "Timeline across sessions", Command: []string{"timeline"}, FixedFlags: []string{"--json"},
 			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo and a shortened text. " +
-				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`.",
+				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`." + pagingNote,
 			Units: []string{""},
 			Params: []mcp.Param{
 				pCursor, pSince, pUntil,

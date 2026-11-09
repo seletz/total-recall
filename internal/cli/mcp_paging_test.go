@@ -213,8 +213,6 @@ func TestMCPPagesAddUp(t *testing.T) {
 		{"search events", "search", map[string]any{"query": "the", "limit": 200}, []string{"search", "the", "--limit=200"}, "", 0},
 		{"search all types", "search", map[string]any{"query": "the", "type": "event,session,memory", "limit": 200}, []string{"search", "the", "--type=event,session,memory", "--limit=200"}, "", 0},
 		{"sessions", "sessions", map[string]any{"limit": 500}, []string{"sessions", "--limit=500"}, "", 0},
-		{"timeline", "timeline", map[string]any{"since": "2026-05-01", "until": "2026-10-31"}, []string{"timeline", "--since=2026-05-01", "--until=2026-10-31"}, "", 0},
-		{"timeline all actors", "timeline", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "actor": "all", "all": true}, []string{"timeline", "--since=2026-10-01", "--until=2026-10-31", "--actor=all", "--all"}, "", 0},
 		{"show", "show", map[string]any{"session": big.ID, "all": true, "limit": 1000}, []string{"show", big.ID, "--all", "--limit=1000"}, "events", 4 << 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -364,11 +362,24 @@ func TestMCPCursorErrors(t *testing.T) {
 	if h == nil || h.Next == nil {
 		t.Fatalf("no second page: %+v", h)
 	}
-	for name, c := range map[string]string{"malformed": "x", "mid-page": "1-" + strings.SplitN(h.Next.Cursor, "-", 2)[1]} {
-		first, _, isErr := p.call("sessions", map[string]any{"limit": 500, "cursor": c})
-		if !isErr || !strings.Contains(first, `"kind":"usage"`) {
-			t.Errorf("%s: %v %s", name, isErr, first)
+	for _, tc := range []struct {
+		name, tool string
+		args       map[string]any
+		want       string
+	}{
+		{"malformed", "sessions", map[string]any{"limit": 500, "cursor": "x"}, "invalid cursor"},
+		{"mid-page", "sessions", map[string]any{"limit": 500, "cursor": "1-" + strings.SplitN(h.Next.Cursor, "-", 2)[1]}, "invalid cursor"},
+		{"other arguments", "sessions", map[string]any{"limit": 499, "cursor": h.Next.Cursor}, "cursor belongs to a different query"},
+		{"other tool", "search", map[string]any{"query": "the", "cursor": h.Next.Cursor}, "cursor belongs to a different query"},
+	} {
+		first, _, isErr := p.call(tc.tool, tc.args)
+		if !isErr || !strings.Contains(first, `"kind":"usage"`) || !strings.Contains(first, tc.want) {
+			t.Errorf("%s: %v %s", tc.name, isErr, first)
 		}
+	}
+	// The same call with the cursor works.
+	if first, _, isErr := p.call("sessions", map[string]any{"limit": 500, "cursor": h.Next.Cursor}); isErr {
+		t.Errorf("good cursor: %s", first)
 	}
 	// status has no pages: the argument is unknown there.
 	if first, _, isErr := p.call("status", map[string]any{"cursor": "0-x"}); !isErr || !strings.Contains(first, `"kind":"usage"`) {
@@ -376,16 +387,58 @@ func TestMCPCursorErrors(t *testing.T) {
 	}
 }
 
+// timelineBound returns a bound that splits the CLI JSON of the command
+// into about pages pages. A fixed small bound would make the number of
+// pages, and with it the runs of the CLI (every page runs the command
+// again), grow with the size of the demo archive.
+func timelineBound(p *pagedDemo, pages int, cli ...string) int {
+	return len(p.cli(cli...))/pages + 1
+}
+
+// TestMCPTimelinePagesAddUp: all pages of timeline together are byte for
+// byte the CLI JSON, for the human events and, with every actor and kind,
+// for the largest list the demo archive gives in a window.
+func TestMCPTimelinePagesAddUp(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+		cli  []string
+	}{
+		{"human", map[string]any{"since": "2026-10-19", "until": "2026-10-23"}, []string{"timeline", "--since=2026-10-19", "--until=2026-10-23"}},
+		{"all actors and kinds", map[string]any{"since": "2026-10-20", "until": "2026-10-20", "actor": "all", "all": true},
+			[]string{"timeline", "--since=2026-10-20", "--until=2026-10-20", "--actor=all", "--all"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bound := timelineBound(newPagedDemo(t, 16<<20), 4, tc.cli...)
+			p := newPagedDemo(t, bound)
+			want := p.cli(tc.cli...)
+			pages, hints := p.crawl("timeline", tc.args)
+			if len(pages) < 3 || len(pages) > 6 {
+				t.Fatalf("%d pages for %d bytes, bound %d", len(pages), len(want), bound)
+			}
+			for i, pg := range pages {
+				if len(pg) > bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Index != i+1 {
+					t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), bound, hints[i])
+				}
+			}
+			if got := reassemble(t, pages, ""); got != want {
+				t.Errorf("%d pages do not add up to the CLI JSON (%d vs %d bytes)", len(pages), len(got), len(want))
+			}
+		})
+	}
+}
+
 // TestMCPTimelineMatchesStatsOnEveryPage: with a bound that forces pages,
 // the events of all pages of timeline are the human events stats counts
 // for the window, in total and per project; no event is missing or doubled.
 func TestMCPTimelineMatchesStatsOnEveryPage(t *testing.T) {
-	const bound = 8 << 10
+	const since, until = "2026-10-12", "2026-10-23"
+	cli := []string{"timeline", "--since=" + since, "--until=" + until}
+	bound := timelineBound(newPagedDemo(t, 16<<20), 4, cli...)
 	p := newPagedDemo(t, bound)
-	args := map[string]any{"since": "2026-05-04", "until": "2026-10-31"}
-	pages, hints := p.crawl("timeline", args)
-	if len(pages) < 3 {
-		t.Fatalf("%d pages: the bound does not force paging", len(pages))
+	pages, hints := p.crawl("timeline", map[string]any{"since": since, "until": until})
+	if len(pages) < 3 || len(pages) > 6 {
+		t.Fatalf("%d pages, bound %d", len(pages), bound)
 	}
 	seen := map[string]bool{}
 	perProject := map[string]int{}
@@ -408,15 +461,29 @@ func TestMCPTimelineMatchesStatsOnEveryPage(t *testing.T) {
 		}
 	}
 	var st ActivitySeriesJSON
-	if err := json.Unmarshal([]byte(p.cli("stats", "--period=day", "--by=project", "--since=2026-05-04", "--until=2026-10-31")), &st); err != nil {
+	if err := json.Unmarshal([]byte(p.cli("stats", "--period=day", "--by=project", "--since="+since, "--until="+until)), &st); err != nil {
 		t.Fatal(err)
 	}
-	if total != st.Total.Human {
+	if total != st.Total.Human || total == 0 {
 		t.Errorf("pages hold %d events, stats counts %d human events", total, st.Total.Human)
 	}
 	for _, c := range st.ByKey {
 		if perProject[c.Key] != c.Human {
 			t.Errorf("project %s: pages %d, stats %d", c.Key, perProject[c.Key], c.Human)
+		}
+	}
+}
+
+// TestMCPDescriptionsSayWherePagingIs: the tool descriptions (tools/list)
+// say that page, next and hint are in the second content block.
+func TestMCPDescriptionsSayWherePagingIs(t *testing.T) {
+	for _, tool := range mcpTools() {
+		has := false
+		for _, p := range tool.Params {
+			has = has || p.Name == "cursor"
+		}
+		if got := strings.Contains(tool.Description, "SECOND content block"); got != has {
+			t.Errorf("%s: cursor=%v, description mentions the second content block=%v", tool.Name, has, got)
 		}
 	}
 }

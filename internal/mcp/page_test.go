@@ -58,17 +58,24 @@ func pagedServer(doc string, units []string, max int) *Server {
 	return &Server{Name: "t", Version: "test", MaxBytes: max,
 		Run: func(context.Context, []string) (string, bool) { return doc, false },
 		Tools: []Tool{{Name: "x", Command: []string{"x"}, FixedFlags: []string{"--json"}, Units: units,
-			Params: []Param{{Name: "cursor", Type: "string", Server: true}}}}}
+			Params: []Param{{Name: "cursor", Type: "string", Server: true}, {Name: "since", Type: "string"}}}}}
 }
 
 // callPage calls tool x with the cursor and returns the result.
 func callPage(t *testing.T, s *Server, cursor string) (first string, hint Hint, isErr bool, all []string) {
 	t.Helper()
-	args := `{}`
+	args := map[string]any{}
 	if cursor != "" {
-		args = fmt.Sprintf(`{"cursor":%q}`, cursor)
+		args["cursor"] = cursor
 	}
-	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"x","arguments":`+args+`}}`)
+	return callWith(t, s, args)
+}
+
+// callWith calls tool x with the arguments.
+func callWith(t *testing.T, s *Server, args map[string]any) (first string, hint Hint, isErr bool, all []string) {
+	t.Helper()
+	b, _ := json.Marshal(args)
+	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"x","arguments":`+string(b)+`}}`)
 	res := m["result"].(map[string]any)
 	for _, c := range res["content"].([]any) {
 		all = append(all, c.(map[string]any)["text"].(string))
@@ -408,29 +415,40 @@ func TestPageSmallOutputUnchanged(t *testing.T) {
 	}
 }
 
+// TestPageCursorErrors: each way a cursor can not be used says why.
 func TestPageCursorErrors(t *testing.T) {
 	doc := statsLike(20, 4, 3)
 	s := pagedServer(doc, []string{"days"}, 4000)
-	_, h, _, _ := callPage(t, s, "")
+	_, h, _, _ := callWith(t, s, map[string]any{"since": "2026-10-01"})
 	good := h.Next.Cursor
+	parts := strings.SplitN(good, "-", 2) // from, then the hashes
 	stale := pagedServer(strings.Replace(doc, `"timezone":"Europe/Berlin"`, `"timezone":"UTC"`, 1), []string{"days"}, 4000)
+	same := map[string]any{"since": "2026-10-01"}
 	for _, tc := range []struct {
-		name   string
-		s      *Server
-		cursor string
-		want   string
+		name string
+		s    *Server
+		args map[string]any
+		want string
+		not  string
 	}{
-		{"malformed", s, "nonsense", "cursor"},
-		{"offset is not a page start", s, "3-" + strings.SplitN(good, "-", 2)[1], "cursor"},
-		{"beyond the end", s, "999-" + strings.SplitN(good, "-", 2)[1], "cursor"},
-		{"archive changed", stale, good, "changed"},
-		{"no pages", pagedServer(`{"a":1}`, []string{"days"}, 4000), good, "no pages"},
+		{"not a cursor", s, map[string]any{"cursor": "nonsense", "since": "2026-10-01"}, "invalid cursor", "different query"},
+		{"too few parts", s, map[string]any{"cursor": "3-abc", "since": "2026-10-01"}, "invalid cursor", "different query"},
+		{"offset is not a page start", s, map[string]any{"cursor": "3-" + parts[1], "since": "2026-10-01"}, "invalid cursor", ""},
+		{"beyond the end", s, map[string]any{"cursor": "999-" + parts[1], "since": "2026-10-01"}, "invalid cursor", ""},
+		{"other arguments", s, map[string]any{"cursor": good, "since": "2026-09-01"}, "cursor belongs to a different query", "changed"},
+		{"other arguments, no cursor argument at all", s, map[string]any{"cursor": good}, "cursor belongs to a different query", "changed"},
+		{"same arguments, result changed", stale, map[string]any{"cursor": good, "since": "2026-10-01"}, "the result changed since this cursor was issued", "different query"},
+		{"no pages", pagedServer(`{"a":1}`, []string{"days"}, 4000), map[string]any{"cursor": good, "since": "2026-10-01"}, "no pages", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			first, _, isErr, _ := callPage(t, tc.s, tc.cursor)
-			if !isErr || !strings.Contains(first, `"kind":"usage"`) || !strings.Contains(first, tc.want) {
+			first, _, isErr, _ := callWith(t, tc.s, tc.args)
+			if !isErr || !strings.Contains(first, `"kind":"usage"`) || !strings.Contains(first, tc.want) || (tc.not != "" && strings.Contains(first, tc.not)) {
 				t.Errorf("isError=%v: %s", isErr, first)
 			}
 		})
+	}
+	// The same arguments, written differently, are the same query.
+	if first, _, isErr, _ := callWith(t, s, map[string]any{"cursor": good, "since": same["since"]}); isErr {
+		t.Errorf("good cursor refused: %s", first)
 	}
 }
