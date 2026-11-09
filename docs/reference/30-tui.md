@@ -105,6 +105,7 @@ In den Ansichten:
 |---|---|
 | Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
 | Klick auf die Vorschau | öffnet den markierten Treffer wie ++enter++, egal ob Eingabe oder Liste den Fokus hat |
+| Klick auf eine Datei oder Version im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei öffnet ihren Verlauf wie ++enter++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
 | Klick auf einen Typ in der Linie der Suche (`event`, `session`, `memory`) | schaltet den Typ ein oder aus wie `e`, `s`, `m` |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
@@ -211,6 +212,29 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 - **Verlauf** wie `show`: eine Trennzeile je Event mit Zeit (gedämpft) und Actor in seiner Farbe, Tool-Aufrufe mit dem Werkzeugnamen in Türkis und gedämpftem Text, damit sie hinter dem Gespräch zurücktreten; Text am Wortende umbrochen. Die Suchwörter sind gelb, fett und unterstrichen, der gewählte Treffer ist invertiert, der markierte Event trägt `◄`. Beim Öffnen steht der Treffer-Event oben; ist er ein Tool-Event, werden Tools automatisch eingeblendet.
 - **Blättern** mit ++up++/++down++, ++pgup++/++pgdn++ oder dem Mausrad (drei Zeilen je Schritt).
 - `n`/`N` springen zum nächsten/vorigen Treffer, am Ende wieder von vorn. `T` blendet Tool-Aufrufe, Ergebnisse und Automatik ein und aus (wie `show --all`); die Position bleibt am markierten Event. `y` kopiert die Session-ID über OSC 52 in die Zwischenablage, für `show`, `sql` oder Agenten.
+
+## Memory { #memory }
+
+++enter++ auf einem Treffer des Typs `memory` öffnet den **Memory-Viewer** des Projekts, als zweite Ebene neben der Session: Die Suche bleibt darunter erhalten, ++esc++ führt zurück, `1` bis `4` schließen die Ebene. Der Tab in der Kopfzeile zeigt `› memory`. Die Daten kommen aus dem archivierten [Projekt-Gedächtnis](../explanation/design.md#memory), dieselben wie beim Befehl [`memory`](10-befehle.md#memory); gelesen wird nur, geschrieben nichts.
+
+![Memory-Viewer eines Projekts: links die Dateien mit MEMORY.md als Index, die gelöschte Datei zuletzt, rechts der Inhalt als lesbares Markdown](../assets/screenshots/memory.png)
+
+*Memory-Viewer eines Projekts: links die Dateien mit MEMORY.md als Index, die gelöschte Datei zuletzt, rechts der Inhalt als lesbares Markdown*
+
+Der Viewer hat zwei Seiten; ++esc++ geht immer eine Seite zurück, von der ersten schließt es die Ebene.
+
+- **Dateien:** links die Dateien des Projekts, `MEMORY.md` (der Index) zuerst, dann die übrigen nach Pfad, **gelöschte Dateien zuletzt**, gedämpft und mit `✗`. Rechts steht der Inhalt der markierten Datei wie in der Vorschau der Suche, als lesbares Markdown; die Suchwörter sind hervorgehoben, liegt der erste Treffer tief in der Datei, steht die Ansicht dort. Die Datei des Treffers ist beim Öffnen markiert. Je Zeile steht die Zahl der Versionen (`3×`). Die Statuszeile zählt Dateien und Löschungen.
+- **Verlauf:** ++enter++ auf einer Datei listet ihre Versionen, die neueste oben: Zeitpunkt, Größe, `now` für den heutigen Stand, `✗ … deleted` für eine Löschung. Rechts steht der Inhalt der markierten Version, im Kopf `version 2 of 3`: so zeigt die Ansicht einen **früheren Stand**. Bei einer Löschung steht dort ein Hinweis; die Version darunter zeigt, was die Datei zuletzt enthielt.
+
+![Verlauf einer Memory-Datei: links die Versionen, neueste zuerst, rechts ein früherer Stand](../assets/screenshots/memory-history.png)
+
+*Verlauf einer Memory-Datei: links die Versionen, neueste zuerst, rechts ein früherer Stand*
+
+![Verlauf einer gelöschten Memory-Datei: die Löschung steht als eigene Version oben](../assets/screenshots/memory-deleted.png)
+
+*Verlauf einer gelöschten Memory-Datei: die Löschung steht als eigene Version oben*
+
+Der Zeitpunkt einer Version ist die Änderungszeit der Datei, bei einer Löschung der Zeitpunkt des Scans, der sie vermisst hat. Gesehen wird nur, was ab dem ersten Lauf nach [Migration 8](../explanation/design.md#memory) archiviert wurde; frühere Stände gibt es nicht. Blättern im Text mit `b`/`f` (++pgup++/++pgdn++) oder dem Mausrad über der rechten Spalte, die Markierung mit ++up++/++down++ oder dem Mausrad über der Liste.
 
 ## Statistik
 
@@ -442,6 +466,15 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `T` | `session_tools` | Tool-Events ein/aus |
 | `y` | `session_copy` | Session-ID kopieren |
 | ++esc++ | `global_back` | zurück zur Suche |
+
+### Memory
+
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| ++up++ / `k`, ++down++ / `j` | `memory_up`, `memory_down` | Markierung bewegen (Dateien oder Versionen) |
+| ++enter++ | `memory_open` | Verlauf der markierten Datei |
+| `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | `memory_page_up`, `memory_page_down` | den Text blättern |
+| ++esc++ | `global_back` | eine Seite zurück, von den Dateien zur Suche |
 
 ### Statistik
 

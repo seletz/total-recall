@@ -31,6 +31,12 @@ Was sich an den Ergebnissen ändert:
 
 Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder neu. Wer nur die Summen braucht, grenzt vorher ein (kleinerer Zeitraum, `sessions`/`summary` aus) und kommt oft mit einer Seite aus. Die Anleitung für Agenten (`total-recall llm --skill`) und das [How-to](../how-to/55-mcp-anbinden.md#seiten) beschreiben das neue Verhalten.
 
+### Memory in der TUI
+
+- **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.
+- **Verlauf je Datei:** ++enter++ auf einer Datei listet ihre Versionen mit Zeitpunkt und Größe, eine Löschung als eigene Zeile, und zeigt einen früheren Stand. Maus und Tasten wie im Rest der TUI; die Tasten sind als `memory_*` in `[keys]` änderbar.
+- **Demo-Archiv:** das erfundene Gedächtnis von `kompass` hat jetzt mehrere Versionen, einen wechselnden Index und eine gelöschte Datei, damit Verlauf und Screenshots etwas zu zeigen haben.
+
 ## v1.4.0
 
 ### Was dieses Update mit dem Archiv macht
@@ -57,7 +63,6 @@ total-recall backup      # 1. sichern
 total-recall migrate     # 2. Sekunden: legt die Tabellen für das Gedächtnis an und füllt die Token-Spalten
 total-recall ingest --all  # 3. das Gedächtnis aufnehmen, wie es jetzt ist (sonst beim nächsten Hook)
 ```
-
 
 Außerdem **teilt das Archiv die Eingabe-Token auf** ([#185](https://github.com/seletz/total-recall/issues/185)): `events.tokens_in` war die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen, in einem echten Archiv zu 97 % Cache-Lesen, und taugte so nicht für Kostenabschätzungen. Neu sind die Spalten `tokens_cache_read` und `tokens_cache_write` (Schema v9). `tokens_in` bleibt die Summe, bestehende Zahlen ändern sich nicht. `migrate` füllt die Spalten aus `usage` in `raw`; Events ohne Rohzeile bleiben `NULL` (unbekannt). Neue Events bekommen sie beim Ingest. `stats --json` hat die Aufteilung immer (Feld `tokens`, nur ein neues Feld), `stats --tokens` zeigt sie in der Tabelle ([Befehlsreferenz](10-befehle.md#stats-tokens)). Thinking-Tokens sind in `output_tokens` enthalten und nicht einzeln gespeichert.
 

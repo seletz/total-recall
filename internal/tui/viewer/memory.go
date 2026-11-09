@@ -24,6 +24,8 @@ type Memory struct {
 	Changed time.Time
 	// Content is the text of the file.
 	Content string
+	// Note is appended to the time in the head ("version 2 of 3").
+	Note string
 }
 
 // Render implements Viewer. The anchor is the first line with a match of
@@ -37,7 +39,7 @@ func (v Memory) Render(env Env, w int) Content {
 	c := Content{Head: []string{
 		" " + env.Theme.Title.Render(cut(v.Path, w)),
 		" " + env.Theme.Muted.Render(cut(second, w)),
-		" " + cut(v.Changed.In(env.loc()).Format("2006-01-02 15:04"), w),
+		" " + cut(strings.TrimSpace(v.Changed.In(env.loc()).Format("2006-01-02 15:04")+"  "+v.Note), w),
 		rule(env, w),
 	}}
 	c.Body, c.Anchor = markdown(env, v.Content, w)
