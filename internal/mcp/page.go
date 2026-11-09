@@ -180,10 +180,11 @@ var errNoPages = fmt.Errorf("this result has no pages: leave out cursor")
 // names (the first page for ""). Every page holds whole entries of the
 // paged list plus everything else unchanged, so the totals are on every
 // page and all pages together are exactly b. A page that is larger than
-// max although it holds one entry only is cut as a last resort and flagged
-// in the hint. ok is false when b has no paged list.
-func paginate(b []byte, candidates []string, cursor string, max int, narrow string) (page []byte, hint *Hint, ok bool, err error) {
-	d, ok := splitDoc(b, candidates)
+// max although it holds one entry only loses detail lists (t.Detail) and
+// long texts, flagged in the hint, never sums; if that is not enough it is
+// an error. ok is false when b has no paged list.
+func paginate(b []byte, t Tool, cursor string, max int) (page []byte, hint *Hint, ok bool, err error) {
+	d, ok := splitDoc(b, t.Units)
 	if !ok {
 		return nil, nil, false, nil
 	}
@@ -226,19 +227,22 @@ func paginate(b []byte, candidates []string, cursor string, max int, narrow stri
 		}
 	}
 	if len(page) > max {
-		cut, h := cutNested(page, max)
+		cut, h, err := cutToFit(page, max, t.Detail, t.Narrow)
+		if err != nil {
+			return nil, nil, true, err
+		}
 		page = cut
 		if h != nil {
 			hint.Truncated, hint.Cut, hint.Shortened = true, h.Cut, h.Shortened
-			text = append(text, cutText(hint, narrow))
+			text = append(text, h.Hint)
 		}
 	}
 	if len(text) == 0 {
 		return page, nil, true, nil
 	}
 	hint.Hint = strings.Join(text, "; ")
-	if !hint.Truncated && narrow != "" {
-		hint.Hint += "; or narrow the query first: " + narrow
+	if !hint.Truncated && t.Narrow != "" {
+		hint.Hint += "; or narrow the query first: " + t.Narrow
 	}
 	return page, hint, true, nil
 }

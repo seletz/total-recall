@@ -32,7 +32,10 @@ func TestTruncateObjectNestedLists(t *testing.T) {
 	if len(doc) < 4*max {
 		t.Fatalf("fixture too small: %d", len(doc))
 	}
-	got, h := truncate(doc, max, "sessions:false or a smaller range")
+	got, h, err := truncate(doc, max, []string{"sessions"}, "sessions:false or a smaller range")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(got) > max {
 		t.Errorf("got %d bytes, max %d", len(got), max)
 	}
@@ -77,7 +80,7 @@ func TestTruncateObjectIndentedFitsCompact(t *testing.T) {
 	_ = json.Unmarshal([]byte(statsDoc(2, 2, 3)), &v)
 	b, _ := json.MarshalIndent(v, "", "    ")
 	buf.Write(b)
-	got, h := truncate(buf.String(), len(b)/2, "")
+	got, h, _ := truncate(buf.String(), len(b)/2, nil, "")
 	if h != nil || len(got) > len(b)/2 || !json.Valid([]byte(got)) {
 		t.Errorf("hint %+v, %d bytes, valid %v", h, len(got), json.Valid([]byte(got)))
 	}
@@ -85,7 +88,7 @@ func TestTruncateObjectIndentedFitsCompact(t *testing.T) {
 
 func TestTruncateObjectShortensStrings(t *testing.T) {
 	doc := `{"content":"` + strings.Repeat("ä", 5000) + `","n":1}`
-	got, h := truncate(doc, 1000, "")
+	got, h, _ := truncate(doc, 1000, nil, "")
 	if len(got) > 1000 || !json.Valid([]byte(got)) {
 		t.Fatalf("%d bytes, valid %v", len(got), json.Valid([]byte(got)))
 	}
@@ -95,21 +98,20 @@ func TestTruncateObjectShortensStrings(t *testing.T) {
 }
 
 func TestTruncateObjectNothingToCut(t *testing.T) {
-	// Leaves that cannot shrink below the floor: returned as far as cut, still valid.
+	// Numbers that cannot be cut: an error instead of a wrong partial result.
 	var parts []string
 	for i := 0; i < 400; i++ {
 		parts = append(parts, fmt.Sprintf(`"k%d":%d`, i, i))
 	}
 	doc := "{" + strings.Join(parts, ",") + "}"
-	got, _ := truncate(doc, 100, "")
-	if !json.Valid([]byte(got)) {
-		t.Errorf("not valid: %.60s", got)
+	if _, _, err := truncate(doc, 100, nil, ""); err == nil || !strings.Contains(err.Error(), "narrow") {
+		t.Errorf("err = %v, want a narrow-the-query error", err)
 	}
 }
 
 func TestTruncateNotJSON(t *testing.T) {
 	out := strings.Repeat("plain text ", 100)
-	got, h := truncate(out, 50, "")
+	got, h, _ := truncate(out, 50, nil, "")
 	if got != out || h != nil {
 		t.Errorf("non-JSON must pass through unchanged")
 	}
@@ -122,6 +124,7 @@ func TestDefaultBoundOnLargeStats(t *testing.T) {
 	}
 	s := testServer(func(context.Context, []string) (string, bool) { return doc, false })
 	s.MaxBytes = 0
+	s.Tools[0].Detail = []string{"sessions"}
 	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"x"}}}`)
 	c := m["result"].(map[string]any)["content"].([]any)
 	first := c[0].(map[string]any)["text"].(string)

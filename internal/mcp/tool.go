@@ -46,6 +46,10 @@ type Tool struct {
 	// gets a cursor parameter; a result larger than the bound is then
 	// returned page by page (see paginate).
 	Units []string
+	// Detail names the lists (by their key, e.g. "sessions") that may lose
+	// entries as a last resort when a single page entry is over the bound.
+	// Lists with sums and all numbers are never cut.
+	Detail []string
 	// Narrow tells the model how to ask for less when a result was cut,
 	// e.g. "sessions:false or a smaller range".
 	Narrow string

@@ -243,7 +243,7 @@ func (s *Server) bound(t Tool, out, cursor string, max int) (string, *Hint, erro
 		return cb.String(), nil, nil
 	}
 	if len(t.Units) > 0 {
-		page, hint, ok, err := paginate(cb.Bytes(), t.Units, cursor, max, t.Narrow)
+		page, hint, ok, err := paginate(cb.Bytes(), t, cursor, max)
 		if err != nil {
 			return "", nil, err
 		}
@@ -254,6 +254,5 @@ func (s *Server) bound(t Tool, out, cursor string, max int) (string, *Hint, erro
 	if cursor != "" {
 		return "", nil, errNoPages
 	}
-	first, hint := truncate(cb.String(), max, t.Narrow)
-	return first, hint, nil
+	return truncate(cb.String(), max, t.Detail, t.Narrow)
 }

@@ -303,12 +303,100 @@ func TestPageListLargerThanPage(t *testing.T) {
 	}
 }
 
-func TestPageOversizeUnitIsFlagged(t *testing.T) {
-	doc := statsLike(3, 8, 8)
-	s := pagedServer(doc, []string{"days"}, 1500) // a day alone is larger
-	first, h, isErr, _ := callPage(t, s, "")
-	if isErr || len(first) > 1500 || !json.Valid([]byte(first)) || !h.Truncated || len(h.Cut) == 0 {
-		t.Errorf("first=%d bytes err=%v hint=%+v", len(first), isErr, h)
+// bigDay is a day document whose single category and project carry sums;
+// the refs and sessions are the detail that may give way.
+func bigDay(refs, sessions int) string {
+	var r, se []string
+	for i := 0; i < refs; i++ {
+		r = append(r, fmt.Sprintf(`"#%d"`, i))
+	}
+	for i := 0; i < sessions; i++ {
+		se = append(se, fmt.Sprintf(`{"id":"claude:%08d-aaaa","title":"session %d","raw_seconds":60}`, i, i))
+	}
+	day := fmt.Sprintf(`{"day":"2026-10-02","raw_seconds":%d,"categories":[{"category":"c0","raw_seconds":%d,"projects":[{"project":"p0","raw_seconds":%d,"refs":[%s]}],"sessions":[%s],"refs":[%s]}]}`,
+		60*sessions, 60*sessions, 60*sessions, strings.Join(r, ","), strings.Join(se, ","), strings.Join(r, ","))
+	small := `{"day":"2026-10-01","raw_seconds":60,"categories":[{"category":"c0","raw_seconds":60,"projects":[{"project":"p0","raw_seconds":60,"refs":["#1"]}],"sessions":[],"refs":[]}]}`
+	return fmt.Sprintf(`{"timezone":"Europe/Berlin","days":[%s,%s],"total":{"raw_seconds":%d,"days":2}}`, small, day, 60*sessions+60)
+}
+
+func detailServer(doc string, max int) *Server {
+	s := pagedServer(doc, []string{"days"}, max)
+	s.Tools[0].Detail = []string{"refs", "sessions"}
+	s.Tools[0].Narrow = "sessions:false or a smaller range"
+	return s
+}
+
+// TestPageOversizeDayKeepsSums: a single day over the bound gives up its
+// detail lists (refs, sessions) but never categories, projects or numbers.
+func TestPageOversizeDayKeepsSums(t *testing.T) {
+	doc := bigDay(300, 300)
+	const max = 4000
+	if len(compact(t, doc)) < 4*max {
+		t.Fatalf("fixture too small: %d", len(doc))
+	}
+	pages, hints := crawl(t, detailServer(doc, max))
+	var cut *Hint
+	for i, p := range pages {
+		if len(p) > max || !json.Valid([]byte(p)) {
+			t.Fatalf("page %d: %d bytes", i+1, len(p))
+		}
+		if hints[i].Truncated {
+			cut = &hints[i]
+		}
+	}
+	if cut == nil || len(cut.Cut) == 0 {
+		t.Fatalf("the big day was not flagged: %+v", hints)
+	}
+	for _, c := range cut.Cut {
+		if !strings.HasSuffix(c.Path, "refs") && !strings.HasSuffix(c.Path, "sessions") {
+			t.Errorf("cut a list that carries sums: %+v", c)
+		}
+	}
+	// Categories, projects and every number are the same as in the whole.
+	var want, got struct {
+		Total json.RawMessage
+		Days  []struct {
+			Day        string
+			Raw        int `json:"raw_seconds"`
+			Categories []struct {
+				Raw      int `json:"raw_seconds"`
+				Projects []struct {
+					Raw int `json:"raw_seconds"`
+				}
+			}
+		}
+	}
+	if err := json.Unmarshal([]byte(doc), &want); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range pages {
+		var x = want
+		x.Days = nil
+		if err := json.Unmarshal([]byte(p), &x); err != nil {
+			t.Fatal(err)
+		}
+		if string(x.Total) != string(want.Total) {
+			t.Errorf("total changed on a page")
+		}
+		got.Days = append(got.Days, x.Days...)
+	}
+	if fmt.Sprint(got.Days) != fmt.Sprint(want.Days) {
+		t.Errorf("days differ:\n got %v\nwant %v", got.Days, want.Days)
+	}
+}
+
+// TestPageOversizeDayWithoutDetailIsError: when the detail lists are not
+// enough the call fails with a hint to narrow, there is no partial sum.
+func TestPageOversizeDayWithoutDetailIsError(t *testing.T) {
+	// Many projects: they carry sums, so nothing may be cut.
+	var p []string
+	for i := 0; i < 200; i++ {
+		p = append(p, fmt.Sprintf(`{"project":"p%d","raw_seconds":60,"refs":[]}`, i))
+	}
+	doc := fmt.Sprintf(`{"days":[{"day":"2026-10-01","raw_seconds":12000,"categories":[{"category":"c0","raw_seconds":12000,"projects":[%s],"sessions":[]}]}],"total":{"raw_seconds":12000}}`, strings.Join(p, ","))
+	first, _, isErr, _ := callPage(t, detailServer(doc, 2000), "")
+	if !isErr || !strings.Contains(first, `"kind":"usage"`) || !strings.Contains(first, "sessions:false") || strings.Contains(first, `"p0"`) {
+		t.Errorf("isError=%v: %.300s", isErr, first)
 	}
 }
 

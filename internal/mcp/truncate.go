@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 )
 
@@ -53,28 +54,45 @@ type Next struct {
 // truncate bounds out to max bytes and keeps it valid JSON. It is the last
 // resort for what paginate cannot split: a page whose single entry is larger
 // than the bound, or a result without a list to page. A pretty-printed
-// result is compacted first; what still does not fit is cut structurally,
-// the deepest nested lists first, the largest among them, one entry at a
-// time until it fits, then the longest text values. narrow says how to ask
-// for less. A result that is not JSON is returned unchanged.
-func truncate(out string, max int, narrow string) (string, *Hint) {
+// result is compacted first. What still does not fit loses entries of the
+// detail lists named in detail (the deepest first, the largest among them,
+// one entry at a time) and then its longest text values. Lists that carry
+// sums and all numbers stay whole: when that is not enough the result is an
+// error, never a wrong partial sum. narrow says how to ask for less. A
+// result that is not JSON is returned unchanged.
+func truncate(out string, max int, detail []string, narrow string) (string, *Hint, error) {
 	if len(out) <= max {
-		return out, nil
+		return out, nil, nil
 	}
 	var cb bytes.Buffer
 	if json.Compact(&cb, []byte(out)) != nil {
-		return out, nil
+		return out, nil, nil
 	}
 	if cb.Len() <= max {
-		return cb.String(), nil
+		return cb.String(), nil, nil
 	}
-	cur, hint := cutNested(cb.Bytes(), max)
+	cur, hint, err := cutToFit(cb.Bytes(), max, detail, narrow)
+	return string(cur), hint, err
+}
+
+// cutToFit cuts b with cutNested and fails when it still exceeds max.
+func cutToFit(b []byte, max int, detail []string, narrow string) ([]byte, *Hint, error) {
+	cur, hint := cutNested(b, max, detail)
+	if len(cur) > max {
+		msg := "the result does not fit into " + itoa(max) + " bytes even without its detail lists, and sums must not be cut: narrow the query"
+		if narrow != "" {
+			msg += ": " + narrow
+		} else {
+			msg += " (a shorter period, since, until, a smaller limit)"
+		}
+		return nil, nil, errors.New(msg)
+	}
 	if hint == nil {
-		return string(cur), nil
+		return cur, nil, nil
 	}
 	hint.Truncated = true
 	hint.Hint = cutText(hint, narrow)
-	return string(cur), hint
+	return cur, hint, nil
 }
 
 // cutText words the hint of a cut: what is missing and how to narrow.
@@ -86,7 +104,7 @@ func cutText(h *Hint, narrow string) string {
 	if h.Shortened > 0 {
 		parts = append(parts, itoa(h.Shortened)+" long text values shortened")
 	}
-	msg := "output cut, sums may not match their parts: " + strings.Join(parts, "; ")
+	msg := "detail cut (sums and counts are complete): " + strings.Join(parts, "; ")
 	if narrow != "" {
 		return msg + "; narrow the query to see the rest: " + narrow
 	}

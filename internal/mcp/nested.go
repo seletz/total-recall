@@ -3,6 +3,8 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -136,11 +138,14 @@ func (n *node) walk(f func(*node)) {
 }
 
 // cutNested shortens b, a compact JSON document, to at most max bytes when
-// it can: it drops trailing entries of nested lists, deepest tier first and
+// it can: it drops trailing entries of detail lists, deepest tier first and
 // the largest list within a tier first, one entry at a time, then shortens
-// the longest strings. It is the last resort for a result that cannot be
-// split into pages (see paginate).
-func cutNested(b []byte, max int) ([]byte, *Hint) {
+// the longest strings. Detail names the lists that may be cut (the last
+// element of their path, e.g. "sessions"); every other list carries sums
+// or is the data itself and stays whole, and numbers are never touched.
+// It is the last resort for a page that holds a single entry over the
+// bound (see paginate); the caller must check the size of the result.
+func cutNested(b []byte, max int, detail []string) ([]byte, *Hint) {
 	root := parse(b, nil, "")
 	var lists []*node
 	var strs []*node
@@ -156,7 +161,7 @@ func cutNested(b []byte, max int) ([]byte, *Hint) {
 	for tier := 0; tier <= maxTier && root.size > max; tier++ {
 		var cand []*node
 		for _, l := range lists {
-			if l.tier == tier && len(l.kids) > 0 {
+			if l.tier == tier && len(l.kids) > 0 && isDetail(l.path, detail) {
 				cand = append(cand, l)
 			}
 		}
@@ -238,6 +243,16 @@ func cutNested(b []byte, max int) ([]byte, *Hint) {
 	root.write(&out)
 	h.Truncated = true
 	return out.Bytes(), h
+}
+
+// isDetail reports whether the list at path (e.g. days[].categories[].refs)
+// is named in detail.
+func isDetail(path string, detail []string) bool {
+	name := path
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	return slices.Contains(detail, strings.TrimSuffix(name, "[]"))
 }
 
 func max2(a, b int) int {

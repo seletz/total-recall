@@ -19,7 +19,7 @@ Was sich an den Ergebnissen ändert:
 - Der zweite Inhalt ist der Hinweis `{"page":{"index":2,"of":5,"unit":"days","from":8,"to":16,"total":31},"next":{"cursor":"…"},"hint":"…"}`. Die letzte Seite hat kein `next`.
 - **`next.offset` entfällt.** Auch `show` meldet nur noch `next.cursor`. Der Parameter `offset` von `show` bleibt, er wählt wie `--offset` das Fenster der CLI.
 - **Neuer Parameter `cursor`** bei `search`, `sessions`, `show`, `stats` und `memory`. `truncated` steht nur noch im Hinweis, wenn wirklich etwas fehlt (siehe unten); `cut` und `shortened_strings` gibt es nur noch dann.
-- Nur ein **einzelner Eintrag**, der allein über 32 KiB liegt (zum Beispiel ein Tag mit sehr vielen Sessions), wird noch gekürzt, wie in v1.4.0. Das steht dann mit `truncated: true` und `cut` im Hinweis; Summen müssen dort nicht zu ihren Teilen passen. Eingrenzen hilft (`sessions` oder `summary` weglassen, kleinerer Zeitraum).
+- Nur ein **einzelner Eintrag**, der allein über 32 KiB liegt (zum Beispiel ein Tag mit sehr vielen Sessions), verliert noch Einträge der Detail-Listen `refs` und `sessions` und lange Texte; `categories`, `projects` und alle Zahlen bleiben vollständig. Der Hinweis hat dann `truncated: true` und `cut`. Reicht das nicht, kommt ein `usage`-Fehler mit dem Hinweis, den Zeitraum zu verkleinern oder `sessions`/`summary` wegzulassen, statt einer falschen Teilsumme.
 
 **So stellt ein Agent um:**
 
