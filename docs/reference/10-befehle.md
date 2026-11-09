@@ -234,7 +234,7 @@ Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
 | `--offset N` | die ersten N Events des Fensters überspringen (Blättern mit `--limit`) |
 | `--from-event ID` | ab diesem Event (einschließlich), z. B. `event_id` eines Treffers aus `search` |
 
-Bei menschlichen Eingaben steht hinter `human` in Klammern, wie sie ankamen: `typed`, `pasted`, `bash` oder `remote` ([Schema](40-schema.md#input_kind)); ist das nicht bekannt, steht nur `human`. Im JSON hat jedes Event das Feld `input_kind` (String oder `null`, seit v1.5.0).
+Bei menschlichen Eingaben steht hinter `human` in Klammern, wie sie ankamen: `typed`, `pasted`, `bash` oder `remote` ([Schema](40-schema.md#input_kind)); ist das nicht bekannt, steht nur `human`. Im JSON hat jedes Event das Feld `input_kind` (String oder `null`, seit v1.6.0).
 
 Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein eindeutiges Präfix davon angegeben werden. Ohne `--all` zeigt `show` nur Nachrichten von Mensch, Agent und anderen Agenten (`peer`).
 

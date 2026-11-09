@@ -542,7 +542,7 @@ type EventJSON struct {
 	Role  NullString `json:"role"`
 	Actor string     `json:"actor"`
 	// InputKind is how a human input reached the harness (typed, pasted,
-	// bash, remote since v1.5.0); null for other actors and when unknown.
+	// bash, remote since v1.6.0); null for other actors and when unknown.
 	InputKind   NullString       `json:"input_kind"`
 	Text        NullString       `json:"text"`
 	ToolName    NullString       `json:"tool_name"`
@@ -736,7 +736,7 @@ type HitJSON struct {
 	EventID     string     `json:"event_id"`
 	TS          string     `json:"ts"`
 	Actor       string     `json:"actor"`
-	// InputKind as in EventJSON (since v1.5.0).
+	// InputKind as in EventJSON (since v1.6.0).
 	InputKind NullString `json:"input_kind"`
 	Kind      string     `json:"kind"`
 	Snippet   NullString `json:"snippet"`
