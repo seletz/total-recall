@@ -66,6 +66,9 @@ type Theme struct {
 	HolidayText, WeekendText lipgloss.Style
 	// Spinner is the spinner glyph while a view loads.
 	Spinner lipgloss.Style
+	// Added and Removed colour the lines of a diff: green and red text,
+	// next to the + and - at their start, so a diff reads without colour.
+	Added, Removed lipgloss.Style
 }
 
 // New returns the theme for a dark or a light background.
@@ -106,6 +109,8 @@ func New(dark bool) Theme {
 	t.HolidayText = fg(t.Holiday)
 	t.WeekendText = fg(t.Weekend)
 	t.Spinner = fg(t.Accent2)
+	t.Added = fg(t.On)
+	t.Removed = fg(t.Warn)
 	return t
 }
 
