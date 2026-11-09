@@ -12,7 +12,8 @@
 // presses that key, a click beside the help panel closes the help. The
 // session detail is a layer above the views:
 // opened by the search view's OpenSession, closed by its Back, it replaces
-// the body while the search view keeps its state underneath.
+// the body while the search view keeps its state underneath. The memory
+// view (package memview) is a second such layer, opened by a memory hit.
 //
 // Reloading: every Options.Reload the app asks the store whether anything
 // changed (store.Poll, one PRAGMA, no queries otherwise). When it did, the
@@ -40,6 +41,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/stats"
@@ -217,8 +219,12 @@ func New(opts Options) (App, error) {
 		return App{}, fmt.Errorf("unknown view %q (use %s)", opts.Start, strings.Join(ViewNames, ", "))
 	}
 	detail := session.New(opts.Store, opts.Location, opts.Keys)
-	a := App{opts: opts, views: views, active: active, detail: detail, keys: newKeyMap(opts.Keys), th: theme.New(true),
-		stale: make([]bool, len(views)+1), updated: opts.Now()}
+	var memLoader memview.Loader
+	if opts.Store != nil {
+		memLoader = opts.Store
+	}
+	a := App{opts: opts, views: views, active: active, detail: detail, memory: memview.New(memLoader, opts.Location, opts.Keys), keys: newKeyMap(opts.Keys), th: theme.New(true),
+		stale: make([]bool, len(views)+2), updated: opts.Now()}
 	if opts.Store != nil {
 		// The baseline of the change check is taken before the views load
 		// for the first time, so nothing written in between is missed.

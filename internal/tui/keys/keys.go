@@ -29,6 +29,7 @@ const (
 	Global   Context = "global"
 	Search   Context = "search"
 	Session  Context = "session"
+	Memory   Context = "memory"
 	Stats    Context = "stats"
 	Activity Context = "activity"
 	Config   Context = "config"
@@ -83,6 +84,15 @@ const (
 	SessionPrev     = "session_prev"
 	SessionTools    = "session_tools"
 	SessionCopy     = "session_copy"
+
+	MemoryUp       = "memory_up"
+	MemoryDown     = "memory_down"
+	MemoryOpen     = "memory_open"
+	MemoryPageUp   = "memory_page_up"
+	MemoryPageDown = "memory_page_down"
+	MemoryDiff     = "memory_diff"
+	MemoryBase     = "memory_base"
+	MemoryTimeline = "memory_timeline"
 
 	StatsDays      = "stats_days"
 	StatsWeeks     = "stats_weeks"
@@ -166,6 +176,15 @@ var Actions = []Action{
 	{SessionTools, Session, []string{"T"}, "tools on/off"},
 	{SessionCopy, Session, []string{"y"}, "copy session id"},
 
+	{MemoryUp, Memory, []string{"up", "k"}, "up"},
+	{MemoryDown, Memory, []string{"down", "j"}, "down"},
+	{MemoryOpen, Memory, []string{"enter"}, "history of file"},
+	{MemoryPageUp, Memory, []string{"b", "pgup"}, "page up"},
+	{MemoryPageDown, Memory, []string{"f", "pgdown", "space"}, "page down"},
+	{MemoryDiff, Memory, []string{"d"}, "diff on/off"},
+	{MemoryBase, Memory, []string{"c"}, "compare with this version"},
+	{MemoryTimeline, Memory, []string{"t"}, "timeline"},
+
 	{StatsDays, Stats, []string{"d"}, "days"},
 	{StatsWeeks, Stats, []string{"w"}, "weeks"},
 	{StatsMonths, Stats, []string{"m"}, "months"},
@@ -215,7 +234,7 @@ var Actions = []Action{
 var ForceQuit = key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp(Display("ctrl+c"), "quit"))
 
 // Contexts lists the contexts in catalogue order.
-var Contexts = []Context{Global, Search, Session, Stats, Activity, Config}
+var Contexts = []Context{Global, Search, Session, Memory, Stats, Activity, Config}
 
 // ByContext groups the catalogue by context, keeping the order.
 func ByContext() map[Context][]Action {

@@ -102,7 +102,8 @@ func Build(ctx context.Context, path string) (Summary, error) {
 	}
 	// The archive says it was last read at Now, so a status rendered
 	// against it does not depend on when it was built.
-	st, err := store.Open(path, store.WithClock(func() time.Time { return Now }))
+	clock := Now // the memory replay moves it back in time
+	st, err := store.Open(path, store.WithClock(func() time.Time { return clock }))
 	if err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
@@ -123,6 +124,13 @@ func Build(ctx context.Context, path string) (Summary, error) {
 		},
 		LockDir: filepath.Join(tmp, "locks"),
 	}
+	if err := replayMemory(ctx, projects, deps, &clock); err != nil {
+		return Summary{}, err
+	}
+	if err := writeMemory(projects); err != nil {
+		return Summary{}, err
+	}
+	clock = Now
 	sum, err := ingest.All(ctx, deps)
 	if err != nil {
 		return Summary{}, fmt.Errorf("demo: ingest: %w", err)

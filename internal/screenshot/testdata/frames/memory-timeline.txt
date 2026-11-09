@@ -1,0 +1,36 @@
+ total-recall                  updated 10:00:00                   [1 search] › memory  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ kompass  timeline
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   2026-10-31 22:40 ~ MEMORY.md                      +47 B │ release-process.md
+ ▸ 2026-10-31 22:35 ~ release-process.md            +333 B │ kompass  claude
+   2026-10-28 10:00 ✗ old-notes.md                  −195 B │ 2026-10-24 09:50 → 2026-10-31 22:35
+   2026-10-28 09:35 ~ MEMORY.md                      −10 B │ +9 -1
+   2026-10-28 09:30 + conventions.md                +308 B │────────────────────────────────────────────────────────────
+   2026-10-24 09:50 ~ release-process.md            +172 B │ @@ -6,9 +6,17 @@
+   2026-10-15 17:58 ~ MEMORY.md                      +72 B │   ---
+   2026-10-15 17:55 + old-notes.md                  +195 B │
+   2026-10-12 21:50 + MEMORY.md                      +68 B │   A release is a signed tag on `main`. The release workflow
+   2026-10-12 21:45 + release-process.md            +190 B │   then runs
+                                                           │ - goreleaser, which builds the binaries for darwin/arm64
+                                                           │   and linux/amd64.
+                                                           │ + **goreleaser**, which builds the binaries for
+                                                           │   darwin/arm64 and
+                                                           │ + linux/amd64 and publishes the Homebrew cask to the tap.
+                                                           │
+                                                           │   ## Steps
+                                                           │
+                                                           │   1. Update the changelog under the next version.
+                                                           │   2. Tag with `git tag -s vX.Y.Z` and push the tag.
+                                                           │ + 3. Wait for the workflow; the cask lands in
+                                                           │   `mara/homebrew-tap`.
+                                                           │ +
+                                                           │ + **Why:** a missing `HOMEBREW_TAP_GITHUB_TOKEN` used to
+                                                           │   leave a
+                                                           │ + half-published release. The workflow now fails early.
+                                                           │ +
+                                                           │ + **How to apply:** never publish the cask by hand; if the
+                                                           │   workflow fails,
+ 10 changes
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter history of file • b/f scroll text • esc back • 1 search • 2 stats • 3 activity • ? help • q quit

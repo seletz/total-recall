@@ -17,14 +17,20 @@ import (
 // mcpInstructions is what a client shows the model about the server.
 const mcpInstructions = `Read-only access to the local archive of past coding-agent sessions. ` +
 	`Start with search (by_session=true gives one row per session), then show a session around a hit ` +
-	`(from_event, limit). Results are the JSON of the total-recall CLI. Every result is bounded (32 KiB): when the first ` +
-	`content item is cut it is still valid JSON, and a second one says what is missing and, where possible, gives next.offset.`
+	`(from_event, limit). Results are the JSON of the total-recall CLI. Every result is bounded (32 KiB). A larger result ` +
+	`comes as pages: the first content item is one complete page (valid JSON with the same fields; totals are on every page), ` +
+	`a second one says which page it is and gives next.cursor. Pass it unchanged as the cursor argument of the same call to get the next page; ` +
+	`all pages together are the full result. Nothing is cut silently.`
 
 var (
 	pSince = mcp.Param{Name: "since", Type: "string", Description: "from this time, local: YYYY-MM-DD, YYYY-MM-DDTHH:MM or RFC 3339"}
 	pUntil = mcp.Param{Name: "until", Type: "string", Description: "until this time; a date alone includes the whole day"}
 	pRepo  = mcp.Param{Name: "repo", Type: "string", Description: "repo substring (remote URL, git root or cwd)"}
 )
+
+// pCursor is the paging argument of every tool whose result can be split.
+var pCursor = mcp.Param{Name: "cursor", Type: "string", Server: true,
+	Description: "next.cursor of the previous page of the same call (same other arguments); omit for the first page. Large results come in pages"}
 
 func withLimit(def, max int, extra ...mcp.Param) []mcp.Param {
 	return append(extra, mcp.Param{Name: "limit", Type: "integer", Max: max, Default: def,
@@ -40,8 +46,8 @@ func mcpTools() []mcp.Tool {
 			Name: "search", Title: "Search the archive", Command: []string{"search"}, FixedFlags: []string{"--json"},
 			Description: "Full-text search over the text of past agent sessions. Every word must occur (words are quoted); with raw=true the query is FTS5 syntax (AND, OR, NOT, \"phrase\", prefix*). " +
 				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`.",
-			Defaults: map[string]int{"limit": 20},
-			Params: withLimit(20, 200,
+			Defaults: map[string]int{"limit": 20}, Units: []string{""},
+			Params: withLimit(20, 200, pCursor,
 				mcp.Param{Name: "query", Type: "string", Required: true, Positional: true, Description: "words to search for"},
 				mcp.Param{Name: "type", Type: "list", Enum: []string{"event", "session", "memory"}, Description: "what to search: event (default; the text of the conversation), session (names and titles), memory (the project memory files); an array or a comma-separated list. Hits come grouped by type in the order given and limit counts per type; each hit has a type field"},
 				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
@@ -57,8 +63,8 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "sessions", Title: "List sessions", Command: []string{"sessions"}, FixedFlags: []string{"--json"},
 			Description: "List archived sessions, newest first, with id, name, repo, times, duration and event counts. Same JSON as `total-recall sessions --json`.",
-			Defaults:    map[string]int{"limit": 50},
-			Params: withLimit(50, 500, pSince, pUntil, pRepo,
+			Defaults:    map[string]int{"limit": 50}, Units: []string{""},
+			Params: withLimit(50, 500, pCursor, pSince, pUntil, pRepo,
 				mcp.Param{Name: "harness", Type: "string", Description: "harness name, e.g. claude"},
 				mcp.Param{Name: "name", Type: "string", Description: "session name substring"},
 				mcp.Param{Name: "account", Type: "string", Description: "account name, id or prefix"},
@@ -66,11 +72,11 @@ func mcpTools() []mcp.Tool {
 			),
 		},
 		{
-			Name: "show", Title: "Show a session", Command: []string{"show"}, FixedFlags: []string{"--json"}, Offset: "offset",
+			Name: "show", Title: "Show a session", Command: []string{"show"}, FixedFlags: []string{"--json"}, Units: []string{"events"},
 			Description: "Show the conversation of one session (human and agent messages; all=true adds tool calls and results). Select a window with since/until, from_event (an event_id of a search hit) or limit with offset. " +
 				"Without limit at most 200 events are returned. Same JSON as `total-recall show --json`.",
 			Defaults: map[string]int{"limit": 200},
-			Params: withLimit(200, 1000,
+			Params: withLimit(200, 1000, pCursor,
 				mcp.Param{Name: "session", Type: "string", Required: true, Positional: true, Description: "session id, native id or unique prefix"},
 				pSince, pUntil,
 				mcp.Param{Name: "from_event", Type: "string", Description: "start at this event id (inclusive)"},
@@ -81,8 +87,10 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "stats", Title: "Activity statistics", Command: []string{"stats"}, FixedFlags: []string{"--json"},
 			Narrow:      "drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top",
+			Units:       []string{"days", "buckets", "by_day"},
 			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day, with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series. Same JSON as `total-recall stats --json`.",
 			Params: []mcp.Param{
+				pCursor,
 				{Name: "month", Type: "string", Description: "month YYYY-MM (default: current month)"},
 				pSince, pUntil,
 				{Name: "period", Type: "string", Enum: []string{"day", "week", "month"}, Description: "time series per day, week or month"},
@@ -99,7 +107,9 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "memory", Title: "Project memory", Command: []string{"memory"}, FixedFlags: []string{"--json"},
 			Description: "The archived project memory of the harness (Claude Code: the memory files of every project): the files as they are now (or at a date), the versions of one file (history), or a text search over the current content (grep). Same JSON as `total-recall memory --json`.",
+			Units:       []string{""},
 			Params: []mcp.Param{
+				pCursor,
 				{Name: "project", Type: "string", Description: "only projects whose name, path or harness key matches"},
 				{Name: "at", Type: "string", Description: "the files as they were at this date (local time)"},
 				{Name: "history", Type: "string", Description: "the versions of this file (path relative to the memory directory, e.g. MEMORY.md)"},
@@ -158,7 +168,7 @@ func (e *env) mcpCmd() *cobra.Command {
 		Long: `Run a Model Context Protocol server on stdin/stdout. The harness starts it
 as a child process; there is no port and no daemon. It offers read-only
 tools (search, sessions, show, stats, memory, status) that return the JSON
-of the CLI commands, with bounded output.
+of the CLI commands. A result over 32 KiB comes in pages (cursor argument).
 
 Register it with Claude Code: total-recall mcp print --command`,
 		Args: usageArgs(cobra.NoArgs),

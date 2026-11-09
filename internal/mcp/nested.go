@@ -3,6 +3,8 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -136,16 +138,19 @@ func (n *node) walk(f func(*node)) {
 }
 
 // cutNested shortens b, a compact JSON document, to at most max bytes when
-// it can: it drops trailing entries of nested lists, deepest tier first and
+// it can: it drops trailing entries of detail lists, deepest tier first and
 // the largest list within a tier first, one entry at a time, then shortens
-// the longest strings. With keepTop the top-level list and the events of the
-// document are not touched (their count is what next.offset refers to).
-func cutNested(b []byte, max int, keepTop bool) ([]byte, *Hint) {
+// the longest strings. Detail names the lists that may be cut (the last
+// element of their path, e.g. "sessions"); every other list carries sums
+// or is the data itself and stays whole, and numbers are never touched.
+// It is the last resort for a page that holds a single entry over the
+// bound (see paginate); the caller must check the size of the result.
+func cutNested(b []byte, max int, detail []string) ([]byte, *Hint) {
 	root := parse(b, nil, "")
 	var lists []*node
 	var strs []*node
 	root.walk(func(n *node) {
-		if n.kind == 'a' && (!keepTop || !protected(n, root)) {
+		if n.kind == 'a' {
 			lists = append(lists, n)
 		}
 	})
@@ -156,7 +161,7 @@ func cutNested(b []byte, max int, keepTop bool) ([]byte, *Hint) {
 	for tier := 0; tier <= maxTier && root.size > max; tier++ {
 		var cand []*node
 		for _, l := range lists {
-			if l.tier == tier && len(l.kids) > 0 {
+			if l.tier == tier && len(l.kids) > 0 && isDetail(l.path, detail) {
 				cand = append(cand, l)
 			}
 		}
@@ -240,27 +245,21 @@ func cutNested(b []byte, max int, keepTop bool) ([]byte, *Hint) {
 	return out.Bytes(), h
 }
 
+// isDetail reports whether the list at path (e.g. days[].categories[].refs)
+// is named in detail.
+func isDetail(path string, detail []string) bool {
+	name := path
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	return slices.Contains(detail, strings.TrimSuffix(name, "[]"))
+}
+
 func max2(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
-}
-
-// protected reports whether n is the top-level array or the events of the
-// top-level object.
-func protected(n, root *node) bool {
-	if n == root {
-		return true
-	}
-	if n.parent == root && root.kind == 'o' {
-		for i, k := range root.kids {
-			if k == n {
-				return root.keys[i] == "events"
-			}
-		}
-	}
-	return false
 }
 
 // shorten cuts the text of s by about need bytes (at least down to minString
