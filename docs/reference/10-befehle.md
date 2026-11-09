@@ -400,7 +400,9 @@ LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
 
 **JSON.** Eine Liste mit einem Objekt je Event, alle Schlüssel immer vorhanden: `event_id`, `ts` (UTC), `ts_local` (RFC 3339 in der konfigurierten Zeitzone), `session_id`, `session_name`, `project` (Name wie bei `stats --by project`), `repo`, `actor`, `kind`, `text` (einzeilig, gekürzt), `text_chars` (Länge des ganzen Textes) und `text_truncated`. Gekürzt wird also nie unbemerkt.
 
-**Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv.
+**Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv, auch über die Seiten des MCP-Tools.
+
+**MCP.** Das Tool `timeline` hat dieselben Parameter (`text_width` statt `--text-width`) und liefert die Liste in Seiten, siehe [MCP anbinden](../how-to/55-mcp-anbinden.md#seiten).
 
 ## `stats` { #stats }
 

@@ -213,6 +213,8 @@ func TestMCPPagesAddUp(t *testing.T) {
 		{"search events", "search", map[string]any{"query": "the", "limit": 200}, []string{"search", "the", "--limit=200"}, "", 0},
 		{"search all types", "search", map[string]any{"query": "the", "type": "event,session,memory", "limit": 200}, []string{"search", "the", "--type=event,session,memory", "--limit=200"}, "", 0},
 		{"sessions", "sessions", map[string]any{"limit": 500}, []string{"sessions", "--limit=500"}, "", 0},
+		{"timeline", "timeline", map[string]any{"since": "2026-05-01", "until": "2026-10-31"}, []string{"timeline", "--since=2026-05-01", "--until=2026-10-31"}, "", 0},
+		{"timeline all actors", "timeline", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "actor": "all", "all": true}, []string{"timeline", "--since=2026-10-01", "--until=2026-10-31", "--actor=all", "--all"}, "", 0},
 		{"show", "show", map[string]any{"session": big.ID, "all": true, "limit": 1000}, []string{"show", big.ID, "--all", "--limit=1000"}, "events", 4 << 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -371,5 +373,50 @@ func TestMCPCursorErrors(t *testing.T) {
 	// status has no pages: the argument is unknown there.
 	if first, _, isErr := p.call("status", map[string]any{"cursor": "0-x"}); !isErr || !strings.Contains(first, `"kind":"usage"`) {
 		t.Errorf("status with cursor: %v %s", isErr, first)
+	}
+}
+
+// TestMCPTimelineMatchesStatsOnEveryPage: with a bound that forces pages,
+// the events of all pages of timeline are the human events stats counts
+// for the window, in total and per project; no event is missing or doubled.
+func TestMCPTimelineMatchesStatsOnEveryPage(t *testing.T) {
+	const bound = 8 << 10
+	p := newPagedDemo(t, bound)
+	args := map[string]any{"since": "2026-05-04", "until": "2026-10-31"}
+	pages, hints := p.crawl("timeline", args)
+	if len(pages) < 3 {
+		t.Fatalf("%d pages: the bound does not force paging", len(pages))
+	}
+	seen := map[string]bool{}
+	perProject := map[string]int{}
+	total := 0
+	for i, pg := range pages {
+		if len(pg) > bound || hints[i] == nil || hints[i].Truncated {
+			t.Fatalf("page %d: %d bytes, hint %+v", i+1, len(pg), hints[i])
+		}
+		var evs []TimelineEventJSON
+		if err := json.Unmarshal([]byte(pg), &evs); err != nil {
+			t.Fatal(err)
+		}
+		for _, ev := range evs {
+			if seen[ev.EventID] {
+				t.Errorf("event %s on two pages", ev.EventID)
+			}
+			seen[ev.EventID] = true
+			perProject[string(ev.Project)]++
+			total++
+		}
+	}
+	var st ActivitySeriesJSON
+	if err := json.Unmarshal([]byte(p.cli("stats", "--period=day", "--by=project", "--since=2026-05-04", "--until=2026-10-31")), &st); err != nil {
+		t.Fatal(err)
+	}
+	if total != st.Total.Human {
+		t.Errorf("pages hold %d events, stats counts %d human events", total, st.Total.Human)
+	}
+	for _, c := range st.ByKey {
+		if perProject[c.Key] != c.Human {
+			t.Errorf("project %s: pages %d, stats %d", c.Key, perProject[c.Key], c.Human)
+		}
 	}
 }

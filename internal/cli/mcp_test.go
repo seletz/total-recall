@@ -76,7 +76,7 @@ func TestMCPHandshakeAndTools(t *testing.T) {
 			t.Errorf("tool %v: %v", tool["name"], tool)
 		}
 	}
-	if got, want := strings.Join(names, " "), "search sessions show stats memory status"; got != want {
+	if got, want := strings.Join(names, " "), "search sessions show stats memory status timeline"; got != want {
 		t.Errorf("tools = %s, want %s (stable interface: only append)", got, want)
 	}
 }
@@ -107,6 +107,7 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 		{"stats", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday"}},
 		{"memory", "memory", map[string]any{}, []string{"memory"}},
 		{"status", "status", map[string]any{}, []string{"status"}},
+		{"timeline", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-21T06:00", "project": "kompass", "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-21T06:00", "--project=kompass", "--text-width=40"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, isErr := s.call(tc.tool, tc.args)

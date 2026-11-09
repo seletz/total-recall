@@ -101,7 +101,7 @@ LIMIT 50"
 
 ## MCP server
 
-`total-recall mcp` is a read-only MCP server on stdio; the harness starts it as a child process (no port, no daemon). When the tools `search`, `sessions`, `show`, `stats`, `memory` and `status` of a server named `total-recall` are available in this session, **use them instead of shell commands**: they return exactly the `--json` output of the commands of the same name, so everything above (fields, error kinds, time stamps) applies unchanged. Without the server, use the CLI as described above. `sql`, `blob`, `ingest`, `backup`, `migrate` and every other writing command have no tool; for grouping, counting and joining, `sql` through the CLI stays the way.
+`total-recall mcp` is a read-only MCP server on stdio; the harness starts it as a child process (no port, no daemon). When the tools `search`, `sessions`, `show`, `stats`, `memory`, `status` and `timeline` of a server named `total-recall` are available in this session, **use them instead of shell commands**: they return exactly the `--json` output of the commands of the same name, so everything above (fields, error kinds, time stamps) applies unchanged. Without the server, use the CLI as described above. `sql`, `blob`, `ingest`, `backup`, `migrate` and every other writing command have no tool; for grouping, counting and joining, `sql` through the CLI stays the way.
 
 | Tool | Arguments (`*` = required) |
 | --- | --- |
@@ -111,6 +111,7 @@ LIMIT 50"
 | `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | none |
+| `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`), `all`, `text_width` (default 160), `limit` (leave out for all; large windows come in pages) |
 
 The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version (v1.5.0 replaced the cut-off results of v1.4 by pages).
 

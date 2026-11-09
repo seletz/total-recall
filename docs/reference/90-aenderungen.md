@@ -11,6 +11,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 ### Zeitleiste
 
 - **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit, `--project` (Name wie bei `stats --by project`), `--repo`, `--actor`; je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).
+- **MCP-Tool `timeline`:** dasselbe als Tool ([MCP anbinden](../how-to/55-mcp-anbinden.md)), mit `cursor`: ein Abend über alle Sessions kommt in Seiten aus ganzen Events, jede Seite gültiges CLI-JSON, alle Seiten zusammen sind byte-gleich die Ausgabe des Befehls. Neues Tool, Minor.
 
 ## v1.5.0 (unveröffentlicht)
 

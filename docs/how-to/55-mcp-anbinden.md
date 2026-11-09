@@ -48,6 +48,7 @@ Alle Tools sind schreibgeschützt und geben das JSON des gleichnamigen Befehls z
 | `stats` | [`stats`](../reference/10-befehle.md#stats) | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | [`memory`](../reference/10-befehle.md#memory) | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | [`status`](../reference/10-befehle.md#status) | keine |
+| `timeline` | [`timeline`](../reference/10-befehle.md#timeline) | `cursor`, `since`, `until`, `project`, `repo`, `actor` (Default `human`, oder `all`), `all`, `text_width` (Default 160), `limit` (ohne Angabe alle; große Fenster kommen in Seiten) |
 
 `type` ist wie `--type` ([`search`](../reference/10-befehle.md#search)): `event` (Default), `session` oder `memory`, als Array oder kommagetrennte Liste. Die Treffer kommen nach Typ gruppiert in der angegebenen Reihenfolge, **`limit` gilt je Typ**, und jeder Treffer hat das Feld `type`. `project` ist `--project`.
 

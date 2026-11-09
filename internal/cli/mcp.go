@@ -123,6 +123,21 @@ func mcpTools() []mcp.Tool {
 			Name: "status", Title: "Archive status", Command: []string{"status"}, FixedFlags: []string{"--json"},
 			Description: "State of the archive: location, schema version (and whether a migration is pending), size, counts, last ingest, last backup. Check it when another tool reports an error. Same JSON as `total-recall status --json`.",
 		},
+		{
+			Name: "timeline", Title: "Timeline across sessions", Command: []string{"timeline"}, FixedFlags: []string{"--json"},
+			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo and a shortened text. " +
+				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`.",
+			Units: []string{""},
+			Params: []mcp.Param{
+				pCursor, pSince, pUntil,
+				{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
+				pRepo,
+				{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool", "all"}, Default: "human", Description: "whose events (default human = what the user said)"},
+				{Name: "all", Type: "boolean", Description: "include tool calls and results, system and meta events (default: messages only)"},
+				{Name: "text_width", Type: "integer", Default: 160, Description: "runes of the text per event, 0 = whole text; text_truncated says when it was cut"},
+				{Name: "limit", Type: "integer", Description: "keep only the oldest N events; leave out for all (large windows come in pages)"},
+			},
+		},
 	}
 }
 
