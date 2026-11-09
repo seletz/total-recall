@@ -23,8 +23,8 @@ func testServer(run Runner) *Server {
 			},
 			Defaults: map[string]int{"limit": 20},
 		}, {
-			Name: "show", Command: []string{"show"}, FixedFlags: []string{"--json"}, Offset: "offset",
-			Params: []Param{{Name: "session", Type: "string", Required: true, Positional: true}, {Name: "offset", Type: "integer"}},
+			Name: "show", Command: []string{"show"}, FixedFlags: []string{"--json"}, Units: []string{"events"},
+			Params: []Param{{Name: "session", Type: "string", Required: true, Positional: true}, {Name: "offset", Type: "integer"}, {Name: "cursor", Type: "string", Server: true}},
 		}},
 	}
 }
@@ -222,64 +222,6 @@ func TestToolCallFailureKeepsCLIError(t *testing.T) {
 	res := m["result"].(map[string]any)
 	if res["isError"] != true || res["content"].([]any)[0].(map[string]any)["text"] != `{"error":{"kind":"db","message":"no archive"}}` {
 		t.Errorf("result = %v", res)
-	}
-}
-
-func items(n int) string {
-	parts := make([]string, n)
-	for i := range parts {
-		parts[i] = fmt.Sprintf(`{"i":%d,"t":"xxxxxxxxxx"}`, i)
-	}
-	return "[" + strings.Join(parts, ",") + "]"
-}
-
-func TestTruncateArray(t *testing.T) {
-	s := testServer(func(context.Context, []string) (string, bool) { return items(40), false })
-	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"x"}}}`)
-	c := m["result"].(map[string]any)["content"].([]any)
-	if len(c) != 2 {
-		t.Fatalf("content = %d items", len(c))
-	}
-	first := c[0].(map[string]any)["text"].(string)
-	var kept []map[string]any
-	if err := json.Unmarshal([]byte(first), &kept); err != nil || len(kept) == 0 || len(kept) >= 40 {
-		t.Fatalf("first item: %v, %d kept", err, len(kept))
-	}
-	if len(first) > 200 {
-		t.Errorf("first item %d bytes, max 200", len(first))
-	}
-	var h Hint
-	if err := json.Unmarshal([]byte(c[1].(map[string]any)["text"].(string)), &h); err != nil {
-		t.Fatal(err)
-	}
-	if !h.Truncated || h.Next != nil || h.Hint == "" {
-		t.Errorf("hint = %+v (search has no offset)", h)
-	}
-}
-
-func TestTruncateShowEventsWithOffset(t *testing.T) {
-	doc := `{"session":{"id":"claude:a"},"events":` + items(40) + `}`
-	s := testServer(func(context.Context, []string) (string, bool) { return doc, false })
-	m := rpc(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"show","arguments":{"session":"a","offset":100}}}`)
-	c := m["result"].(map[string]any)["content"].([]any)
-	if len(c) != 2 {
-		t.Fatalf("content = %d items", len(c))
-	}
-	first := c[0].(map[string]any)["text"].(string)
-	var got struct {
-		Session map[string]any
-		Events  []json.RawMessage
-	}
-	if err := json.Unmarshal([]byte(first), &got); err != nil || got.Session["id"] != "claude:a" || len(got.Events) == 0 {
-		t.Fatalf("first = %s (%v)", first, err)
-	}
-	if !strings.HasPrefix(first, `{"session"`) {
-		t.Errorf("key order lost: %s", first)
-	}
-	var h Hint
-	_ = json.Unmarshal([]byte(c[1].(map[string]any)["text"].(string)), &h)
-	if h.Next == nil || h.Next.Offset != 100+len(got.Events) {
-		t.Errorf("hint = %+v, kept %d", h, len(got.Events))
 	}
 }
 

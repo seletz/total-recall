@@ -42,32 +42,40 @@ Alle Tools sind schreibgeschützt und geben das JSON des gleichnamigen Befehls z
 
 | Tool | Befehl | Parameter (`*` = Pflicht) |
 |---|---|---|
-| `search` | [`search`](../reference/10-befehle.md#search) | `query*`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (Default 20, höchstens 200; je Typ) |
-| `sessions` | [`sessions`](../reference/10-befehle.md#sessions) | `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (Default 50, höchstens 500) |
-| `show` | [`show`](../reference/10-befehle.md#show) | `session*`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (Default 200, höchstens 1000) |
-| `stats` | [`stats`](../reference/10-befehle.md#stats) | `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
-| `memory` | [`memory`](../reference/10-befehle.md#memory) | `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
+| `search` | [`search`](../reference/10-befehle.md#search) | `query*`, `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (Default 20, höchstens 200; je Typ) |
+| `sessions` | [`sessions`](../reference/10-befehle.md#sessions) | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (Default 50, höchstens 500) |
+| `show` | [`show`](../reference/10-befehle.md#show) | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (Default 200, höchstens 1000) |
+| `stats` | [`stats`](../reference/10-befehle.md#stats) | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `workday`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
+| `memory` | [`memory`](../reference/10-befehle.md#memory) | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | [`status`](../reference/10-befehle.md#status) | keine |
 
 `type` ist wie `--type` ([`search`](../reference/10-befehle.md#search)): `event` (Default), `session` oder `memory`, als Array oder kommagetrennte Liste. Die Treffer kommen nach Typ gruppiert in der angegebenen Reihenfolge, **`limit` gilt je Typ**, und jeder Treffer hat das Feld `type`. `project` ist `--project`.
 
 Es gibt bewusst keine Tools zum Schreiben, Migrieren, Sichern oder für `sql`: Wer gruppieren, zählen oder verknüpfen will, nimmt dafür die CLI (`total-recall sql`). Der Skill (`total-recall llm --skill`) sagt dem Agenten, wann er welchen Weg nimmt.
 
-## Begrenzte Ausgabe
+## Seiten statt Kürzung { #seiten }
 
-Der erste Inhalt eines Tool-Ergebnisses ist höchstens **32 KiB** groß, bei **jedem** Tool. Die Grenze liegt mit Abstand unter dem, was Clients annehmen: Claude Code begrenzt MCP-Antworten auf etwa 25 000 Tokens, und JSON mit IDs und Pfaden kostet bis zu etwa 2 Bytes je Token, 32 KiB sind also im ungünstigen Fall rund 16 000 Tokens. Der erste Inhalt ist **die CLI-Ausgabe**, gültiges JSON mit denselben Feldern. Ist sie größer als die Grenze, wird zuerst die Einrückung entfernt (derselbe Inhalt, kompakt); reicht das nicht, wird gekürzt, und ein zweiter Text-Inhalt sagt, was fehlt.
+Der erste Inhalt eines Tool-Ergebnisses ist höchstens **32 KiB** groß, bei **jedem** Tool. Die Grenze liegt mit Abstand unter dem, was Clients annehmen: Claude Code begrenzt MCP-Antworten auf etwa 25 000 Tokens, und JSON mit IDs und Pfaden kostet bis zu etwa 2 Bytes je Token, 32 KiB sind also im ungünstigen Fall rund 16 000 Tokens.
 
-Wie gekürzt wird:
+Der Grundsatz: **Die Zahlen müssen stimmen.** Ein Tool lässt nie still Teile einer Liste weg, über die eine Summe gebildet wird. Ist die CLI-Ausgabe größer als die Grenze, kommt sie in **Seiten**, und der Agent holt den Rest mit Folgeaufrufen. Passt sie, ändert sich nichts: Der erste Inhalt ist die CLI-Ausgabe, ein zweiter fehlt.
 
-1. **Listen** (`search`, `sessions`) und die Liste `events` von `show`: nach ganzen Einträgen, vom Ende her. Bei `show` steht in `next.offset`, wo es weitergeht.
-2. **Verschachtelte Listen** in Objekten wie `stats`: die tiefsten Listen zuerst, jeweils die größte, Eintrag für Eintrag vom Ende her, bis es passt. Bei `stats` mit `worktime` und `sessions` sind das die Sessions je Tag und Kategorie; Minuten, Tage und Summen bleiben erhalten. Erst wenn die tiefste Ebene leer ist und es immer noch nicht passt, kommt die nächste Ebene dran.
-3. **Lange Texte** (zum Beispiel Dateiinhalte aus `memory`): die längsten werden mit `…` gekürzt.
+- **Eine Seite** ist gültiges CLI-JSON mit denselben Feldern. Sie enthält **ganze Einträge** einer Liste, der Seitenliste: `days` bei `stats` mit `worktime` oder `workday`, `buckets` bei `period`/`by`, sonst `by_day`; `events` bei `show`; die Zeilen bei `search`, `sessions` und `memory`. Bei `stats` mit Arbeitszeit ist ein Tag also nie mitten in seinen Kategorien geteilt: Jeder Tag kommt mit allen Kategorien, Projekten, Referenzen und Sessions.
+- **Alles andere steht vollständig auf jeder Seite**, vor allem `total` und die Summen je Kategorie über den ganzen Zeitraum. Auf jeder Seite ist ein Tag die Summe seiner Kategorien, und die Summe der Tage aller Seiten ist der Gesamtwert.
+- **Alle Seiten zusammen** sind byte-gleich die kompakte CLI-Ausgabe: Seite 1 mit den Einträgen der Seitenliste aller Seiten.
+
+Der zweite Inhalt sagt, wo man ist und wie es weitergeht:
 
 ```json
-{"truncated":true,"cut":[{"path":"worktime.days[].categories[].sessions","lists":80,"kept":18,"total":2400}],"hint":"output cut: worktime.days[].categories[].sessions: kept 18 of 2400 entries in 80 lists; narrow the query to see the rest: drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top"}
+{"page":{"index":2,"of":5,"unit":"days","from":8,"to":16,"total":31},"next":{"cursor":"16-9dc0292a4f5d"},"hint":"page 2 of 5 (days 9 to 16 of 31); totals and all other fields are complete on every page; call again with cursor=\"16-9dc0292a4f5d\" for the next page; or narrow the query first: …"}
 ```
 
-`cut` nennt je Pfad (`[]` steht für jede Listenebene), wie viele Listen es sind und wie viele Einträge davon übrig blieben; `shortened_strings` zählt gekürzte Texte. `next.offset` gibt es dort, wo das Tool `offset` kennt (`show`). Sonst engt der Agent ein: kleinerer Zeitraum (`month`, `since`, `until`, `range`), `sessions` oder `summary` weglassen, `limit` verkleinern. `show` ohne `limit` liefert höchstens 200 Ereignisse. Ein kompaktes Format für `stats` mit je Session nur ID, Titel und Minuten gibt es nicht: Es wäre eine Ausgabeform, die die CLI nicht kennt.
+`from` und `to` zählen ab 0 (`[from, to)`), `total` ist die Zahl der Einträge der Seitenliste. Für die nächste Seite ruft der Agent **dasselbe Tool mit denselben Argumenten** und zusätzlich `cursor` = `next.cursor` auf, unverändert; die letzte Seite hat kein `next`. Der Cursor ist ein undurchsichtiger Text. Er hält keinen Zustand im Server: Jeder Aufruf führt den Befehl neu aus und teilt wieder auf. Hat sich das Archiv zwischen zwei Seiten geändert (die Summen oder der Kopf sind andere), ist das ein `usage`-Fehler („the result changed since this cursor was issued“), und der Agent beginnt ohne `cursor` von vorn, statt Seiten zu mischen, die nicht zusammenpassen. Ein `cursor` bei einem Ergebnis ohne Seiten und bei `status` ist ebenfalls ein `usage`-Fehler.
+
+**Vorab eingrenzen** spart Seiten: Jede Seite trägt die Summen und alle anderen Felder neu, mehr Seiten kosten also mehr Tokens. Der Hinweis nennt, wie man eingrenzt: ein kleinerer Zeitraum (`month`, `since`, `until`, `range`), `sessions` oder `summary` weglassen, `period`/`by` mit `top`, ein kleineres `limit`. Wer nur Summen braucht, kommt damit oft mit einer Seite aus.
+
+**Die eine Ausnahme.** Ein einzelner Eintrag der Seitenliste, der allein über der Grenze liegt (zum Beispiel ein Tag mit sehr vielen Sessions und Referenzen), lässt sich nicht teilen, ohne seine Kategorien zu zerreißen. Seine Seite verliert dann als Letztes nur **Detail-Listen** (bei `stats` die `refs` und `sessions`, die jeweils größte zuerst) und lange Texte; Listen, die Summen tragen (`categories`, `projects`, `buckets`, `by_day`), und alle Zahlen bleiben unberührt. Der Hinweis sagt, was fehlt: `"truncated":true` und `cut` mit Pfad, Zahl der Listen und den Einträgen, die blieben (ggf. `shortened_strings`). Reicht das nicht, ist das Ergebnis ein `usage`-Fehler mit dem Hinweis zum Eingrenzen (kürzerer Zeitraum, `sessions` oder `summary` weglassen), nie eine falsche Teilsumme.
+
+**Umstellen von v1.4.** Bis v1.4.0 kürzte der Server und meldete `next.offset`. Das ist mit v1.5.0 weg: `next.cursor` ersetzt es bei allen Tools, auch bei `show`; die Schritte stehen im [Changelog](../reference/90-aenderungen.md#bruch).
 
 ## Fehler
 
