@@ -6,11 +6,13 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.5.0 (unveröffentlicht)
+## v1.6.0 (unveröffentlicht)
 
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
+
+## v1.5.0 (unveröffentlicht)
 
 ### Memory in der TUI
 
