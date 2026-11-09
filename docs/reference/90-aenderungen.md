@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.5.0 (unveröffentlicht)
 
+### Tool-Nutzung in `stats`
+
+- **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
+
 ### Memory in der TUI
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.

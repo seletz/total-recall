@@ -1033,7 +1033,8 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools bool
+	var toolPath string
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -1051,6 +1052,16 @@ the range per day and per model: input split into fresh input, cache writes
 and cache reads (the prices differ by a factor of 10 to 20), and output. The
 JSON of the plain form always has them under "tokens". Events archived
 without their raw line have no split; their input shows as "unsplit".
+
+With --tools the output is the number of tool_use events per tool (Bash,
+Read, Edit, MCP tools, ...) in the range instead. --by day, session, repo or
+project breaks it down (--top N folds the smallest groups into "other"); the
+groups always sum to the total. --path GLOB keeps the calls whose arguments
+match: the stored input of the call, i.e. the file path of the file tools
+(matched as a whole, so use */dir/*) and the command of Bash (matched
+anywhere in it). Arguments are cut at 1 KiB at ingest, a path
+behind the cut is not found; other tools are matched on their first
+well-known field (command, file_path, path, url, query, pattern, ...).
 
 With --workday the output is the first and the last activity per day (for
 filling in forgotten clock-ins): one row per day with the local clock times
@@ -1088,7 +1099,13 @@ messages: the values are a lower bound.`,
 			return err
 		}
 		loc := cfg.Location()
-		series := period != "" || by != "" || cmd.Flags().Changed("top")
+		series := !tools && (period != "" || by != "" || cmd.Flags().Changed("top"))
+		if tools && (workday || worktime || tokens || period != "") {
+			return usagef("--tools cannot be combined with --workday, --worktime, --tokens or --period")
+		}
+		if !tools && toolPath != "" {
+			return usagef("--path requires --tools")
+		}
 		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
 		}
@@ -1135,6 +1152,9 @@ messages: the values are a lower bound.`,
 		since, until, err := statsPeriod(month, sinceArg, untilArg, e.app.Now().In(loc), loc)
 		if err != nil {
 			return err
+		}
+		if tools {
+			return e.runToolStats(cmd, cfg, o, since, until, by, toolPath, top)
 		}
 		var opts seriesOptions
 		if series {
@@ -1191,6 +1211,8 @@ messages: the values are a lower bound.`,
 	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
 	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory or account (implies --period day)")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
+	c.Flags().BoolVar(&tools, "tools", false, "count tool_use events per tool; --by day, session, repo or project groups them, --path GLOB filters on the arguments")
+	c.Flags().StringVar(&toolPath, "path", "", "with --tools: only calls whose arguments match this glob (file tools: the whole path; Bash: anywhere in the command)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
