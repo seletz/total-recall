@@ -19,9 +19,10 @@ type workdayReport struct {
 	tz, dayStart string
 	humanOnly    bool
 	work         store.WorkHours
-	hours        string    // core hours as configured, "09:00-17:00"
-	region       string    // holiday region in use
-	asOf         time.Time // today as a local midnight; later days are no workdays yet
+	hours        string        // core hours as configured, "09:00-17:00"
+	region       string        // holiday region in use
+	asOf         time.Time     // today as a local midnight; later days are no workdays yet
+	blockGap     time.Duration // > 0: the days carry blocks (--blocks)
 }
 
 // Range names of stats --workday --range.
@@ -42,6 +43,8 @@ type WorkdayJSON struct {
 	// HolidayRegion is the Bundesland whose public holidays apply
 	// ("Deutschland" for the nationwide set).
 	HolidayRegion string `json:"holiday_region"`
+	// BlockGapSeconds is the gap that ends a block; only with --blocks.
+	BlockGapSeconds *int `json:"block_gap_seconds,omitempty"`
 	// Days are all days of the range, in order; a day without activity has
 	// empty times and zero counts.
 	Days  []WorkdayDayJSON `json:"days"`
@@ -66,7 +69,23 @@ type WorkdayDayJSON struct {
 	// without activity).
 	TargetSeconds int `json:"target_seconds"`
 	DiffSeconds   int `json:"diff_seconds"`
+	// With --blocks: the runs of activity of the day (empty without
+	// activity), their sum and the sum of the pauses between them; blocks
+	// plus pauses make up span_seconds.
+	Blocks       *[]WorkdayBlockJSON `json:"blocks,omitempty"`
+	BlockSeconds *int                `json:"block_seconds,omitempty"`
+	BreakSeconds *int                `json:"break_seconds,omitempty"`
 	ActivityJSON
+}
+
+// WorkdayBlockJSON is a run of activity: no gap above block_gap_seconds
+// inside it. A single event is a block of zero seconds.
+type WorkdayBlockJSON struct {
+	Start      string `json:"start"` // UTC
+	End        string `json:"end"`
+	StartLocal string `json:"start_local"` // "08:12"; "01:30 (+1)" past midnight
+	EndLocal   string `json:"end_local"`
+	Seconds    int    `json:"seconds"`
 }
 
 // WorkdayTotalJSON sums the range.
@@ -82,6 +101,10 @@ type WorkdayTotalJSON struct {
 	// of the spans minus it.
 	TargetSeconds  int `json:"target_seconds"`
 	BalanceSeconds int `json:"balance_seconds"`
+	// With --blocks: the sums of the blocks and of the pauses over all days;
+	// together they are span_seconds.
+	BlockSeconds *int `json:"block_seconds,omitempty"`
+	BreakSeconds *int `json:"break_seconds,omitempty"`
 }
 
 // rangeBounds resolves a --range name relative to now under the day rule:
@@ -143,21 +166,44 @@ func (r workdayReport) json() WorkdayJSON {
 		WorkHours: r.hours, TargetSeconds: int(r.work.Target.Seconds()), HolidayRegion: r.region,
 		Days: make([]WorkdayDayJSON, 0, len(r.days)),
 	}
+	var blockSum, breakSum time.Duration
+	if r.blockGap > 0 {
+		g := int(r.blockGap.Seconds())
+		out.BlockGapSeconds = &g
+	}
 	for _, d := range r.days {
 		diff, _ := r.work.Diff(d)
-		out.Days = append(out.Days, WorkdayDayJSON{
+		day := WorkdayDayJSON{
 			Day: d.Label, Weekday: d.Day.Format("Mon"),
 			First: NullString(isoTime(d.First)), Last: NullString(isoTime(d.Last)),
 			FirstLocal: NullString(d.FirstClock(r.loc)), LastLocal: NullString(d.LastClock(r.loc)),
 			SpanSeconds: int(d.Span().Seconds()), Weekend: store.IsWeekend(d.Day), Holiday: NullString(d.Holiday),
 			TargetSeconds: int(r.work.TargetFor(d).Seconds()), DiffSeconds: int(diff.Seconds()),
 			ActivityJSON: act(d.Activity),
-		})
+		}
+		if r.blockGap > 0 {
+			bl := make([]WorkdayBlockJSON, 0, len(d.Blocks))
+			for _, b := range d.Blocks {
+				bl = append(bl, WorkdayBlockJSON{
+					Start: isoTime(b.Start), End: isoTime(b.End),
+					StartLocal: d.Clock(b.Start, r.loc), EndLocal: d.Clock(b.End, r.loc), Seconds: int(b.Duration().Seconds()),
+				})
+			}
+			bs, ps := int(d.BlockSum().Seconds()), int(d.BreakSum().Seconds())
+			day.Blocks, day.BlockSeconds, day.BreakSeconds = &bl, &bs, &ps
+			blockSum += d.BlockSum()
+			breakSum += d.BreakSum()
+		}
+		out.Days = append(out.Days, day)
 	}
 	b := r.work.Balance(r.days, r.asOf)
 	out.Total = WorkdayTotalJSON{
 		Days: b.Active, Workdays: b.Workdays, Holidays: b.Holidays, SpanSeconds: int(b.Span.Seconds()),
 		TargetSeconds: int(b.Target.Seconds()), BalanceSeconds: int(b.Balance.Seconds()),
+	}
+	if r.blockGap > 0 {
+		bs, ps := int(blockSum.Seconds()), int(breakSum.Seconds())
+		out.Total.BlockSeconds, out.Total.BreakSeconds = &bs, &ps
 	}
 	return out
 }
@@ -179,7 +225,11 @@ func (r workdayReport) table(w io.Writer) error {
 		counted = "human events only"
 	}
 	_, _ = fmt.Fprintf(w, "%s (%s, day starts %s, %s)\n", rng, r.loc, r.dayStart, counted)
-	_, _ = fmt.Fprintf(w, "core hours %s, target %s per workday, holidays %s\n\n", r.hours, store.FormatSpan(r.work.Target), r.region)
+	_, _ = fmt.Fprintf(w, "core hours %s, target %s per workday, holidays %s\n", r.hours, store.FormatSpan(r.work.Target), r.region)
+	if r.blockGap > 0 {
+		_, _ = fmt.Fprintf(w, "blocks end at a gap above %s\n", store.FormatSpan(r.blockGap))
+	}
+	_, _ = fmt.Fprintln(w)
 	rows := make([][]string, 0, len(r.days))
 	for _, d := range r.days {
 		row := []string{d.Label, d.Day.Format("Mon"), "-", "-", "-", "-", "-"}
@@ -192,9 +242,23 @@ func (r workdayReport) table(w io.Writer) error {
 		if diff, ok := r.work.Diff(d); ok {
 			row[5] = store.FormatDiff(diff)
 		}
+		if r.blockGap > 0 {
+			row = append(row, "-", "-", "-")
+			if d.Active() {
+				parts := make([]string, 0, len(d.Blocks))
+				for _, b := range d.Blocks {
+					parts = append(parts, d.Clock(b.Start, r.loc)+"-"+d.Clock(b.End, r.loc))
+				}
+				row[7], row[8], row[9] = strings.Join(parts, " "), duration(d.BlockSum()), duration(d.BreakSum())
+			}
+		}
 		rows = append(rows, row)
 	}
-	if err := table(w, []string{"DATE", "DAY", "FIRST", "LAST", "SPAN", "DIFF", "HOLIDAY"}, rows); err != nil {
+	header := []string{"DATE", "DAY", "FIRST", "LAST", "SPAN", "DIFF", "HOLIDAY"}
+	if r.blockGap > 0 {
+		header = append(header, "BLOCKS", "WORK", "BREAKS")
+	}
+	if err := table(w, header, rows); err != nil {
 		return err
 	}
 	b := r.work.Balance(r.days, r.asOf)

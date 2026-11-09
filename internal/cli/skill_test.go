@@ -236,36 +236,42 @@ func TestSkillJSONFields(t *testing.T) {
 	show := []string{"show", skillSession3, "--json", "--all"}
 	workday := []string{"stats", "--json", "--workday", "--since", "2026-10-05", "--until", "2026-10-07"}
 	worktime := []string{"stats", "--json", "--worktime", "--since", "2026-10-05", "--until", "2026-10-07"}
+	blocks := append(slices.Clone(workday), "--blocks")
 	tests := []struct {
 		key  string
 		args []string
 		path string
 		typ  reflect.Type
+		// extra names the section of the keys that only a run with extraArgs
+		// adds (--blocks); the plain run must not have them, the extended
+		// run has base plus extra keys, the type has both.
+		extra     string
+		extraArgs []string
 	}{
-		{"sessions --json", []string{"sessions", "--json", "--subagents", "--all-sessions"}, "[]", reflect.TypeOf(SessionJSON{})},
-		{"show --json", show, "", nil},
-		{"show --json events[]", show, "events[]", reflect.TypeOf(EventJSON{})},
-		{"search --json", []string{"search", "sbom", "--json"}, "[]", reflect.TypeOf(HitJSON{})},
-		{"search --by-session --json", []string{"search", "sbom", "--json", "--by-session"}, "[]", reflect.TypeOf(SessionHitsJSON{})},
-		{"search --type session --json", []string{"search", "researcher", "--type", "session", "--json"}, "[]", reflect.TypeOf(SessionSearchHitJSON{})},
-		{"search --type memory --json", []string{"search", "sbom", "--type", "memory", "--json"}, "[]", reflect.TypeOf(MemorySearchHitJSON{})},
-		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{})},
-		{"memory --json", []string{"memory", "--json"}, "[]", reflect.TypeOf(MemoryFileJSON{})},
-		{"memory --history --json", []string{"memory", "--json", "--history", "MEMORY.md"}, "[]", reflect.TypeOf(MemoryVersionJSON{})},
-		{"memory --grep --json", []string{"memory", "--json", "--grep", "sbom"}, "[]", reflect.TypeOf(MemoryHitJSON{})},
-		{"stats --json", []string{"stats", "--json", "--month", "2026-10"}, "", reflect.TypeOf(StatsJSON{})},
-		{"stats --json --period", []string{"stats", "--json", "--period", "week", "--by", "project", "--month", "2026-10"}, "", reflect.TypeOf(ActivitySeriesJSON{})},
-		{"stats --json --workday", workday, "", reflect.TypeOf(WorkdayJSON{})},
-		{"stats --json --workday days[]", workday, "days[]", reflect.TypeOf(WorkdayDayJSON{})},
-		{"stats --json --workday total", workday, "total", reflect.TypeOf(WorkdayTotalJSON{})},
-		{"stats --json --worktime", worktime, "", reflect.TypeOf(WorktimeJSON{})},
-		{"stats --json --worktime days[]", worktime, "days[]", reflect.TypeOf(WorktimeDayJSON{})},
-		{"stats --json --worktime days[].categories[]", worktime, "days[].categories[]", reflect.TypeOf(WorktimeCellJSON{})},
-		{"stats --json --worktime days[].categories[].projects[]", worktime, "days[].categories[].projects[]", reflect.TypeOf(WorktimeProjectJSON{})},
-		{"stats --json --worktime days[].categories[].sessions[]", worktime, "days[].categories[].sessions[]", reflect.TypeOf(WorktimeSessionJSON{})},
-		{"stats --json --worktime categories[]", worktime, "categories[]", reflect.TypeOf(WorktimeCategoryTotalJSON{})},
-		{"stats --json --worktime uncategorized[]", worktime, "uncategorized[]", reflect.TypeOf(WorktimeUncategorizedJSON{})},
-		{"stats --json --worktime total", worktime, "total", reflect.TypeOf(WorktimeTotalJSON{})},
+		{"sessions --json", []string{"sessions", "--json", "--subagents", "--all-sessions"}, "[]", reflect.TypeOf(SessionJSON{}), "", nil},
+		{"show --json", show, "", nil, "", nil},
+		{"show --json events[]", show, "events[]", reflect.TypeOf(EventJSON{}), "", nil},
+		{"search --json", []string{"search", "sbom", "--json"}, "[]", reflect.TypeOf(HitJSON{}), "", nil},
+		{"search --by-session --json", []string{"search", "sbom", "--json", "--by-session"}, "[]", reflect.TypeOf(SessionHitsJSON{}), "", nil},
+		{"search --type session --json", []string{"search", "researcher", "--type", "session", "--json"}, "[]", reflect.TypeOf(SessionSearchHitJSON{}), "", nil},
+		{"search --type memory --json", []string{"search", "sbom", "--type", "memory", "--json"}, "[]", reflect.TypeOf(MemorySearchHitJSON{}), "", nil},
+		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{}), "", nil},
+		{"memory --json", []string{"memory", "--json"}, "[]", reflect.TypeOf(MemoryFileJSON{}), "", nil},
+		{"memory --history --json", []string{"memory", "--json", "--history", "MEMORY.md"}, "[]", reflect.TypeOf(MemoryVersionJSON{}), "", nil},
+		{"memory --grep --json", []string{"memory", "--json", "--grep", "sbom"}, "[]", reflect.TypeOf(MemoryHitJSON{}), "", nil},
+		{"stats --json", []string{"stats", "--json", "--month", "2026-10"}, "", reflect.TypeOf(StatsJSON{}), "", nil},
+		{"stats --json --period", []string{"stats", "--json", "--period", "week", "--by", "project", "--month", "2026-10"}, "", reflect.TypeOf(ActivitySeriesJSON{}), "", nil},
+		{"stats --json --workday", workday, "", reflect.TypeOf(WorkdayJSON{}), "stats --json --workday --blocks", blocks},
+		{"stats --json --workday days[]", workday, "days[]", reflect.TypeOf(WorkdayDayJSON{}), "stats --json --workday --blocks days[]", blocks},
+		{"stats --json --workday total", workday, "total", reflect.TypeOf(WorkdayTotalJSON{}), "stats --json --workday --blocks total", blocks},
+		{"stats --json --worktime", worktime, "", reflect.TypeOf(WorktimeJSON{}), "", nil},
+		{"stats --json --worktime days[]", worktime, "days[]", reflect.TypeOf(WorktimeDayJSON{}), "", nil},
+		{"stats --json --worktime days[].categories[]", worktime, "days[].categories[]", reflect.TypeOf(WorktimeCellJSON{}), "", nil},
+		{"stats --json --worktime days[].categories[].projects[]", worktime, "days[].categories[].projects[]", reflect.TypeOf(WorktimeProjectJSON{}), "", nil},
+		{"stats --json --worktime days[].categories[].sessions[]", worktime, "days[].categories[].sessions[]", reflect.TypeOf(WorktimeSessionJSON{}), "", nil},
+		{"stats --json --worktime categories[]", worktime, "categories[]", reflect.TypeOf(WorktimeCategoryTotalJSON{}), "", nil},
+		{"stats --json --worktime uncategorized[]", worktime, "uncategorized[]", reflect.TypeOf(WorktimeUncategorizedJSON{}), "", nil},
+		{"stats --json --worktime total", worktime, "total", reflect.TypeOf(WorktimeTotalJSON{}), "", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
@@ -274,21 +280,34 @@ func TestSkillJSONFields(t *testing.T) {
 				t.Fatalf("SKILL.md has no section %q", tt.key)
 			}
 			delete(sections, tt.key)
-			objects := walk(t, decode[any](t, e.mustRun(t, tt.args...)), tt.path)
-			if len(objects) == 0 {
-				t.Fatalf("%v: no objects at %q", tt.args, tt.path)
+			check := func(args, want []string) {
+				t.Helper()
+				objects := walk(t, decode[any](t, e.mustRun(t, args...)), tt.path)
+				if len(objects) == 0 {
+					t.Fatalf("%v: no objects at %q", args, tt.path)
+				}
+				for _, obj := range objects {
+					for k := range obj {
+						if !slices.Contains(want, k) {
+							t.Errorf("%v: key %q is in the output but not documented", args, k)
+						}
+					}
+					for _, d := range want {
+						if _, ok := obj[d]; !ok {
+							t.Errorf("%v: documented key %q missing in %v", args, d, objKeys(obj))
+						}
+					}
+				}
 			}
-			for _, obj := range objects {
-				for k := range obj {
-					if !slices.Contains(documented, k) {
-						t.Errorf("key %q is in the output but not documented", k)
-					}
+			check(tt.args, documented)
+			if tt.extra != "" {
+				extra, ok := sections[tt.extra]
+				if !ok {
+					t.Fatalf("SKILL.md has no section %q", tt.extra)
 				}
-				for _, d := range documented {
-					if _, ok := obj[d]; !ok {
-						t.Errorf("documented key %q missing in %v", d, objKeys(obj))
-					}
-				}
+				delete(sections, tt.extra)
+				documented = append(slices.Clone(documented), extra...)
+				check(tt.extraArgs, documented)
 			}
 			if tt.typ != nil {
 				if got, want := sorted(documented), sorted(jsonTags(tt.typ)); !reflect.DeepEqual(got, want) {

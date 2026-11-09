@@ -84,6 +84,7 @@ var Catalog = []Key{
 	{"work.weekly_high", KindDuration, nil, "A week's working time above this counts as over (scaled by workdays)"},
 	{"work.bundesland", KindEnum, holiday.Regions(), "Bundesland for the public holidays"},
 	{"work.count", KindEnum, []string{CountHuman, CountAll}, "Which events the activity per day counts by default"},
+	{"work.block_gap", KindDuration, nil, "A gap between two events above this ends an activity block (stats --workday --blocks)"},
 	{"worktime.max_gap", KindDuration, nil, "Longest gap between two own messages that counts in full"},
 	{"worktime.min_credit", KindDuration, nil, "What a longer gap (break, meeting, first message of a day) counts"},
 	{"worktime.grid", KindDuration, nil, "Rounding grid of the working time per category and day; 0 = no rounding"},
