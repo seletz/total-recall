@@ -13,6 +13,7 @@ import (
 type ReclassifySummary struct {
 	Examined    int            // stored user messages looked at
 	Changed     int            // messages whose actor differs under the current rules (written unless DryRun)
+	InputKinds  int            // messages whose input kind differs under the current rules (written unless DryRun)
 	Undecided   int            // messages the harness could not decide (no text rule matched, raw record missing)
 	Transitions map[string]int // "<old> -> <new>" → count of changed messages
 	DryRun      bool
@@ -40,12 +41,25 @@ func Reclassify(ctx context.Context, d Deps, dryRun bool) (ReclassifySummary, er
 			actor, ok := rc.Reclassify(toEvent(m), m.Subagent)
 			if !ok {
 				sum.Undecided++
-				return nil
-			}
-			if actor != m.Actor {
+				actor = m.Actor // the actor stays; the input kind may still be decidable
+			} else if actor != m.Actor {
 				sum.Changed++
 				sum.Transitions[string(m.Actor)+" -> "+string(actor)]++
-				changes = append(changes, store.ActorChange{ID: m.ID, Actor: actor})
+			}
+			// The input kind exists for human messages only.
+			kind := m.InputKind
+			if actor != model.ActorHuman {
+				kind = ""
+			} else if ik, isIK := a.(harness.InputKinder); isIK {
+				if k, decided := ik.InputKind(toEvent(m)); decided {
+					kind = k
+				}
+			}
+			if kind != m.InputKind {
+				sum.InputKinds++
+			}
+			if actor != m.Actor || kind != m.InputKind {
+				changes = append(changes, store.ActorChange{ID: m.ID, Actor: actor, InputKind: kind})
 			}
 			return nil
 		})

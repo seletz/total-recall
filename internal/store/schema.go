@@ -356,7 +356,7 @@ var migrationNotes = []migrationNote{
 	{Summary: "events: tokens_cache_read and tokens_cache_write, the cached parts of tokens_in; " +
 		"fills them from raw (usage) for the events that have it, a few seconds per 100,000 events with usage; the rest stays NULL"},
 	{Summary: "events: input_kind (typed, pasted, bash, remote) of human messages; " +
-		"fills it from text and raw for the human messages of the claude harness, a few seconds per 100,000 such events; events without raw stay NULL (bash and pasted are told from the text)"},
+		"fills it from text and raw for the human messages of the claude harness, seconds even on a large archive; events without raw stay NULL (bash and pasted are told from the text)"},
 }
 
 // migrationNote is the description of one migration.

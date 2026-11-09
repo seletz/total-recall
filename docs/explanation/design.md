@@ -246,6 +246,7 @@ Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte übersch
 | `kind` | TEXT | `message`, `tool_use`, `tool_result`, `system`, `meta` |
 | `role` | TEXT | `user`, `assistant`, `system`, `tool` |
 | `actor` | TEXT | `human`, `agent`, `peer`, `automation`, `tool` |
+| `input_kind` | TEXT NULL | nur bei `actor = human`: `typed`, `pasted`, `bash`, `remote`, seit v10; NULL = unbekannt oder nicht menschlich |
 | `text` | TEXT | lesbarer Text (redigiert); bei Tool-Ergebnissen gekürzt auf 4 KiB |
 | `tool_name` | TEXT NULL | |
 | `model` | TEXT NULL | |

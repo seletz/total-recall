@@ -10,17 +10,18 @@ import (
 // UserMessage is a stored user message as seen by ingest --reclassify: the
 // fields a harness needs to derive its actor again.
 type UserMessage struct {
-	ID       string
-	Actor    model.Actor
-	Text     string
-	Raw      string // "" when raw was not stored or dropped for size
-	Subagent bool   // the session is a subagent transcript (has a parent)
+	ID        string
+	Actor     model.Actor
+	Text      string
+	InputKind model.InputKind
+	Raw       string // "" when raw was not stored or dropped for size
+	Subagent  bool   // the session is a subagent transcript (has a parent)
 }
 
 // UserMessages calls fn for every user message (role user, kind message)
 // of the harness in insertion order. It stops at the first error fn returns.
 func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMessage) error) error {
-	rows, err := s.db().QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), e.text, e.raw,
+	rows, err := s.db().QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), COALESCE(e.input_kind, ''), e.text, e.raw,
 			COALESCE(s.parent_id, '') <> ''
 		FROM events e JOIN sessions s ON s.id = e.session_id
 		WHERE s.harness = ? AND e.role = 'user' AND e.kind = 'message'
@@ -31,15 +32,15 @@ func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMe
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var m UserMessage
-		var actor string
+		var actor, ik string
 		var raw []byte
-		if err := rows.Scan(&m.ID, &actor, &m.Text, &raw, &m.Subagent); err != nil {
+		if err := rows.Scan(&m.ID, &actor, &ik, &m.Text, &raw, &m.Subagent); err != nil {
 			return fmt.Errorf("store: user messages: %w", err)
 		}
 		if m.Raw, err = rawText(raw); err != nil {
 			return fmt.Errorf("store: user messages: %s: %w", m.ID, err)
 		}
-		m.Actor = model.Actor(actor)
+		m.Actor, m.InputKind = model.Actor(actor), model.InputKind(ik)
 		if err := fn(m); err != nil {
 			return err
 		}
@@ -50,15 +51,17 @@ func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMe
 	return nil
 }
 
-// ActorChange sets the actor of one event.
+// ActorChange sets the actor and the input kind of one event. InputKind is
+// stored as it is, "" meaning NULL (unknown or not a human input).
 type ActorChange struct {
-	ID    string
-	Actor model.Actor
+	ID        string
+	Actor     model.Actor
+	InputKind model.InputKind
 }
 
 // SetEventActors applies the changes in one transaction and returns how
-// many rows actually changed (an unknown ID or an unchanged actor counts
-// nothing). It is used by ingest --reclassify.
+// many rows actually changed (an unknown ID or an unchanged actor and input
+// kind counts nothing). It is used by ingest --reclassify.
 func (s *Store) SetEventActors(ctx context.Context, changes []ActorChange) (int64, error) {
 	if s.readOnly {
 		return 0, fmt.Errorf("store: read-only")
@@ -76,14 +79,14 @@ func (s *Store) SetEventActors(ctx context.Context, changes []ActorChange) (int6
 		return 0, fmt.Errorf("store: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	stmt, err := tx.PrepareContext(ctx, `UPDATE events SET actor = ? WHERE id = ? AND actor IS NOT ?`)
+	stmt, err := tx.PrepareContext(ctx, `UPDATE events SET actor = ?, input_kind = ? WHERE id = ? AND (actor IS NOT ? OR input_kind IS NOT ?)`)
 	if err != nil {
 		return 0, fmt.Errorf("store: prepare: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
 	var n int64
 	for _, c := range changes {
-		res, err := stmt.ExecContext(ctx, string(c.Actor), c.ID, string(c.Actor))
+		res, err := stmt.ExecContext(ctx, string(c.Actor), nullStr(string(c.InputKind)), c.ID, string(c.Actor), nullStr(string(c.InputKind)))
 		if err != nil {
 			return 0, fmt.Errorf("store: set event actor %s: %w", c.ID, err)
 		}

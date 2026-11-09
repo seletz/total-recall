@@ -536,11 +536,14 @@ func (e *env) sessionsCmd() *cobra.Command {
 // is always present; a NullString without a value is null, token counts
 // without a value are 0, Attachments is [] without any.
 type EventJSON struct {
-	ID          string           `json:"id"`
-	TS          string           `json:"ts"`
-	Kind        string           `json:"kind"`
-	Role        NullString       `json:"role"`
-	Actor       string           `json:"actor"`
+	ID    string     `json:"id"`
+	TS    string     `json:"ts"`
+	Kind  string     `json:"kind"`
+	Role  NullString `json:"role"`
+	Actor string     `json:"actor"`
+	// InputKind is how a human input reached the harness (typed, pasted,
+	// bash, remote since v1.5.0); null for other actors and when unknown.
+	InputKind   NullString       `json:"input_kind"`
 	Text        NullString       `json:"text"`
 	ToolName    NullString       `json:"tool_name"`
 	Model       NullString       `json:"model"`
@@ -561,7 +564,7 @@ type AttachmentJSON struct {
 
 func eventJSON(ev model.Event, atts []store.EventAttachment) EventJSON {
 	out := EventJSON{ID: ev.ID, TS: isoTime(ev.TS), Kind: string(ev.Kind),
-		Role: NullString(ev.Role), Actor: string(ev.Actor), Text: NullString(ev.Text), ToolName: NullString(ev.ToolName),
+		Role: NullString(ev.Role), Actor: string(ev.Actor), InputKind: NullString(ev.InputKind), Text: NullString(ev.Text), ToolName: NullString(ev.ToolName),
 		Model: NullString(ev.Model), TokensIn: ev.TokensIn, TokensOut: ev.TokensOut, Attachments: []AttachmentJSON{}}
 	for _, a := range atts {
 		out.Attachments = append(out.Attachments, AttachmentJSON{SHA256: a.SHA256, MediaType: a.MediaType, Bytes: a.Bytes, Position: a.Position})
@@ -697,6 +700,9 @@ window.`,
 		}
 		for _, ev := range evs {
 			label := string(ev.Actor)
+			if ev.InputKind != "" {
+				label += " (" + string(ev.InputKind) + ")"
+			}
 			if ev.Kind == model.KindToolUse {
 				label = "tool_use " + ev.ToolName
 			} else if ev.Kind != model.KindMessage {
@@ -730,9 +736,11 @@ type HitJSON struct {
 	EventID     string     `json:"event_id"`
 	TS          string     `json:"ts"`
 	Actor       string     `json:"actor"`
-	Kind        string     `json:"kind"`
-	Snippet     NullString `json:"snippet"`
-	Rank        float64    `json:"rank"`
+	// InputKind as in EventJSON (since v1.5.0).
+	InputKind NullString `json:"input_kind"`
+	Kind      string     `json:"kind"`
+	Snippet   NullString `json:"snippet"`
+	Rank      float64    `json:"rank"`
 	// Type is the hit type (always "event"), Project the name of the
 	// session's project like stats --by project (since v1.4.0).
 	Type    string     `json:"type"`

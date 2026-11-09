@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -207,7 +208,7 @@ func TestStatus(t *testing.T) {
 	requireLacks(t, f, "migration pending", h.home, "old one")
 }
 
-func itoa(n int) string { return string(rune('0' + n)) }
+func itoa(n int) string { return strconv.Itoa(n) }
 
 // TestPages switches with tab, shift+tab and clicks.
 func TestPages(t *testing.T) {

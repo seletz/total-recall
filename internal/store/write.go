@@ -293,9 +293,9 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		defer func() { _ = stmt.Close() }()
 		var rewrite *sql.Stmt
 		if opts.RewriteRaw {
-			// Only these two columns: the UPDATE OF text trigger that keeps
+			// Only these columns (input_kind only when the transcript decides it): the UPDATE OF text trigger that keeps
 			// events_fts in sync must not fire, actor stays as reindex set it.
-			rewrite, err = tx.PrepareContext(ctx, `UPDATE events SET raw = ?, raw_truncated = ? WHERE id = ?`)
+			rewrite, err = tx.PrepareContext(ctx, `UPDATE events SET raw = ?, raw_truncated = ?, input_kind = COALESCE(?, input_kind) WHERE id = ?`)
 			if err != nil {
 				return res, fmt.Errorf("store: prepare: %w", err)
 			}
@@ -305,7 +305,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		defer blobs.close()
 		for _, e := range events {
 			if rewrite != nil {
-				r, err := rewrite.ExecContext(ctx, rawBlob(e.Raw), e.RawTruncated, e.ID)
+				r, err := rewrite.ExecContext(ctx, rawBlob(e.Raw), e.RawTruncated, nullStr(string(e.InputKind)), e.ID)
 				if err != nil {
 					return res, fmt.Errorf("store: rewrite raw of event %s: %w", e.ID, err)
 				}

@@ -147,6 +147,10 @@ The `'utc'` modifier interprets the literal in the machine's time zone. Date-onl
 
 `events.actor`: `human` = typed by the user (also `!cmd` bash input and pasted content); `agent` = the assistant; `peer` = another agent session, a subagent hand-back, or a task a coordinating agent typed or pasted into the session (matched by the configured `peer_prefixes` / `peer_paste_headers`); `automation` = scheduled prompts, system reminders, slash-command plumbing, continuation summaries; `tool` = tool results. "What did the user say or decide" is `actor = 'human'`; the agent's conclusions are `actor = 'agent' AND kind = 'message'`. Ignore `automation` when counting real work.
 
+### Input kind
+
+`events.input_kind` tells, for `actor = 'human'`, how the input reached the harness: `typed` (keyboard of the session), `pasted` (contains a pasted block or image, for example a review handed over from another session), `bash` (`!cmd` input) or `remote` (sent through Remote Control). NULL = unknown (the event has no raw line, so typed cannot be told from remote) or not a human input. Do not guess from the text with `LIKE` patterns: filter `input_kind IN ('typed', 'remote')` for what a person wrote, and count NULL on its own, never as typed. `show --json` and `search --json` carry the field as `input_kind`; `show` in text prints it behind the actor, `human (pasted)`.
+
 ### Subagents
 
 Subagents are separate sessions with `parent_id` set and a native id like `agent-a01`. `sessions` hides them unless `--subagents`. Exclude them with `parent_id IS NULL` when counting sessions, but keep them when searching: their events carry the subagent's session id, not the parent's, and the decisive conversation may be there.
@@ -203,6 +207,7 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `kind` | `message`, `tool_use`, `tool_result`, `system`, `meta` |
 | `role` | `user`, `assistant`, `system`, `tool` |
 | `actor` | `human`, `agent`, `peer`, `automation`, `tool` (see *Actors*) |
+| `input_kind` | `typed`, `pasted`, `bash`, `remote` for human events, NULL if unknown or not human (see *Input kind*) |
 | `text` | readable, redacted text; tool results truncated to 4 KiB |
 | `tool_name` | for `tool_use` |
 | `model` | model of the assistant message |
@@ -399,6 +404,7 @@ One object per session.
 | `kind` | see `events.kind` |
 | `role` | see `events.role` |
 | `actor` | see `events.actor` |
+| `input_kind` | see `events.input_kind`; `null` if unknown or not a human event |
 | `text` | readable text |
 | `tool_name` | for `tool_use`, else `null` |
 | `model` | `null` for human events |
@@ -418,6 +424,7 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `event_id` | `events.id` |
 | `ts` | UTC |
 | `actor` | |
+| `input_kind` | see `events.input_kind`; `null` if unknown or not a human event |
 | `kind` | `message`, `tool_use`, `tool_result`, … |
 | `snippet` | matched words in `[…]` |
 | `rank` | FTS5 rank, lower is better |

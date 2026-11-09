@@ -109,6 +109,8 @@ total-recall reindex --actors             # anwenden
 | `--actors` | den Actor jeder gespeicherten User-Nachricht mit den aktuellen Regeln neu bestimmen (eingebaute Regeln plus [`[harness.claude.actors]`](20-konfiguration.md#harnessclaudeactors)) und die Events aktualisieren, deren Actor sich ändert. Idempotent: ein zweiter Lauf mit denselben Regeln ändert nichts |
 | `--dry-run` | nur zählen, nichts schreiben |
 
+`--actors` setzt außerdem [`input_kind`](40-schema.md#input_kind) der menschlichen Nachrichten neu (aus Text und `raw`) und lässt ihn bei Nachrichten weg, die nicht mehr `human` sind; die Zahl steht als `input kinds set` in der Ausgabe, wenn sie nicht 0 ist.
+
 Ausgabe:
 
 ```text
@@ -213,13 +215,13 @@ continued from  claude:4e5f6a7b-0000-4000-8000-000000000000
 account         work (aaaaaaaa-0000-4000-8000-000000000001)
 organization    cccccccc-0000-4000-8000-00000000000c
 
-── 2026-10-31 19:38:02  human
+── 2026-10-31 19:38:02  human (typed)
 Bitte richte goreleaser mit einem Homebrew-Cask ein.
 
 ── 2026-10-31 19:41:15  agent
 Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
 
-── 2026-10-31 19:52:40  human
+── 2026-10-31 19:52:40  human (pasted)
 [image image/png 84.3 KiB]
    attachment 3b7c2e1f0a9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b  image/png  84.3 KiB
 ```
@@ -231,6 +233,8 @@ Erledigt: .goreleaser.yml angelegt, Cask im Tap konfiguriert.
 | `--limit N` | höchstens N Events (0 = alle, Default) |
 | `--offset N` | die ersten N Events des Fensters überspringen (Blättern mit `--limit`) |
 | `--from-event ID` | ab diesem Event (einschließlich), z. B. `event_id` eines Treffers aus `search` |
+
+Bei menschlichen Eingaben steht hinter `human` in Klammern, wie sie ankamen: `typed`, `pasted`, `bash` oder `remote` ([Schema](40-schema.md#input_kind)); ist das nicht bekannt, steht nur `human`. Im JSON hat jedes Event das Feld `input_kind` (String oder `null`, seit v1.5.0).
 
 Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein eindeutiges Präfix davon angegeben werden. Ohne `--all` zeigt `show` nur Nachrichten von Mensch, Agent und anderen Agenten (`peer`).
 
@@ -366,7 +370,7 @@ memory: 20 of 31 hits, --limit 0 for all
 
 | Typ | eigene Felder | Anmerkungen |
 |---|---|---|
-| `event` | `event_id`, `actor`, `kind` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session |
+| `event` | `event_id`, `actor`, `input_kind`, `kind` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session |
 | `session` | `harness`, `ended_at`, `events` | `ts` ist der Start, `snippet` der passende Name, Titel oder Agentenname, `rank` immer `0` |
 | `memory` | `project_key`, `path`, `sha256` | `ts` ist die Zeit der aktuellen Fassung, `session_id` und `session_name` sind `null`; den Inhalt gibt `blob SHA256` aus |
 
