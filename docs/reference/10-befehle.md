@@ -556,6 +556,7 @@ total: 5 days with activity, 41h40m · target 40h00m (5 workdays × 8h00m) · ba
 | `--since`, `--until`, `--month` | wie oben; ein Datum meint den ganzen Tag ab der Tagesgrenze, `--until` einschließlich. Ohne Zeitraum gilt `this-week` |
 | `--all-events` | eigene Nachrichten und Agent-Events zählen wie die Aktivitätsstatistik. Standard sind nur eigene Nachrichten (`human events only`): Agent-Events laufen nachts weiter und dehnen die Spanne. Den Standard setzt `count` in [`[work]`](20-konfiguration.md#work) |
 | `--human-only` | veraltet, da Standard; wird noch angenommen (mit Hinweis auf stderr) und setzt auch bei `count = "all"` auf eigene Nachrichten |
+| `--blocks` | je Tag die **Aktivitätsblöcke** statt nur erster und letzter Aktivität, siehe unten. Nur mit `--workday` |
 
 **Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](20-konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
 
@@ -588,6 +589,18 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
   "total": {"days": 5, "workdays": 5, "holidays": 1, "span_seconds": 150000, "target_seconds": 144000, "balance_seconds": 6000}
 }
 ```
+
+**Blöcke.** `--blocks` zerlegt die Spanne jedes Tags in Blöcke, etwa für eine Anwesenheitsbuchung: 07:48–09:05 und 11:24–12:40 statt 07:48–12:40. Eine Lücke zwischen zwei gezählten Events **über** `block_gap` in [`[work]`](20-konfiguration.md#work) (Standard `30m`) beendet einen Block; eine Lücke von genau `block_gap` tut es nicht. Gezählt wird wie sonst bei `--workday` (`count`, `--all-events`), die Tagesgrenze gilt auch hier: Blöcke über Mitternacht gehören zum Tag davor, bis `day_start`. Ein einzelnes Event ist ein Block von 0 s. Die Tabelle bekommt die Spalten `BLOCKS` (`08:12-09:05 11:24-12:40`), `WORK` (Summe der Blöcke) und `BREAKS` (Summe der Pausen dazwischen); `WORK` plus `BREAKS` ist immer die Spanne, und der Zeitraum wird nie gekürzt.
+
+```json
+"blocks": [
+  {"start": "2026-10-27T06:48:00.000Z", "end": "2026-10-27T08:05:00.000Z", "start_local": "07:48", "end_local": "09:05", "seconds": 4620},
+  {"start": "2026-10-27T10:24:00.000Z", "end": "2026-10-27T11:40:00.000Z", "start_local": "11:24", "end_local": "12:40", "seconds": 4560}
+],
+"block_seconds": 9180, "break_seconds": 8340
+```
+
+Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_seconds` und `break_seconds`; oben steht `block_gap_seconds`, in `total` die Summen `block_seconds` und `break_seconds` über alle Tage. Ohne `--blocks` fehlen diese Felder. Im [MCP-Tool](#mcp) `stats` heißt der Parameter `blocks`.
 
 `--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
 

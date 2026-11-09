@@ -1188,7 +1188,7 @@ func TestTUICommand(t *testing.T) {
 func TestTUIOptions(t *testing.T) {
 	base := func() *config.Config {
 		return &config.Config{Timezone: "UTC",
-			Work: config.Work{Hours: "09:00-17:00", Target: config.Duration{Duration: 8 * time.Hour}, DailyHigh: config.Duration{Duration: 9 * time.Hour}, WeeklyHigh: config.Duration{Duration: 48 * time.Hour}, Count: "human"},
+			Work: config.Work{Hours: "09:00-17:00", Target: config.Duration{Duration: 8 * time.Hour}, DailyHigh: config.Duration{Duration: 9 * time.Hour}, WeeklyHigh: config.Duration{Duration: 48 * time.Hour}, Count: "human", BlockGap: config.Duration{Duration: 30 * time.Minute}},
 			TUI:  config.TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: config.Duration{Duration: 5 * time.Second}}}
 	}
 	tests := []struct {

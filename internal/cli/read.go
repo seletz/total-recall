@@ -1033,7 +1033,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks bool
 	var toolPath string
 	c := &cobra.Command{
 		Use:   "stats",
@@ -1076,7 +1076,11 @@ sets the default. Each weekday that is no public holiday is a workday with the
 daily target of the [work] config (default 8h): DIFF is the span minus the
 target, the total line balances all spans against target × workdays of the
 range (up to today). Holidays come from the configured Bundesland and are
-named in the HOLIDAY column.
+named in the HOLIDAY column. --blocks adds the blocks of activity of each day
+(for booking attendance): a gap between two counted events above [work]
+block_gap (default 30m) ends a block. Per day the blocks, their sum (WORK) and
+the pauses between them (BREAKS) are listed; WORK plus BREAKS is the span. The
+JSON has blocks, block_seconds and break_seconds per day and in the total.
 
 With --worktime the output is the estimated working time per day and
 category (for timesheets): the gap between two of your own messages, across
@@ -1109,6 +1113,9 @@ messages: the values are a lower bound.`,
 		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
 		}
+		if blocks && !workday {
+			return usagef("--blocks requires --workday")
+		}
 		if tokens && (workday || worktime || series) {
 			return usagef("--tokens belongs to the plain stats tables: it cannot be combined with --workday, --worktime, --period, --by or --top")
 		}
@@ -1134,15 +1141,19 @@ messages: the values are a lower bound.`,
 			}
 			defer func() { _ = st.Close() }()
 			cal := ops.Holidays(cfg)
+			var blockGap time.Duration
+			if blocks {
+				blockGap = cfg.Work.BlockGap.Duration
+			}
 			days, err := st.Workday(cmd.Context(), store.WorkdayFilter{
-				Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal,
+				Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal, BlockGap: blockGap,
 			})
 			if err != nil {
 				return err
 			}
 			r := workdayReport{
 				days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
-				work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()),
+				work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()), blockGap: blockGap,
 			}
 			if o.format.IsJSON() {
 				return o.object(r.json())
@@ -1219,6 +1230,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&summary, "summary", false, "with --worktime: issue/PR references and a booking text per day and category (JSON always has them)")
 	c.Flags().BoolVar(&tokens, "tokens", false, "append the token counts (fresh input, cache writes, cache reads, output) per day and model to the day/repo/hour tables (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
+	c.Flags().BoolVar(&blocks, "blocks", false, "with --workday: the blocks of activity per day, split at gaps above [work] block_gap (default 30m), with sums and pauses")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
 	_ = c.Flags().MarkHidden("human-only")

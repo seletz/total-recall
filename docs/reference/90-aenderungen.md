@@ -13,6 +13,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
 - **MCP:** das Tool `stats` hat die Parameter `tools` und `path`, `by` dazu die Werte `day`, `session` und `repo` ([MCP anbinden](../how-to/55-mcp-anbinden.md)). Das Ergebnis kommt wie alle großen Ergebnisse seitenweise (Seitenliste `groups`), `total` und `by_tool` stehen auf jeder Seite.
 
+### Arbeitstage
+
+- **Aktivitätsblöcke:** `stats --workday --blocks` ([#237](https://github.com/seletz/total-recall/issues/237)) liefert je Tag die Blöcke `{start, end, seconds}` statt nur erster und letzter Aktivität, dazu die Summe der Blöcke und der Pausen je Tag und im Total; die Blöcke ergeben mit den Pausen immer die Spanne. Ein Block endet bei einer Lücke über `block_gap` in `[work]` (neu, Default `30m`). Zählweise, Tagesgrenze und Mitternacht wie bei `--workday`. Nur neue Felder und ein neuer Schlüssel, ohne `--blocks` bleibt die Ausgabe unverändert. Im MCP-Tool `stats` ist es der Parameter `blocks`; die Blöcke bleiben mit ihrem Tag auf einer Seite des [Pagings](../how-to/55-mcp-anbinden.md).
+
 ## v1.5.0
 
 ### Bruch
