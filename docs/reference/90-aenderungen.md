@@ -12,6 +12,8 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.
 - **Verlauf je Datei:** ++enter++ auf einer Datei listet ihre Versionen mit Zeitpunkt und Größe, eine Löschung als eigene Zeile, und zeigt einen früheren Stand. Maus und Tasten wie im Rest der TUI; die Tasten sind als `memory_*` in `[keys]` änderbar.
+- **Diff:** `d` im Verlauf zeigt den Zeilendiff gegen die Version davor, hinzugefügte Zeilen grün, entfernte rot; mit `c` wird eine Basis gemerkt, so lassen sich zwei beliebige Versionen vergleichen (#194).
+- **Zeitleiste:** `t` zeigt je Projekt, was wann hinzukam, sich änderte oder gelöscht wurde, mit dem Diff der markierten Änderung rechts; ++enter++ springt in den Verlauf der Datei. Gilt ab dem Zeitpunkt, ab dem total-recall das Gedächtnis archiviert.
 - **Demo-Archiv:** das erfundene Gedächtnis von `kompass` hat jetzt mehrere Versionen, einen wechselnden Index und eine gelöschte Datei, damit Verlauf und Screenshots etwas zu zeigen haben.
 
 ## v1.4.0
