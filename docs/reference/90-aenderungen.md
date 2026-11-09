@@ -31,6 +31,11 @@ Was sich an den Ergebnissen ändert:
 
 Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder neu. Wer nur die Summen braucht, grenzt vorher ein (kleinerer Zeitraum, `sessions`/`summary` aus) und kommt oft mit einer Seite aus. Die Anleitung für Agenten (`total-recall llm --skill`) und das [How-to](../how-to/55-mcp-anbinden.md#seiten) beschreiben das neue Verhalten.
 
+### Cursor-Fehler und Hinweis im zweiten Block
+
+- **Drei Meldungen für einen Cursor, der nicht passt** ([#230](https://github.com/seletz/total-recall/issues/230)): `invalid cursor` (kaputt oder keine Seite dieses Ergebnisses), `cursor belongs to a different query` (andere Argumente, etwa `since=2026-09-01` statt `10-01`, oder ein anderes Tool) und nur bei gleichen Argumenten und geändertem Archiv `the result changed since this cursor was issued`. Bisher kam immer die letzte, was bei anderen Argumenten in die Irre führte. Dazu trägt der Cursor jetzt einen Hash der Argumente ohne `cursor`; ein Cursor aus dem Vorschau-Stand ist ungültig (`invalid cursor`), der Agent beginnt ohne ihn neu.
+- **Wo `page`, `next` und `hint` stehen:** im **zweiten** Content-Block, nicht im Daten-JSON des ersten. Das steht jetzt in der Beschreibung jedes Tools (`tools/list`) und im [How-to](../how-to/55-mcp-anbinden.md#seiten).
+
 ### Memory in der TUI
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.
