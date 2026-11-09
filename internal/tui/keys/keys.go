@@ -90,6 +90,9 @@ const (
 	MemoryOpen     = "memory_open"
 	MemoryPageUp   = "memory_page_up"
 	MemoryPageDown = "memory_page_down"
+	MemoryDiff     = "memory_diff"
+	MemoryBase     = "memory_base"
+	MemoryTimeline = "memory_timeline"
 
 	StatsDays      = "stats_days"
 	StatsWeeks     = "stats_weeks"
@@ -178,6 +181,9 @@ var Actions = []Action{
 	{MemoryOpen, Memory, []string{"enter"}, "history of file"},
 	{MemoryPageUp, Memory, []string{"b", "pgup"}, "page up"},
 	{MemoryPageDown, Memory, []string{"f", "pgdown", "space"}, "page down"},
+	{MemoryDiff, Memory, []string{"d"}, "diff on/off"},
+	{MemoryBase, Memory, []string{"c"}, "compare with this version"},
+	{MemoryTimeline, Memory, []string{"t"}, "timeline"},
 
 	{StatsDays, Stats, []string{"d"}, "days"},
 	{StatsWeeks, Stats, []string{"w"}, "weeks"},
