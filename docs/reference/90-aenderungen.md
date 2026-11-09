@@ -39,6 +39,10 @@ Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder n
 - **Zeitleiste:** `t` zeigt je Projekt, was wann hinzukam, sich änderte oder gelöscht wurde, mit dem Diff der markierten Änderung rechts; ++enter++ springt in den Verlauf der Datei. Gilt ab dem Zeitpunkt, ab dem total-recall das Gedächtnis archiviert.
 - **Demo-Archiv:** das erfundene Gedächtnis von `kompass` hat jetzt mehrere Versionen, einen wechselnden Index und eine gelöschte Datei, damit Verlauf und Screenshots etwas zu zeigen haben.
 
+### Behoben
+
+- **`doctor` meldet drei Record-Typen von Claude Code nicht mehr als unbekannt** (#229). `frame-link` (Artifact-Rahmen einer Session mit URL und Titel) und `artifact-autoreact-ledger` (kann Kommentar-Threads tragen, die nicht sicher in den Events stehen) bleiben als Meta-Records im Archiv. `artifact-comment-monitor` ist reiner Prozesszustand (PID, Job, „armed“) und wird verworfen. Bereits archivierte Zeilen bleiben unberührt.
+
 ## v1.4.0
 
 ### Was dieses Update mit dem Archiv macht
