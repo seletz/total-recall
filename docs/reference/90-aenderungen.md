@@ -6,12 +6,14 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.5.0 (unveröffentlicht)
+## v1.6.0 (unveröffentlicht)
 
 ### Arbeitszeit
 
 - **Projekte ohne Kategorie:** `stats --worktime` ([#238](https://github.com/seletz/total-recall/issues/238)) führt ein Projekt ohne `[[worktime.category]]` weiter als eigene Kategorie, weist es aber aus: das JSON hat die Liste `uncategorized` (Projekt, Schlüssel, Remote, `raw_seconds`), ein Teil der Zeit in `days`, `categories` und `total`, die Summen bleiben gleich. Die Tabelle meldet sie auf stderr, wenn Kategorien konfiguriert sind.
 - **`doctor` mit Hinweis:** nennt Projekte mit Aktivität in den letzten `--days` Tagen (Default 30), die kein `[[project]]` oder keine Kategorie haben; ohne Einfluss auf Exit-Code und JSON.
+
+## v1.5.0 (unveröffentlicht)
 
 ### Memory in der TUI
 
