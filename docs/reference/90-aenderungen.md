@@ -13,7 +13,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **`stats --tools`** ([Befehle](10-befehle.md#stats-tools), #239): Zahl der `tool_use`-Events je Tool, gruppierbar mit `--by day|session|repo|project` und `--top N`. Die Gruppen ergeben immer die Gesamtzahl. `--path GLOB` filtert auf die Argumente der Aufrufe (Dateipfad der Datei-Tools als Ganzes, Bash-Befehl an beliebiger Stelle); die Grenzen der Pfaderkennung stehen in der Befehlsreferenz. Neue Flags und neue JSON-Felder, nichts Bestehendes ändert sich.
 - **MCP:** das Tool `stats` hat die Parameter `tools` und `path`, `by` dazu die Werte `day`, `session` und `repo` ([MCP anbinden](../how-to/55-mcp-anbinden.md)). Das Ergebnis kommt wie alle großen Ergebnisse seitenweise (Seitenliste `groups`), `total` und `by_tool` stehen auf jeder Seite.
 
-## v1.5.0 (unveröffentlicht)
+## v1.5.0
 
 ### Bruch
 
@@ -38,6 +38,11 @@ Was sich an den Ergebnissen ändert:
 
 Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder neu. Wer nur die Summen braucht, grenzt vorher ein (kleinerer Zeitraum, `sessions`/`summary` aus) und kommt oft mit einer Seite aus. Die Anleitung für Agenten (`total-recall llm --skill`) und das [How-to](../how-to/55-mcp-anbinden.md#seiten) beschreiben das neue Verhalten.
 
+### Cursor-Fehler und Hinweis im zweiten Block
+
+- **Drei Meldungen für einen Cursor, der nicht passt** ([#230](https://github.com/seletz/total-recall/issues/230)): `invalid cursor` (kaputt oder keine Seite dieses Ergebnisses), `cursor belongs to a different query` (andere Argumente, etwa `since=2026-09-01` statt `10-01`, oder ein anderes Tool) und nur bei gleichen Argumenten und geändertem Archiv `the result changed since this cursor was issued`. Dazu trägt der Cursor jetzt einen Hash der Argumente ohne `cursor`.
+- **Wo `page`, `next` und `hint` stehen:** im **zweiten** Content-Block, nicht im Daten-JSON des ersten. Das steht jetzt in der Beschreibung jedes Tools (`tools/list`) und im [How-to](../how-to/55-mcp-anbinden.md#seiten).
+
 ### Memory in der TUI
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.
@@ -45,6 +50,10 @@ Die Seiten sparen keine Tokens: Jede trägt die Summen und alle anderen Felder n
 - **Diff:** `d` im Verlauf zeigt den Zeilendiff gegen die Version davor, hinzugefügte Zeilen grün, entfernte rot; mit `c` wird eine Basis gemerkt, so lassen sich zwei beliebige Versionen vergleichen (#194).
 - **Zeitleiste:** `t` zeigt je Projekt, was wann hinzukam, sich änderte oder gelöscht wurde, mit dem Diff der markierten Änderung rechts; ++enter++ springt in den Verlauf der Datei. Gilt ab dem Zeitpunkt, ab dem total-recall das Gedächtnis archiviert.
 - **Demo-Archiv:** das erfundene Gedächtnis von `kompass` hat jetzt mehrere Versionen, einen wechselnden Index und eine gelöschte Datei, damit Verlauf und Screenshots etwas zu zeigen haben.
+
+### Behoben
+
+- **`doctor` meldet drei Record-Typen von Claude Code nicht mehr als unbekannt** (#229). `frame-link` (Artifact-Rahmen einer Session mit URL und Titel) und `artifact-autoreact-ledger` (kann Kommentar-Threads tragen, die nicht sicher in den Events stehen) bleiben als Meta-Records im Archiv. `artifact-comment-monitor` ist reiner Prozesszustand (PID, Job, „armed“) und wird verworfen. Bereits archivierte Zeilen bleiben unberührt.
 
 ## v1.4.0
 

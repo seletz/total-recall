@@ -213,7 +213,7 @@ func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) tool
 	if max <= 0 {
 		max = DefaultMaxBytes
 	}
-	first, hint, err := s.bound(t, strings.TrimSpace(out), t.cursor(rawArgs), max)
+	first, hint, err := s.bound(t, strings.TrimSpace(out), t.cursor(rawArgs), queryHash(argv), max)
 	if err != nil {
 		return errorResult("usage", err.Error())
 	}
@@ -228,7 +228,13 @@ func (s *Server) call(ctx context.Context, t Tool, rawArgs json.RawMessage) tool
 // bound makes out fit into max bytes: verbatim when it fits, compacted when
 // that is enough, else one page of the paged list of the tool, else cut as
 // a last resort (see truncate). A cursor selects the page.
-func (s *Server) bound(t Tool, out, cursor string, max int) (string, *Hint, error) {
+func (s *Server) bound(t Tool, out, cursor, query string, max int) (string, *Hint, error) {
+	if cursor != "" {
+		// A cursor of other arguments is wrong whatever the result is.
+		if _, err := checkCursor(cursor, query, nil); err != nil {
+			return "", nil, err
+		}
+	}
 	if cursor == "" && len(out) <= max {
 		return out, nil, nil
 	}
@@ -243,7 +249,7 @@ func (s *Server) bound(t Tool, out, cursor string, max int) (string, *Hint, erro
 		return cb.String(), nil, nil
 	}
 	if len(t.Units) > 0 {
-		page, hint, ok, err := paginate(cb.Bytes(), t, cursor, max)
+		page, hint, ok, err := paginate(cb.Bytes(), t, cursor, query, max)
 		if err != nil {
 			return "", nil, err
 		}
@@ -255,4 +261,12 @@ func (s *Server) bound(t Tool, out, cursor string, max int) (string, *Hint, erro
 		return "", nil, errNoPages
 	}
 	return truncate(cb.String(), max, t.Detail, t.Narrow)
+}
+
+// queryHash identifies the arguments of a call without the cursor: the
+// command line built from them. A cursor is only good for the query that
+// issued it.
+func queryHash(argv []string) string {
+	b, _ := json.Marshal(argv)
+	return digest(b)
 }
