@@ -372,6 +372,36 @@ memory: 20 of 31 hits, --limit 0 for all
 
 Die Zeilen von `--by-session` fassen Event-Treffer zusammen und haben kein `type`.
 
+## `timeline` { #timeline }
+
+Die Events eines Zeitfensters über alle Sessions, älteste zuerst. Ohne weitere Option sind es die Nachrichten des Menschen: Der Befehl beantwortet „War der Abend nach 20:00 noch Arbeit, und woran?“ in einer Ausgabe, ohne Suchbegriff und ohne SQL.
+
+```sh
+total-recall timeline --since 2026-10-20T20:00 --until 2026-10-21T06:00
+total-recall timeline --since 2026-10-20 --project kompass --json
+total-recall timeline --since 2026-10-20 --until 2026-10-20 --actor all --all   # alles, auch Tool-Aufrufe
+```
+
+```text
+LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
+2026-10-20 20:31:00  18:31:00Z  7d1e02a6  Höhenprofil der Route  kompass  Benenne das Paket route/cache in route/tiles um.
+2026-10-20 21:30:00  19:30:00Z  7d1e02a7  Flaky route cache test kompass  Zeig mir, wo die Steigung berechnet wird.
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--since`, `--until` | Zeitfenster, lokale Zeit: `YYYY-MM-DD` oder `YYYY-MM-DDTHH:MM`. `--since` ist inklusiv, `--until` exklusiv; ein Datum als `--until` schließt den ganzen Tag ein |
+| `--project P` | nur dieses Projekt: der Name wie bei [`stats --by project`](#stats-period), sonst ein Teil von Name, Pfad oder Remote-URL; Subagenten gehören zum Projekt ihrer Eltern-Session |
+| `--repo R`, `--harness H`, `--name N`, `--account A` | Filter wie bei [`sessions`](#sessions) |
+| `--actor A` | wessen Events: `human` (Default), `agent`, `peer`, `automation`, `tool` oder `all` |
+| `--all` | auch Tool-Aufrufe und -Ergebnisse, System- und Meta-Events; Default nur Nachrichten |
+| `--text-width N` | Zeichen des Textes je Event (Default 160, 0 = ganzer Text) |
+| `--limit N` | höchstens die ältesten N Events (Default 0 = alle); ein abgeschnittenes Fenster steht auf stderr |
+
+**JSON.** Eine Liste mit einem Objekt je Event, alle Schlüssel immer vorhanden: `event_id`, `ts` (UTC), `ts_local` (RFC 3339 in der konfigurierten Zeitzone), `session_id`, `session_name`, `project` (Name wie bei `stats --by project`), `repo`, `actor`, `kind`, `text` (einzeilig, gekürzt), `text_chars` (Länge des ganzen Textes) und `text_truncated`. Gekürzt wird also nie unbemerkt.
+
+**Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv.
+
 ## `stats` { #stats }
 
 Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.

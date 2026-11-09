@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.5.0 (unveröffentlicht)
 
+### Zeitleiste
+
+- **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit, `--project` (Name wie bei `stats --by project`), `--repo`, `--actor`; je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).
+
 ### Memory in der TUI
 
 - **Memory-Viewer:** ++enter++ auf einem Memory-Treffer der Suche öffnet das Gedächtnis des Projekts ([Memory](30-tui.md#memory), #193): links die Dateien mit `MEMORY.md` als Index, gelöschte zuletzt, rechts der Inhalt als lesbares Markdown, die Datei des Treffers markiert. ++esc++ führt zur Suche zurück.

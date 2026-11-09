@@ -37,7 +37,7 @@ type TimelineEvent struct {
 // insertion order). Subagent sessions are included and belong to their
 // parent's project.
 func (s *Store) Timeline(ctx context.Context, f TimelineFilter) ([]TimelineEvent, error) {
-	cond, args := f.SessionFilter.where(true)
+	cond, args := f.where(true)
 	if f.Actor != "" {
 		cond = append(cond, "e.actor = ?")
 		args = append(args, f.Actor)
