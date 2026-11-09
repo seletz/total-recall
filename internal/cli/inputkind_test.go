@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"strings"
 	"testing"
 
+	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
@@ -178,5 +180,68 @@ func TestMCPInputKindAddsUp(t *testing.T) {
 		if kinds[k] == 0 {
 			t.Errorf("no %s event over MCP: %v", k, kinds)
 		}
+	}
+}
+
+// TestTimelineInputKind: every event of timeline --json has the key
+// input_kind; over the whole demo archive the kinds plus the unknown ones add
+// up to the human events, and only human events carry a kind. The same
+// counts come out of the MCP pages of the tool.
+type tev struct {
+	Actor     string
+	InputKind *string `json:"input_kind"`
+}
+
+func TestTimelineInputKind(t *testing.T) {
+	w := []string{"--since", "2000-01-01", "--until", "2100-01-01"}
+	count := func(evs []tev) (kinds map[string]int, human int) {
+		kinds = map[string]int{}
+		for _, e := range evs {
+			switch {
+			case e.Actor != "human":
+				if e.InputKind != nil {
+					t.Errorf("%s event has input_kind %q", e.Actor, *e.InputKind)
+				}
+			case e.InputKind == nil:
+				human++
+				kinds["unknown"]++
+			default:
+				human++
+				kinds[*e.InputKind]++
+			}
+		}
+		return kinds, human
+	}
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now, e.home = demo.Now, demo.Home
+	r := e.run(t, "", append([]string{"--db", db, "timeline", "--json", "--actor", "all", "--all", "--limit", "0"}, w...)...)
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	if !strings.Contains(r.stdout, `"input_kind"`) {
+		t.Fatal("timeline --json has no input_kind key")
+	}
+	cli := decode[[]tev](t, r.stdout)
+	kinds, human := count(cli)
+	sum := 0
+	for _, c := range kinds {
+		sum += c
+	}
+	if human == 0 || sum != human || kinds["unknown"] != 0 || kinds["typed"] == 0 || kinds["pasted"] == 0 || kinds["remote"] == 0 {
+		t.Errorf("kinds %v, %d human events", kinds, human)
+	}
+
+	p := newPagedDemo(t, 8<<10)
+	pages, _ := p.crawl("timeline", map[string]any{"since": "2000-01-01", "until": "2100-01-01", "actor": "all", "all": true, "limit": 0})
+	var all []tev
+	for _, pg := range pages {
+		all = append(all, decode[[]tev](t, pg)...)
+	}
+	if len(pages) < 2 || len(all) != len(cli) {
+		t.Fatalf("%d pages with %d events, CLI %d", len(pages), len(all), len(cli))
+	}
+	if mk, mh := count(all); mh != human || !maps.Equal(mk, kinds) {
+		t.Errorf("MCP pages: %v over %d human events, CLI %v over %d", mk, mh, kinds, human)
 	}
 }

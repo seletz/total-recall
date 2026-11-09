@@ -25,14 +25,17 @@ const actorAll = "all"
 // at most --text-width runes; TextChars is the length of the whole text
 // in runes and TextTruncated says it was cut, so nothing is cut silently.
 type TimelineEventJSON struct {
-	EventID       string     `json:"event_id"`
-	TS            string     `json:"ts"`       // UTC
-	TSLocal       string     `json:"ts_local"` // RFC 3339 in the configured time zone
-	SessionID     string     `json:"session_id"`
-	SessionName   NullString `json:"session_name"`
-	Project       NullString `json:"project"` // name as in stats --by project
-	Repo          NullString `json:"repo"`
-	Actor         string     `json:"actor"`
+	EventID     string     `json:"event_id"`
+	TS          string     `json:"ts"`       // UTC
+	TSLocal     string     `json:"ts_local"` // RFC 3339 in the configured time zone
+	SessionID   string     `json:"session_id"`
+	SessionName NullString `json:"session_name"`
+	Project     NullString `json:"project"` // name as in stats --by project
+	Repo        NullString `json:"repo"`
+	Actor       string     `json:"actor"`
+	// InputKind says how a human input arrived (typed, pasted, bash,
+	// remote); null for other actors and when unknown (since v1.6.0).
+	InputKind     NullString `json:"input_kind"`
 	Kind          string     `json:"kind"`
 	Text          NullString `json:"text"`
 	TextChars     int        `json:"text_chars"`
@@ -49,7 +52,7 @@ func timelineJSON(h store.TimelineEvent, cat *project.Catalog, loc *time.Locatio
 	}
 	return TimelineEventJSON{EventID: h.Event.ID, TS: isoTime(h.Event.TS), TSLocal: h.Event.TS.In(loc).Format(time.RFC3339),
 		SessionID: h.Event.SessionID, SessionName: NullString(h.SessionName), Project: NullString(cat.Name(h.Project)),
-		Repo: NullString(h.Repo), Actor: string(h.Event.Actor), Kind: string(h.Event.Kind),
+		Repo: NullString(h.Repo), Actor: string(h.Event.Actor), InputKind: NullString(h.Event.InputKind), Kind: string(h.Event.Kind),
 		Text: NullString(text), TextChars: n, TextTruncated: trunc}
 }
 

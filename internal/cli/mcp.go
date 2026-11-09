@@ -133,7 +133,7 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "timeline", Title: "Timeline across sessions", Command: []string{"timeline"}, FixedFlags: []string{"--json"},
-			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo and a shortened text. " +
+			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo, input_kind (how a human input arrived: typed, pasted, bash, remote; null when unknown) and a shortened text. " +
 				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`." + pagingNote,
 			Units: []string{""},
 			Params: []mcp.Param{

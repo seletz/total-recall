@@ -402,7 +402,7 @@ LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
 | `--text-width N` | Zeichen des Textes je Event (Default 160, 0 = ganzer Text) |
 | `--limit N` | höchstens die ältesten N Events (Default 0 = alle); ein abgeschnittenes Fenster steht auf stderr |
 
-**JSON.** Eine Liste mit einem Objekt je Event, alle Schlüssel immer vorhanden: `event_id`, `ts` (UTC), `ts_local` (RFC 3339 in der konfigurierten Zeitzone), `session_id`, `session_name`, `project` (Name wie bei `stats --by project`), `repo`, `actor`, `kind`, `text` (einzeilig, gekürzt), `text_chars` (Länge des ganzen Textes) und `text_truncated`. Gekürzt wird also nie unbemerkt.
+**JSON.** Eine Liste mit einem Objekt je Event, alle Schlüssel immer vorhanden: `event_id`, `ts` (UTC), `ts_local` (RFC 3339 in der konfigurierten Zeitzone), `session_id`, `session_name`, `project` (Name wie bei `stats --by project`), `repo`, `actor`, `input_kind` (bei menschlichen Eingaben `typed`, `pasted`, `bash` oder `remote`, sonst `null`, seit v1.6.0; [Schema](40-schema.md#input_kind)), `kind`, `text` (einzeilig, gekürzt), `text_chars` (Länge des ganzen Textes) und `text_truncated`. Gekürzt wird also nie unbemerkt.
 
 **Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv, auch über die Seiten des MCP-Tools.
 
