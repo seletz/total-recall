@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"maps"
 	"strings"
 	"testing"
 
@@ -232,16 +231,39 @@ func TestTimelineInputKind(t *testing.T) {
 		t.Errorf("kinds %v, %d human events", kinds, human)
 	}
 
-	p := newPagedDemo(t, 8<<10)
-	pages, _ := p.crawl("timeline", map[string]any{"since": "2000-01-01", "until": "2100-01-01", "actor": "all", "all": true, "limit": 0})
-	var all []tev
+	// The MCP pages of a window with every actor and kind: about four
+	// pages, so the number of CLI runs does not grow with the archive.
+	const since, until = "2026-10-20", "2026-10-21"
+	cliArgs := []string{"timeline", "--since=" + since, "--until=" + until, "--actor=all", "--all"}
+	p := newPagedDemo(t, timelineBound(newPagedDemo(t, 16<<20), 4, cliArgs...))
+	want := p.cli(cliArgs...)
+	pages, _ := p.crawl("timeline", map[string]any{"since": since, "until": until, "actor": "all", "all": true})
+	if len(pages) < 3 || len(pages) > 6 {
+		t.Fatalf("%d pages for %d bytes", len(pages), len(want))
+	}
+	if got := reassemble(t, pages, ""); got != want {
+		t.Errorf("%d pages do not add up to the CLI JSON (%d vs %d bytes)", len(pages), len(got), len(want))
+	}
+	var all, ref []tev
 	for _, pg := range pages {
 		all = append(all, decode[[]tev](t, pg)...)
 	}
-	if len(pages) < 2 || len(all) != len(cli) {
-		t.Fatalf("%d pages with %d events, CLI %d", len(pages), len(all), len(cli))
+	ref = decode[[]tev](t, want)
+	if len(all) != len(ref) {
+		t.Fatalf("pages hold %d events, CLI %d", len(all), len(ref))
 	}
-	if mk, mh := count(all); mh != human || !maps.Equal(mk, kinds) {
-		t.Errorf("MCP pages: %v over %d human events, CLI %v over %d", mk, mh, kinds, human)
+	for _, pg := range pages {
+		if !strings.Contains(pg, `"input_kind"`) {
+			t.Fatal("a page has no input_kind key")
+		}
+	}
+	if mk, mh := count(all); mh == 0 || func() int {
+		n := 0
+		for _, c := range mk {
+			n += c
+		}
+		return n
+	}() != mh {
+		t.Errorf("MCP pages: kinds %v over %d human events", mk, mh)
 	}
 }
