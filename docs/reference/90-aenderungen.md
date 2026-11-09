@@ -10,7 +10,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ### Behoben
 
-- **`doctor` meldet drei Record-Typen von Claude Code nicht mehr als unbekannt** (#229). `frame-link` (Artifact-Rahmen einer Session mit URL und Titel) bleibt als Meta-Record im Archiv. `artifact-autoreact-ledger` und `artifact-comment-monitor` sind reiner Laufzeitzustand (Merker, Zeitstempel, PID des haltenden Prozesses) und werden verworfen; Kommentartexte und Artifact-Inhalte kommen über die Events ins Archiv. Bereits archivierte Zeilen bleiben unberührt.
+- **`doctor` meldet drei Record-Typen von Claude Code nicht mehr als unbekannt** (#229). `frame-link` (Artifact-Rahmen einer Session mit URL und Titel) und `artifact-autoreact-ledger` (kann Kommentar-Threads tragen, die nicht sicher in den Events stehen) bleiben als Meta-Records im Archiv. `artifact-comment-monitor` ist reiner Prozesszustand (PID, Job, „armed“) und wird verworfen. Bereits archivierte Zeilen bleiben unberührt.
 
 ## v1.4.0
 

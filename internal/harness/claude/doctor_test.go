@@ -277,7 +277,7 @@ func TestCheckFormatArtifactRecords(t *testing.T) {
 		line string
 		keep bool // kept as a meta record (metaTypes), else skipped
 	}{
-		{"autoreact ledger", `{"type":"artifact-autoreact-ledger","v":1,"sessionId":"s","artifacts":{"a1":{"savedAt":1,"threads":[]}}}`, false},
+		{"autoreact ledger", `{"type":"artifact-autoreact-ledger","v":1,"sessionId":"s","artifacts":{"a1":{"savedAt":1,"threads":[]}}}`, true},
 		{"comment monitor", `{"type":"artifact-comment-monitor","v":1,"sessionId":"s","artifacts":{"a1":{"state":"armed","holderPid":1}}}`, false},
 		{"frame link", `{"type":"frame-link","sessionId":"s","frameUrl":"https://example.invalid/artifact/x","title":"t","artifactCount":1,"timestamp":"2026-01-01T00:00:00.000Z"}`, true},
 	}
