@@ -40,7 +40,12 @@ stays) names the projects with your own messages in the last --days days
 covers, so a new repository does not go unnoticed until booking time. Each
 check applies only if the table has entries; --days 0 skips the hint.
 
-Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
+With --json the hint is the field "hints" of every report, apart from the
+findings: project, key, missing ("project" and/or "category") and
+last_active.
+
+Exit code 0: nothing unknown. 2: findings (run it after a harness update).
+Hints are no findings and never change the exit code.`,
 		Args: usageArgs(cobra.NoArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
@@ -74,8 +79,10 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 			}
 			_, _ = fmt.Fprintln(w)
 		}
+		hints := []setupHint{}
 		if days > 0 {
-			hints, err := setupHints(cmd.Context(), cfg, e.app.Now(), days)
+			var err error
+			hints, err = setupHints(cmd.Context(), cfg, e.app.Now(), days)
 			if err != nil {
 				return err
 			}
@@ -104,7 +111,11 @@ Exit code 0: nothing unknown. 2: findings (run it after a harness update).`,
 			clean = clean && r.Clean()
 		}
 		if o.format.IsJSON() {
-			if err := writeList(o, reports); err != nil {
+			out := make([]DoctorReportJSON, len(reports))
+			for i, r := range reports {
+				out[i] = DoctorReportJSON{FormatReport: r, Hints: doctorHintsJSON(hints)}
+			}
+			if err := writeList(o, out); err != nil {
 				return err
 			}
 		} else {
@@ -148,8 +159,44 @@ func schemaNote(cfg *config.Config) string {
 // setupHint is a project with recent activity that the config does not
 // fully cover.
 type setupHint struct {
-	name                  string
+	name, key             string
 	noProject, noCategory bool
+	last                  time.Time
+}
+
+// DoctorReportJSON is one element of doctor --json: the findings of a
+// harness (FormatReport, unchanged) and, apart from them, the hints about
+// projects the config does not fully cover. The hints are no findings: they
+// never change the exit code. They are the same in every element.
+type DoctorReportJSON struct {
+	harness.FormatReport
+	Hints []DoctorHintJSON `json:"hints"`
+}
+
+// DoctorHintJSON is a project with recent own messages that the config does
+// not fully cover.
+type DoctorHintJSON struct {
+	Project string `json:"project"`
+	Key     string `json:"key"`
+	// Missing names what is missing: "project" (no [[project]] matches),
+	// "category" (no [[worktime.category]] covers it), or both.
+	Missing []string `json:"missing"`
+	// LastActive is the time of the latest own message of the project (UTC).
+	LastActive string `json:"last_active"`
+}
+
+func doctorHintsJSON(hints []setupHint) []DoctorHintJSON {
+	out := make([]DoctorHintJSON, len(hints))
+	for i, h := range hints {
+		out[i] = DoctorHintJSON{Project: h.name, Key: h.key, Missing: []string{}, LastActive: h.last.UTC().Format(time.RFC3339)}
+		if h.noProject {
+			out[i].Missing = append(out[i].Missing, "project")
+		}
+		if h.noCategory {
+			out[i].Missing = append(out[i].Missing, "category")
+		}
+	}
+	return out
 }
 
 // setupHints lists the projects with own messages in the last days days
@@ -190,9 +237,13 @@ func setupHints(ctx context.Context, cfg *config.Config, now time.Time, days int
 	keys, dirs := []string{}, []string{}
 	seen := map[string]bool{}
 	noProject := map[string]bool{}
+	last := map[string]time.Time{}
 	for i, ev := range events {
 		in[i] = worktime.Event{Time: ev.Time, Session: ev.SessionID, Project: ev.Project, Dir: ev.Dir, Remote: ev.RemoteURL}
 		if seen[ev.Project] {
+			if t := last[res.Key(ev.Project, ev.Dir, ev.RemoteURL)]; ev.Time.After(t) {
+				last[res.Key(ev.Project, ev.Dir, ev.RemoteURL)] = ev.Time
+			}
 			continue
 		}
 		seen[ev.Project] = true
@@ -201,6 +252,7 @@ func setupHints(ctx context.Context, cfg *config.Config, now time.Time, days int
 			noProject[resolved] = true
 		}
 		keys = append(keys, resolved)
+		last[resolved] = ev.Time
 		if ev.Dir && resolved == ev.Project {
 			dirs = append(dirs, resolved)
 		}
@@ -210,7 +262,7 @@ func setupHints(ctx context.Context, cfg *config.Config, now time.Time, days int
 	get := func(key string) *setupHint {
 		h := hints[key]
 		if h == nil {
-			h = &setupHint{name: names[key]}
+			h = &setupHint{name: names[key], key: key, last: last[key]}
 			hints[key] = h
 		}
 		return h
