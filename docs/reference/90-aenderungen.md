@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.6.0 (unveröffentlicht)
+
+### Behoben
+
+- **`doctor` meldet den Record-Typ `launched` nicht mehr als unbekannt** (#247). Er steht im Workflow-Journal neben `started` und `result` und ist ein reiner Marker ohne Felder; er wird verworfen. Den Agenten tragen `started` und `result`, die als Meta-Records im Archiv bleiben.
+
 ## v1.5.0
 
 ### Bruch
