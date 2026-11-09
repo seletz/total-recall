@@ -373,3 +373,80 @@ func TestMCPCursorErrors(t *testing.T) {
 		t.Errorf("status with cursor: %v %s", isErr, first)
 	}
 }
+
+// TestMCPUncategorizedOnEveryPage: the projects without a category are a
+// small list beside the paged days, so it is whole and identical on every
+// page; it is a part of the total, and each of its projects has exactly the
+// seconds its cells have over the days of all pages.
+func TestMCPUncategorizedOnEveryPage(t *testing.T) {
+	type page struct {
+		Days []struct {
+			Categories []struct {
+				Projects []struct {
+					Key string
+					Raw int `json:"raw_seconds"`
+				}
+			}
+		}
+		Uncategorized json.RawMessage
+		Total         struct {
+			Raw int `json:"raw_seconds"`
+		}
+	}
+	args := map[string]any{"worktime": true, "since": "2026-05-01", "until": "2026-10-31"}
+	want := newPagedDemo(t, 16<<20).cli("stats", "--worktime", "--since=2026-05-01", "--until=2026-10-31")
+	var whole struct {
+		Uncategorized []struct {
+			Key string
+			Raw int `json:"raw_seconds"`
+		}
+		Total struct {
+			Raw int `json:"raw_seconds"`
+		}
+		Days []json.RawMessage
+	}
+	if err := json.Unmarshal([]byte(want), &whole); err != nil || len(whole.Uncategorized) == 0 {
+		t.Fatalf("whole: %v, %d uncategorized", err, len(whole.Uncategorized))
+	}
+	bound := len(want) / 6
+	pages, hints := newPagedDemo(t, bound).crawl("stats", args)
+	if len(pages) < 3 {
+		t.Fatalf("%d pages", len(pages))
+	}
+	perProject := map[string]int{}
+	var first json.RawMessage
+	for i, pg := range pages {
+		if len(pg) > bound || hints[i] == nil || hints[i].Truncated {
+			t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), bound, hints[i])
+		}
+		var w page
+		if err := json.Unmarshal([]byte(pg), &w); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = w.Uncategorized
+		} else if string(w.Uncategorized) != string(first) {
+			t.Errorf("page %d: uncategorized differs from page 1", i+1)
+		}
+		if w.Total.Raw != whole.Total.Raw {
+			t.Errorf("page %d: total differs", i+1)
+		}
+		for _, d := range w.Days {
+			for _, c := range d.Categories {
+				for _, p := range c.Projects {
+					perProject[p.Key] += p.Raw
+				}
+			}
+		}
+	}
+	sum := 0
+	for _, u := range whole.Uncategorized {
+		if perProject[u.Key] != u.Raw {
+			t.Errorf("%s: uncategorized %d s, cells of all pages %d s", u.Key, u.Raw, perProject[u.Key])
+		}
+		sum += u.Raw
+	}
+	if sum > whole.Total.Raw {
+		t.Errorf("uncategorized %d exceeds the total %d", sum, whole.Total.Raw)
+	}
+}
