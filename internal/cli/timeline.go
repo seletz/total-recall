@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,23 @@ const defaultTextWidth = 160
 
 // actorAll is the --actor value that takes events of every actor.
 const actorAll = "all"
+
+// timelineActors are the values of --actor; the first is the default.
+var timelineActors = []string{"human", "agent", "peer", "automation", "tool", actorAll}
+
+// checkTimelineArgs rejects what would only give an empty list: an
+// unknown actor and a window that does not start before it ends. A date
+// as --until includes its whole day (parseTimeArg), so a single day is a
+// valid window.
+func checkTimelineArgs(actor string, since, until time.Time) error {
+	if !slices.Contains(timelineActors, actor) {
+		return usagef("invalid --actor %q (%s)", actor, strings.Join(timelineActors, ", "))
+	}
+	if !since.IsZero() && !until.IsZero() && !since.Before(until) {
+		return usagef("--since (%s) must be before --until (%s)", since.Format("2006-01-02 15:04"), until.Format("2006-01-02 15:04"))
+	}
+	return nil
+}
 
 // TimelineEventJSON is one event of timeline --json. Every key is always
 // present; a NullString without a value is null. Text is on one line and
@@ -70,8 +88,10 @@ evening still work, and on what?". --since and --until take a time
 includes the whole day. --project is a name as in stats --by project, else
 a part of name, path or remote URL.
 
---actor selects whose events (human, agent, peer, automation, tool, or
-all), --all adds tool calls and results, system and meta events. The text
+--since must be before --until. --actor selects whose events (human,
+agent, peer, automation, tool, or all; default human), --all adds tool
+calls and results, system and meta events and, without an explicit
+--actor, takes every actor. The text
 is cut to --text-width runes (0 = whole text); in JSON text_truncated and
 text_chars say so. --limit keeps the oldest events and says so on stderr.`,
 		Args: usageArgs(cobra.NoArgs),
@@ -80,12 +100,20 @@ text_chars say so. --limit keeps the oldest events and says so on stderr.`,
 		if textWidth < 0 {
 			return usage(errors.New("--text-width must not be negative"))
 		}
+		// --all without an explicit --actor means every actor: the default
+		// human has no tool calls to add.
+		if allKinds && !cmd.Flags().Changed("actor") {
+			actor = actorAll
+		}
 		cfg, err := e.loadConfig()
 		if err != nil {
 			return err
 		}
 		sf, err := f.filter(cfg)
 		if err != nil {
+			return err
+		}
+		if err := checkTimelineArgs(actor, sf.Since, sf.Until); err != nil {
 			return err
 		}
 		st, err := e.openRead(cfg)
@@ -158,9 +186,9 @@ text_chars say so. --limit keeps the oldest events and says so on stderr.`,
 	})
 	f.register(c, 0)
 	of.register(c)
-	c.Flags().StringVar(&actor, "actor", "human", "whose events: human, agent, peer, automation, tool or all")
+	c.Flags().StringVar(&actor, "actor", "human", "whose events: human, agent, peer, automation, tool or all (default human; all with --all)")
 	c.Flags().StringVar(&projectRef, "project", "", "only this project: name as in stats --by project, else a part of name, path or remote URL")
-	c.Flags().BoolVar(&allKinds, "all", false, "include tool calls and results, system and meta events (default: messages only)")
+	c.Flags().BoolVar(&allKinds, "all", false, "include tool calls and results, system and meta events, and every actor unless --actor is set (default: messages only)")
 	c.Flags().IntVar(&textWidth, "text-width", defaultTextWidth, "runes of the text per event (0 = whole text)")
 	return c
 }

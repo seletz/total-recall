@@ -108,6 +108,7 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 		{"stats blocks", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true, "blocks": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday", "--blocks"}},
 		{"memory", "memory", map[string]any{}, []string{"memory"}},
 		{"status", "status", map[string]any{}, []string{"status"}},
+		{"timeline all implies every actor", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-20T21:00", "all": true, "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-20T21:00", "--all", "--text-width=40"}},
 		{"timeline", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-21T06:00", "project": "kompass", "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-21T06:00", "--project=kompass", "--text-width=40"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -150,6 +151,8 @@ func TestMCPErrors(t *testing.T) {
 		{"unknown session", "show", map[string]any{"session": "claude:nope-nope"}, "not_found"},
 		{"bad time", "sessions", map[string]any{"since": "yesterday-ish"}, "usage"},
 		{"bad fts", "search", map[string]any{"query": "AND AND (", "raw": true}, "sql"},
+		{"timeline bad actor", "timeline", map[string]any{"actor": "bogus"}, "usage"},
+		{"timeline since after until", "timeline", map[string]any{"since": "2026-10-21", "until": "2026-10-20"}, "usage"},
 		{"bad type", "search", map[string]any{"query": "x", "type": []string{"attachment"}}, "usage"},
 		{"type needs by_session event", "search", map[string]any{"query": "x", "type": "session", "by_session": true}, "usage"},
 		{"missing query", "search", map[string]any{}, "usage"},
