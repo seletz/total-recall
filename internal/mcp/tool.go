@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -55,6 +56,9 @@ type Tool struct {
 	Narrow string
 	// Defaults are flags added when the argument is absent: name -> value.
 	Defaults map[string]int
+	// TextDefaults are text flags added when the argument is absent or
+	// empty: name -> value.
+	TextDefaults map[string]string
 }
 
 func (t Tool) descriptor() map[string]any {
@@ -164,6 +168,7 @@ func (t Tool) argv(raw json.RawMessage) ([]string, error) {
 				positional = append(positional, s)
 			} else if s != "" {
 				argv = append(argv, "--"+flag+"="+s)
+				set[p.Name] = true
 			}
 		case "list":
 			var items []string
@@ -206,6 +211,11 @@ func (t Tool) argv(raw json.RawMessage) ([]string, error) {
 	for name, n := range t.Defaults {
 		if !set[name] {
 			argv = append(argv, fmt.Sprintf("--%s=%d", name, n))
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(t.TextDefaults)) {
+		if !set[name] {
+			argv = append(argv, "--"+strings.ReplaceAll(name, "_", "-")+"="+t.TextDefaults[name])
 		}
 	}
 	argv = append(argv, t.FixedFlags...)

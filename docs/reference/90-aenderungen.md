@@ -8,6 +8,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.7.0 (unveröffentlicht)
 
+### Zeitleiste: weniger Seiten
+
+- **`timeline` im MCP braucht weniger Seiten** ([#259](https://github.com/seletz/total-recall/issues/259)): Gemessen an einem Tag des Demo-Archivs mit `all` kam die Seitengröße zu rund 85 % aus den Metadaten je Event (Session-ID und -Name, Repo, beide Zeiten, Zähler) und nur zu rund 14 % aus dem Text. Neu gibt es den Parameter `--fields` (CLI) und `fields` (MCP): die Schlüssel der Events, die man haben will. Im MCP ist der Default kompakt (ohne `ts`, `session_name`, `repo`, `text_chars`), eine Seite trägt damit etwa 45 % mehr Events; `fields=all` bringt alles zurück. Die CLI ohne `--fields` und alle bisherigen Felder bleiben unverändert. Alle Seiten zusammen sind weiter byte-gleich die CLI-Ausgabe mit denselben Parametern; der Hinweis jeder Seite nennt `fields`, `text_width` und das Fenster als Mittel, die Zahl der Seiten zu senken.
+
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools --top N` ohne `--by`** ([Befehle](10-befehle.md#stats-tools), #258): kürzt `by_tool` auf die N meistgenutzten Tools, der Rest steht als ein Eintrag `other`; die Einträge ergeben weiter genau `total`. Vorher war `--top` ohne `--by` ein Fehler. Mit `--by` ändert sich nichts. Im MCP-Tool `stats` gilt dasselbe für `top` mit `tools`.
