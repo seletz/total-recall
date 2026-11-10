@@ -111,11 +111,13 @@ total-recall reindex --actors             # anwenden
 
 `--actors` setzt außerdem [`input_kind`](40-schema.md#input_kind) der menschlichen Nachrichten neu (aus Text und `raw`) und lässt ihn bei Nachrichten weg, die nicht mehr `human` sind; die Zahl steht als `input kinds set` in der Ausgabe, wenn sie nicht 0 ist.
 
+`--actors` erkennt auch Eingaben, die ein Koordinator mit einem Befehl in die Session eines Workers getippt hat (`herdr agent prompt`, `tmux send-keys`): Sie werden `automation`, wenn eine andere Session sie kurz vorher als Argument eines Tool-Aufrufs verschickt hat ([`prompt_window`, `prompt_commands`](20-konfiguration.md#harnessclaudeactors)). Die Zahl steht in der Ausgabe als `of them were typed in by another session`; sie ist ein Teil der geänderten Nachrichten.
+
 Ausgabe:
 
 ```text
-reindex --actors: 1234 user messages, 17 changed (human -> peer: 17) (0.4s)
-reindex --actors (dry run): 1234 user messages, 17 would change (human -> peer: 17) (0.4s)
+reindex --actors: 1234 user messages, 17 changed (human -> peer: 14, human -> automation: 3), 3 of them were typed in by another session (0.4s)
+reindex --actors (dry run): 1234 user messages, 17 would change (human -> peer: 14, human -> automation: 3), 3 of them would be typed in by another session (0.4s)
 ```
 
 - Die Textregeln (Präfixe, Kopfzeilen eingefügter Blöcke) laufen über den gespeicherten Text; die Flags des Records (`origin.kind`, `isMeta`, geplante Prompts) kommen aus `raw`. Fehlt `raw` (`ingest.store_raw = false` oder Zeile größer als `ingest.raw_max_bytes`) und trifft keine Textregel, bleibt der Actor stehen; die Zahl steht als `undecided` in der Ausgabe.
@@ -400,13 +402,14 @@ LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
 | `--actor A` | wessen Events: `human` (Default), `agent`, `peer`, `automation`, `tool` oder `all`; ein anderer Wert ist ein `usage`-Fehler mit den erlaubten Werten |
 | `--all` | auch Tool-Aufrufe und -Ergebnisse, System- und Meta-Events; Default nur Nachrichten. Ohne ausdrückliches `--actor` gilt dann `--actor all` (der Default `human` hätte keine Tool-Aufrufe); ein gesetztes `--actor`, auch `human`, gewinnt |
 | `--text-width N` | Zeichen des Textes je Event (Default 160, 0 = ganzer Text) |
+| `--fields F` | nur diese Schlüssel der JSON-Events, kommagetrennt (Default und `all`: alle). Ein doppelter Name zählt einmal, Leerzeichen um die Namen zählen nicht, und ein leerer Wert (`--fields=`) ergibt alle Schlüssel, also die Ausgabe ohne `--fields`. Die Reihenfolge ist immer die des ganzen Objekts, ein unbekannter Name ist ein `usage`-Fehler mit den erlaubten. Wirkt nur im JSON |
 | `--limit N` | höchstens die ältesten N Events (Default 0 = alle); ein abgeschnittenes Fenster steht auf stderr |
 
 **JSON.** Eine Liste mit einem Objekt je Event, alle Schlüssel immer vorhanden: `event_id`, `ts` (UTC), `ts_local` (RFC 3339 in der konfigurierten Zeitzone), `session_id`, `session_name`, `project` (Name wie bei `stats --by project`), `repo`, `actor`, `input_kind` (bei menschlichen Eingaben `typed`, `pasted`, `bash` oder `remote`, sonst `null`, seit v1.6.0; [Schema](40-schema.md#input_kind)), `kind`, `text` (einzeilig, gekürzt), `text_chars` (Länge des ganzen Textes) und `text_truncated`. Gekürzt wird also nie unbemerkt.
 
 **Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv, auch über die Seiten des MCP-Tools.
 
-**MCP.** Das Tool `timeline` hat dieselben Parameter (`text_width` statt `--text-width`) und liefert die Liste in Seiten, siehe [MCP anbinden](../how-to/55-mcp-anbinden.md#seiten).
+**MCP.** Das Tool `timeline` hat dieselben Parameter (`text_width` statt `--text-width`) und liefert die Liste in Seiten, siehe [MCP anbinden](../how-to/55-mcp-anbinden.md#seiten). Anders als die CLI schickt es als Default `fields=event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated`: Ohne `ts` (`ts_local` hat den Offset), `session_name`, `repo` und `text_chars`, die zusammen rund 40 % der Bytes eines Events ausmachen, trägt eine Seite etwa 45 % mehr Events, ein Tag mit `all` braucht entsprechend weniger Seiten ([#259](https://github.com/seletz/total-recall/issues/259)). `fields=all` bringt alle Schlüssel zurück; die Seiten sind dann byte-gleich die CLI-Ausgabe ohne `--fields`. Für einen Überblick über einen ganzen Tag empfiehlt sich `fields: "ts_local,actor,text"` mit `text_width: 80`: das sind die wenigsten Seiten. Sonst helfen weniger Felder, ein kleineres `text_width` oder ein engeres Fenster; der Hinweis (`hint`) jeder Seite sagt das. Im MCP gilt wie in der CLI: Ein doppelter Name zählt einmal, die Reihenfolge der Namen ist egal, ein leerer Wert (`fields: ""`) ergibt den MCP-Default (die kompakten Schlüssel oben, nicht alle) und `all` alle Schlüssel.
 
 ## `stats` { #stats }
 
@@ -539,25 +542,27 @@ total-recall stats --tools --month 2026-10                      # Aufrufe je Too
 total-recall stats --tools --by day --since 2026-10-01           # je Tag und Tool
 total-recall stats --tools --by project --top 5 --json
 total-recall stats --tools --path '*/internal/store/*' --json    # nur Aufrufe auf dieses Verzeichnis
+total-recall stats --tools --path '*/internal/store/*' --path-in all   # auch Nachrichten und Prompts mit dem Pfad
 ```
 
 ```json
 {
   "since": "2026-09-30T22:00:00.000Z", "until": "2026-10-31T23:00:00.000Z", "timezone": "Europe/Berlin",
-  "by": "day", "path": null, "total": 412,
+  "by": "day", "path": null, "path_in": null, "total": 412,
   "by_tool": [{"tool": "Bash", "count": 230}, {"tool": "Read", "count": 120}, {"tool": "Edit", "count": 62}],
   "groups": [{"key": "2026-10-01", "count": 40, "by_tool": [{"tool": "Bash", "count": 25}, {"tool": "Edit", "count": 15}]}]
 }
 ```
 
-`by` und `path` sind `null` ohne die Flags, `groups` ist dann leer. Tage laufen chronologisch, alle anderen Gruppen nach Anzahl absteigend, `other` zuletzt; die Tools einer Liste ebenso nach Anzahl, dann nach Name. Ein `tool_use` ohne Toolnamen zählt als `unknown`.
+`by`, `path` und `path_in` sind `null` ohne die Flags (`path_in` ist mit `--path` immer `"paths"` oder `"all"`), `groups` ist dann leer. Tage laufen chronologisch, alle anderen Gruppen nach Anzahl absteigend, `other` zuletzt; die Tools einer Liste ebenso nach Anzahl, dann nach Name. Ein `tool_use` ohne Toolnamen zählt als `unknown`.
 
 **`--path GLOB` und seine Grenzen.** Der Filter prüft die *Argumente* des Aufrufs, so wie das Archiv sie speichert: im Event steht von der Eingabe des Tools nur ein Text (`events.text`), nicht die ganze Eingabe. Es ist das erste vorhandene Feld aus `command`, `file_path`, `path`, `url`, `query`, `pattern`, `description`, `prompt`, `message`, `skill`, sonst das JSON der Eingabe, **auf 1 KiB gekürzt**. Daraus folgt:
 
+- **Welche Tools geprüft werden: `--path-in`.** Standard ist `--path-in paths`: der Glob wird nur auf Aufrufe von Tools geprüft, deren Argument ein Pfad, ein Pfadmuster oder ein Befehl ist: `Bash` (`command`), `Read`, `Edit`, `MultiEdit`, `Write` (`file_path`), `Glob`, `Grep` (`path`, sonst `pattern`) und `LS` (`path`). Eine Nachricht an eine andere Session (`SendMessage`), ein Prompt für einen Sub-Agenten (`Task`), eine URL (`WebFetch`), eine Suchanfrage oder ein MCP-Tool nennen einen Pfad oft nur im Text und zählen deshalb **nicht** als Arbeit an dieser Datei. `--path-in all` prüft wie in v1.6.0 jeden Aufruf. Die Liste steht an einer Stelle im Code (`store.PathTools`). Weil das Archiv nur den *einen* Text je Aufruf speichert, nicht den Namen des Feldes, entscheidet der Toolname, nicht das Feld: ein `Grep` ohne `path` zählt mit seinem Muster, `NotebookEdit` fehlt (sein Pfad steht nicht unter den gespeicherten Feldern), und ein MCP-Tool, das wirklich Dateien bearbeitet, braucht `--path-in all`. `--path-in` verlangt `--path`; ohne `--path` zählt `--tools` alle Aufrufe.
 - **Datei-Tools** (`Read`, `Edit`, `Write`, …): der Glob muss auf den **ganzen** Pfad passen, also `*/internal/store/*` oder `/home/me/proj/*.go`, nicht `internal/store`. SQLite-GLOB: `*`, `?` und `[a-z]` (auch über `/` hinweg), Groß- und Kleinschreibung zählt.
 - **Bash**: der Glob darf **irgendwo im Befehl** passen (der Filter setzt `*` davor und dahinter). `--path /w/app` findet `ls /w/app/src` und `git -C /w/app status`, aber auch `echo /w/app`. Ob der Pfad Ziel oder nur Teil eines Arguments ist, erkennt der Filter nicht; Pfade in Variablen, Shell-Expansion (`$HOME`, `~`, relative Pfade nach einem `cd`) und Pipes über mehrere Verzeichnisse werden nicht aufgelöst.
 - **Lange Befehle**: ein Pfad hinter der 1-KiB-Grenze wird nicht gefunden. Wer das Original braucht, liest es mit `sql` aus `raw_text(raw)` (nur mit `store_raw`).
-- **Andere Tools** (`Grep`, `WebFetch`, MCP-Tools, …) werden auf ihr erstes bekanntes Feld oder ihr JSON als Ganzes geprüft; ein Glob wie `*pfad*` trifft dort zuverlässiger als ein genauer Pfad.
+- **Andere Tools** (nur mit `--path-in all`: `WebFetch`, `Task`, MCP-Tools, …) werden auf ihr erstes bekanntes Feld oder ihr JSON als Ganzes geprüft; ein Glob wie `*pfad*` trifft dort zuverlässiger als ein genauer Pfad.
 - Die Pfade stehen so im Archiv, wie der Agent sie geschrieben hat (maskiert wie jeder Text); es gibt keine Normalisierung zwischen absolut und relativ.
 
 ### Arbeitszeit: `--workday` { #stats-workday }

@@ -183,6 +183,7 @@ func addSummary(a, b ingest.Summary) ingest.Summary {
 	a.RawRewritten += b.RawRewritten
 	a.MetaRewritten += b.MetaRewritten
 	a.Meta += b.Meta
+	a.Dispatched += b.Dispatched
 	a.MemoryRead += b.MemoryRead
 	a.MemoryVersions += b.MemoryVersions
 	a.MemoryDeleted += b.MemoryDeleted

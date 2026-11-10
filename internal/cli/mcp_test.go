@@ -108,8 +108,8 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 		{"stats blocks", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true, "blocks": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday", "--blocks"}},
 		{"memory", "memory", map[string]any{}, []string{"memory"}},
 		{"status", "status", map[string]any{}, []string{"status"}},
-		{"timeline all implies every actor", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-20T21:00", "all": true, "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-20T21:00", "--all", "--text-width=40"}},
-		{"timeline", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-21T06:00", "project": "kompass", "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-21T06:00", "--project=kompass", "--text-width=40"}},
+		{"timeline all implies every actor", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-20T21:00", "all": true, "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-20T21:00", "--all", "--text-width=40", "--fields=" + mcpTimelineFields}},
+		{"timeline", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-21T06:00", "project": "kompass", "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-21T06:00", "--project=kompass", "--text-width=40", "--fields=" + mcpTimelineFields}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, isErr := s.call(tc.tool, tc.args)

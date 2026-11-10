@@ -209,3 +209,96 @@ func TestToolStatsTopWithGroupsKeepsTools(t *testing.T) {
 		t.Errorf("by tool = %v", g)
 	}
 }
+
+// seedToolMessages adds calls that carry a path in their text without
+// working on a file: a message to another session, a sub-agent prompt, a
+// web fetch and an MCP tool of another server.
+func seedToolMessages(t *testing.T, s *Store) {
+	t.Helper()
+	sessions := []model.Session{{ID: "claude:p3", Harness: "claude", NativeID: "p3", Cwd: "/w/app", GitRoot: "/w/app",
+		StartedAt: ts("2026-11-01T13:00:00Z"), EndedAt: ts("2026-11-01T13:30:00Z")}}
+	evs := []model.Event{
+		toolEv("claude:p3-1", "claude:p3", "2026-11-01T13:00:00Z", "SendMessage", "please look at /w/app/a.go"),
+		toolEv("claude:p3-2", "claude:p3", "2026-11-01T13:01:00Z", "Task", "refactor /w/app/b.go"),
+		toolEv("claude:p3-3", "claude:p3", "2026-11-01T13:02:00Z", "WebFetch", "https://example.invalid/w/app/a.go"),
+		toolEv("claude:p3-4", "claude:p3", "2026-11-01T13:03:00Z", "mcp__notes__post", "/w/app/a.go"),
+		toolEv("claude:p3-5", "claude:p3", "2026-11-01T13:04:00Z", "Grep", "/w/app/a.go"),
+		toolEv("claude:p3-6", "claude:p3", "2026-11-01T13:05:00Z", "Glob", "/w/app/*.go"),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/b.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestToolStatsPathScope(t *testing.T) {
+	s, _ := openTestStore(t)
+	seedTools(t, s)
+	seedToolMessages(t, s) // 13 tool_use events in all
+	loc := berlin(t)
+	tests := []struct {
+		name   string
+		f      ToolFilter
+		total  int
+		byTool []string
+	}{
+		// Bash matches anywhere, the other tools as a whole.
+		{"DefaultIsPaths", ToolFilter{Path: "*/w/app/*"}, 5, []string{"Edit:2", "Bash:1", "Glob:1", "Grep:1"}},
+		{"ExplicitPaths", ToolFilter{Path: "*/w/app/*", PathIn: PathScopePaths}, 5, []string{"Edit:2", "Bash:1", "Glob:1", "Grep:1"}},
+		{"All", ToolFilter{Path: "*/w/app/*", PathIn: PathScopeAll}, 9,
+			[]string{"Edit:2", "Bash:1", "Glob:1", "Grep:1", "SendMessage:1", "Task:1", "WebFetch:1", "mcp__notes__post:1"}},
+		{"WholePathOfOtherToolInAll", ToolFilter{Path: "/w/app/a.go", PathIn: PathScopeAll}, 3, []string{"Edit:1", "Grep:1", "mcp__notes__post:1"}},
+		{"WholePathOfOtherToolInPaths", ToolFilter{Path: "/w/app/a.go"}, 2, []string{"Edit:1", "Grep:1"}},
+		{"NothingMatches", ToolFilter{Path: "/nowhere", PathIn: PathScopeAll}, 0, nil},
+		{"ScopeWithoutPathCountsEverything", ToolFilter{PathIn: PathScopePaths}, 13, []string{"Bash:4", "Edit:2", "Glob:1", "Grep:1", "Read:1", "SendMessage:1", "Task:1", "WebFetch:1", "mcp__notes__post:1"}},
+	}
+	for _, tt := range tests {
+		for _, by := range []ToolGroup{ToolNoGroup, ToolByDay, ToolBySession, ToolByProject} {
+			t.Run(tt.name+"/"+by.String(), func(t *testing.T) {
+				f := tt.f
+				f.By, f.Location = by, loc
+				got, err := s.ToolStats(ctx, f)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.Total != tt.total {
+					t.Errorf("total = %d, want %d", got.Total, tt.total)
+				}
+				if g := fmtTools(got.ByTool); !slices.Equal(g, tt.byTool) {
+					t.Errorf("by tool = %v, want %v", g, tt.byTool)
+				}
+				sum := 0
+				for _, c := range got.ByTool {
+					sum += c.Count
+				}
+				gsum := 0
+				for _, g := range got.Groups {
+					gsum += g.Count
+				}
+				if sum != got.Total || (by != ToolNoGroup && gsum != got.Total) {
+					t.Errorf("tools sum to %d, groups to %d, total %d", sum, gsum, got.Total)
+				}
+			})
+		}
+	}
+}
+
+func TestPathToolsAreDocumented(t *testing.T) {
+	for _, n := range []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"} {
+		if len(PathTools[n]) == 0 {
+			t.Errorf("%s has no path fields", n)
+		}
+	}
+	for _, n := range []string{"SendMessage", "Task", "WebFetch", "Skill"} {
+		if _, ok := PathTools[n]; ok {
+			t.Errorf("%s must not be a path tool", n)
+		}
+	}
+	for _, in := range []string{"paths", "all"} {
+		if s, err := ParsePathScope(in); err != nil || s.String() != in {
+			t.Errorf("ParsePathScope(%q) = %v, %v", in, s, err)
+		}
+	}
+	if _, err := ParsePathScope("every"); err == nil {
+		t.Error("every accepted")
+	}
+}

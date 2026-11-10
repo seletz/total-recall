@@ -102,7 +102,8 @@ func mcpTools() []mcp.Tool {
 				{Name: "by", Type: "string", Enum: []string{"project", "agent", "directory", "account", "day", "session", "repo"}, Description: "break the series down by this key; with tools: day, session, repo or project"},
 				{Name: "top", Type: "integer", Description: "with by: keep the N largest keys, fold the rest into other; with tools and without by: keep the N most used tools in by_tool, the rest is one entry other"},
 				{Name: "tools", Type: "boolean", Description: "count tool calls (tool_use events) per tool instead of activity; by groups them, groups always sum to total"},
-				{Name: "path", Type: "string", Description: "with tools: only calls whose arguments match this glob (file tools: the whole path, e.g. */src/*; Bash: anywhere in the command; arguments are cut at 1 KiB)"},
+				{Name: "path", Type: "string", Description: "with tools: only calls whose arguments match this glob (file tools: the whole path, e.g. */src/*; Bash: anywhere in the command; arguments are cut at 1 KiB); by default only calls of tools whose argument is a path or a command are checked, see path_in"},
+				{Name: "path_in", Type: "string", Enum: []string{"paths", "all"}, Description: "with path: paths (default) checks only Bash, Read, Edit, MultiEdit, Write, Glob, Grep and LS; all checks every call, also messages to other sessions, prompts and URLs"},
 				{Name: "workday", Type: "boolean", Description: "first and last activity per day"},
 				{Name: "blocks", Type: "boolean", Description: "with workday: the blocks of activity per day (a gap above [work] block_gap, default 30m, ends a block) with their sum and the pauses, for booking attendance"},
 				{Name: "worktime", Type: "boolean", Description: "working time per day and category"},
@@ -133,9 +134,11 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "timeline", Title: "Timeline across sessions", Command: []string{"timeline"}, FixedFlags: []string{"--json"},
-			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo, input_kind (how a human input arrived: typed, pasted, bash, remote; null when unknown) and a shortened text. " +
+			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts_local, session_id, project, input_kind (how a human input arrived: typed, pasted, bash, remote; null when unknown) and a shortened text. " +
 				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`." + pagingNote,
-			Units: []string{""},
+			Units:        []string{""},
+			Narrow:       `for an overview of a whole day use fields="ts_local,actor,text" with text_width=80 (the fewest pages); otherwise fewer fields, a smaller text_width, a narrower window (since/until) or limit`,
+			TextDefaults: map[string]string{"fields": mcpTimelineFields},
 			Params: []mcp.Param{
 				pCursor, pSince, pUntil,
 				{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
@@ -143,6 +146,7 @@ func mcpTools() []mcp.Tool {
 				{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool", "all"}, Description: "whose events: human (default, what the user said), agent, peer, automation, tool or all; with all=true and no actor: all"},
 				{Name: "all", Type: "boolean", Description: "include tool calls and results, system and meta events, and every actor unless actor is set (default: messages only)"},
 				{Name: "text_width", Type: "integer", Default: 160, Description: "runes of the text per event, 0 = whole text; text_truncated says when it was cut"},
+				{Name: "fields", Type: "string", Default: mcpTimelineFields, Description: "comma separated keys of every event; fewer keys make smaller pages and so fewer of them. all = every key (event_id, ts, ts_local, session_id, session_name, project, repo, actor, input_kind, kind, text, text_chars, text_truncated). The default leaves out ts (ts_local has the offset), session_name, repo and text_chars. A name given twice counts once, the order does not matter, an empty value is this default. For an overview of a whole day: fields=\"ts_local,actor,text\" with text_width=80"},
 				{Name: "limit", Type: "integer", Description: "keep only the oldest N events; leave out for all (large windows come in pages)"},
 			},
 		},

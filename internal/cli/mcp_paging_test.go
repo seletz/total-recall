@@ -407,9 +407,9 @@ func TestMCPTimelinePagesAddUp(t *testing.T) {
 		args map[string]any
 		cli  []string
 	}{
-		{"human", map[string]any{"since": "2026-10-19", "until": "2026-10-23"}, []string{"timeline", "--since=2026-10-19", "--until=2026-10-23"}},
+		{"human", map[string]any{"since": "2026-10-19", "until": "2026-10-23"}, []string{"timeline", "--since=2026-10-19", "--until=2026-10-23", "--fields=" + mcpTimelineFields}},
 		{"all actors and kinds", map[string]any{"since": "2026-10-20", "until": "2026-10-20", "actor": "all", "all": true},
-			[]string{"timeline", "--since=2026-10-20", "--until=2026-10-20", "--actor=all", "--all"}},
+			[]string{"timeline", "--since=2026-10-20", "--until=2026-10-20", "--actor=all", "--all", "--fields=" + mcpTimelineFields}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bound := timelineBound(newPagedDemo(t, 16<<20), 4, tc.cli...)
@@ -436,7 +436,7 @@ func TestMCPTimelinePagesAddUp(t *testing.T) {
 // for the window, in total and per project; no event is missing or doubled.
 func TestMCPTimelineMatchesStatsOnEveryPage(t *testing.T) {
 	const since, until = "2026-10-12", "2026-10-23"
-	cli := []string{"timeline", "--since=" + since, "--until=" + until}
+	cli := []string{"timeline", "--since=" + since, "--until=" + until, "--fields=" + mcpTimelineFields}
 	bound := timelineBound(newPagedDemo(t, 16<<20), 4, cli...)
 	p := newPagedDemo(t, bound)
 	pages, hints := p.crawl("timeline", map[string]any{"since": since, "until": until})
@@ -655,6 +655,69 @@ func TestMCPDescriptionsSayWherePagingIs(t *testing.T) {
 		}
 		if got := strings.Contains(tool.Description, "SECOND content block"); got != has {
 			t.Errorf("%s: cursor=%v, description mentions the second content block=%v", tool.Name, has, got)
+		}
+	}
+}
+
+// TestMCPTimelineFewerPages: the compact fields of the MCP default (#259)
+// carry more events per page than the whole object, for the same day with
+// every actor and kind and the same bound; and with fields=all (every
+// field) the pages are byte for byte the CLI default output again, so
+// nothing is lost, only left out on request.
+func TestMCPTimelineFewerPages(t *testing.T) {
+	day := map[string]any{"since": "2026-10-20", "until": "2026-10-20", "actor": "all", "all": true}
+	full := []string{"timeline", "--since=2026-10-20", "--until=2026-10-20", "--actor=all", "--all"}
+	bound := timelineBound(newPagedDemo(t, 16<<20), 4, full...)
+	p := newPagedDemo(t, bound)
+
+	compact, hints := p.crawl("timeline", day)
+	allFields := map[string]any{"fields": "all"}
+	for k, v := range day {
+		allFields[k] = v
+	}
+	whole, _ := p.crawl("timeline", allFields)
+	t.Logf("bound %d bytes: %d pages with the default fields, %d with all fields", bound, len(compact), len(whole))
+	if len(compact) >= len(whole) {
+		t.Errorf("default fields need %d pages, all fields %d: not fewer", len(compact), len(whole))
+	}
+	if got, want := reassemble(t, whole, ""), p.cli(full...); got != want {
+		t.Errorf("pages with all fields do not add up to the CLI default output (%d vs %d bytes)", len(got), len(want))
+	}
+	// The default is the CLI with the compact fields, and every event is on
+	// some page: as many events as with all fields.
+	if got, want := reassemble(t, compact, ""), p.cli(append(full, "--fields="+mcpTimelineFields)...); got != want {
+		t.Errorf("default pages do not add up to the CLI output with the compact fields (%d vs %d bytes)", len(got), len(want))
+	}
+	// The hint tells how to get fewer pages.
+	if h := hints[0]; h == nil || !strings.Contains(h.Hint, `fields="ts_local,actor,text"`) || !strings.Contains(h.Hint, "text_width=80") {
+		t.Errorf("hint = %+v, want the overview example fields=\"ts_local,actor,text\" with text_width=80", h)
+	}
+	// An empty fields is the default, a repeated name counts once; the
+	// parameter description says so.
+	empty := map[string]any{"fields": ""}
+	twice := map[string]any{"fields": "text,text,kind"}
+	once := map[string]any{"fields": "text,kind"}
+	for _, m := range []map[string]any{empty, twice, once} {
+		for k, v := range day {
+			m[k] = v
+		}
+	}
+	if pg, _ := p.crawl("timeline", empty); reassemble(t, pg, "") != reassemble(t, compact, "") {
+		t.Error(`fields "" is not the default`)
+	}
+	pt, _ := p.crawl("timeline", twice)
+	po, _ := p.crawl("timeline", once)
+	if reassemble(t, pt, "") != reassemble(t, po, "") {
+		t.Error(`fields "text,text,kind" differs from "text,kind"`)
+	}
+	for _, tool := range mcpTools() {
+		if tool.Name != "timeline" {
+			continue
+		}
+		for _, par := range tool.Params {
+			if par.Name == "fields" && (!strings.Contains(par.Description, "once") || !strings.Contains(par.Description, "empty")) {
+				t.Errorf("fields description does not say that repeats count once and empty is the default: %s", par.Description)
+			}
 		}
 	}
 }

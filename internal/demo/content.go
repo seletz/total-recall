@@ -337,7 +337,7 @@ func featured() []session {
 			},
 		},
 		{
-			id: "7d1e4c20-0008-4000-8000-000000000008", cwd: kompass.cwd, title: "Höhenprofil prüfen",
+			id: "7d1e4c20-0010-4000-8000-000000000010", cwd: kompass.cwd, title: "Höhenprofil prüfen",
 			turns: []turn{
 				{at: at(time.October, 28, 9, 6),
 					prompt: "Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.",
@@ -347,6 +347,49 @@ func featured() []session {
 					},
 					reply:   "The profile showed the raw altitude of the last segment. I now smooth the series before the climb is summed up; the picture matches the route again.",
 					replyAt: 4 * time.Minute},
+			},
+		},
+		// A coordinator and the worker it commands: the coordinator hands the
+		// task to the worker with a terminal command, which the worker's
+		// transcript shows as input of the person (see package dispatch).
+		{
+			id: "7d1e4c20-0008-4000-8000-000000000008", cwd: kompass.cwd, title: "Worker koordinieren",
+			turns: []turn{
+				{at: at(time.October, 29, 21, 30),
+					prompt: "Gib den Lint-Fix an den Worker w1.",
+					tools: []tool{{"Bash", `herdr agent prompt w1 "Behebe den Lint-Fehler in route/cache.go (unused-parameter ctx) und lass die Checks laufen."`,
+						"sent to w1\n"}},
+					reply:   "I sent the task to w1. It fixes the unused parameter and runs the checks.",
+					replyAt: 1 * time.Minute},
+				{at: at(time.October, 29, 21, 41),
+					prompt: "Wie weit ist w1?",
+					reply:  "w1 has fixed the parameter and the checks pass.", replyAt: 20 * time.Second},
+				// The coordinator wakes up on a notification, not on the person, and
+				// hands the next task to the worker: its input is the only one of
+				// the stretch, and no working time of the person.
+				{at: at(time.October, 29, 22, 35),
+					prompt: "<task-notification>Worker w1 finished: lint fix pushed.</task-notification>",
+					tools: []tool{{"Bash", `herdr agent prompt w1 "Rebase den Branch auf develop und push ihn."`,
+						"sent to w1\n"}},
+					reply:   "I sent the next task to w1.",
+					replyAt: 1 * time.Minute},
+			},
+		},
+		{
+			id: "7d1e4c20-0009-4000-8000-000000000009", cwd: kompass.cwd, title: "Lint-Fix im Worker",
+			turns: []turn{
+				{at: at(time.October, 29, 21, 30).Add(23 * time.Second),
+					prompt: "Behebe den Lint-Fehler in route/cache.go (unused-parameter ctx) und lass die Checks laufen.",
+					tools: []tool{{"Bash", "go test ./internal/route/...",
+						"ok  \tkompass/internal/route\t0.318s\n"}},
+					reply:   "Removed the unused ctx parameter from route/cache.go; the checks pass.",
+					replyAt: 3 * time.Minute},
+				{at: at(time.October, 29, 21, 46),
+					prompt: "Danke. Trag bitte noch eine Zeile in den Changelog ein.",
+					reply:  "Added the line to the changelog.", replyAt: 30 * time.Second},
+				{at: at(time.October, 29, 22, 35).Add(23 * time.Second),
+					prompt: "Rebase den Branch auf develop und push ihn.",
+					reply:  "Rebased onto develop and pushed the branch.", replyAt: 40 * time.Second},
 			},
 		},
 	}

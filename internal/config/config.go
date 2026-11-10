@@ -454,6 +454,13 @@ type Actors struct {
 	PeerPrefixes       []string `toml:"peer_prefixes"`
 	PeerPasteHeaders   []string `toml:"peer_paste_headers"`
 	AutomationPrefixes []string `toml:"automation_prefixes"`
+	// PromptCommands are substrings of tool arguments (Bash commands) that
+	// send text into another session's terminal. A short input is only
+	// matched with a call that contains one of them (#265).
+	PromptCommands []string `toml:"prompt_commands"`
+	// PromptWindow is how long before an input the tool call of another
+	// session may be that sent it; 0 turns the detection off.
+	PromptWindow Duration `toml:"prompt_window"`
 }
 
 // Git configures git info resolution.
@@ -517,6 +524,8 @@ var fields = []struct {
 	{"harness.claude.actors.peer_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PeerPrefixes) }},
 	{"harness.claude.actors.peer_paste_headers", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PeerPasteHeaders) }},
 	{"harness.claude.actors.automation_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.AutomationPrefixes) }},
+	{"harness.claude.actors.prompt_commands", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PromptCommands) }},
+	{"harness.claude.actors.prompt_window", func(c *Config) string { return c.Harness.Claude.Actors.PromptWindow.String() }},
 	{"git.resolve", func(c *Config) string { return strconv.FormatBool(c.Git.Resolve) }},
 	{"work.hours", func(c *Config) string { return c.Work.Hours }},
 	{"work.target", func(c *Config) string { return c.Work.Target.String() }},
@@ -634,7 +643,8 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		Enabled:         true,
 		ProjectsDir:     filepath.Join(claudeDir, "projects"),
 		SkipRecordTypes: []string{},
-		Actors:          Actors{PeerPrefixes: []string{}, PeerPasteHeaders: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"}},
+		Actors: Actors{PeerPrefixes: []string{}, PeerPasteHeaders: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"},
+			PromptCommands: []string{"herdr agent prompt", "tmux send-keys"}, PromptWindow: Duration{120 * time.Second}},
 	}
 	c.Git.Resolve = true
 	c.Work = Work{

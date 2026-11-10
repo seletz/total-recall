@@ -14,6 +14,7 @@ type ReclassifySummary struct {
 	Examined    int            // stored user messages looked at
 	Changed     int            // messages whose actor differs under the current rules (written unless DryRun)
 	InputKinds  int            // messages whose input kind differs under the current rules (written unless DryRun)
+	Dispatched  int            // messages now automation because another session sent the text (part of Changed)
 	Undecided   int            // messages the harness could not decide (no text rule matched, raw record missing)
 	Transitions map[string]int // "<old> -> <new>" → count of changed messages
 	DryRun      bool
@@ -27,6 +28,10 @@ type ReclassifySummary struct {
 func Reclassify(ctx context.Context, d Deps, dryRun bool) (ReclassifySummary, error) {
 	start := time.Now()
 	sum := ReclassifySummary{Transitions: map[string]int{}, DryRun: dryRun}
+	ix, err := dispatchIndex(ctx, d, time.Time{}, time.Time{})
+	if err != nil {
+		return sum, err
+	}
 	for _, a := range d.Adapters {
 		rc, ok := a.(harness.Reclassifier)
 		if !ok {
@@ -42,7 +47,15 @@ func Reclassify(ctx context.Context, d Deps, dryRun bool) (ReclassifySummary, er
 			if !ok {
 				sum.Undecided++
 				actor = m.Actor // the actor stays; the input kind may still be decidable
-			} else if actor != m.Actor {
+			}
+			// A human input another session sent is automation.
+			if actor == model.ActorHuman && ix.Sent(m.SessionID, m.TS, m.Text) {
+				actor = model.ActorAutomation
+				if m.Actor != actor {
+					sum.Dispatched++
+				}
+			}
+			if actor != m.Actor {
 				sum.Changed++
 				sum.Transitions[string(m.Actor)+" -> "+string(actor)]++
 			}

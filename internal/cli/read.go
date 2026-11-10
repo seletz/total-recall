@@ -1042,7 +1042,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var top int
 	var of outputFlags
 	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks bool
-	var toolPath string
+	var toolPath, toolPathIn string
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -1070,6 +1070,10 @@ match: the stored input of the call, i.e. the file path of the file tools
 anywhere in it). Arguments are cut at 1 KiB at ingest, a path
 behind the cut is not found; other tools are matched on their first
 well-known field (command, file_path, path, url, query, pattern, ...).
+By default --path only looks at the tools whose argument is a path, a path
+pattern or a command (Bash, Read, Edit, MultiEdit, Write, Glob, Grep, LS), so
+a message or a prompt that merely names a path does not count; --path-in all
+checks every call as before.
 
 With --workday the output is the first and the last activity per day (for
 filling in forgotten clock-ins): one row per day with the local clock times
@@ -1117,6 +1121,12 @@ messages: the values are a lower bound.`,
 		}
 		if !tools && toolPath != "" {
 			return usagef("--path requires --tools")
+		}
+		if toolPathIn != "" && !tools {
+			return usagef("--path-in requires --tools")
+		}
+		if toolPathIn != "" && toolPath == "" {
+			return usagef("--path-in requires --path")
 		}
 		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
@@ -1173,7 +1183,7 @@ messages: the values are a lower bound.`,
 			return err
 		}
 		if tools {
-			return e.runToolStats(cmd, cfg, o, since, until, by, toolPath, top)
+			return e.runToolStats(cmd, cfg, o, since, until, by, toolPath, toolPathIn, top)
 		}
 		var opts seriesOptions
 		if series {
@@ -1231,7 +1241,8 @@ messages: the values are a lower bound.`,
 	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory or account (implies --period day)")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\"; with --tools and no --by: the N most used tools (0 = all)")
 	c.Flags().BoolVar(&tools, "tools", false, "count tool_use events per tool; --by day, session, repo or project groups them, --path GLOB filters on the arguments")
-	c.Flags().StringVar(&toolPath, "path", "", "with --tools: only calls whose arguments match this glob (file tools: the whole path; Bash: anywhere in the command)")
+	c.Flags().StringVar(&toolPathIn, "path-in", "", "with --path: paths (default: only calls of tools whose argument is a path, a path pattern or a command) or all (every call, also messages, prompts and URLs)")
+	c.Flags().StringVar(&toolPath, "path", "", "with --tools: only calls whose arguments match this glob (file tools: the whole path; Bash: anywhere in the command); see --path-in for the tools checked")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")

@@ -3,7 +3,7 @@
  > image                                                                                actor: all  since: all  repo: *
 ─ [event] session memory ──────────────────────────────────┬─ project: all ─────────────────────────────────────────────
 ▸2026-10-28 09:06 ▣1  Höhenprofil prüfen              human│ Höhenprofil prüfen
-  [image image/png 956 B]                                  │ claude:7d1e4c20-0008-4000-8000-000000000008  mara/kompass
+  [image image/png 956 B]                                  │ claude:7d1e4c20-0010-4000-8000-000000000010  mara/kompass
                                                            │ 2026-10-28 09:06 – 09:10 (4m)  main
                                                            │────────────────────────────────────────────────────────────
                                                            │── 09:06  human ◄

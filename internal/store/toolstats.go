@@ -48,6 +48,57 @@ func ParseToolGroup(s string) (ToolGroup, error) {
 	return ToolNoGroup, fmt.Errorf("invalid grouping %q for --tools (day, session, repo, project)", s)
 }
 
+// PathScope selects which tool calls ToolFilter.Path is checked against.
+type PathScope int
+
+// Scopes of ToolFilter.Path.
+const (
+	// PathScopePaths checks only calls of the tools in PathTools, whose
+	// stored argument is a path, a path pattern or a command. The default.
+	PathScopePaths PathScope = iota
+	// PathScopeAll checks the stored argument of every tool call, also
+	// messages to other sessions, prompts, URLs and queries.
+	PathScopeAll
+)
+
+// String returns paths or all.
+func (p PathScope) String() string {
+	if p == PathScopeAll {
+		return "all"
+	}
+	return "paths"
+}
+
+// ParsePathScope returns the scope named by s: paths or all.
+func ParsePathScope(s string) (PathScope, error) {
+	for _, p := range []PathScope{PathScopePaths, PathScopeAll} {
+		if p.String() == s {
+			return p, nil
+		}
+	}
+	return PathScopePaths, fmt.Errorf("invalid path scope %q (paths, all)", s)
+}
+
+// PathTools are the tools whose argument is a path, a path pattern or a
+// command, with the input fields that carry it. It is the one place that
+// says which calls the default scope of ToolFilter.Path looks at; the
+// command reference lists the same. The archive stores one text per call
+// (events.text, the first present of command, file_path, path, ..., pattern),
+// not the field names, so the tool name decides. A tool that is not listed
+// (SendMessage, Task, WebFetch, WebSearch, Skill, MCP tools of any server,
+// NotebookEdit whose path is not among the stored fields) is only found
+// with PathScopeAll.
+var PathTools = map[string][]string{
+	"Bash":      {"command"},
+	"Read":      {"file_path"},
+	"Edit":      {"file_path"},
+	"MultiEdit": {"file_path"},
+	"Write":     {"file_path"},
+	"Glob":      {"path", "pattern"},
+	"Grep":      {"path", "pattern"},
+	"LS":        {"path"},
+}
+
 // UnknownTool is the name under which tool_use events without a tool name
 // are counted.
 const UnknownTool = "unknown"
@@ -66,6 +117,9 @@ type ToolFilter struct {
 	// Bash the pattern may match anywhere in the command, for every other
 	// tool it must match the whole argument. "" matches everything.
 	Path string
+	// PathIn selects the calls Path is checked against; see PathScope.
+	// Ignored without Path.
+	PathIn PathScope
 	// TopN keeps the TopN largest groups and folds the rest into OtherKey
 	// (last). 0 keeps all. Not applied to ToolByDay. Without a grouping
 	// (ToolNoGroup) it keeps the TopN most used tools in ByTool and folds
@@ -146,6 +200,17 @@ func (s *Store) ToolStats(ctx context.Context, f ToolFilter) (ToolStats, error) 
 	if f.Path != "" {
 		cond = append(cond, "((e.tool_name = 'Bash' AND e.text GLOB '*' || ? || '*') OR (COALESCE(e.tool_name, '') <> 'Bash' AND e.text GLOB ?))")
 		args = append(args, f.Path, f.Path)
+		if f.PathIn == PathScopePaths {
+			names := make([]string, 0, len(PathTools))
+			for n := range PathTools {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			cond = append(cond, "e.tool_name IN ("+strings.TrimSuffix(strings.Repeat("?,", len(names)), ",")+")")
+			for _, n := range names {
+				args = append(args, n)
+			}
+		}
 	}
 	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, COALESCE(e.tool_name, ''), e.session_id, `+repoExpr+`,
 			COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''),
