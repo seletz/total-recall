@@ -13,6 +13,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **`stats --day DATUM`:** ein Tag chronologisch, als Text und als JSON: der Kopf wie bei `--workday --blocks` (Spanne, `block_seconds`, `break_seconds`, Soll, Saldo, Events nach Mensch und Agent), die Blöcke mit Start, Ende, Sekunden, Events und `single`, je Block die Projekte mit Sekunden und die Sessions, dazu die Projekte des Tags mit der Zeit von `--worktime`. Es gibt keine zweite Rechnung (neues Paket `internal/dayreport` über `store.Workday`, `store.Timeline` und `worktime.Compute`); die Invarianten prüft ein Test auf dem Demo-Archiv. `--all-events` wie bei `--workday`. Siehe [`--day`](10-befehle.md#stats-day). Neue Option, Minor.
 - **MCP:** das Tool `stats` hat den Parameter `day`; die Seitenliste ist `blocks`.
 
+### Anhänge finden ([#272](https://github.com/seletz/total-recall/issues/272))
+
+- **`search --has-attachment[=image|document]` und `sessions --has-attachment[=…]`** finden Events und Sessions mit einem Bild oder Dokument, kombinierbar mit `--actor`, `--since`/`--until` und `--project`. `sessions` hat dafür neu `--project` und `--actor` (mit `--has-attachment`). Die Art folgt mit `=`.
+- **Ohne Suchwort:** `search --has-attachment` listet die neuesten Events mit Anhang (Event, Session, Typ, Größe).
+- **JSON:** Event-Treffer haben `attachments` und `attachment_count`, Sessions und Session-Treffer `attachment_count` (nur neue Felder). Die Treffer mit Anhang sind genau die Events von `event_blobs`, die Summen der Anhänge über Treffer, Sessions und Tabelle sind gleich.
+- **MCP:** `search` und `sessions` haben `has_attachment`, `sessions` zusätzlich `actor` und `project`; `query` darf bei `search` mit `has_attachment` fehlen.
+- **Store-API für die TUI:** `SessionFilter.Attachment`, `SessionInfo.Attachments`, `SearchHit.Attachments`, `SessionFilter.Projects` (siehe [Anhänge finden](10-befehle.md#anhaenge-finden)). Die TUI-Filter folgen darauf.
+
 ### Anhänge in der TUI ([#184](https://github.com/seletz/total-recall/issues/184))
 
 - **Anhang-Viewer:** Bilder und Dokumente, die zu einem Event gehören, lassen sich in der TUI ansehen. `v` öffnet in der Suche (bei einem Treffer mit Anhang) und in der Session (mit Anhängen) eine dritte Ebene, die durch alle Anhänge der Session blättert. Bilder erscheinen als Text (Schattenzeichen in der Farbe des Bildes, auch mit `NO_COLOR` lesbar, an die Fenstergröße angepasst), PDFs mit Seitenzahl und Titel, Texte mit ihrem Anfang; `o` öffnet den Anhang mit dem Programm des Systems, `total-recall blob` bleibt die Rückfallebene. Die Kitty-Grafik für Bilder folgt.
