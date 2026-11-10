@@ -200,3 +200,41 @@ func TestWidths(t *testing.T) {
 		}
 	}
 }
+
+func TestAttachmentsInExchangeAndTool(t *testing.T) {
+	atts := map[string][]store.EventAttachment{
+		"m2": {{BlobInfo: store.BlobInfo{MediaType: "image/png", Bytes: 2048}}},
+		"r1": {{BlobInfo: store.BlobInfo{MediaType: "application/pdf", Bytes: 100}}},
+	}
+	msgs := []model.Event{
+		event("m1", model.KindMessage, model.ActorHuman, "", "look"),
+		event("m2", model.KindMessage, model.ActorHuman, "", "[image image/png 2.0 KiB]"),
+	}
+	use := event("u1", model.KindToolUse, model.ActorAgent, "Read", "x")
+	res := event("r1", model.KindToolResult, model.ActorTool, "", "doc")
+	tests := []struct {
+		name string
+		v    Viewer
+		want []string
+		not  []string
+	}{
+		{"exchange", Exchange{Session: info("s"), Events: msgs, Hit: 1, Attachments: atts}, []string{"▣ image/png 2.0 KiB"}, []string{"application/pdf"}},
+		{"exchange without", Exchange{Session: info("s"), Events: msgs, Hit: 1}, nil, []string{"▣"}},
+		{"tool", Tool{Session: info("s"), Use: &use, Result: &res, HitResult: true, Attachments: atts}, []string{"▣ application/pdf 100 B"}, []string{"image/png 2.0"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := plain(tt.v.Render(env, 60))
+			for _, w := range tt.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("lacks %q:\n%s", w, got)
+				}
+			}
+			for _, n := range tt.not {
+				if strings.Contains(got, n) {
+					t.Errorf("has %q:\n%s", n, got)
+				}
+			}
+		})
+	}
+}

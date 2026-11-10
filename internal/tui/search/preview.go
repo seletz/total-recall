@@ -200,10 +200,36 @@ func loadEvent(ctx context.Context, ld Loader, e model.Event) (viewer.Viewer, er
 	}
 	if k := events[i].Kind; k == model.KindToolUse || k == model.KindToolResult {
 		use, result := viewer.PairTool(events, i)
-		return viewer.Tool{Session: s, Use: use, Result: result, HitResult: k == model.KindToolResult}, nil
+		var ids []string
+		for _, ev := range []*model.Event{use, result} {
+			if ev != nil {
+				ids = append(ids, ev.ID)
+			}
+		}
+		return viewer.Tool{Session: s, Use: use, Result: result, HitResult: k == model.KindToolResult,
+			Attachments: attachmentsOfEvents(ctx, ld, ids)}, nil
 	}
 	start, end := window(events, e.ID)
-	return viewer.Exchange{Session: s, Events: events[start : end+1], Hit: i - start}, nil
+	ids := make([]string, 0, end-start+1)
+	for _, ev := range events[start : end+1] {
+		ids = append(ids, ev.ID)
+	}
+	return viewer.Exchange{Session: s, Events: events[start : end+1], Hit: i - start,
+		Attachments: attachmentsOfEvents(ctx, ld, ids)}, nil
+}
+
+// attachmentsOfEvents reads the attachments of events from ld when it can
+// tell; a failure leaves the preview without the lines.
+func attachmentsOfEvents(ctx context.Context, ld Loader, ids []string) map[string][]store.EventAttachment {
+	src, ok := ld.(AttachmentSource)
+	if !ok || len(ids) == 0 {
+		return nil
+	}
+	atts, err := src.EventsAttachments(ctx, ids)
+	if err != nil {
+		return nil
+	}
+	return atts
 }
 
 // previewResult applies a load result.

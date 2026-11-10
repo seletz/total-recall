@@ -1,0 +1,36 @@
+ total-recall                updated 10:00:00                [1 search] › attachments  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Höhenprofil prüfen  attachments
+ 1 image/png 956 B [2 application/pdf 342 B]
+ application/pdf
+ 342 B  2 of 2
+ b3d545a496b3
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ PDF 1.4
+ pages    1
+ title    Notes on the track format
+ author   Mara Example
+ producer kompass docs
+
+ total-recall blob b3d545a496b3 --out FILE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 2 attachments
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ←/→ browse • ↑/↓ scroll • o/enter open with the system viewer • esc back • 1 search • 2 stats • 3 activity • ? help …

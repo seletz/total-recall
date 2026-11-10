@@ -106,6 +106,7 @@ In den Ansichten:
 | Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
 | Klick auf die Vorschau | öffnet den markierten Treffer wie ++enter++, egal ob Eingabe oder Liste den Fokus hat |
 | Klick auf eine Datei, Version oder Änderung im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei oder Änderung öffnet ihren Verlauf wie ++enter++ |
+| Klick auf einen Reiter im Anhang-Viewer | markiert den Anhang wie ++left++/++right++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
 | Klick auf einen Typ in der Linie der Suche (`event`, `session`, `memory`) | schaltet den Typ ein oder aus wie `e`, `s`, `m` |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
@@ -161,6 +162,7 @@ Die Vorschau wählt den Viewer nach dem Typ des markierten Treffers. Alle Viewer
 | `event`, Nachricht | der Austausch um den Treffer, wie oben beschrieben |
 | `event`, Tool-Aufruf oder Tool-Ergebnis | **Eingabe und Ausgabe getrennt**, je unter einer Trennzeile (Tool, Zeit); der Treffer ist mit `◄` markiert. Ist der Text ein JSON-Objekt oder -Array, wird er eingerückt. Das Gegenstück steht dabei: zum Ergebnis der Aufruf davor, zum Aufruf das Ergebnis danach |
 | `session` | der Kopf der Session, die Zahl der Events (menschlich, Agent) und die ersten fünf Nachrichten, je höchstens sechs Zeilen |
+| `event` mit Anhang | wie die anderen Event-Viewer, unter dem Text jedes Events mit Anhängen eine Zeile `▣ image/png 34,2 KiB` je Anhang; `v` öffnet den [Anhang-Viewer](#anhaenge) |
 | `memory` | die Datei als lesbares Markdown: Front Matter und Codeblöcke gedämpft, Überschriften in der Akzentfarbe ohne `#`, Aufzählungen als `•`, Absätze umbrochen, ohne die Zeichen für fett und Code. Im Kopf stehen der Pfad, das Projekt mit dem Harness und die Zeit der Fassung. Liegt der erste Treffer tief in der Datei, springt die Vorschau dorthin, sonst steht die Datei am Anfang |
 
 ![Treffer in einer Tool-Ausgabe: rechts Aufruf und Ausgabe getrennt, das JSON eingerückt](../assets/screenshots/search-tool.png)
@@ -246,6 +248,51 @@ Der Viewer hat drei Seiten; ++esc++ geht immer eine Seite zurück, von den Datei
 *Verlauf einer gelöschten Memory-Datei: die Löschung steht als eigene Version oben*
 
 Der Zeitpunkt einer Version ist die Änderungszeit der Datei, bei einer Löschung der Zeitpunkt des Scans, der sie vermisst hat. Gesehen wird nur, was ab dem ersten Lauf nach [Migration 8](../explanation/design.md#memory) archiviert wurde; frühere Stände gibt es nicht. Der Zeitpunkt in der Zeitleiste ist der der Version. Blättern im Text mit `b`/`f` (++pgup++/++pgdn++) oder dem Mausrad über der rechten Spalte, die Markierung mit ++up++/++down++ oder dem Mausrad über der Liste.
+
+## Anhänge { #anhaenge }
+
+Bilder und Dokumente, die Claude Code in einer Nachricht oder einem Tool-Ergebnis mitschickt, liegen als Blob im Archiv ([`blobs`](../explanation/design.md#blobs), Schema v5, aufgenommen seit v1.3.0). Die TUI zeigt sie an drei Stellen:
+
+- **Markierung in der Trefferliste:** Ein Event-Treffer mit Anhang trägt hinter der Zeit `▣` und die Zahl der Anhänge (`▣2`); die Vorschau nennt unter dem Text des Events jeden Anhang mit Typ und Größe, die Fußzeile den Hinweis `v view attachments`. Sessions und Treffer ohne Anhänge bleiben unverändert.
+- **Markierung in der Session:** Die Trennzeile eines Events mit Anhängen endet auf `▣` und der Zahl; die Fußzeile nennt `v` nur in einer Session, die Anhänge hat. Mit ausgeblendeten Tools zählen nur die Events, die zu sehen sind.
+- **Anhang-Viewer:** `v` öffnet ihn als dritte Ebene neben Session und Memory: Er blättert durch **alle Anhänge der Session** in der Reihenfolge des Verlaufs, beginnend beim Anhang des Events, bei dem man war (in der Session: der markierte Event, sonst der erste Event mit Anhang ab der obersten sichtbaren Zeile). Der Tab zeigt `› attachments`, aus der Session `› session › attachments`; ++esc++ führt dorthin zurück, wo man herkam, `1` bis `4` schließen die Ebene. Über dem Inhalt stehen die Reiter der Anhänge (Nummer, Typ, Größe, der markierte in Klammern); ++left++/++right++ oder ein Klick auf einen Reiter wechseln, ++up++/++down++ und ++pgup++/++pgdn++ scrollen, was länger ist als das Fenster.
+
+![Treffer mit Anhang: in der Liste die Markierung ▣ mit der Zahl der Anhänge, in der Vorschau eine Zeile je Anhang, in der Fußzeile die Taste v](../assets/screenshots/search-attachment.png)
+
+*Treffer mit Anhang: in der Liste die Markierung ▣ mit der Zahl der Anhänge, in der Vorschau eine Zeile je Anhang, in der Fußzeile die Taste v*
+
+Was der Viewer zeigt, richtet sich nach dem Medientyp (`internal/docmeta`):
+
+| Typ | Darstellung |
+|---|---|
+| PNG, JPEG, GIF, WebP | das **Bild als Text** (`internal/imgtext`): eine Zelle je Block von Pixeln, ein Schattenzeichen (` ░▒▓█`) nach der Helligkeit des Blocks, in der Farbe des Blocks. Das Zeichen trägt das Bild allein, es bleibt deshalb auch mit `NO_COLOR` lesbar; auf einem hellen Terminal ist die Schattierung umgekehrt. Das Bild wird an Breite und Höhe des Fensters angepasst, ohne es zu verzerren (eine Zelle ist doppelt so hoch wie breit), und nie größer gezeichnet als es ist. Über 40 Millionen Pixel wird es nicht dekodiert |
+| PDF | die **Metadaten**: Version, Seitenzahl, Titel, Autor, Erzeuger. Sie werden aus den Bytes der Datei gelesen (keine PDF-Bibliothek); steht der Seitenbaum in einem komprimierten Objektstrom, fehlt die Seitenzahl, und ein Titel in Hex-Schreibweise wird nicht angezeigt |
+| Text (`text/*`, JSON, SVG) | der **Anfang des Textes** (höchstens 64 KiB), umbrochen; Daten, die kein UTF-8 sind, zeigt der Viewer nicht |
+| anderes | der Medientyp, die Größe und der Hash |
+
+Zu jedem Anhang gehört der Kopf (Typ, Größe, Position unter den Anhängen, die ersten zwölf Zeichen des Hashes) und am Ende der Befehl, der die Daten in eine Datei schreibt: `total-recall blob HASH --out DATEI` ([`blob`](10-befehle.md#blob)); das ist die Rückfallebene für alles, was die TUI nicht zeigt, und für Terminals, die gar nichts zeigen.
+
+**Extern öffnen:** `o` oder ++enter++ schreibt den Anhang in eine Datei in einem privaten Verzeichnis (`total-recall-…` im temporären Verzeichnis, Modus 0700, Datei 0600, Name aus Hash und Endung des Medientyps) und übergibt sie dem Programm des Systems: `open` unter macOS, `xdg-open` unter Linux und den BSDs, `start` unter Windows. Die Statuszeile nennt den Pfad. Geht es nicht (kein Programm, Daten nicht gespeichert), steht dort der Grund und der Befehl `total-recall blob`. Das Verzeichnis bleibt stehen, weil das Programm die Datei noch lesen kann, wenn die TUI endet; das System räumt sein temporäres Verzeichnis selbst auf.
+
+**Ohne Daten:** Mit `[ingest] store_blobs = false` bleibt der Verweis im Archiv, die Daten nicht; der Viewer zeigt dann `data not stored` und lässt das Öffnen aus.
+
+**Kitty-Grafik** für Bilder (wie bei den Charts, siehe [Grafikmodi](#grafikmodi)) gibt es im Anhang-Viewer noch nicht, Bilder erscheinen nur als Text; sie sind als eigener Schritt geplant ([#184](https://github.com/seletz/total-recall/issues/184)).
+
+![Anhang-Viewer: ein Bild als Text (Schattierung und Farbe je Zelle), oben die Reiter der Anhänge der Session, unten der Befehl total-recall blob](../assets/screenshots/attachment-image.png)
+
+*Anhang-Viewer: ein Bild als Text (Schattierung und Farbe je Zelle), oben die Reiter der Anhänge der Session, unten der Befehl total-recall blob*
+
+![Anhang-Viewer: ein Dokument mit seinen Metadaten (PDF: Seiten, Titel, Autor)](../assets/screenshots/attachment-document.png)
+
+*Anhang-Viewer: ein Dokument mit seinen Metadaten (PDF: Seiten, Titel, Autor)*
+
+![Anhang-Viewer in einem schmalen Terminal: das Bild wird an Breite und Höhe angepasst](../assets/screenshots/attachment-narrow.png)
+
+*Anhang-Viewer in einem schmalen Terminal (80×24): das Bild wird an Breite und Höhe angepasst*
+
+![Session mit Anhängen: hinter dem Kopf eines Events mit Bild oder Dokument steht ▣ mit der Zahl, v öffnet den Viewer](../assets/screenshots/session-attachment.png)
+
+*Session mit Anhängen: hinter dem Kopf eines Events mit Bild oder Dokument steht ▣ mit der Zahl, `v` öffnet den Viewer*
 
 ## Statistik
 
@@ -461,6 +508,7 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 | `a`, `t`, `r` | `search_actor`, `search_time`, `search_repo` | Suchtext | Filter Actor, Zeitraum, Repo |
 | `e`, `s`, `m` | `search_type_event`, `search_type_session`, `search_type_memory` | Suchtext | Typ `event`, `session`, `memory` ein/aus |
 | `p`, `P` | `search_pin`, `search_project` | Suchtext | Projekt des markierten Treffers pinnen oder den Pin aufheben; Liste der Projekte öffnen |
+| `v` | `search_attach` | Suchtext | Anhänge des markierten Events ansehen (nur bei einem Treffer mit Anhang) |
 | ++ctrl+r++ | `search_raw` | Rohsyntax ein/aus | Rohsyntax ein/aus |
 
 Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernimmt, ++esc++ (`global_back`) verwirft; siehe [Fokus](#fokus). In der Projektliste: ++up++/++down++ (`search_up`, `search_down`) bewegen, ++enter++ (`search_open`) pinnt, ++esc++ (`global_back`) bricht ab.
@@ -476,6 +524,7 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `n` / `N` | `session_next`, `session_prev` | nächster / voriger Treffer |
 | `T` | `session_tools` | Tool-Events ein/aus |
 | `y` | `session_copy` | Session-ID kopieren |
+| `v` | `session_attach` | Anhänge der Session ansehen (nur in einer Session mit Anhängen) |
 | ++esc++ | `global_back` | zurück zur Suche |
 
 ### Memory
@@ -489,6 +538,16 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `t` | `memory_timeline` | Zeitleiste des Projekts |
 | `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | `memory_page_up`, `memory_page_down` | den Text blättern |
 | ++esc++ | `global_back` | eine Seite zurück, von den Dateien zur Suche |
+
+### Anhänge
+
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| ++left++ / `p`, ++right++ / `n` | `attach_prev`, `attach_next` | voriger / nächster Anhang der Session |
+| ++up++ / `k`, ++down++ / `j` | `attach_up`, `attach_down` | den Inhalt zeilenweise scrollen |
+| `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | `attach_page_up`, `attach_page_down` | den Inhalt seitenweise scrollen |
+| `o` / ++enter++ | `attach_open` | den Anhang mit dem Programm des Systems öffnen |
+| ++esc++ | `global_back` | zurück zur Suche bzw. zur Session |
 
 ### Statistik
 
@@ -629,6 +688,7 @@ tmux ersetzt in seinen Panes `TERM` und `TERM_PROGRAM`, daher erkennt die TUI Gh
 - **Aktivität:** der Balken ist nur Text, kein Bild; die Tagesgrenze kommt aus der Config, nicht aus der Ansicht; kein Sprung aus einem Tag in die Session. Feiertage kennt nur Deutschland (je Bundesland); Urlaub und Krankheit sind der Ansicht unbekannt und zählen als Arbeitstage ohne Aktivität.
 - **Statistik:** Feiertage markiert nur das Text-Chart in der Achse; das Bild (Kitty Graphics) hat keine farbigen Achsenbeschriftungen.
 - **Bilder** nur in Ghostty, kitty und herdr; andere Terminals mit Kitty Graphics, aber ohne Platzhalter, bekommen Text. Sixel und das iTerm2-Protokoll werden nicht angeboten.
+- **Anhänge:** Bilder nur als Text, die Kitty-Grafik folgt; ein PDF zeigt nur Metadaten, keine Seite; der Anhang-Viewer blättert durch die Anhänge **einer Session**, nicht über Sessions hinweg. Anhänge aus Tool-Ergebnissen erscheinen in der Session nur mit eingeblendeten Tools.
 - **Maus:** Klicks schalten Umschalter, Tabs, Treffer und Zeilen (siehe [Maus](#maus)); kein Ziehen in Listen, kein Klick in die Vorschau, auf einen Balken oder in die Heatmap. Textauswahl nur mit Zusatztaste des Terminals oder mit `--no-mouse`.
 - **Zwischenablage** über OSC 52; das Terminal muss es erlauben (in tmux `set -g set-clipboard on`).
 - **Neuladen** lädt die Daten, nicht die Uhr: Das Fenster der Statistik und der Aktivität bleibt an dem Tag hängen, an dem die TUI gestartet wurde; nach Mitternacht hilft `c` bzw. ein Neustart.

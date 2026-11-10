@@ -30,6 +30,10 @@ type Env struct {
 	Location *time.Location
 	// Terms are the words of the search, highlighted in the text.
 	Terms []string
+	// Rows is the height of the column the viewer is drawn in; only the
+	// viewers that fit their content to it (an image) look at it, 0 means
+	// unknown.
+	Rows int
 }
 
 func (e Env) loc() *time.Location {

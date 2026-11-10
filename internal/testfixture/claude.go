@@ -3,6 +3,7 @@
 package testfixture
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,6 +29,27 @@ func User(session, uuid, ts, cwd, text string) Line {
 	return Line{"type": "user", "uuid": uuid, "timestamp": ts, "sessionId": session, "cwd": cwd,
 		"gitBranch": "main", "version": "2.1.300", "origin": map[string]any{"kind": "human"},
 		"message": map[string]any{"role": "user", "content": text}}
+}
+
+// Attached is an image or a document of a user message: Kind is "image"
+// or "document", Data is encoded as Base64 into the line.
+type Attached struct {
+	Kind, MediaType string
+	Data            []byte
+}
+
+// UserWithAttachments returns a typed user message whose content is the
+// text followed by one block per attachment, as Claude Code writes a
+// pasted image or a dropped document.
+func UserWithAttachments(session, uuid, ts, cwd, text string, atts ...Attached) Line {
+	content := []any{map[string]any{"type": "text", "text": text}}
+	for _, a := range atts {
+		content = append(content, map[string]any{"type": a.Kind, "source": map[string]any{
+			"type": "base64", "media_type": a.MediaType, "data": base64.StdEncoding.EncodeToString(a.Data)}})
+	}
+	l := User(session, uuid, ts, cwd, text)
+	l["message"] = map[string]any{"role": "user", "content": content}
+	return l
 }
 
 // Assistant returns an assistant text message.

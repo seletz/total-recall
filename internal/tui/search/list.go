@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/viewer"
 )
 
 // Sentinels the store wraps around matches in snippets; renderSnippet turns
@@ -213,12 +215,22 @@ func (m Model) entryEvent(h store.Hit, mark string, base lipgloss.Style, w int) 
 	ev := h.Event
 	ts := h.TS.In(m.opts.Location).Format("2006-01-02 15:04")
 	actor := string(ev.Event.Actor)
-	nameWidth := w - 1 - len(ts) - 2 - 2 - ansi.StringWidth(actor)
+	// An event with attachments carries the mark and their number after
+	// the time, where a narrow column still shows it; the name gives up
+	// the room for it first.
+	tail := ""
+	if n := len(m.attached[ev.Event.ID]); n > 0 {
+		tail = " " + viewer.AttachmentMark + strconv.Itoa(n)
+	}
+	nameWidth := w - 1 - len(ts) - 2 - 2 - ansi.StringWidth(actor) - ansi.StringWidth(tail)
 	name := ansi.Truncate(strings.TrimSpace(ev.SessionName), max(nameWidth, 0), "…")
 	pad := strings.Repeat(" ", max(nameWidth-ansi.StringWidth(name), 0))
 	// Every piece is styled on its own, so the selection background spans
 	// the row while time and actor keep their colours.
-	head := m.th.Mark.Inherit(base).Render(mark) + m.th.Muted.Inherit(base).Render(ts) +
+	if tail != "" {
+		tail = m.th.Mark.Inherit(base).Render(tail)
+	}
+	head := m.th.Mark.Inherit(base).Render(mark) + m.th.Muted.Inherit(base).Render(ts) + tail +
 		base.Render("  "+name+pad+"  ") + m.th.Actor(model.Actor(actor)).Inherit(base).Render(actor)
 	head = ansi.Truncate(head, w, "")
 	return []string{head, "  " + m.renderSnippet(h.Snippet, max(w-2, 0))}

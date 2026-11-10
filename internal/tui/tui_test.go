@@ -605,3 +605,52 @@ func TestMemoryView(t *testing.T) {
 		})
 	}
 }
+
+// TestAttachmentView drives the attachment view over the demo archive:
+// from a search hit with an attachment, from the session detail, back
+// with esc to where it came from, and with the layer named in the tab.
+func TestAttachmentView(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	newApp := func(query string) tea.Model {
+		app, err := New(Options{Store: st, Query: query, Now: func() time.Time { return demo.Now }, Location: demo.Location})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tuitest.Drive(t, app, tea.WindowSizeMsg{Width: 120, Height: 30})
+	}
+	tests := []struct {
+		name  string
+		query string
+		steps []string
+		want  []string
+		not   []string
+	}{
+		{"mark in the list", "image", []string{"tab"}, []string{"▣1", "v view attachments"}, nil},
+		{"from the search", "image", []string{"tab", "v"}, []string{"› attachments", "Höhenprofil prüfen", "png 96×48", "1 image/png", "2 application/pdf"}, nil},
+		{"next shows the document", "image", []string{"tab", "v", "right"}, []string{"Notes on the track format", "PDF 1.4"}, []string{"png 96×48"}},
+		{"back to the search", "image", []string{"tab", "v", "esc"}, []string{"[1 search]", "▣1"}, []string{"› attachments"}},
+		{"from the session", "image", []string{"tab", "enter", "v"}, []string{"› session › attachments", "png 96×48"}, nil},
+		{"back to the session", "image", []string{"tab", "enter", "v", "esc"}, []string{"› session", "Höhenprofil prüfen"}, []string{"› attachments"}},
+		{"number key leaves", "image", []string{"tab", "v", "2"}, []string{"[2 stats]"}, []string{"› attachments"}},
+		{"help", "image", []string{"tab", "v", "?"}, []string{"keys: attachments", "open with the system viewer"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newApp(tt.query)
+			for _, s := range tt.steps {
+				m = tuitest.Send(t, m, tuitest.Key(s))
+			}
+			frame := tuitest.Frame(m)
+			for _, w := range tt.want {
+				if !strings.Contains(frame, w) {
+					t.Errorf("frame lacks %q:\n%s", w, frame)
+				}
+			}
+			for _, w := range tt.not {
+				if strings.Contains(frame, w) {
+					t.Errorf("frame has %q:\n%s", w, frame)
+				}
+			}
+		})
+	}
+}

@@ -364,3 +364,44 @@ func TestWrite(t *testing.T) {
 		t.Errorf("%d transcripts, %d subagents; want at least 200 and 10", files, subagents)
 	}
 }
+
+// TestAttachments: the archive holds an invented image and an invented
+// document, both attached to the events of one session, with data the
+// viewer can show.
+func TestAttachments(t *testing.T) {
+	st, path := fixturedb.Demo(t)
+	db := rawDB(t, path)
+	for media, want := range map[string]int{"image/png": 1, "application/pdf": 1} {
+		if n := count(t, db, "SELECT count(*) FROM blobs b JOIN event_blobs eb ON eb.sha256 = b.sha256 WHERE b.media_type = ?", media); n != want {
+			t.Errorf("%s blobs linked to events = %d, want %d", media, n, want)
+		}
+	}
+	if n := count(t, db, "SELECT count(DISTINCT e.session_id) FROM event_blobs eb JOIN events e ON e.id = eb.event_id"); n != 1 {
+		t.Errorf("attachments in %d sessions, want 1", n)
+	}
+	var ids []string
+	rows, err := db.Query("SELECT DISTINCT event_id FROM event_blobs ORDER BY event_id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	_ = rows.Close()
+	atts, err := st.EventsAttachments(context.Background(), ids)
+	if err != nil || len(atts) == 0 {
+		t.Fatalf("EventsAttachments = %v, %v", atts, err)
+	}
+	for _, as := range atts {
+		for _, a := range as {
+			info, data, err := st.Blob(context.Background(), a.SHA256)
+			if err != nil || int64(len(data)) != info.Bytes || len(data) == 0 {
+				t.Errorf("Blob(%s) = %+v, %d bytes, %v", a.SHA256, info, len(data), err)
+			}
+		}
+	}
+}

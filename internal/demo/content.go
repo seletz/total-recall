@@ -1,6 +1,10 @@
 package demo
 
-import "time"
+import (
+	"time"
+
+	"github.com/seletz/total-recall/internal/testfixture"
+)
 
 // project is one invented project of the fictional developer with the
 // vocabulary its conversations are made of. The filler text never mentions
@@ -330,6 +334,19 @@ func featured() []session {
 						"ok  \tkompass/internal/gpx\t0.412s\n"}},
 					reply:   "Added internal/gpx with a streaming parser for waypoints and tracks, plus tests with a small synthetic file.",
 					replyAt: 9 * time.Minute},
+			},
+		},
+		{
+			id: "7d1e4c20-0010-4000-8000-000000000010", cwd: kompass.cwd, title: "Höhenprofil prüfen",
+			turns: []turn{
+				{at: at(time.October, 28, 9, 6),
+					prompt: "Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.",
+					attached: []testfixture.Attached{
+						{Kind: "image", MediaType: "image/png", Data: profileImage()},
+						{Kind: "document", MediaType: "application/pdf", Data: formatNotes()},
+					},
+					reply:   "The profile showed the raw altitude of the last segment. I now smooth the series before the climb is summed up; the picture matches the route again.",
+					replyAt: 4 * time.Minute},
 			},
 		},
 		// A coordinator and the worker it commands: the coordinator hands the

@@ -18,6 +18,9 @@ type Tool struct {
 	Use, Result *model.Event
 	// HitResult tells that the hit is the result, not the call.
 	HitResult bool
+	// Attachments are the attachments of the call and the result by event
+	// ID, as in Exchange.
+	Attachments map[string][]store.EventAttachment
 }
 
 // Render implements Viewer.
@@ -36,6 +39,7 @@ func (v Tool) Render(env Env, w int) Content {
 		c.Body = append(c.Body, sep)
 		text, _ := prettyJSON(e.Text)
 		c.Body = append(c.Body, textLines(env, text, w, lipgloss.NewStyle())...)
+		c.Body = append(c.Body, attachmentLines(env, v.Attachments[e.ID], w)...)
 	}
 	section(v.Use, "no call recorded", !v.HitResult)
 	c.Body = append(c.Body, "")

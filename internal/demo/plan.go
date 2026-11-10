@@ -6,6 +6,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/gitinfo"
 	"github.com/seletz/total-recall/internal/holiday"
+	"github.com/seletz/total-recall/internal/testfixture"
 )
 
 // session is one invented conversation: a main session or, below a main
@@ -76,6 +77,8 @@ type turn struct {
 	// remote marks a prompt sent through Remote Control (entrypoint of the
 	// record), not typed at the terminal.
 	remote bool
+	// attached are the images and documents the prompt carries.
+	attached []testfixture.Attached
 }
 
 // tool is one tool call with its result.
