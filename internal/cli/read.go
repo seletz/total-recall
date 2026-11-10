@@ -598,6 +598,11 @@ type EventJSON struct {
 // the hash `blob` takes, its type and size as delivered, and its position
 // among the event's attachments.
 type AttachmentJSON struct {
+	// EventID is the event the attachment is linked to. Only in the hits
+	// of search (since v1.7.0): the text of a message with images shows
+	// the attachments of the image events of its line, and this says
+	// whose they are. Missing in show, where it is the event itself.
+	EventID   string `json:"event_id,omitempty"`
 	SHA256    string `json:"sha256"`
 	MediaType string `json:"media_type"`
 	Bytes     int64  `json:"bytes"`

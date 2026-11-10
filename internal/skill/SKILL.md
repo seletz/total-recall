@@ -434,7 +434,7 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `rank` | FTS5 rank, lower is better |
 | `type` | `event` |
 | `project` | project of the session as in `stats --by project` (a subagent counts with its parent); `null` without a directory |
-| `attachments` | the event's attachments as in `show --json` (with `--has-attachment=KIND` only that kind); `[]` without |
+| `attachments` | the event's attachments as in `show --json` plus `event_id` (the event the attachment is linked to: for the text of a message with images the image events of its transcript line, which is what `--has-attachment` finds too); with `--has-attachment=KIND` only that kind; `[]` without |
 | `attachment_count` | number of `attachments` |
 
 #### `search --type session --json`
