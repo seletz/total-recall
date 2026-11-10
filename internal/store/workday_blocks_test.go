@@ -153,3 +153,44 @@ func TestWorkdayBlocks(t *testing.T) {
 		})
 	}
 }
+
+// TestWorkdayBlockSecondsAddUp: with fractional seconds in the time stamps
+// the whole seconds of the blocks add up exactly: the seconds of the blocks
+// are BlockSeconds, and BlockSeconds + BreakSeconds is the whole seconds of
+// the span, no matter how the single values would round on their own.
+func TestWorkdayBlockSecondsAddUp(t *testing.T) {
+	s, _ := openTestStore(t)
+	var sessions []model.Session
+	var evs []model.Event
+	for i, at := range []string{
+		"2026-03-09T08:00:00.900Z", "2026-03-09T08:00:01.800Z", // block of 0.9 s
+		"2026-03-09T09:00:00.700Z", "2026-03-09T09:00:02.600Z", // block of 1.9 s
+		"2026-03-09T11:00:00.400Z", "2026-03-09T11:00:00.500Z", "2026-03-09T11:00:00.600Z", // 0.2 s
+	} {
+		id := fmt.Sprintf("claude:f%d", i)
+		sessions = append(sessions, model.Session{ID: id, Harness: "claude", NativeID: fmt.Sprintf("f%d", i), Cwd: "/w/app", StartedAt: ts(at), EndedAt: ts(at)})
+		evs = append(evs, ev(id+"-1", id, at, model.ActorHuman, model.KindMessage, "user", "x"))
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/f.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	days, err := s.Workday(ctx, WorkdayFilter{Since: time.Date(2026, 3, 9, 4, 0, 0, 0, time.UTC), Until: time.Date(2026, 3, 10, 4, 0, 0, 0, time.UTC),
+		Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 30 * time.Minute, HumanOnly: true})
+	if err != nil || len(days) != 1 {
+		t.Fatalf("%v, %d days", err, len(days))
+	}
+	d := days[0]
+	var got []int
+	sum := 0
+	for _, b := range d.Blocks {
+		got = append(got, b.Secs)
+		sum += b.Secs
+	}
+	span := int(d.Span().Seconds()) // 3 h 0 min 0.5 s... whole seconds
+	if len(got) != 3 || sum != d.BlockSeconds() || d.BlockSeconds()+d.BreakSeconds() != span {
+		t.Errorf("block seconds %v (sum %d), BlockSeconds %d + BreakSeconds %d, span %d", got, sum, d.BlockSeconds(), d.BreakSeconds(), span)
+	}
+	if want := []int{0, 2, 0}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("block seconds %v, want %v", got, want)
+	}
+}

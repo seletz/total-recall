@@ -98,7 +98,7 @@ func writeToolStatsTable(w io.Writer, s ToolStatsJSON) error {
 }
 
 // runToolStats is stats --tools: by is the --by value ("" without), path
-// the --path glob, top the --top count.
+// the --path glob, top the --top count: groups with --by, else the tools of by_tool.
 func (e *env) runToolStats(cmd *cobra.Command, cfg *config.Config, o *output, since, until time.Time, by, path string, top int) error {
 	f := store.ToolFilter{Since: since, Until: until, Location: cfg.Location(), Path: path, TopN: top}
 	if by != "" {
@@ -108,11 +108,8 @@ func (e *env) runToolStats(cmd *cobra.Command, cfg *config.Config, o *output, si
 		}
 		f.By = g
 	}
-	switch {
-	case top < 0:
+	if top < 0 {
 		return usagef("--top must not be negative")
-	case top > 0 && by == "":
-		return usagef("--top requires --by")
 	}
 	var projects project.Resolver
 	if f.By == store.ToolByProject {
