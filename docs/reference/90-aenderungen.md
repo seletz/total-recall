@@ -29,6 +29,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **Tasten:** `search_attach` und `session_attach` (`v`) sowie die Gruppe `attach_*` (`attach_prev`, `attach_next`, `attach_up`, `attach_down`, `attach_page_up`, `attach_page_down`, `attach_open`), alle über `[keys]` änderbar.
 - **Demo-Archiv:** Ein erfundenes Bild (96×48, ein Höhenprofil, synthetisch erzeugt) und ein kleines Dokument hängen an einer Session von kompass. Dadurch ändern sich die Zahlen des Demo-Archivs um vier Nachrichten (drei eigene, eine Antwort) am 28. Oktober, in den Beispiel-Charts und den Screenshots.
 - **Store:** `SessionAttachmentList` und `EventsAttachments` lesen die Metadaten der Anhänge, ohne die Daten zu laden; kein Schema, keine Migration.
+- **Bilder über Kitty Graphics:** Im Anhang-Viewer erscheint ein Bild in Ghostty, kitty und herdr als echtes Bild, sonst bleibt es beim Text-Bild. Erkennung wie bei den Charts (einmal sondieren, mit Zeitlimit); neu `[tui] images = "auto" | "text" | "kitty"`. `NO_COLOR` schaltet immer auf Text. Beim Blättern, bei einer Größenänderung, beim Verlassen und beim Wechsel der Ansicht wird das Bild aus dem Terminal entfernt. Die Statuszeile nennt `image: kitty` oder `image: text (Grund)`. In keinem echten Terminal geprüft, nur im Pseudo-Terminal.
 
 ### Koordinator-Prompts zählen nicht mehr als Eingabe des Menschen
 

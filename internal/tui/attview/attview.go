@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"strconv"
 	"strings"
 	"time"
@@ -27,11 +28,13 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/docmeta"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/tui/stats"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/viewer"
 	"github.com/seletz/total-recall/internal/tui/zone"
@@ -60,6 +63,16 @@ type Options struct {
 	External External
 	// Keys are the effective key bindings; nil means the defaults.
 	Keys keys.Map
+	// Images is how images are drawn: auto (Kitty Graphics where the
+	// terminal has it, text otherwise), text or kitty; empty means auto
+	// ([tui] images).
+	Images stats.Graphics
+	// Getenv reads the environment the mode decision looks at (TERM,
+	// TERM_PROGRAM, NO_COLOR, …); nil means the process environment.
+	Getenv func(string) string
+	// Probe reads the outcome of the Kitty probe; nil reads the picture
+	// package's. Tests inject a fixed answer.
+	Probe func() stats.Probe
 }
 
 // Open asks the view to show the attachments of a session, with the first
@@ -118,6 +131,8 @@ type Model struct {
 	scroll int
 	// status is the message below the content (what the open key did).
 	status string
+	// img draws the marked image through the terminal's graphics protocol.
+	img *imageView
 }
 
 // New returns the view.
@@ -125,14 +140,20 @@ func New(opts Options) Model {
 	if opts.Location == nil {
 		opts.Location = time.UTC
 	}
-	return Model{opts: opts, keys: newKeyMap(opts.Keys), th: theme.New(true), blobs: map[string]entry{}}
+	return Model{opts: opts, keys: newKeyMap(opts.Keys), th: theme.New(true), blobs: map[string]entry{},
+		img: newImageView(opts.Images, opts.Getenv, opts.Probe)}
 }
 
 // Title implements tui.View.
 func (Model) Title() string { return "attachments" }
 
-// Init implements tea.Model.
-func (Model) Init() tea.Cmd { return nil }
+// Init implements tea.Model: it starts the Kitty probe, unless images are
+// text, so the answer is there when the first image is opened.
+func (m Model) Init() tea.Cmd { return m.img.init() }
+
+// Leave removes the image from the terminal; the app calls it when it takes
+// the view away (esc, a number key, a tab). The view itself stays as it is.
+func (m Model) Leave() tea.Cmd { return m.img.clear() }
 
 // ShortHelp implements help.KeyMap.
 func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
@@ -153,6 +174,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		return m, m.syncImage()
 	case Open:
 		return m.opened(msg)
 	case loadedMsg:
@@ -167,15 +189,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.click(msg)
 	case tea.BackgroundColorMsg:
 		m.th = theme.New(msg.IsDark())
+	default:
+		if picture.IsPictureMsg(msg) {
+			// The probe answer, the cell size, an encoded frame.
+			return m, m.img.update(msg)
+		}
 	}
 	return m, nil
+}
+
+// syncImage shows the marked attachment through the terminal's graphics
+// protocol when it is an image the view has the data of, and removes the
+// image otherwise: after browsing on to a document, with no data, on a
+// resize that changes the cells.
+func (m Model) syncImage() tea.Cmd {
+	a := m.marked()
+	if a == nil || m.width <= 0 || docmeta.KindOf(a.MediaType) != docmeta.KindImage {
+		return m.img.clear()
+	}
+	e, ok := m.blobs[a.SHA256]
+	if !ok || e.data == nil {
+		return m.img.clear()
+	}
+	img, err := m.img.decode(a.SHA256, func() (image.Image, error) {
+		img, _, err := viewer.DecodeImage(e.data)
+		return img, err
+	})
+	if err != nil {
+		return m.img.clear()
+	}
+	inner := m.width
+	if inner > 1 {
+		inner--
+	}
+	cols, rows := cellsFor(img, inner, viewer.ImageRows(m.contentRows()))
+	if cols <= 0 || rows <= 0 {
+		return m.img.clear()
+	}
+	return m.img.show(a.SHA256, img, cols, rows)
 }
 
 // opened starts the view on the attachments of an event.
 func (m Model) opened(o Open) (tea.Model, tea.Cmd) {
 	m.open = o
 	m.atts, m.err, m.cur, m.scroll, m.status, m.want = nil, nil, 0, 0, "", o.EventID
-	return m.load()
+	next, cmd := m.load()
+	return next, tea.Batch(cmd, m.img.clear())
 }
 
 // Reload reads the attachments again; the mark stays on the same one.
@@ -222,7 +281,7 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.want = ""
-	return m, m.ensureBlob()
+	return m, tea.Batch(m.ensureBlob(), m.syncImage())
 }
 
 func (m Model) blobResult(msg blobMsg) (tea.Model, tea.Cmd) {
@@ -241,7 +300,7 @@ func (m Model) blobResult(msg blobMsg) (tea.Model, tea.Cmd) {
 		m.err = nil
 		m.blobs[msg.sha] = entry{info: msg.info, data: msg.data}
 	}
-	return m, m.ensureBlob()
+	return m, tea.Batch(m.ensureBlob(), m.syncImage())
 }
 
 // marked returns the marked attachment, nil without any.
@@ -276,13 +335,14 @@ func (m Model) pick(i int) (tea.Model, tea.Cmd) {
 	if i != m.cur {
 		m.cur, m.scroll, m.status = i, 0, ""
 	}
-	return m, m.ensureBlob()
+	return m, tea.Batch(m.ensureBlob(), m.syncImage())
 }
 
 func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Back):
-		return m, func() tea.Msg { return Back{} }
+		// The image goes before the view does.
+		return m, tea.Sequence(m.img.clear(), func() tea.Msg { return Back{} })
 	case key.Matches(msg, m.keys.Prev):
 		return m.pick(m.cur - 1)
 	case key.Matches(msg, m.keys.Next):
@@ -342,6 +402,9 @@ func (m Model) content() viewer.Content {
 	v := viewer.Attachment{Info: a.BlobInfo, Index: m.cur + 1, Count: len(m.atts)}
 	if e, ok := m.blobs[a.SHA256]; ok {
 		v.Data = e.data
+		if lines, ok := m.img.placed(a.SHA256); ok {
+			v.Picture = lines
+		}
 	} else {
 		return viewer.Content{Body: []string{" " + m.th.Muted.Render("loading…")}}
 	}
@@ -476,5 +539,11 @@ func (m Model) statusLine() string {
 	if n == 0 {
 		return ""
 	}
-	return " " + m.th.Muted.Render(fmt.Sprintf("%d attachments", n))
+	s := fmt.Sprintf("%d attachments", n)
+	if a := m.marked(); a != nil && docmeta.KindOf(a.MediaType) == docmeta.KindImage {
+		if e, ok := m.blobs[a.SHA256]; ok && e.data != nil {
+			s += "  ·  image: " + m.img.label(a.SHA256)
+		}
+	}
+	return " " + m.th.Muted.Render(ansi.Truncate(s, max(m.width-1, 0), "…"))
 }

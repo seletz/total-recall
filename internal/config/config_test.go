@@ -572,13 +572,14 @@ func TestTUISection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{5 * time.Second}}); d.TUI != want {
+	if want := (TUI{View: "search", Graphics: "auto", Images: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{5 * time.Second}}); d.TUI != want {
 		t.Errorf("default TUI = %+v, want %+v", d.TUI, want)
 	}
 	p := writeFile(t, t.TempDir(), "c.toml", `
 [tui]
 view = "stats"
 graphics = "text"
+images = "text"
 mouse = false
 stats_period = "week"
 stats_dimension = "agent"
@@ -591,14 +592,14 @@ reload = "10s"
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if want := (TUI{View: "stats", Graphics: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityProjects: true, ActivityNewest: "top", Reload: Duration{10 * time.Second}}); c.TUI != want {
+	if want := (TUI{View: "stats", Graphics: "text", Images: "text", Mouse: false, StatsPeriod: "week", StatsDimension: "agent", ActivityWindow: "month", ActivityProjects: true, ActivityNewest: "top", Reload: Duration{10 * time.Second}}); c.TUI != want {
 		t.Errorf("TUI = %+v, want %+v", c.TUI, want)
 	}
 	entries := map[string]Entry{}
 	for _, e := range c.Entries() {
 		entries[e.Key] = e
 	}
-	for k, want := range map[string]string{"tui.view": "stats", "tui.graphics": "text", "tui.mouse": "false",
+	for k, want := range map[string]string{"tui.view": "stats", "tui.graphics": "text", "tui.images": "text", "tui.mouse": "false",
 		"tui.stats_period": "week", "tui.stats_dimension": "agent", "tui.activity_window": "month", "tui.activity_projects": "true", "tui.activity_newest": "top", "tui.reload": "10s"} {
 		if e := entries[k]; e.Value != want || e.Origin != OriginFile {
 			t.Errorf("%s = %+v, want %q from file", k, e, want)
@@ -621,6 +622,7 @@ func TestTUIErrors(t *testing.T) {
 	}{
 		{"view", "[tui]\nview = \"help\"\n", `tui.view "help": use search, stats, activity or config`},
 		{"graphics", "[tui]\ngraphics = \"sixel\"\n", `tui.graphics "sixel": use auto, text or kitty`},
+		{"images", "[tui]\nimages = \"sixel\"\n", `tui.images "sixel": use auto, text or kitty`},
 		{"period", "[tui]\nstats_period = \"year\"\n", `tui.stats_period "year": use day, week or month`},
 		{"dimension", "[tui]\nstats_dimension = \"repo\"\n", `tui.stats_dimension "repo": use project, agent or directory`},
 		{"window", "[tui]\nactivity_window = \"days\"\n", `tui.activity_window "days": use day, week or month`},
