@@ -83,6 +83,7 @@ func count(t *testing.T, db *sql.DB, q string, args ...any) int {
 // TestAnonymizeRemovesOriginals: no original project, path, remote, branch
 // or title is left in any table, and the full-text index is empty.
 func TestAnonymizeRemovesOriginals(t *testing.T) {
+	t.Parallel()
 	_, db, _ := anonymized(t)
 	if hit, err := Scan(context.Background(), db, originals); err != nil {
 		t.Fatal(err)
@@ -116,6 +117,7 @@ func TestAnonymizeRemovesOriginals(t *testing.T) {
 // TestAnonymizeKeepsActivity: the counts, times and actors the stats and
 // activity views draw from are unchanged, and the subagent keeps its parent.
 func TestAnonymizeKeepsActivity(t *testing.T) {
+	t.Parallel()
 	rep, db, _ := anonymized(t)
 	total := 0
 	for _, c := range testfixture.ActivityTotals {
@@ -146,6 +148,7 @@ func TestAnonymizeKeepsActivity(t *testing.T) {
 // neutral (the subagent has no branch and keeps none), and the store reads
 // the result.
 func TestAnonymizeNames(t *testing.T) {
+	t.Parallel()
 	_, db, path := anonymized(t)
 	rows, err := db.Query("SELECT DISTINCT cwd, COALESCE(git_root, ''), COALESCE(git_remote_url, ''), COALESCE(git_branch, '') FROM sessions ORDER BY cwd, git_branch")
 	if err != nil {
@@ -188,6 +191,7 @@ func TestAnonymizeNames(t *testing.T) {
 // frames: the original directory names, repository paths and titles, but
 // nothing shorter than four characters.
 func TestAnonymizeNeedles(t *testing.T) {
+	t.Parallel()
 	rep, _, _ := anonymized(t)
 	for _, want := range []string{"alpha", "beta", "gamma", "feature", "o/alpha", "o/beta", "Beta release"} {
 		if !slices.Contains(rep.Needles, want) {
@@ -203,6 +207,7 @@ func TestAnonymizeNeedles(t *testing.T) {
 
 // TestScanText finds the first needle in a frame and ignores clean text.
 func TestScanText(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		text, want string
 	}{

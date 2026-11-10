@@ -77,9 +77,12 @@ func TestImageShades(t *testing.T) {
 
 // TestImageWideFrame renders a real frame and encodes it as PNG.
 func TestImageWideFrame(t *testing.T) {
-	fs := frames(t)
+	f, err := Render(Shots[0], env(t))
+	if err != nil {
+		t.Fatal(err)
+	}
 	var buf bytes.Buffer
-	if err := PNG(&buf, fs[0]); err != nil {
+	if err := PNG(&buf, f); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := png.DecodeConfig(&buf)
