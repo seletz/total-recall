@@ -46,14 +46,21 @@ func png(n int64) store.EventAttachment {
 	return store.EventAttachment{BlobInfo: store.BlobInfo{SHA256: "ab", MediaType: "image/png", Bytes: n}}
 }
 
+// withOwner says which event holds the attachment (the event after a text
+// that names its images).
+func withOwner(a store.EventAttachment, event string) store.EventAttachment {
+	a.EventID = event
+	return a
+}
+
 func attachFixture() *attachSearcher {
 	mk := func(id, text string) store.Hit {
 		e := model.Event{ID: id, SessionID: "s", Actor: model.ActorHuman, Kind: model.KindMessage, Text: text, TS: time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)}
 		return store.Hit{Type: store.TypeEvent, TS: e.TS, Snippet: text, Event: &store.SearchHit{Event: e, SessionName: "sess"}}
 	}
 	return &attachSearcher{
-		hits: []store.Hit{mk("e1", "look at this"), mk("e2", "nothing here")},
-		atts: map[string][]store.EventAttachment{"e1": {png(2048), png(100)}},
+		hits: []store.Hit{mk("e1", "look at this"), mk("e2", "nothing here"), mk("e3", "[Image #1] what is this")},
+		atts: map[string][]store.EventAttachment{"e1": {png(2048), png(100)}, "e3": {withOwner(png(10), "e3#1")}},
 	}
 }
 
@@ -66,22 +73,19 @@ func driveAttach(t *testing.T, s *attachSearcher, w, h int) Model {
 
 func TestAttachmentMarkInList(t *testing.T) {
 	m := driveAttach(t, attachFixture(), 100, 20)
-	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
-	var e1, e2 string
-	for _, l := range lines {
-		left, _, _ := strings.Cut(l, "│")
-		switch {
-		case strings.Contains(left, "2026-10-01") && e1 == "":
-			e1 = left
-		case strings.Contains(left, "2026-10-01"):
-			e2 = left
+	var rows []string
+	for _, l := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		if left, _, _ := strings.Cut(l, "│"); strings.Contains(left, "2026-10-01") {
+			rows = append(rows, left)
 		}
 	}
-	if !strings.Contains(e1, viewer.AttachmentMark+"2") {
-		t.Errorf("hit with two attachments: %q", e1)
+	if len(rows) != 3 {
+		t.Fatalf("%d rows in the list, want 3", len(rows))
 	}
-	if strings.Contains(e2, viewer.AttachmentMark) {
-		t.Errorf("hit without attachments is marked: %q", e2)
+	for i, want := range []string{viewer.AttachmentMark + "2", "", viewer.AttachmentMark + "1"} {
+		if has := strings.Contains(rows[i], viewer.AttachmentMark); has != (want != "") || want != "" && !strings.Contains(rows[i], want) {
+			t.Errorf("row %d = %q, want mark %q", i, rows[i], want)
+		}
 	}
 }
 
@@ -180,4 +184,19 @@ type attachLoader struct {
 
 func (l *attachLoader) EventsAttachments(ctx context.Context, ids []string) (map[string][]store.EventAttachment, error) {
 	return l.src.EventsAttachments(ctx, ids)
+}
+
+// TestAttachKeyOnTheTextOfAnImage: the hit is the text that names the
+// image, the image is the next event; v opens the image.
+func TestAttachKeyOnTheTextOfAnImage(t *testing.T) {
+	m := driveAttach(t, attachFixture(), 100, 20)
+	tm := tuitest.Send(t, m, tuitest.Key("j"))
+	tm = tuitest.Send(t, tm, tuitest.Key("j"))
+	_, cmd := tm.Update(tuitest.Key("v"))
+	if cmd == nil {
+		t.Fatal("v returns a command")
+	}
+	if open := cmd().(attview.Open); open.EventID != "e3#1" || open.SessionID != "s" {
+		t.Errorf("v sends %+v, want the event of the image", open)
+	}
 }

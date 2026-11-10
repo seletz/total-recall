@@ -349,3 +349,69 @@ func TestSessionAttachmentList(t *testing.T) {
 		t.Errorf("unknown session = %+v, %v", got, err)
 	}
 }
+
+// TestEventsAttachmentsOfTheMessage: a message with images is several
+// events of one transcript line (the text, then one per image or
+// document). The text event shows the attachments of its message, the
+// event of an attachment its own, an event alone on its line none.
+func TestEventsAttachmentsOfTheMessage(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess := []model.Session{{ID: "claude:s1", Harness: "claude", NativeID: "s1", Cwd: "/w/app"}}
+	png := model.Attachment{SHA256: blobref.Hash(testPNG), MediaType: "image/png", Data: testPNG}
+	pdf := model.Attachment{SHA256: blobref.Hash(testPDF), MediaType: "application/pdf", Data: testPDF}
+	at := func(e model.Event, offset int64, atts ...model.Attachment) model.Event {
+		e.SourcePath, e.SourceOffset, e.Attachments = "/p/s1.jsonl", offset, atts
+		return e
+	}
+	h := func(id, ts, text string) model.Event {
+		return ev(id, "claude:s1", ts, model.ActorHuman, model.KindMessage, "user", text)
+	}
+	evs := []model.Event{
+		// Line 100: text with two markers, then the two images.
+		at(h("claude:a#0", "2026-10-31T22:00:00Z", "[Image #1] [Image #2] compare"), 100),
+		at(h("claude:a#1", "2026-10-31T22:00:00Z", "[image image/png 32 B]"), 100, png),
+		at(h("claude:a#2", "2026-10-31T22:00:00Z", "[image application/pdf 1.3 KiB]"), 100, pdf),
+		// Line 200: a marker without any blob (not stored, or not delivered).
+		at(h("claude:b#0", "2026-10-31T22:05:00Z", "[Image #3] where is it"), 200),
+		// Line 300: a text without markers, at the same time as line 400.
+		at(h("claude:c#0", "2026-10-31T22:10:00Z", "plain text"), 300),
+		// Line 400: same second as line 300, an image of its own message.
+		at(h("claude:d#0", "2026-10-31T22:10:00Z", "[Image #1]"), 400),
+		at(h("claude:d#1", "2026-10-31T22:10:00Z", "[image image/png 32 B]"), 400, png),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/p/s1.jsonl", Harness: "claude"}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		id   string
+		want []string // owner event of every attachment, in order
+	}{
+		{"text event with two images", "claude:a#0", []string{"claude:a#1", "claude:a#2"}},
+		{"image event keeps its own", "claude:a#1", []string{"claude:a#1"}},
+		{"document event keeps its own", "claude:a#2", []string{"claude:a#2"}},
+		{"marker without a blob", "claude:b#0", nil},
+		{"text of another line at the same second", "claude:c#0", nil},
+		{"marker with a blob neighbour", "claude:d#0", []string{"claude:d#1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := s.EventsAttachments(ctx, []string{tt.id})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var owners []string
+			for _, a := range got[tt.id] {
+				owners = append(owners, a.EventID)
+			}
+			if strings.Join(owners, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("attachments of %s come from %v, want %v", tt.id, owners, tt.want)
+			}
+		})
+	}
+	// Asked together, each event gets its own answer.
+	got, err := s.EventsAttachments(ctx, []string{"claude:a#0", "claude:b#0", "claude:d#0"})
+	if err != nil || len(got["claude:a#0"]) != 2 || len(got["claude:b#0"]) != 0 || len(got["claude:d#0"]) != 1 {
+		t.Errorf("EventsAttachments = %+v, %v", got, err)
+	}
+}

@@ -38,6 +38,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ### Behoben
 
+- **Suche: Treffer auf dem Text einer Nachricht mit Bild zeigt das Bild** ([#184](https://github.com/seletz/total-recall/issues/184)). Eine Nachricht mit Bildern besteht aus dem Text-Event (`[Image #1] …`, ohne Blob) und einem Event je Bild. Der Treffer lag meist auf dem Text, trug kein `▣`, und `v` öffnete nichts. Jetzt zeigt das Text-Event die Anhänge der anderen Events seiner Transkriptzeile (`store.EventsAttachments`, kein Schema), und `v` öffnet das Bild.
 - **`stats --workday --blocks`: die Sekunden stimmen jetzt** ([#256](https://github.com/seletz/total-recall/issues/256), seit v1.6.0). Mit Bruchteilsekunden in den Zeitstempeln (das echte Archiv hat Millisekunden) rundete jeder Block einzeln ab, `block_seconds` aber aus der ungerundeten Summe: Die `seconds` der Blöcke eines Tags ergaben zum Beispiel 28166, `block_seconds` sagte 28169. Jetzt werden die Blockgrenzen auf ganze Sekunden nach der ersten Aktivität des Tags abgerundet, bevor die Dauern gebildet werden. Damit ist `block_seconds` genau die Summe der `blocks[].seconds`, und `block_seconds` plus `break_seconds` ergeben genau `span_seconds`. Im `total` stehen die Summen der Tage: `span_seconds` ist die Summe der `span_seconds` der Tage (es konnte um wenige Sekunden abweichen) und `balance_seconds` ist `span_seconds` minus `target_seconds`.
 
 ## v1.6.0
