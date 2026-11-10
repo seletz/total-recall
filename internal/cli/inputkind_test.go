@@ -244,7 +244,7 @@ func TestTimelineInputKind(t *testing.T) {
 	cliArgs := []string{"timeline", "--since=" + since, "--until=" + until, "--actor=all", "--all"}
 	p := newPagedDemo(t, timelineBound(newPagedDemo(t, 16<<20), 4, cliArgs...))
 	want := p.cli(cliArgs...)
-	pages, _ := p.crawl("timeline", map[string]any{"since": since, "until": until, "actor": "all", "all": true})
+	pages, _ := p.crawl("timeline", map[string]any{"since": since, "until": until, "actor": "all", "all": true, "fields": "all"})
 	if len(pages) < 3 || len(pages) > 6 {
 		t.Fatalf("%d pages for %d bytes", len(pages), len(want))
 	}

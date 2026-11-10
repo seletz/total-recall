@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -228,5 +229,74 @@ func TestTimelineAllImpliesActorAll(t *testing.T) {
 	}
 	if plain := runTimeline(t, w...); len(plain) >= len(implied) {
 		t.Errorf("plain %d events, --all %d: --all must add events", len(plain), len(implied))
+	}
+}
+
+// TestTimelineFieldsFlag: --fields keeps the named keys of every event, in
+// the fixed order of the full object, with the same values; unknown names
+// are usage errors.
+func TestTimelineFieldsFlag(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	e.home = demo.Home
+	run := func(args ...string) result {
+		return e.run(t, "", append([]string{"--db", db, "timeline", "--json", "--since=2026-10-20", "--until=2026-10-20", "--actor=all", "--all"}, args...)...)
+	}
+	full := decode[[]map[string]any](t, run().stdout)
+	if len(full) == 0 {
+		t.Fatal("no events")
+	}
+	for _, tc := range []struct {
+		name   string
+		fields string
+		keys   []string // in output order
+	}{
+		{"one", "text", []string{"text"}},
+		{"given order does not matter", "text,event_id,project", []string{"event_id", "project", "text"}},
+		{"spaces and repeats", " kind , kind,actor", []string{"actor", "kind"}},
+		{"all of them", strings.Join(timelineFieldNames, ","), timelineFieldNames},
+		{"empty is all", "", timelineFieldNames},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := run("--fields=" + tc.fields)
+			if r.code != 0 {
+				t.Fatalf("exit %d: %s", r.code, r.stderr)
+			}
+			got := decode[[]map[string]any](t, r.stdout)
+			if len(got) != len(full) {
+				t.Fatalf("%d events, want %d", len(got), len(full))
+			}
+			for i, ev := range got {
+				if len(ev) != len(tc.keys) {
+					t.Fatalf("event %d has keys %v, want %v", i, ev, tc.keys)
+				}
+				for _, k := range tc.keys {
+					if fmt.Sprint(ev[k]) != fmt.Sprint(full[i][k]) {
+						t.Errorf("event %d %s = %v, full has %v", i, k, ev[k], full[i][k])
+					}
+				}
+			}
+			// The order of the keys in the bytes, not only the set.
+			first := strings.Index(r.stdout, "{")
+			last := -1
+			for _, k := range tc.keys {
+				at := strings.Index(r.stdout[first:], `"`+k+`":`)
+				if at < last {
+					t.Errorf("key %s out of order in %.200s", k, r.stdout[first:])
+				}
+				last = at
+			}
+		})
+	}
+	// Without --fields, and with all of them, the bytes are the old output.
+	if a, b := run().stdout, run("--fields="+strings.Join(timelineFieldNames, ",")).stdout; a != b {
+		t.Error("all fields differ from the default output")
+	}
+	for _, bad := range []string{"nope", "text,nope", "ts_utc"} {
+		r := run("--fields=" + bad)
+		if r.code != 1 || !strings.Contains(r.stdout, `"kind":"usage"`) || !strings.Contains(r.stdout, "invalid --fields") {
+			t.Errorf("--fields=%s: exit %d %s", bad, r.code, r.stdout)
+		}
 	}
 }
