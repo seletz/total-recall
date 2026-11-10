@@ -540,25 +540,27 @@ total-recall stats --tools --month 2026-10                      # Aufrufe je Too
 total-recall stats --tools --by day --since 2026-10-01           # je Tag und Tool
 total-recall stats --tools --by project --top 5 --json
 total-recall stats --tools --path '*/internal/store/*' --json    # nur Aufrufe auf dieses Verzeichnis
+total-recall stats --tools --path '*/internal/store/*' --path-in all   # auch Nachrichten und Prompts mit dem Pfad
 ```
 
 ```json
 {
   "since": "2026-09-30T22:00:00.000Z", "until": "2026-10-31T23:00:00.000Z", "timezone": "Europe/Berlin",
-  "by": "day", "path": null, "total": 412,
+  "by": "day", "path": null, "path_in": null, "total": 412,
   "by_tool": [{"tool": "Bash", "count": 230}, {"tool": "Read", "count": 120}, {"tool": "Edit", "count": 62}],
   "groups": [{"key": "2026-10-01", "count": 40, "by_tool": [{"tool": "Bash", "count": 25}, {"tool": "Edit", "count": 15}]}]
 }
 ```
 
-`by` und `path` sind `null` ohne die Flags, `groups` ist dann leer. Tage laufen chronologisch, alle anderen Gruppen nach Anzahl absteigend, `other` zuletzt; die Tools einer Liste ebenso nach Anzahl, dann nach Name. Ein `tool_use` ohne Toolnamen zählt als `unknown`.
+`by`, `path` und `path_in` sind `null` ohne die Flags (`path_in` ist mit `--path` immer `"paths"` oder `"all"`), `groups` ist dann leer. Tage laufen chronologisch, alle anderen Gruppen nach Anzahl absteigend, `other` zuletzt; die Tools einer Liste ebenso nach Anzahl, dann nach Name. Ein `tool_use` ohne Toolnamen zählt als `unknown`.
 
 **`--path GLOB` und seine Grenzen.** Der Filter prüft die *Argumente* des Aufrufs, so wie das Archiv sie speichert: im Event steht von der Eingabe des Tools nur ein Text (`events.text`), nicht die ganze Eingabe. Es ist das erste vorhandene Feld aus `command`, `file_path`, `path`, `url`, `query`, `pattern`, `description`, `prompt`, `message`, `skill`, sonst das JSON der Eingabe, **auf 1 KiB gekürzt**. Daraus folgt:
 
+- **Welche Tools geprüft werden: `--path-in`.** Standard ist `--path-in paths`: der Glob wird nur auf Aufrufe von Tools geprüft, deren Argument ein Pfad, ein Pfadmuster oder ein Befehl ist: `Bash` (`command`), `Read`, `Edit`, `MultiEdit`, `Write` (`file_path`), `Glob`, `Grep` (`path`, sonst `pattern`) und `LS` (`path`). Eine Nachricht an eine andere Session (`SendMessage`), ein Prompt für einen Sub-Agenten (`Task`), eine URL (`WebFetch`), eine Suchanfrage oder ein MCP-Tool nennen einen Pfad oft nur im Text und zählen deshalb **nicht** als Arbeit an dieser Datei. `--path-in all` prüft wie in v1.6.0 jeden Aufruf. Die Liste steht an einer Stelle im Code (`store.PathTools`). Weil das Archiv nur den *einen* Text je Aufruf speichert, nicht den Namen des Feldes, entscheidet der Toolname, nicht das Feld: ein `Grep` ohne `path` zählt mit seinem Muster, `NotebookEdit` fehlt (sein Pfad steht nicht unter den gespeicherten Feldern), und ein MCP-Tool, das wirklich Dateien bearbeitet, braucht `--path-in all`. `--path-in` verlangt `--path`; ohne `--path` zählt `--tools` alle Aufrufe.
 - **Datei-Tools** (`Read`, `Edit`, `Write`, …): der Glob muss auf den **ganzen** Pfad passen, also `*/internal/store/*` oder `/home/me/proj/*.go`, nicht `internal/store`. SQLite-GLOB: `*`, `?` und `[a-z]` (auch über `/` hinweg), Groß- und Kleinschreibung zählt.
 - **Bash**: der Glob darf **irgendwo im Befehl** passen (der Filter setzt `*` davor und dahinter). `--path /w/app` findet `ls /w/app/src` und `git -C /w/app status`, aber auch `echo /w/app`. Ob der Pfad Ziel oder nur Teil eines Arguments ist, erkennt der Filter nicht; Pfade in Variablen, Shell-Expansion (`$HOME`, `~`, relative Pfade nach einem `cd`) und Pipes über mehrere Verzeichnisse werden nicht aufgelöst.
 - **Lange Befehle**: ein Pfad hinter der 1-KiB-Grenze wird nicht gefunden. Wer das Original braucht, liest es mit `sql` aus `raw_text(raw)` (nur mit `store_raw`).
-- **Andere Tools** (`Grep`, `WebFetch`, MCP-Tools, …) werden auf ihr erstes bekanntes Feld oder ihr JSON als Ganzes geprüft; ein Glob wie `*pfad*` trifft dort zuverlässiger als ein genauer Pfad.
+- **Andere Tools** (nur mit `--path-in all`: `WebFetch`, `Task`, MCP-Tools, …) werden auf ihr erstes bekanntes Feld oder ihr JSON als Ganzes geprüft; ein Glob wie `*pfad*` trifft dort zuverlässiger als ein genauer Pfad.
 - Die Pfade stehen so im Archiv, wie der Agent sie geschrieben hat (maskiert wie jeder Text); es gibt keine Normalisierung zwischen absolut und relativ.
 
 ### Arbeitszeit: `--workday` { #stats-workday }

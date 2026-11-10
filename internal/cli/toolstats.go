@@ -36,7 +36,9 @@ type ToolStatsJSON struct {
 	// By is day, session, repo, project or null.
 	By NullString `json:"by"`
 	// Path is the --path filter or null.
-	Path   NullString      `json:"path"`
+	Path NullString `json:"path"`
+	// PathIn is paths or all with Path, else null.
+	PathIn NullString      `json:"path_in"`
 	Total  int             `json:"total"`
 	ByTool []ToolCountJSON `json:"by_tool"`
 	// Groups is empty without --by. Per day they run chronologically,
@@ -58,7 +60,7 @@ func toolCounts(c []store.ToolCount) []ToolCountJSON {
 func toolStatsJSON(s store.ToolStats, f store.ToolFilter, names map[string]string, since, until time.Time, tz string) ToolStatsJSON {
 	out := ToolStatsJSON{
 		Since: NullString(isoTime(since)), Until: NullString(isoTime(until)), Timezone: tz,
-		By: NullString(f.By.String()), Path: NullString(f.Path),
+		By: NullString(f.By.String()), Path: NullString(f.Path), PathIn: NullString(pathIn(f)),
 		Total: s.Total, ByTool: toolCounts(s.ByTool), Groups: make([]ToolGroupJSON, 0, len(s.Groups)),
 	}
 	for _, g := range s.Groups {
@@ -97,10 +99,25 @@ func writeToolStatsTable(w io.Writer, s ToolStatsJSON) error {
 	return table(w, []string{"KEY", "TOOL", "COUNT"}, rows)
 }
 
+// pathIn is the scope of the filter as shown in the JSON: "" without a path.
+func pathIn(f store.ToolFilter) string {
+	if f.Path == "" {
+		return ""
+	}
+	return f.PathIn.String()
+}
+
 // runToolStats is stats --tools: by is the --by value ("" without), path
 // the --path glob, top the --top count: groups with --by, else the tools of by_tool.
-func (e *env) runToolStats(cmd *cobra.Command, cfg *config.Config, o *output, since, until time.Time, by, path string, top int) error {
+func (e *env) runToolStats(cmd *cobra.Command, cfg *config.Config, o *output, since, until time.Time, by, path, pathScope string, top int) error {
 	f := store.ToolFilter{Since: since, Until: until, Location: cfg.Location(), Path: path, TopN: top}
+	if pathScope != "" {
+		scope, err := store.ParsePathScope(pathScope)
+		if err != nil {
+			return usagef("%v", err)
+		}
+		f.PathIn = scope
+	}
 	if by != "" {
 		g, err := store.ParseToolGroup(by)
 		if err != nil {

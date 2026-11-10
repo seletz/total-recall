@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -72,6 +73,10 @@ func TestStatsToolsInvariants(t *testing.T) {
 		{"ToolsTopMoreThanTools", []string{"--top", "50"}, want},
 		{"ToolsTopWithPath", []string{"--top", "1", "--path", "*go*"}, -1},
 		{"PathBashAndFiles", []string{"--path", "*.go"}, -1},
+		{"PathAllArguments", []string{"--path", "*go*", "--path-in", "all"}, -1},
+		{"PathPathsExplicitByProject", []string{"--path", "*go*", "--path-in", "paths", "--by", "project"}, -1},
+		{"PathAllBySessionTop", []string{"--path", "*", "--path-in", "all", "--by", "session", "--top", "3"}, want},
+		{"PathAllToolsTop1", []string{"--path", "*", "--path-in", "all", "--top", "1"}, want},
 		{"PathByDay", []string{"--path", "*go*", "--by", "day"}, -1},
 	}
 	for _, tt := range tests {
@@ -155,6 +160,9 @@ func TestStatsToolsFlags(t *testing.T) {
 		{"WithPeriod", []string{"--tools", "--period", "week"}, "cannot be combined"},
 		{"WithWorkday", []string{"--tools", "--workday"}, "cannot be combined"},
 		{"WithTokens", []string{"--tools", "--tokens"}, "cannot be combined"},
+		{"PathInNeedsPath", []string{"--tools", "--path-in", "all"}, "--path-in requires --path"},
+		{"BadPathIn", []string{"--tools", "--path", "x", "--path-in", "every"}, "invalid path scope"},
+		{"PathInNeedsTools", []string{"--path-in", "all"}, "--path-in requires --tools"},
 		{"NegativeTop", []string{"--tools", "--top", "-1"}, "--top must not be negative"},
 		{"ByDayWithoutToolsKeepsSeriesError", []string{"--by", "day"}, "invalid dimension"},
 	}
@@ -206,5 +214,32 @@ func TestStatsToolsTopWithoutBy(t *testing.T) {
 	exact := demoToolStats(t, e, db, "--top", strconv.Itoa(len(all.ByTool)))
 	if fmt.Sprint(exact.ByTool) != fmt.Sprint(all.ByTool) {
 		t.Errorf("top %d = %v, want no other", len(all.ByTool), exact.ByTool)
+	}
+}
+
+// TestStatsToolsPathScope: the default checks only the path and command
+// tools, "all" every call; "*" matches every argument, so with "all" it is
+// every tool_use of the archive and the default is a part of it. Both add up.
+func TestStatsToolsPathScope(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	e.home = demo.Home
+	want := toolUseCount(t, e, db, "")
+	all := demoToolStats(t, e, db, "--path", "*", "--path-in", "all")
+	if all.Total != want || all.PathIn != "all" || all.Path != "*" {
+		t.Errorf("all: total %d (path %q, path_in %q), want %d", all.Total, all.Path, all.PathIn, want)
+	}
+	paths := demoToolStats(t, e, db, "--path", "*")
+	if paths.PathIn != "paths" || paths.Total == 0 || paths.Total > all.Total {
+		t.Errorf("paths: total %d (path_in %q), all %d", paths.Total, paths.PathIn, all.Total)
+	}
+	for _, c := range paths.ByTool {
+		if !slices.Contains([]string{"Bash", "Read", "Edit", "MultiEdit", "Write", "Glob", "Grep", "LS"}, c.Tool) {
+			t.Errorf("tool %s counted by the default scope", c.Tool)
+		}
+	}
+	if none := demoToolStats(t, e, db); none.PathIn != "" || none.Total != want {
+		t.Errorf("without --path: path_in %q, total %d, want %d", none.PathIn, none.Total, want)
 	}
 }
