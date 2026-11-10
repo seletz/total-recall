@@ -25,7 +25,8 @@ import (
 // ---- status ----
 
 // StatusJSON is the JSON output of status. Every key is always present;
-// LastBackup and LastBackupAt are null without a backup.
+// LastBackup and LastBackupAt are null without a backup; LastBackupState
+// says why (ok, none, unknown).
 //
 // Errors come from the log file. RecentErrors lists the ERROR lines of the
 // window ErrorsWindow (default "24h"; ErrorsSince is its start), oldest
@@ -78,12 +79,19 @@ type StatusJSON struct {
 	BackupDir         string            `json:"backup_dir"`
 	LastBackup        NullString        `json:"last_backup"`
 	LastBackupAt      NullString        `json:"last_backup_at"`
-	Log               string            `json:"log"`
-	ErrorsWindow      NullString        `json:"errors_window"`
-	ErrorsSince       NullString        `json:"errors_since"`
-	RecentErrors      []StatusError     `json:"recent_errors"`
-	RecentErrorsTotal int               `json:"recent_errors_total"`
-	OlderErrors       int               `json:"older_errors"`
+	// LastBackupState is "ok" (a backup was found), "none" (the directory
+	// was read and holds none) or "unknown" (it cannot be read: the reason
+	// and the hint say why and what to do; last_backup and last_backup_at
+	// then come from the status file next to the database, or are null).
+	LastBackupState   string        `json:"last_backup_state"`
+	LastBackupReason  NullString    `json:"last_backup_reason"`
+	LastBackupHint    NullString    `json:"last_backup_hint"`
+	Log               string        `json:"log"`
+	ErrorsWindow      NullString    `json:"errors_window"`
+	ErrorsSince       NullString    `json:"errors_since"`
+	RecentErrors      []StatusError `json:"recent_errors"`
+	RecentErrorsTotal int           `json:"recent_errors_total"`
+	OlderErrors       int           `json:"older_errors"`
 }
 
 // pageSizeCell renders the page size with a hint when a rebuild with the
@@ -279,11 +287,12 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		for h, t := range s.LastIngest {
 			out.LastIngest[h] = isoTime(t)
 		}
-		bp, bt, err := store.LastBackup(cfg.Backup.Dir, cfg.Location())
-		if err != nil {
-			return err
+		bk := store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location())
+		bp, bt := bk.Path, bk.At
+		out.LastBackup, out.LastBackupAt, out.LastBackupState = NullString(bp), NullString(isoTime(bt)), string(bk.State)
+		if bk.State == store.BackupUnknown {
+			out.LastBackupReason, out.LastBackupHint = NullString(bk.Reason), NullString(bk.Hint)
 		}
-		out.LastBackup, out.LastBackupAt = NullString(bp), NullString(isoTime(bt))
 
 		var since time.Time
 		cap := nErrors
@@ -334,10 +343,18 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			t := s.LastIngest[h]
 			rows = append(rows, []string{"last ingest (" + h + ")", localTime(t, loc) + "  (" + age(now, t) + ")"})
 		}
-		if bp == "" {
+		switch {
+		case bk.State == store.BackupUnknown && bp == "":
+			rows = append(rows, []string{"last backup", "unknown in " + cfg.Backup.Dir + "  (" + bk.Reason + ")"})
+		case bk.State == store.BackupUnknown:
+			rows = append(rows, []string{"last backup", bp + "  (" + age(now, bt) + ", from the status file; unknown in " + cfg.Backup.Dir + ": " + bk.Reason + ")"})
+		case bp == "":
 			rows = append(rows, []string{"last backup", "none in " + cfg.Backup.Dir})
-		} else {
+		default:
 			rows = append(rows, []string{"last backup", bp + "  (" + age(now, bt) + ")"})
+		}
+		if bk.State == store.BackupUnknown {
+			rows = append(rows, []string{"", "hint: " + bk.Hint})
 		}
 		rows = append(rows, []string{"log", cfg.LogPath()})
 		if err := o.table(nil, rows); err != nil {
@@ -598,6 +615,11 @@ type EventJSON struct {
 // the hash `blob` takes, its type and size as delivered, and its position
 // among the event's attachments.
 type AttachmentJSON struct {
+	// EventID is the event the attachment is linked to. Only in the hits
+	// of search (since v1.7.0): the text of a message with images shows
+	// the attachments of the image events of its line, and this says
+	// whose they are. Missing in show, where it is the event itself.
+	EventID   string `json:"event_id,omitempty"`
 	SHA256    string `json:"sha256"`
 	MediaType string `json:"media_type"`
 	Bytes     int64  `json:"bytes"`

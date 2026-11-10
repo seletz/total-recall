@@ -63,7 +63,7 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "by_session", Type: "boolean", Description: "one row per session instead of one row per hit"},
 				mcp.Param{Name: "order", Type: "string", Enum: []string{"first_hit", "hits"}, Description: "with by_session: first_hit (oldest first, default) or hits (most hits first)"},
 				mcp.Param{Name: "raw", Type: "boolean", Description: "pass query to FTS5 unchanged"},
-				pHasAttachment("events and sessions", "each event hit then lists its attachments (sha256, media_type, bytes, position) and attachment_count; without query the result is the newest events with attachments, the way to find pasted images and documents"),
+				pHasAttachment("events and sessions", "each event hit then lists its attachments (event_id, sha256, media_type, bytes, position: the text of a message with images has those of the message) and attachment_count; without query the result is the newest events with attachments, the way to find pasted images and documents"),
 			),
 		},
 		{
@@ -76,7 +76,7 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "account", Type: "string", Description: "account name, id or prefix"},
 				mcp.Param{Name: "subagents", Type: "boolean", Description: "include subagent sessions"},
 				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
-				pHasAttachment("sessions", "attachment_count then counts those attachments"),
+				pHasAttachment("sessions", "attachment_count then counts those attachments over the whole session, not only the since/until window"),
 				mcp.Param{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool"}, Description: "with has_attachment: whose event carries the attachment (human = pasted by the user, tool = screenshots of tool results)"},
 			),
 		},

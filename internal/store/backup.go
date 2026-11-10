@@ -142,6 +142,9 @@ func (s *Store) Backup(ctx context.Context, dir string, now time.Time, keepDaily
 	if err != nil {
 		return "", fmt.Errorf("store: backup: %w", err)
 	}
+	if err := writeBackupNote(s.path, dst, now); err != nil {
+		s.logf("backup: status file next to the database not written: %v", err)
+	}
 	removed, err := PruneBackups(dir, keepDaily, keepMonthly, now.Location())
 	for _, p := range removed {
 		s.logf("backup: pruned %s (retention: keep_daily %d, keep_monthly %d)", p, keepDaily, keepMonthly)

@@ -30,6 +30,14 @@ type Reclassifier interface {
 	Reclassify(ev model.Event, subagent bool) (actor model.Actor, ok bool)
 }
 
+// ToolInputer is implemented by adapters that can recover the whole input of
+// a stored tool call from its raw record, where the event text is cut to a
+// size limit (model.TruncMark). ev carries the event ID and raw record; ok is
+// false when it cannot be recovered.
+type ToolInputer interface {
+	ToolInput(ev model.Event) (text string, ok bool)
+}
+
 // InputKinder is implemented by adapters that can derive how a stored human
 // message reached the harness (model.InputKind) from its text and raw
 // record (ingest --reclassify). ok is false when it cannot be decided from

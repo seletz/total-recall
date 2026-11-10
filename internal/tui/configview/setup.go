@@ -373,11 +373,16 @@ func runChecks(opts Options, now time.Time) []check {
 
 	// backup directory
 	c = check{name: "backups"}
-	if fi, err := os.Stat(cfg.Backup.Dir); err == nil && fi.IsDir() {
+	if fi, err := os.Stat(cfg.Backup.Dir); err == nil && fi.IsDir() || err != nil && !errors.Is(err, fs.ErrNotExist) {
 		c.ok, c.text = true, tilde(cfg.Backup.Dir)+" exists"
-		if p, t, err := store.LastBackup(cfg.Backup.Dir, cfg.Location()); err == nil && p != "" {
-			c.text += ", last backup " + age(now, t)
-		} else {
+		switch bk := store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location()); {
+		case bk.State == store.BackupUnknown && bk.Path != "":
+			c.text = tilde(cfg.Backup.Dir) + " cannot be read (" + bk.Reason + "), last backup " + age(now, bk.At) + " by the status file"
+		case bk.State == store.BackupUnknown:
+			c.text = tilde(cfg.Backup.Dir) + " cannot be read (" + bk.Reason + "), last backup unknown"
+		case bk.State == store.BackupOK:
+			c.text += ", last backup " + age(now, bk.At)
+		default:
 			c.warn, c.text = true, c.text+", no backup yet (actions: backup)"
 		}
 	} else {

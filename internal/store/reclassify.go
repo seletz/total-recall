@@ -83,16 +83,22 @@ func (s *Store) UserMessagesBetween(ctx context.Context, harness string, from, t
 
 // ToolCall is the argument text of a tool_use event.
 type ToolCall struct {
+	ID        string
 	SessionID string
 	TS        time.Time
 	Text      string
+	// Raw is the raw line of a call whose text was cut (ends with
+	// model.TruncMark); "" for the others, and when raw is not stored.
+	Raw string
 }
 
 // ToolCalls lists the tool calls with from <= ts <= to, oldest first. The
-// text is the argument as stored (cut at ingest.tool_input_max).
+// text is the argument as stored (cut at ingest.tool_input_max); for a cut
+// text the raw line comes with it, so that the whole argument can be
+// recovered.
 func (s *Store) ToolCalls(ctx context.Context, from, to time.Time) ([]ToolCall, error) {
-	q := `SELECT session_id, ts, COALESCE(text, '') FROM events WHERE kind = 'tool_use'`
-	var args []any
+	q := `SELECT id, session_id, ts, COALESCE(text, ''), CASE WHEN text LIKE '%' || ? THEN raw END FROM events WHERE kind = 'tool_use'`
+	args := []any{model.TruncMark}
 	if !from.IsZero() {
 		q += " AND ts >= ?"
 		args = append(args, formatTime(from))
@@ -110,10 +116,16 @@ func (s *Store) ToolCalls(ctx context.Context, from, to time.Time) ([]ToolCall, 
 	for rows.Next() {
 		var c ToolCall
 		var ts sql.NullString
-		if err := rows.Scan(&c.SessionID, &ts, &c.Text); err != nil {
+		var raw []byte
+		if err := rows.Scan(&c.ID, &c.SessionID, &ts, &c.Text, &raw); err != nil {
 			return nil, fmt.Errorf("store: tool calls: %w", err)
 		}
 		c.TS = parseTime(ts)
+		if len(raw) > 0 {
+			if c.Raw, err = rawText(raw); err != nil {
+				return nil, fmt.Errorf("store: tool calls: %s: %w", c.ID, err)
+			}
+		}
 		out = append(out, c)
 	}
 	if err := rows.Err(); err != nil {

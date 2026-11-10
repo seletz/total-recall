@@ -435,7 +435,7 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `rank` | FTS5 rank, lower is better |
 | `type` | `event` |
 | `project` | project of the session as in `stats --by project` (a subagent counts with its parent); `null` without a directory |
-| `attachments` | the event's attachments as in `show --json` (with `--has-attachment=KIND` only that kind); `[]` without |
+| `attachments` | the event's attachments as in `show --json` plus `event_id` (the event the attachment is linked to: for the text of a message with images the image events of its transcript line, which is what `--has-attachment` finds too); with `--has-attachment=KIND` only that kind; `[]` without |
 | `attachment_count` | number of `attachments` |
 
 #### `search --type session --json`
@@ -570,6 +570,9 @@ One object per memory file whose current content matches, best first.
 | `backup_dir` | |
 | `last_backup` | path of the last backup, `null` if none |
 | `last_backup_at` | time of the last backup, `null` if none |
+| `last_backup_state` | `ok` (backup found), `none` (directory read, no backup) or `unknown` (directory cannot be read, e.g. macOS privacy block on ~/Documents: not a sign that backups are missing; `last_backup`/`last_backup_at` then come from the status file next to the database, or are `null`) |
+| `last_backup_reason` | with `unknown`: why, e.g. `no access: operation not permitted`; else `null` |
+| `last_backup_hint` | with `unknown`: what to do about it; else `null` |
 | `log` | path of the log file |
 | `errors_window` | age limit of `recent_errors`, `"24h"`; `null` with `--all-errors` |
 | `errors_since` | start of the window (UTC); `null` with `--all-errors` |

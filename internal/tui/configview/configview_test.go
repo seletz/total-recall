@@ -665,3 +665,41 @@ func reloadSetup(t *testing.T, m Model) Model {
 	m.pages = m.replace(pageSetup, p)
 	return tuitest.Run(t, m, cmd).(Model)
 }
+
+// TestStatusBackupUnknown: a backup directory the process cannot read is
+// shown as unknown with the reason and the hint, not as "none"; with the
+// status file next to the database the last backup is still shown.
+func TestStatusBackupUnknown(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads every directory")
+	}
+	for _, withNote := range []bool{false, true} {
+		t.Run(map[bool]string{false: "no status file", true: "status file"}[withNote], func(t *testing.T) {
+			h := newTestEnv(t, "")
+			dir := h.cfg.Backup.Dir
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if withNote {
+				note := `{"time":"2026-10-20T08:00:00Z","file":"` + filepath.Join(dir, "archive-2026-10-20.db.zst") + `","size":1234}`
+				if err := os.WriteFile(store.BackupStatusPath(h.cfg.DB), []byte(note), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Chmod(dir, 0); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+			f := frame(drive(t, New(h.options(t))))
+			requireLacks(t, f, "none  in")
+			requireRow(t, f, "backup hint", "")
+			if withNote {
+				requireRow(t, f, "last backup", "~/Documents/total-recall/archive-2026-10-20.db.zst")
+				requireContains(t, f, "status file", "permission denied")
+			} else {
+				requireRow(t, f, "last backup", "unknown")
+				requireContains(t, f, "permission denied")
+			}
+		})
+	}
+}

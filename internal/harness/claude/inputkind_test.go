@@ -83,3 +83,33 @@ func TestInputKindImageMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestToolInput(t *testing.T) {
+	line := `{"type":"assistant","message":{"role":"assistant","content":[` +
+		`{"type":"text","text":"ok"},` +
+		`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"herdr agent start w --cwd /w/a"}},` +
+		`{"type":"tool_use","id":"t2","name":"Read","input":{"file_path":"/w/b.go"}}]}}`
+	tests := []struct {
+		name string
+		id   string
+		raw  string
+		want string
+		ok   bool
+	}{
+		{"first tool block", "claude:u#1", line, "herdr agent start w --cwd /w/a", true},
+		{"second tool block, other key", "claude:u#2", line, "/w/b.go", true},
+		{"text block", "claude:u#0", line, "", false},
+		{"index out of range", "claude:u#9", line, "", false},
+		{"no block in the ID", "claude:u", line, "", false},
+		{"no raw line", "claude:u#1", "", "", false},
+		{"unreadable raw", "claude:u#1", "not json", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := New("").ToolInput(model.Event{ID: tt.id, Raw: tt.raw})
+			if got != tt.want || ok != tt.ok {
+				t.Errorf("ToolInput = %q, %v; want %q, %v", got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/seletz/total-recall/internal/ops"
+	"github.com/seletz/total-recall/internal/store"
 )
 
 // statusPage shows the shared state as a table of labelled rows, then the
@@ -77,10 +78,19 @@ func (m Model) statusView(width, height int) string {
 		}
 	}
 	if s.loaded {
-		if s.backup == "" {
+		switch {
+		case s.backupInfo.State == store.BackupUnknown && s.backup == "":
+			add("last backup", "unknown  "+m.th.Muted.Render("in "+m.tilde(cfg.Backup.Dir)))
+		case s.backupInfo.State == store.BackupUnknown:
+			add("last backup", m.tilde(s.backup)+"  "+m.th.Muted.Render(age(m.now(), s.backupAt)+", status file"))
+		case s.backup == "":
 			add("last backup", warn("none")+"  "+m.th.Muted.Render("in "+m.tilde(cfg.Backup.Dir)))
-		} else {
+		default:
 			add("last backup", m.tilde(s.backup)+"  "+m.th.Muted.Render(age(m.now(), s.backupAt)))
+		}
+		if s.backupInfo.State == store.BackupUnknown {
+			add("backup access", m.th.Muted.Render(s.backupInfo.Reason))
+			add("backup hint", m.th.Muted.Render(s.backupInfo.Hint))
 		}
 	}
 	add("log", m.tilde(cfg.LogPath()))

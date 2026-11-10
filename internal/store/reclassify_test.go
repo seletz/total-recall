@@ -147,3 +147,28 @@ func TestToolCalls(t *testing.T) {
 		t.Errorf("calls in the range = %+v, %v", late, err)
 	}
 }
+
+func TestToolCallsRawOfCutText(t *testing.T) {
+	s, _ := openTestStore(t)
+	sessions := []model.Session{{ID: "claude:a", Harness: "claude", NativeID: "a", StartedAt: ts("2026-01-05T08:00:00Z"), EndedAt: ts("2026-01-05T09:00:00Z")}}
+	evs := []model.Event{
+		{ID: "claude:a-1#0", SessionID: "claude:a", TS: ts("2026-01-05T08:00:00Z"), Kind: model.KindToolUse, Role: "assistant", Actor: model.ActorAgent, ToolName: "Bash", Text: "short", Raw: `{"short":1}`},
+		{ID: "claude:a-2#0", SessionID: "claude:a", TS: ts("2026-01-05T08:01:00Z"), Kind: model.KindToolUse, Role: "assistant", Actor: model.ActorAgent, ToolName: "Bash", Text: "long start" + model.TruncMark, Raw: `{"long":1}`},
+		{ID: "claude:a-3#0", SessionID: "claude:a", TS: ts("2026-01-05T08:02:00Z"), Kind: model.KindToolUse, Role: "assistant", Actor: model.ActorAgent, ToolName: "Bash", Text: "cut, no raw" + model.TruncMark},
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/a.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	calls, err := s.ToolCalls(ctx, time.Time{}, time.Time{})
+	if err != nil || len(calls) != 3 {
+		t.Fatalf("calls = %+v, %v", calls, err)
+	}
+	for i, want := range []string{"", `{"long":1}`, ""} {
+		if calls[i].Raw != want {
+			t.Errorf("call %d: raw %q, want %q", i, calls[i].Raw, want)
+		}
+	}
+	if calls[1].ID != "claude:a-2#0" {
+		t.Errorf("ID = %q", calls[1].ID)
+	}
+}

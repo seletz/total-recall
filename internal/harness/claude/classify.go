@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/seletz/total-recall/internal/inputkind"
@@ -183,6 +184,26 @@ func (a *Adapter) Reclassify(ev model.Event, subagent bool) (actor model.Actor, 
 // InputKind implements harness.InputKinder for a stored human message.
 func (a *Adapter) InputKind(ev model.Event) (model.InputKind, bool) {
 	return inputkind.FromRaw(ev.Text, ev.Raw)
+}
+
+// ToolInput implements harness.ToolInputer: the whole input of the tool call
+// the event stands for (the block its ID names), from the raw line, in the
+// form the event text has before it is cut.
+func (a *Adapter) ToolInput(ev model.Event) (string, bool) {
+	_, blockStr, ok := strings.Cut(ev.ID, "#")
+	idx, err := strconv.Atoi(blockStr)
+	if !ok || err != nil || ev.Raw == "" {
+		return "", false
+	}
+	var r rawRecord
+	if json.Unmarshal([]byte(ev.Raw), &r) != nil || r.Message == nil {
+		return "", false
+	}
+	var blocks []rawBlock
+	if json.Unmarshal(r.Message.Content, &blocks) != nil || idx < 0 || idx >= len(blocks) || blocks[idx].Type != "tool_use" {
+		return "", false
+	}
+	return toolInputText(blocks[idx].Input), true
 }
 
 func hasAnyPrefix(s string, prefixes []string) bool {
