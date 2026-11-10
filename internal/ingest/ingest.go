@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/seletz/total-recall/internal/blobref"
+	"github.com/seletz/total-recall/internal/dispatch"
 	"github.com/seletz/total-recall/internal/gitinfo"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/model"
@@ -76,6 +77,10 @@ type Deps struct {
 	// StoreMemory makes All archive the project memory of the adapters
 	// that have one (Memory, harness.MemorySource).
 	StoreMemory bool
+	// Dispatch tunes the recognition of inputs that another session typed
+	// into this one (see package dispatch); the zero value takes the
+	// defaults, a negative Window turns it off.
+	Dispatch dispatch.Config
 	// Logf receives diagnostics; default discard.
 	Logf func(format string, args ...any)
 }
@@ -99,6 +104,10 @@ type Summary struct {
 	RawRewritten int
 	// MetaRewritten is the part of RawRewritten that are meta records.
 	MetaRewritten int
+	// Dispatched counts human inputs of this call's time range that were
+	// marked automation because another session sent the text (package
+	// dispatch).
+	Dispatched int
 	// Meta counts meta records newly inserted (table session_meta).
 	Meta int
 	// MetaKept counts existing meta records a rewrite left as they were:
@@ -125,7 +134,8 @@ type runner struct {
 	dirs     map[string]store.DirInfo // per-run cwd cache (also negative results)
 	written  *store.WrittenRows       // rows written so far, with RewriteRaw
 	sum      Summary
-	err      error // the failure of the current file's add, if any
+	lo, hi   time.Time // the time range of the events written so far
+	err      error     // the failure of the current file's add, if any
 }
 
 func newRun(d Deps) *runner {
@@ -176,6 +186,7 @@ func Run(ctx context.Context, d Deps, paths []string) (Summary, error) {
 		}
 		r.file(ctx, a, abs)
 	}
+	r.markDispatched(ctx)
 	return r.finish(start), nil
 }
 
@@ -197,6 +208,7 @@ func All(ctx context.Context, d Deps) (Summary, error) {
 			r.file(ctx, a, p)
 		}
 	}
+	r.markDispatched(ctx)
 	if d.StoreMemory {
 		if err := r.memory(ctx); err != nil {
 			return r.finish(start), err
@@ -343,6 +355,14 @@ func (r *runner) add(ctx context.Context, rec model.Record, sessions *[]model.Se
 	var added int64
 	for _, e := range rec.Events {
 		r.sessions[e.SessionID] = true
+		if !e.TS.IsZero() {
+			if r.lo.IsZero() || e.TS.Before(r.lo) {
+				r.lo = e.TS
+			}
+			if e.TS.After(r.hi) {
+				r.hi = e.TS
+			}
+		}
 		switch {
 		case !r.deps.StoreRaw:
 			e.Raw = ""

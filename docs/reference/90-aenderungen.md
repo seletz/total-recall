@@ -8,6 +8,13 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.7.0 (unveröffentlicht)
 
+### Koordinator-Prompts zählen nicht mehr als Eingabe des Menschen
+
+- **Per Terminal eingetippte Aufträge werden `automation`** ([#265](https://github.com/seletz/total-recall/issues/265)). Ein Koordinator, der mit `herdr agent prompt <name> "…"` oder `tmux send-keys` Text in das Terminal eines Workers schickt, erschien im Transkript des Workers als Eingabe des Menschen (`actor = human`, `input_kind` `typed` oder `pasted`) und dehnte Arbeitstag, Blöcke und Arbeitszeit. Ein unmittelbareres Signal gibt es im Format nicht: `origin.kind`, `promptSource` und `entrypoint` sind dieselben wie bei echter Eingabe. Deshalb **gleicht die Erkennung den Text ab**: Eine Eingabe ist `automation`, wenn eine andere Session höchstens 120 s vorher einen Tool-Aufruf hatte, dessen Argument denselben Text enthält (ohne Leerraum und Anführungszeichen verglichen, bei langen Texten der Anfang). Kein Muster nötig.
+- **Konfiguration:** `[harness.claude.actors] prompt_window` (Standard `"120s"`, `"0s"` schaltet aus) und `prompt_commands` (Standard `["herdr agent prompt", "tmux send-keys"]`): Nur mit einem solchen Befehl passt ein kurzer Text wie „ok“. Neue Schlüssel, Minor.
+- **Beim Einlesen und im Bestand:** `ingest` markiert die Eingaben im Zeitraum der neuen Events nach jedem Lauf, in beiden Richtungen: auch wenn der Aufruf des Koordinators erst nach der Eingabe des Workers eingelesen wird. `reindex --actors` wendet die Erkennung auf den Bestand an und nennt die Zahl (`of them were typed in by another session`). Keine Migration: Es ändern sich nur Werte, kein Schema. Wer sie ausführt, sichert vorher (`total-recall backup`) und sieht mit `reindex --actors --dry-run`, was sich ändert.
+- **Die Arbeitszeit sinkt** um die umgestuften Eingaben, an Tagen mit Koordinatoren spürbar: `stats --workday`, `--worktime`, die Diagramme und jede Abfrage über `actor = 'human'`. Das Demo-Archiv hat dafür ein Koordinator-Paar; ein Test prüft auf seiner `--json`-Ausgabe, dass die menschlichen Events um genau die umgestuften fallen und die Summen von Arbeitstag und Arbeitszeit weiter zu ihren Teilen passen.
+
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools --top N` ohne `--by`** ([Befehle](10-befehle.md#stats-tools), #258): kürzt `by_tool` auf die N meistgenutzten Tools, der Rest steht als ein Eintrag `other`; die Einträge ergeben weiter genau `total`. Vorher war `--top` ohne `--by` ein Fehler. Mit `--by` ändert sich nichts. Im MCP-Tool `stats` gilt dasselbe für `top` mit `tools`.

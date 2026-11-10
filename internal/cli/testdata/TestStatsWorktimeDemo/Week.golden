@@ -10,12 +10,12 @@ DATE        DAY  CATEGORY     RAW    ROUNDED  HOLIDAY
 2026-10-27  Tue  kompass      3h13m  3h15m    -
 2026-10-28  Wed  kompass      2h52m  3h00m    -
 2026-10-28  Wed  wetterwarte  53m    1h00m    -
-2026-10-29  Thu  -            -      -        -
+2026-10-29  Thu  kompass      19m    30m      -
 2026-10-30  Fri  fahrtenbuch  1h25m  1h30m    -
 2026-10-30  Fri  kompass      2h50m  3h00m    -
 
 CATEGORY     RAW     ROUNDED  DAYS
 fahrtenbuch  3h05m   3h15m    3
-kompass      11h29m  12h00m   4
+kompass      11h48m  12h30m   5
 wetterwarte  1h19m   1h30m    2
-total        15h53m  16h45m   4
+total        16h12m  17h15m   5

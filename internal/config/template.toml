@@ -79,6 +79,13 @@ peer_prefixes = []
 # one of these is a task from another agent ("peer"), e.g. ["# Task:", "Auftrag:"].
 peer_paste_headers = []
 automation_prefixes = ["Hourly ", "Weekend watch"]
+# An input in a session is "automation", not "human", when another session
+# sent the same text with a tool call shortly before: a coordinator running
+# `herdr agent prompt <name> "..."` or `tmux send-keys`. The comparison works
+# without configuration; these commands only let a short text ("ok") match,
+# and the window says how long before the call may be ("0s" turns it off).
+prompt_commands = ["herdr agent prompt", "tmux send-keys"]
+prompt_window = "120s"
 
 [work]
 # Normal working time for the activity per day (`stats --workday`, TUI view

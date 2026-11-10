@@ -111,11 +111,13 @@ total-recall reindex --actors             # anwenden
 
 `--actors` setzt außerdem [`input_kind`](40-schema.md#input_kind) der menschlichen Nachrichten neu (aus Text und `raw`) und lässt ihn bei Nachrichten weg, die nicht mehr `human` sind; die Zahl steht als `input kinds set` in der Ausgabe, wenn sie nicht 0 ist.
 
+`--actors` erkennt auch Eingaben, die ein Koordinator mit einem Befehl in die Session eines Workers getippt hat (`herdr agent prompt`, `tmux send-keys`): Sie werden `automation`, wenn eine andere Session sie kurz vorher als Argument eines Tool-Aufrufs verschickt hat ([`prompt_window`, `prompt_commands`](20-konfiguration.md#harnessclaudeactors)). Die Zahl steht in der Ausgabe als `of them were typed in by another session`; sie ist ein Teil der geänderten Nachrichten.
+
 Ausgabe:
 
 ```text
-reindex --actors: 1234 user messages, 17 changed (human -> peer: 17) (0.4s)
-reindex --actors (dry run): 1234 user messages, 17 would change (human -> peer: 17) (0.4s)
+reindex --actors: 1234 user messages, 17 changed (human -> peer: 14, human -> automation: 3), 3 of them were typed in by another session (0.4s)
+reindex --actors (dry run): 1234 user messages, 17 would change (human -> peer: 14, human -> automation: 3), 3 of them would be typed in by another session (0.4s)
 ```
 
 - Die Textregeln (Präfixe, Kopfzeilen eingefügter Blöcke) laufen über den gespeicherten Text; die Flags des Records (`origin.kind`, `isMeta`, geplante Prompts) kommen aus `raw`. Fehlt `raw` (`ingest.store_raw = false` oder Zeile größer als `ingest.raw_max_bytes`) und trifft keine Textregel, bleibt der Actor stehen; die Zahl steht als `undecided` in der Ausgabe.

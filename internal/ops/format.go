@@ -34,6 +34,9 @@ func FormatIngest(s ingest.Summary, rewriteRaw bool) string {
 	if s.MemoryVersions > 0 || s.MemoryDeleted > 0 {
 		memory = fmt.Sprintf(", memory: %d new versions, %d deleted", s.MemoryVersions, s.MemoryDeleted)
 	}
+	if s.Dispatched > 0 {
+		memory += fmt.Sprintf(", %d inputs typed in by another session marked automation", s.Dispatched)
+	}
 	return fmt.Sprintf("scanned %d files: %d changed, %d unchanged, %d locked; %d new events, %d meta records%s%s, %d sessions touched%s (%s)",
 		s.Scanned, s.Changed, s.Unchanged, s.Locked, s.Events, s.Meta, rewritten, blobs, s.Sessions, memory, s.Duration.Round(time.Millisecond))
 }
@@ -69,6 +72,13 @@ func FormatReclassify(s ingest.ReclassifySummary) string {
 		} else {
 			fmt.Fprintf(&b, ", %d input kinds set", s.InputKinds)
 		}
+	}
+	if s.Dispatched > 0 {
+		verb := "were"
+		if s.DryRun {
+			verb = "would be"
+		}
+		fmt.Fprintf(&b, ", %d of them %s typed in by another session", s.Dispatched, verb)
 	}
 	if s.Undecided > 0 {
 		fmt.Fprintf(&b, ", %d undecided (no raw record)", s.Undecided)
