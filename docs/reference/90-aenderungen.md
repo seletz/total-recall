@@ -16,6 +16,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **Gewählter Tag in der Aktivität:** `▸` markiert eine Tageszeile; `K`/`J` bewegen die Wahl, ++enter++ öffnet den Tag. ++up++/++down++ ändern sich nicht.
 - **Tasten:** `activity_select_up` (`K`, ++shift+up++), `activity_select_down` (`J`, ++shift+down++), `activity_open` (++enter++) und die Gruppe `day_*` (`day_up`, `day_down`, `day_prev`, `day_next`, `day_open`, `day_human`), alle über `[keys]` änderbar.
 
+### Anhänge finden ([#272](https://github.com/seletz/total-recall/issues/272))
+
+- **`search --has-attachment[=image|document]` und `sessions --has-attachment[=…]`** finden Events und Sessions mit einem Bild oder Dokument, kombinierbar mit `--actor`, `--since`/`--until` und `--project`. `sessions` hat dafür neu `--project` und `--actor` (mit `--has-attachment`). Die Art folgt mit `=`.
+- **Ohne Suchwort:** `search --has-attachment` listet die neuesten Events mit Anhang (Event, Session, Typ, Größe).
+- **JSON:** Event-Treffer haben `attachments` und `attachment_count`, Sessions und Session-Treffer `attachment_count` (nur neue Felder). Die Treffer mit Anhang sind genau die Events von `event_blobs`, die Summen der Anhänge über Treffer, Sessions und Tabelle sind gleich.
+- **MCP:** `search` und `sessions` haben `has_attachment`, `sessions` zusätzlich `actor` und `project`; `query` darf bei `search` mit `has_attachment` fehlen.
+- **Store-API für die TUI:** `SessionFilter.Attachment`, `SessionInfo.Attachments`, `SearchHit.Attachments`, `SessionFilter.Projects` (siehe [Anhänge finden](10-befehle.md#anhaenge-finden)). Die TUI-Filter folgen darauf.
+
 ### Anhänge in der TUI ([#184](https://github.com/seletz/total-recall/issues/184))
 
 - **Anhang-Viewer:** Bilder und Dokumente, die zu einem Event gehören, lassen sich in der TUI ansehen. `v` öffnet in der Suche (bei einem Treffer mit Anhang) und in der Session (mit Anhängen) eine dritte Ebene, die durch alle Anhänge der Session blättert. Bilder erscheinen als Text (Schattenzeichen in der Farbe des Bildes, auch mit `NO_COLOR` lesbar, an die Fenstergröße angepasst), PDFs mit Seitenzahl und Titel, Texte mit ihrem Anfang; `o` öffnet den Anhang mit dem Programm des Systems, `total-recall blob` bleibt die Rückfallebene. Die Kitty-Grafik für Bilder folgt.

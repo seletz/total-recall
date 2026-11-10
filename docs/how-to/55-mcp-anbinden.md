@@ -42,8 +42,8 @@ Alle Tools sind schreibgeschützt und geben das JSON des gleichnamigen Befehls z
 
 | Tool | Befehl | Parameter (`*` = Pflicht) |
 |---|---|---|
-| `search` | [`search`](../reference/10-befehle.md#search) | `query*`, `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (Default 20, höchstens 200; je Typ) |
-| `sessions` | [`sessions`](../reference/10-befehle.md#sessions) | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (Default 50, höchstens 500) |
+| `search` | [`search`](../reference/10-befehle.md#search) | `query` (Pflicht, außer `has_attachment` ist gesetzt), `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `has_attachment` (`any`, `image`, `document`; ohne `query` die neuesten Events mit Anhang), `limit` (Default 20, höchstens 200; je Typ) |
+| `sessions` | [`sessions`](../reference/10-befehle.md#sessions) | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `project`, `has_attachment` (`any`, `image`, `document`), `actor` (mit `has_attachment`: wessen Event den Anhang trägt), `subagents`, `limit` (Default 50, höchstens 500) |
 | `show` | [`show`](../reference/10-befehle.md#show) | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (Default 200, höchstens 1000) |
 | `stats` | [`stats`](../reference/10-befehle.md#stats) | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `tools`, `path`, `path_in`, `day`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | [`memory`](../reference/10-befehle.md#memory) | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |

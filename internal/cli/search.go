@@ -29,6 +29,8 @@ type SessionSearchHitJSON struct {
 	Harness     string     `json:"harness"`
 	EndedAt     NullString `json:"ended_at"`
 	Events      int        `json:"events"`
+	// AttachmentCount as in SessionJSON (since v1.7.0).
+	AttachmentCount int `json:"attachment_count"`
 }
 
 // MemorySearchHitJSON is a hit of type memory in search --json: a memory
@@ -60,18 +62,18 @@ func loadProjectCatalog(ctx context.Context, st *store.Store, cfg *config.Config
 
 // searchFlagValues tells which filter flags of search are set, by store
 // filter name (= flag name).
-func searchFlagValues(f filterFlags, project, session, actor string, raw bool) map[string]bool {
+func searchFlagValues(f filterFlags, project, session, actor string, raw, attachment bool) map[string]bool {
 	return map[string]bool{
 		store.FilterSince: f.since != "", store.FilterUntil: f.until != "", store.FilterRepo: f.repo != "",
 		store.FilterHarness: f.harness != "", store.FilterName: f.name != "", store.FilterAccount: f.account != "",
-		store.FilterProject: project != "", store.FilterSession: session != "", store.FilterActor: actor != "", store.FilterRaw: raw,
+		store.FilterProject: project != "", store.FilterSession: session != "", store.FilterActor: actor != "", store.FilterRaw: raw, store.FilterAttachment: attachment,
 	}
 }
 
 // checkSearchFlags rejects a set flag that a selected type does not apply.
 func checkSearchFlags(types []store.HitType, set map[string]bool) error {
 	order := []string{store.FilterSince, store.FilterUntil, store.FilterRepo, store.FilterHarness, store.FilterName, store.FilterAccount,
-		store.FilterProject, store.FilterSession, store.FilterActor, store.FilterRaw}
+		store.FilterProject, store.FilterSession, store.FilterActor, store.FilterRaw, store.FilterAttachment}
 	for _, t := range types {
 		for _, f := range order {
 			if set[f] && !store.Supports(t, f) {
@@ -130,6 +132,9 @@ func (e *env) writeTypedHits(o *output, groups []store.TypeHits, cat *project.Ca
 			}
 			// The snippet line is indented by four spaces.
 			_, _ = fmt.Fprintf(w, "%s%s\n    %s\n", prefix, head, o.cell(h.Snippet, o.width-4))
+			if h.Type == store.TypeEvent && len(h.Event.Attachments) > 0 {
+				_, _ = fmt.Fprintf(w, "    attachments: %s\n", attachmentLabel(h.Event.Attachments))
+			}
 		}
 	}
 	for _, g := range groups {
@@ -149,7 +154,7 @@ func typedHitJSON(h store.Hit, cat *project.Catalog) any {
 		s := h.Session
 		return SessionSearchHitJSON{SessionID: s.ID, SessionName: NullString(s.DisplayName()), Repo: NullString(s.Repo()),
 			TS: NullString(isoTime(s.StartedAt)), Snippet: NullString(h.Snippet), Rank: h.Rank, Type: string(h.Type),
-			Project: NullString(cat.Name(h.Project)), Harness: s.Harness, EndedAt: NullString(isoTime(s.EndedAt)), Events: s.Events}
+			Project: NullString(cat.Name(h.Project)), Harness: s.Harness, EndedAt: NullString(isoTime(s.EndedAt)), Events: s.Events, AttachmentCount: s.Attachments}
 	case store.TypeMemory:
 		m := h.Memory
 		repo := h.Project.Remote
@@ -162,5 +167,6 @@ func typedHitJSON(h store.Hit, cat *project.Catalog) any {
 	ev := h.Event
 	return HitJSON{SessionID: ev.Event.SessionID, SessionName: NullString(ev.SessionName), Repo: NullString(ev.Repo),
 		EventID: ev.Event.ID, TS: isoTime(ev.Event.TS), Actor: string(ev.Event.Actor), InputKind: NullString(ev.Event.InputKind), Kind: string(ev.Event.Kind),
-		Snippet: NullString(ev.Snippet), Rank: ev.Rank, Type: string(h.Type), Project: NullString(cat.Name(h.Project))}
+		Snippet: NullString(ev.Snippet), Rank: ev.Rank, Type: string(h.Type), Project: NullString(cat.Name(h.Project)),
+		Attachments: attachmentJSON(ev.Attachments), AttachmentCount: len(ev.Attachments)}
 }

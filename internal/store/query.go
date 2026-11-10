@@ -31,6 +31,15 @@ type SessionFilter struct {
 	HideEmpty bool
 	// Limit caps the number of results; 0 = no limit.
 	Limit int
+	// Attachment keeps what has an attachment (#272): the sessions with
+	// one, for the events of a search the events with one. nil does not
+	// filter. Sessions and the session hits of a search then count the
+	// matching attachments in SessionInfo.Attachments.
+	Attachment *AttachmentFilter
+	// Projects keeps the sessions of these raw project keys (see
+	// ProjectRef) in session lists (Sessions, the session search); empty
+	// does not filter. The event search has SearchFilter.ProjectKeys.
+	Projects []string
 }
 
 // SessionInfo is a session with event counts and the reverse continuation
@@ -44,6 +53,10 @@ type SessionInfo struct {
 	HumanEvents   int
 	AgentEvents   int
 	Events        int
+	// Attachments is the number of attachments of the session: those of
+	// the kind and actor of the filter of Sessions and of the session
+	// search, all of them without a filter. 0 where it is not loaded.
+	Attachments int
 }
 
 // Repo returns the session's repository identity: remote URL, else git root, else cwd.
@@ -110,6 +123,21 @@ func (f SessionFilter) where(eventTime bool) ([]string, []any) {
 		cond = append(cond, `s.account_id LIKE ? ESCAPE '\'`)
 		args = append(args, strings.TrimSuffix(strings.TrimPrefix(likeArg(f.Account), "%"), "%")+"%")
 	}
+	if len(f.Projects) > 0 && !eventTime {
+		c, a := inCond(projectKeyExpr, f.Projects)
+		cond = append(cond, "s.id IN (SELECT s.id FROM sessions s LEFT JOIN sessions p ON p.id = s.parent_id WHERE "+c+")")
+		args = append(args, a...)
+	}
+	if f.Attachment != nil {
+		var c string
+		var a []any
+		if eventTime {
+			c, a = f.Attachment.eventCond()
+		} else {
+			c, a = f.Attachment.sessionCond()
+		}
+		cond, args = append(cond, c), append(args, a...)
+	}
 	return cond, args
 }
 
@@ -157,7 +185,11 @@ func (s *Store) querySessions(ctx context.Context, cond []string, args []any, li
 // Sessions lists sessions matching f, newest start first.
 func (s *Store) Sessions(ctx context.Context, f SessionFilter) ([]SessionInfo, error) {
 	cond, args := f.where(false)
-	return s.querySessions(ctx, cond, args, f.Limit)
+	list, err := s.querySessions(ctx, cond, args, f.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return list, s.sessionsAttachments(ctx, list, f.Attachment)
 }
 
 // Session returns the session with exactly this ID, or ErrNotFound.
@@ -332,6 +364,10 @@ type SearchHit struct {
 	Rank        float64 // bm25, lower is better
 	// Project is the raw project key of the event's session.
 	Project ProjectRef
+	// Attachments are the attachments of the event, those of the kind of
+	// the filter (every one without a filter); metadata only. Filled by
+	// SearchTyped.
+	Attachments []EventAttachment
 }
 
 // ftsQuery quotes every term so user input cannot produce FTS syntax errors.
@@ -414,9 +450,15 @@ func (f SearchFilter) where(query string) ([]string, []any) {
 	if hs == "" && he == "" {
 		hs, he = "[", "]"
 	}
-	cond, args := f.SessionFilter.where(true)
+	cond, args := f.eventCond()
 	cond = append([]string{"events_fts MATCH ?"}, cond...)
 	args = append([]any{hs, he, query}, args...)
+	return cond, args
+}
+
+// eventCond builds the filters of f on the events, without the FTS match.
+func (f SearchFilter) eventCond() ([]string, []any) {
+	cond, args := f.SessionFilter.where(true)
 	if f.Actor != "" {
 		cond = append(cond, "e.actor = ?")
 		args = append(args, f.Actor)

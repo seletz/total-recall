@@ -110,6 +110,12 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 		{"stats day all events", "stats", map[string]any{"day": "2026-10-29", "all_events": true}, []string{"stats", "--day=2026-10-29", "--all-events"}},
 		{"memory", "memory", map[string]any{}, []string{"memory"}},
 		{"status", "status", map[string]any{}, []string{"status"}},
+		{"search has_attachment without query", "search", map[string]any{"has_attachment": "any"}, []string{"search", "--has-attachment=any", "--limit=20"}},
+		{"search has_attachment image", "search", map[string]any{"has_attachment": "image"}, []string{"search", "--has-attachment=image", "--limit=20"}},
+		{"search query with has_attachment", "search", map[string]any{"query": "image", "has_attachment": "any", "actor": "human"}, []string{"search", "image", "--has-attachment=any", "--actor=human", "--limit=20"}},
+		{"search has_attachment sessions", "search", map[string]any{"has_attachment": "any", "type": "session"}, []string{"search", "--has-attachment=any", "--type=session", "--limit=20"}},
+		{"sessions has_attachment", "sessions", map[string]any{"has_attachment": "document", "actor": "human", "project": "kompass"}, []string{"sessions", "--has-attachment=document", "--actor=human", "--project=kompass", "--limit=50"}},
+		{"sessions has_attachment none", "sessions", map[string]any{"has_attachment": "any", "actor": "tool"}, []string{"sessions", "--has-attachment=any", "--actor=tool", "--limit=50"}},
 		{"timeline all implies every actor", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-20T21:00", "all": true, "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-20T21:00", "--all", "--text-width=40", "--fields=" + mcpTimelineFields}},
 		{"timeline", "timeline", map[string]any{"since": "2026-10-20T20:00", "until": "2026-10-21T06:00", "project": "kompass", "text_width": 40}, []string{"timeline", "--since=2026-10-20T20:00", "--until=2026-10-21T06:00", "--project=kompass", "--text-width=40", "--fields=" + mcpTimelineFields}},
 	} {
@@ -159,6 +165,10 @@ func TestMCPErrors(t *testing.T) {
 		{"bad type", "search", map[string]any{"query": "x", "type": []string{"attachment"}}, "usage"},
 		{"type needs by_session event", "search", map[string]any{"query": "x", "type": "session", "by_session": true}, "usage"},
 		{"missing query", "search", map[string]any{}, "usage"},
+		{"bad has_attachment", "search", map[string]any{"has_attachment": "video"}, "usage"},
+		{"sessions bad has_attachment", "sessions", map[string]any{"has_attachment": "video"}, "usage"},
+		{"sessions actor without has_attachment", "sessions", map[string]any{"actor": "human"}, "usage"},
+		{"memory with has_attachment", "search", map[string]any{"query": "x", "type": "memory", "has_attachment": "any"}, "usage"},
 		{"flag injection", "search", map[string]any{"query": "x", "db": "/etc/passwd"}, "usage"},
 		{"limit too large", "search", map[string]any{"query": "x", "limit": 100000}, "usage"},
 		{"flag-like query is data", "search", map[string]any{"query": "--help"}, ""},
@@ -280,5 +290,29 @@ func TestMCPTimelineSinceUntilMessage(t *testing.T) {
 	r := e.run(t, "", append(s.args, "timeline", "--json", "--since", "2026-10-21", "--until", "2026-10-20")...)
 	if cm := decode[ErrorJSON](t, r.stdout).Error.Message; !strings.Contains(cm, "--since") || !strings.Contains(cm, "--until") {
 		t.Errorf("CLI message = %q, want the flag names", cm)
+	}
+}
+
+// TestMCPAttachmentMessages: the usage errors of the attachment filter name
+// the arguments of the tool, not the flags.
+func TestMCPAttachmentMessages(t *testing.T) {
+	s, _ := demoMCP(t)
+	for _, tc := range []struct {
+		name, tool string
+		args       map[string]any
+		want       string
+	}{
+		{"query missing", "search", map[string]any{}, `search needs a query or argument "has_attachment"`},
+		{"sessions actor", "sessions", map[string]any{"actor": "human"}, `argument "actor" needs argument "has_attachment"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, isErr := s.call(tc.tool, tc.args)
+			if !isErr {
+				t.Fatalf("no error: %v", got)
+			}
+			if msg := decode[ErrorJSON](t, got[0]).Error.Message; !strings.Contains(msg, tc.want) || strings.Contains(msg, "--") {
+				t.Errorf("message = %q, want %q without --", msg, tc.want)
+			}
+		})
 	}
 }
