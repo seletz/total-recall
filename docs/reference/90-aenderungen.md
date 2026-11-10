@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.7.0 (unveröffentlicht)
+
+### Arbeitstage
+
+- **Einzelne Nachrichten in `stats --workday --blocks` erkennbar** ([#256](https://github.com/seletz/total-recall/issues/256)). Jeder Block hat jetzt `events` (Zahl der gezählten Events) und `single` (`true` bei genau einem Event); eine einzelne Nachricht nach einer langen Pause ist so von einem echten Block zu unterscheiden. Die Sekunden bleiben, nichts fällt weg; die Felder sind additiv. Pro Tag ergeben die `events` der Blöcke `human` plus `agent`. Die Tabelle markiert einen einzelnen Block mit `*`, das MCP-Tool `stats` mit `blocks` liefert die Felder auf jeder Seite.
+
 ## v1.6.0
 
 ### Was dieses Update mit dem Archiv macht
