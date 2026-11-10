@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > image                                                                                actor: all  since: all  repo: *
+─ [event] session memory ──────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+▸2026-10-28 09:06 ▣1  Höhenprofil prüfen              human│ Höhenprofil prüfen
+  [image image/png 956 B]                                  │ claude:7d1e4c20-0008-4000-8000-000000000008  mara/kompass
+                                                           │ 2026-10-28 09:06 – 09:10 (4m)  main
+                                                           │────────────────────────────────────────────────────────────
+                                                           │── 09:06  human ◄
+                                                           │[image image/png 956 B]
+                                                           │▣ image/png 956 B
+                                                           │
+                                                           │── 09:06  human
+                                                           │[document application/pdf 342 B]
+                                                           │▣ application/pdf 342 B
+                                                           │
+                                                           │── 09:10  agent
+                                                           │The profile showed the raw altitude of the last segment. I
+                                                           │now smooth the series before the climb is summed up; the
+                                                           │picture matches the route again.
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ 1 hit (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • v view attachments • e/s/m types • a actor • t time • r repo • ^r raw fts • tab/esc input …

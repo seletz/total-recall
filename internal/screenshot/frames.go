@@ -31,7 +31,7 @@ type Shot struct {
 	Start         string
 	Query         string
 	Now           time.Time
-	// Keys are pressed in order: single characters, "enter", "tab", "esc".
+	// Keys are pressed in order: single characters, "enter", "tab", "esc", "right".
 	Keys []string
 	// Outdated renders against the home with the outdated archive
 	// (Env.Outdated) instead of the demo archive.
@@ -96,6 +96,16 @@ var Shots = []Shot{
 		Keys: []string{"tab", "m", "e", "enter", "enter", "j", "d"}, Caption: "Diff zweier Versionen einer Memory-Datei: hinzugefügte Zeilen grün mit +, entfernte rot mit -, je Änderung ein Block mit Kontext"},
 	{Name: "memory-timeline", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Keys: []string{"tab", "m", "e", "enter", "t", "j"}, Caption: "Zeitleiste eines Projekts: was wann hinzukam, sich änderte oder gelöscht wurde, rechts der Diff der markierten Änderung"},
+	{Name: "search-attachment", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,
+		Keys: []string{"tab"}, Caption: "Treffer mit Anhang: in der Liste die Markierung ▣ mit der Zahl der Anhänge, in der Vorschau eine Zeile je Anhang, in der Fußzeile die Taste v"},
+	{Name: "attachment-image", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,
+		Keys: []string{"tab", "v"}, Caption: "Anhang-Viewer: ein Bild als Text (Schattierung und Farbe je Zelle), oben die Reiter der Anhänge der Session, unten der Befehl total-recall blob"},
+	{Name: "attachment-document", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,
+		Keys: []string{"tab", "v", "right"}, Caption: "Anhang-Viewer: ein Dokument mit seinen Metadaten (PDF: Seiten, Titel, Autor)"},
+	{Name: "attachment-narrow", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewSearch, Query: "image", Now: searchNow,
+		Keys: []string{"tab", "v"}, Caption: "Anhang-Viewer in einem schmalen Terminal: das Bild wird an Breite und Höhe angepasst"},
+	{Name: "session-attachment", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,
+		Keys: []string{"enter"}, Caption: "Session mit Anhängen: hinter dem Kopf eines Events mit Bild oder Dokument steht ▣ mit der Zahl, v öffnet den Viewer"},
 	{Name: "search-tool", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "cask generated", Now: searchNow,
 		Caption: "Treffer in einer Tool-Ausgabe: rechts Aufruf und Ausgabe getrennt, das JSON eingerückt"},
 	{Name: "search-pin", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "tests", Now: searchNow,
@@ -215,7 +225,7 @@ func RenderAll(env *Env) ([]Frame, error) {
 }
 
 // keyPress builds the key press for a name: a single character or one of
-// enter, tab, shift+tab, esc.
+// enter, tab, shift+tab, esc, right.
 func keyPress(name string) tea.KeyPressMsg {
 	switch name {
 	case "enter":
@@ -226,6 +236,8 @@ func keyPress(name string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "right":
+		return tea.KeyPressMsg{Code: tea.KeyRight}
 	}
 	r := []rune(name)
 	if len(r) != 1 {
