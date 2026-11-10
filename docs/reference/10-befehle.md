@@ -1113,6 +1113,8 @@ Jede Prüfung gilt nur, wenn die Tabelle Einträge hat: ohne `[[project]]` gibt 
 
 `project` ist der Anzeigename, `key` der Schlüssel des Projekts (wie bei `stats --worktime`), `missing` nennt `project` (kein `[[project]]` passt) und/oder `category` (keine Kategorie deckt es ab), `last_active` die Zeit der letzten eigenen Nachricht (UTC). Ohne Hinweise ist `hints` `[]`.
 
+**Hinweis auf iCloud.** Liegt das Backup-Verzeichnis (`[backup] dir`) in einer iCloud-/File-Provider-Domain, wird jedes Backup mitsynchronisiert, bei einem großen Archiv mehrere hundert MiB pro Tag. `doctor` sagt das dann, mit einem Vorschlag für ein Verzeichnis außerhalb (`~/Library/Application Support/total-recall/backups`). Erkannt wird es unter macOS am Attribut `com.apple.file-provider-domain-id` auf dem Verzeichnis oder einem Elternverzeichnis, auf anderen Systemen nie. Auch dieser Hinweis ist kein Befund: Der Exit-Code bleibt 0. Im Text steht er auf stdout, mit `--json` auf stderr und als Feld `backup_hint` in jedem Bericht (`dir`, `domain_dir`, `hint`; `null` ohne Hinweis); `--days 0` schaltet ihn nicht ab. Der Standardpfad bleibt `~/Documents/total-recall`.
+
 | Option | Bedeutung |
 |---|---|
 | `--harness NAME` | zu prüfende Harness, Default `claude` |

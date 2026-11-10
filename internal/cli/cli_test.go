@@ -36,8 +36,9 @@ type testEnv struct {
 	dir, projects, db, log, backups, configPath string
 	detached                                    [][]string
 	now                                         time.Time
-	home                                        string // App.Home; empty means dir
-	width                                       int    // App.TerminalWidth; 0 = stdout is no terminal
+	home                                        string            // App.Home; empty means dir
+	width                                       int               // App.TerminalWidth; 0 = stdout is no terminal
+	fileProvider                                func(string) bool // App.FileProvider; nil = no domain anywhere
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -97,6 +98,9 @@ func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 			return nil
 		},
 		TerminalWidth: func() int { return e.width },
+		FileProvider: func(p string) bool {
+			return e.fileProvider != nil && e.fileProvider(p)
+		},
 	}
 	code := Main(app)
 	return result{code: code, stdout: out.String(), stderr: errb.String()}

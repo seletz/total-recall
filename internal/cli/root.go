@@ -40,6 +40,10 @@ type App struct {
 	// to, or 0 when it is not a terminal (table cells are then never cut).
 	// Default: terminalWidth(Stdout).
 	TerminalWidth func() int
+	// FileProvider reports whether a path carries the marker of a
+	// file-provider (iCloud Drive) domain. Default: hasFileProviderDomain
+	// (macOS only).
+	FileProvider func(path string) bool
 }
 
 func (a *App) defaults() {
@@ -60,6 +64,9 @@ func (a *App) defaults() {
 	}
 	if a.StartDetached == nil {
 		a.StartDetached = startDetached
+	}
+	if a.FileProvider == nil {
+		a.FileProvider = hasFileProviderDomain
 	}
 	if a.TerminalWidth == nil {
 		a.TerminalWidth = func() int { return terminalWidth(a.Stdout) }

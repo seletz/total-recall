@@ -47,6 +47,17 @@ Liegt `[backup] dir` unter `~/Documents` und darf der lesende Prozess den Ordner
 
 Die Zeit des letzten Backups zeigt `status` auch ohne Leserechte, aus der Statusdatei `<db>.backup.json` neben der Datenbank, die jedes Backup schreibt.
 
+## Backups und iCloud { #backup-icloud }
+
+Der Standard für `[backup] dir` ist `~/Documents/total-recall`. Liegt `~/Documents` in iCloud Drive, wird jedes Backup mitsynchronisiert, bei einem großen Archiv mehrere hundert MiB pro Tag; das kostet iCloud-Speicher und Bandbreite. [`doctor`](../reference/10-befehle.md#doctor) weist darauf hin. Wer das nicht will, legt das Verzeichnis außerhalb, zum Beispiel in der Konfiguration:
+
+```toml
+[backup]
+dir = "~/Library/Application Support/total-recall/backups"
+```
+
+Bestehende Backups lassen sich einfach dorthin verschieben (`archive-*.db.zst`). Der Standardpfad ändert sich nicht von selbst.
+
 ## Backup wiederherstellen { #backup-wiederherstellen }
 
 `backup` schreibt seit v1.3.0 `archive-YYYY-MM-DD.db.zst` (zstd); bis v1.2 schrieben `archive-YYYY-MM-DD.db.gz` (gzip), Vorabversionen davor unkomprimierte `archive-YYYY-MM-DD.db`. Alle drei liest [`restore`](../reference/10-befehle.md#restore), alle drei zählen bei der Aufbewahrung (`keep_daily`, `keep_monthly`) gleich, und `status`, `backup --if-older`, die Config-Seite und das Setup der TUI nehmen die jeweils neueste Kopie, egal in welchem Format. Alte `.db.gz` musst du also weder umwandeln noch löschen; sie fallen mit der Zeit aus der Aufbewahrung.
