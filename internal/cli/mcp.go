@@ -53,7 +53,7 @@ func mcpTools() []mcp.Tool {
 				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`." + pagingNote,
 			Defaults: map[string]int{"limit": 20}, Units: []string{""},
 			Params: withLimit(20, 200, pCursor,
-				mcp.Param{Name: "query", Type: "string", Required: true, Positional: true, Description: "words to search for"},
+				mcp.Param{Name: "query", Type: "string", Positional: true, Description: "words to search for; required unless has_attachment is set (then leaving it out lists the newest events with attachments)"},
 				mcp.Param{Name: "type", Type: "list", Enum: []string{"event", "session", "memory"}, Description: "what to search: event (default; the text of the conversation), session (names and titles), memory (the project memory files); an array or a comma-separated list. Hits come grouped by type in the order given and limit counts per type; each hit has a type field"},
 				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
 				mcp.Param{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool"}, Description: "only events of this actor; human = what the user said"},
@@ -63,6 +63,7 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "by_session", Type: "boolean", Description: "one row per session instead of one row per hit"},
 				mcp.Param{Name: "order", Type: "string", Enum: []string{"first_hit", "hits"}, Description: "with by_session: first_hit (oldest first, default) or hits (most hits first)"},
 				mcp.Param{Name: "raw", Type: "boolean", Description: "pass query to FTS5 unchanged"},
+				pHasAttachment("events and sessions", "each event hit then lists its attachments (sha256, media_type, bytes, position) and attachment_count; without query the result is the newest events with attachments, the way to find pasted images and documents"),
 			),
 		},
 		{
@@ -74,6 +75,9 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "name", Type: "string", Description: "session name substring"},
 				mcp.Param{Name: "account", Type: "string", Description: "account name, id or prefix"},
 				mcp.Param{Name: "subagents", Type: "boolean", Description: "include subagent sessions"},
+				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
+				pHasAttachment("sessions", "attachment_count then counts those attachments"),
+				mcp.Param{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool"}, Description: "with has_attachment: whose event carries the attachment (human = pasted by the user, tool = screenshots of tool results)"},
 			),
 		},
 		{
@@ -151,6 +155,12 @@ func mcpTools() []mcp.Tool {
 			},
 		},
 	}
+}
+
+// pHasAttachment is the has_attachment argument: --has-attachment=KIND.
+func pHasAttachment(what, more string) mcp.Param {
+	return mcp.Param{Name: "has_attachment", Type: "string", Enum: []string{"any", "image", "document"},
+		Description: "only " + what + " with an attachment of this kind (any, image = image/…, document = everything else, e.g. PDF); " + more}
 }
 
 // runCLI executes the command line argv in-process and returns its stdout.

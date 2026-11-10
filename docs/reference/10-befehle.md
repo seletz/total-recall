@@ -184,9 +184,14 @@ START             DUR    ID        NAME                        REPO             
 | `--harness NAME` | z.B. `claude` |
 | `--name TEXT` | Teilstring des Namens (eigener Titel, KI-Titel oder Agent-Name) |
 | `--account A` | Sessions dieses Accounts: ein Name aus [`[accounts]`](20-konfiguration.md#accounts), die Account-ID oder ein Präfix davon |
+| `--project P` | nur dieses Projekt: der Name wie bei [`stats --by project`](#stats-period), sonst ein Teil von Name, Pfad oder Remote-URL |
+| `--has-attachment[=ART]` | nur Sessions mit einem Anhang (Bild oder Dokument, [Anhänge](#anhaenge-finden)); `ART` ist `any` (Default), `image` oder `document` und folgt mit `=`: `--has-attachment=image` |
+| `--actor A` | mit `--has-attachment`: wessen Event den Anhang trägt (`human` für das, was der Mensch eingefügt hat, `tool` für Screenshots aus Tool-Ergebnissen); ohne `--has-attachment` ein `usage`-Fehler |
 | `--limit N` | höchstens N Zeilen (0 = alle, Default) |
 | `--subagents` | Subagent-Sessions mit anzeigen |
 | `--all-sessions` | auch leere Sessions (keine Events, keine Startzeit) anzeigen |
+
+Mit `--has-attachment` kommt die Spalte `ATTACHMENTS` dazu, in JSON hat jede Session (auch ohne den Filter) `attachment_count`: die Zahl ihrer Anhänge, mit dem Filter die der Art und des Actors. Der Filter gilt für die Session als Ganzes: `--since`/`--until` wählen die Sessions wie sonst, nicht die Events mit Anhang.
 
 Spalten: `ID` ist ein Präfix der nativen Session-ID, das `show` versteht. `NAME` ist der eigene Titel (`/rename`), sonst der von Claude Code erzeugte Titel, sonst der Agent-Name. `REPO` ist `owner/repo` der Remote-URL, sonst der Ordnername. `HUMAN`/`AGENT` zählen Events nach Actor. `DUR` ist Ende minus Start, inklusive Pausen.
 
@@ -339,6 +344,7 @@ FIRST             LAST              HITS  ID                  NAME              
 | `--project P` | nur dieses Projekt, bei jedem Typ: der Name wie bei [`stats --by project`](#stats-period) (Definitionen `[[project]]` zuerst), ein Pfad oder der Schlüssel der Harness eines Gedächtnis-Projekts; ohne genauen Treffer alle, deren Name, Pfad oder Remote-URL `P` enthält. Kein Treffer ist `not_found` |
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
 | `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
+| `--has-attachment[=ART]` | nur Events (und Sessions) mit einem Anhang, siehe [Anhänge finden](#anhaenge-finden); `ART` ist `any` (Default), `image` oder `document` und folgt mit `=`. Mit dem Filter darf die Suchanfrage fehlen. Gilt für die Typen `event` und `session`, bei `memory` ein `usage`-Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
 | `--limit N` | höchstens N Treffer je Typ (Default 20, 0 = alle); mit `--by-session` die N Sessions mit den jüngsten Treffern, bei `--order hits` die mit den meisten |
 | `--by-session` | eine Zeile je Session statt je Treffer: `first_hit`, `last_hit`, `hits`, `snippet` des ersten Treffers; nur für den Typ `event` |
@@ -410,6 +416,26 @@ LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
 **Die Zahlen stimmen.** Im selben Fenster listet `timeline` genau die Events, die [`stats`](#stats) als `human` zählt, insgesamt und je Projekt (`stats --period day --by project`). Ein Test prüft das gegen das Demo-Archiv, auch über die Seiten des MCP-Tools.
 
 **MCP.** Das Tool `timeline` hat dieselben Parameter (`text_width` statt `--text-width`) und liefert die Liste in Seiten, siehe [MCP anbinden](../how-to/55-mcp-anbinden.md#seiten). Anders als die CLI schickt es als Default `fields=event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated`: Ohne `ts` (`ts_local` hat den Offset), `session_name`, `repo` und `text_chars`, die zusammen rund 40 % der Bytes eines Events ausmachen, trägt eine Seite etwa 45 % mehr Events, ein Tag mit `all` braucht entsprechend weniger Seiten ([#259](https://github.com/seletz/total-recall/issues/259)). `fields=all` bringt alle Schlüssel zurück; die Seiten sind dann byte-gleich die CLI-Ausgabe ohne `--fields`. Für einen Überblick über einen ganzen Tag empfiehlt sich `fields: "ts_local,actor,text"` mit `text_width: 80`: das sind die wenigsten Seiten. Sonst helfen weniger Felder, ein kleineres `text_width` oder ein engeres Fenster; der Hinweis (`hint`) jeder Seite sagt das. Im MCP gilt wie in der CLI: Ein doppelter Name zählt einmal, die Reihenfolge der Namen ist egal, ein leerer Wert (`fields: ""`) ergibt den MCP-Default (die kompakten Schlüssel oben, nicht alle) und `all` alle Schlüssel.
+
+### Anhänge finden { #anhaenge-finden }
+
+Bilder und Dokumente stehen in den Anhängen der Events ([`blob`](#blob)). In einem echten Archiv liegt nur ein kleiner Teil davon in Nachrichten des Menschen, der Rest in Tool-Ergebnissen (Screenshots). Mit `--has-attachment` findet man sie ohne Suchwort:
+
+```sh
+total-recall search --has-attachment                       # die neuesten Events mit Anhang
+total-recall search --has-attachment=image --actor human   # Bilder, die der Mensch eingefügt hat
+total-recall search layout --has-attachment=document       # Treffer zu „layout“ mit einem Dokument
+total-recall sessions --has-attachment --project kompass   # Sessions mit Anhang
+```
+
+- **Art:** `image` sind die Medientypen `image/…`, `document` ist alles andere (PDF und so weiter), `any` beides. Bild und Dokument ergeben zusammen alle Anhänge.
+- **Ohne Suchanfrage** listet `search --has-attachment` die Events mit Anhang, neueste zuerst (der Textausschnitt ist der Anfang des Textes), mit `--limit` wie sonst; mit `--by-session` ist eine Anfrage nötig. Ohne Anfrage und ohne den Filter ist `search` ein `usage`-Fehler.
+- **JSON:** Jeder Event-Treffer hat `attachments` (die Anhänge des Events wie bei [`show`](#show): `sha256`, `media_type`, `bytes`, `position`; mit `--has-attachment=ART` nur die dieser Art, sonst alle, `[]` ohne) und `attachment_count` (ihre Zahl). Jede Session in `sessions --json` und jeder Session-Treffer hat `attachment_count`. Neue Felder, seit v1.7.0.
+- **Text:** Unter einem Treffer mit Anhang steht `attachments: image/png 956 B, application/pdf 342 B`.
+- **Die Zahlen stimmen:** Die Treffer mit `--has-attachment` sind genau die Events mit Einträgen in `event_blobs`; die Summe von `attachment_count` über die Treffer, über die Sessions und die Zeilen von `event_blobs` ist dieselbe Zahl, auch je Art und je Tag. Ein Test prüft das gegen das Demo-Archiv an der echten `--json`-Ausgabe.
+- **MCP:** `search` und `sessions` haben `has_attachment` (`any`, `image`, `document`), `sessions` zusätzlich `actor` und `project`; `query` darf bei `search` fehlen, wenn `has_attachment` gesetzt ist. Die Seiten sind wie sonst byte-gleich die CLI-Ausgabe.
+
+**Für die TUI.** Die Abfrage liegt im Store, die TUI braucht keine eigene: `SessionFilter.Attachment` (ein `*AttachmentFilter{Kind, Actor}`; `nil` filtert nicht) gilt für `Sessions`, `SearchTyped` (Event- und Session-Treffer) und `SearchBySession`. `SearchTyped` mit leerem `Text` und gesetztem `Attachment` liefert die neuesten Events (Typ `event`) beziehungsweise Sessions (Typ `session`) mit Anhang: genau die „leere Suche mit Filter“. Jeder Event-Treffer trägt `Event.Attachments` (Metadaten, passend zur Art), `SessionInfo.Attachments` zählt die Anhänge einer Session, `SessionFilter.Projects` schränkt Session-Listen auf Projekte ein. `ParseAttachmentKind` und `AttachmentKind.Matches` benennen und prüfen die Art.
 
 ## `stats` { #stats }
 

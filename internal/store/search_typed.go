@@ -59,6 +59,8 @@ const (
 	FilterSession = "session"
 	FilterActor   = "actor"
 	FilterRaw     = "raw"
+	// FilterAttachment is SessionFilter.Attachment (CLI --has-attachment).
+	FilterAttachment = "has-attachment"
 )
 
 // typeDef is the search of one type and the filters it applies.
@@ -72,9 +74,9 @@ type typeDef struct {
 // reserved type.
 var typeDefs = []typeDef{
 	{TypeEvent, (*Store).searchEventHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount,
-		FilterProject, FilterSession, FilterActor, FilterRaw}},
+		FilterProject, FilterSession, FilterActor, FilterRaw, FilterAttachment}},
 	{TypeSession, (*Store).searchSessionHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount,
-		FilterProject, FilterSession}},
+		FilterProject, FilterSession, FilterAttachment}},
 	{TypeMemory, (*Store).searchMemoryHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterProject, FilterRaw}},
 	{TypeAttachment, nil, nil},
 	{TypeMeta, nil, nil},
@@ -251,6 +253,7 @@ func (q TypedQuery) filters() []string {
 	add(q.SessionID != "", FilterSession)
 	add(q.Actor != "", FilterActor)
 	add(q.Raw, FilterRaw)
+	add(q.Attachment != nil, FilterAttachment)
 	return out
 }
 
@@ -289,7 +292,10 @@ type TypeHits struct {
 // SearchTyped searches every type of q.Types (TypeEvent when empty) and
 // returns one group per type in that order. A reserved or unknown type
 // is an error, a filter that a selected type does not apply a
-// *FilterError.
+// *FilterError. Without a Text and with an Attachment filter the types
+// event and session list what has an attachment, newest first: the
+// events (snippet = start of the text), the sessions; Text-less queries
+// of other types, and without the filter, have no hits.
 func (s *Store) SearchTyped(ctx context.Context, q TypedQuery) ([]TypeHits, error) {
 	types := q.Types
 	if len(types) == 0 {
@@ -309,7 +315,18 @@ func (s *Store) SearchTyped(ctx context.Context, q TypedQuery) ([]TypeHits, erro
 	for _, t := range types {
 		d, _ := typeDefOf(t)
 		g := TypeHits{Type: t, Hits: []Hit{}}
-		if strings.TrimSpace(q.Text) != "" {
+		switch {
+		case strings.TrimSpace(q.Text) != "":
+			var err error
+			if g, err = d.search(s, ctx, q); err != nil {
+				return nil, err
+			}
+		case q.Attachment != nil && t == TypeEvent:
+			var err error
+			if g, err = s.searchAttachmentEvents(ctx, q); err != nil {
+				return nil, err
+			}
+		case q.Attachment != nil && t == TypeSession:
 			var err error
 			if g, err = d.search(s, ctx, q); err != nil {
 				return nil, err
@@ -349,6 +366,9 @@ func (s *Store) searchEventHits(ctx context.Context, q TypedQuery) (TypeHits, er
 	}
 	hits, err := s.Search(ctx, q.Text, f)
 	if err != nil {
+		return g, err
+	}
+	if err := s.attachmentsOfHits(ctx, hits, q.Attachment); err != nil {
 		return g, err
 	}
 	for i := range hits {
@@ -401,6 +421,9 @@ func (s *Store) searchSessionHits(ctx context.Context, q TypedQuery) (TypeHits, 
 	list, err := s.querySessions(ctx, cond, args, q.Limit)
 	if err != nil {
 		return g, fmt.Errorf("store: search: %w", err)
+	}
+	if err := s.sessionsAttachments(ctx, list, q.Attachment); err != nil {
+		return g, err
 	}
 	refs, err := s.projectRefs(ctx, list)
 	if err != nil {

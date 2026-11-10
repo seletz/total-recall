@@ -721,3 +721,26 @@ func TestMCPTimelineFewerPages(t *testing.T) {
 		}
 	}
 }
+
+// TestMCPAttachmentPagesAddUp: the events with attachments of search
+// without a query come in pages that add up to the CLI output; the demo
+// archive has two of them, so a bound of half the output (plus a little for the brackets) gives two pages
+// of one event each.
+func TestMCPAttachmentPagesAddUp(t *testing.T) {
+	cli := []string{"search", "--has-attachment=any", "--limit=20"}
+	bound := len(newPagedDemo(t, 16<<20).cli(cli...))/2 + 8
+	p := newPagedDemo(t, bound)
+	want := p.cli(cli...)
+	pages, hints := p.crawl("search", map[string]any{"has_attachment": "any"})
+	if len(pages) != 2 {
+		t.Fatalf("%d pages for %d bytes, bound %d", len(pages), len(want), bound)
+	}
+	for i, pg := range pages {
+		if len(pg) > bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Index != i+1 {
+			t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), bound, hints[i])
+		}
+	}
+	if got := reassemble(t, pages, ""); got != want {
+		t.Errorf("%d pages do not add up to the CLI JSON (%d vs %d bytes)", len(pages), len(got), len(want))
+	}
+}

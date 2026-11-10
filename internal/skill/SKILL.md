@@ -105,8 +105,8 @@ LIMIT 50"
 
 | Tool | Arguments (`*` = required) |
 | --- | --- |
-| `search` | `query*`, `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `limit` (default 20, at most 200; per type) |
-| `sessions` | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `subagents`, `limit` (default 50, at most 500) |
+| `search` | `query` (required unless `has_attachment` is set), `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `by_session`, `order`, `raw`, `has_attachment` (`any`, `image` or `document`; without `query` it lists the newest events with attachments), `limit` (default 20, at most 200; per type) |
+| `sessions` | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `project`, `has_attachment` (`any`, `image` or `document`), `actor` (with `has_attachment`: whose event carries it), `subagents`, `limit` (default 50, at most 500) |
 | `show` | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (default 200, at most 1000) |
 | `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `tools`, `path`, `path_in`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
@@ -334,13 +334,13 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 |---|---|
 | `total-recall status --json` | DB path, size, page size, schema version (`migration_pending` when the archive is older than the binary: ingestion is paused until the user migrates), counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
-| `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
+| `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--project P] [--has-attachment[=image\|document] [--actor A]] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--has-attachment` keeps the sessions with an image or a document (the kind goes after `=`; `--actor` says whose event carries it, e.g. `human` for what the user pasted, `tool` for screenshots of tool results) and `attachment_count` counts those attachments; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit; every event lists its `attachments` |
 | `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE, or prints a JSON value of a meta record (a system prompt) to stdout; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices) or from `session_meta.raw`; `--json` prints type, size and the events, meta records and memory files (`memory`: `project`, `project_key`, `harness`, `path`, `ts`) that refer to it. Only when the user asks for the picture, document or prompt itself |
 | `total-recall memory --json [--project P] [--at D] [--deleted]` | what the agent remembers: the memory files of every project the harness keeps outside the transcripts (Claude Code: `memory/*.md`), as they are now or were at `D`; `--project` matches the project name, path or harness key (exactly, else as a part); `total-recall blob SHA256` prints a file's content. Use it when the user asks what the agent remembered or noted about a project |
 | `total-recall memory --history FILE --json [--project P]` | the versions of one memory file, oldest first, deletions included (`sha256` null); `--project` when the file name is in several projects |
 | `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; the same as `search --type memory` |
-| `total-recall search WORDS --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets; all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
+| `total-recall search [WORDS] --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--has-attachment[=image\|document]] [--limit N]` | full-text hits with snippets; `--has-attachment` keeps the events (and sessions) with an image or document, each event hit lists its `attachments` and `attachment_count`, and **without WORDS** it lists the newest events with attachments (how to find pasted images and documents; the kind goes after `=`); all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first; type `event` only |
 | `total-recall timeline --json [--since T] [--until T] [--project P] [--repo R] [--actor human\|agent\|…\|all] [--all] [--text-width N] [--fields F] [--limit N]` | what happened in a time window across all sessions, oldest first; default the human's messages, so "was the evening after 20:00 still work, and on what?" is one call. `--since`/`--until` take a time (`YYYY-MM-DDTHH:MM`, local) or a date and `--since` must be before `--until`; an unknown `--actor` is a `usage` error; `--all` without `--actor` means every actor; each event has `ts` (UTC), `ts_local`, `session_id`, `session_name`, `project`, `repo`, `actor`, `input_kind` (typed, pasted, bash, remote; null for other actors or when unknown), `kind` and `text` (one line, cut to `--text-width`; `text_chars` and `text_truncated` say so; `--fields` keeps only some keys, the MCP tool defaults to a compact set without `ts`, `session_name`, `repo` and `text_chars` so that a day needs fewer pages). Lists exactly the events `stats` counts as `human` in the same window |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
@@ -385,6 +385,7 @@ One object per session.
 | `human_events` | computed: count of `actor = 'human'` |
 | `agent_events` | computed: count of `actor = 'agent'` |
 | `events` | computed: count of all events |
+| `attachment_count` | computed: attachments of the session (images and documents); with `--has-attachment` those of the kind and `--actor`; `0` without |
 | `continued_in` | column; `null` without a continuation |
 | `continued_from` | computed: the session whose `continued_in` is this one (the latest started, if several); `null` without |
 | `account_id` | column; `null` if unknown |
@@ -433,6 +434,8 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `rank` | FTS5 rank, lower is better |
 | `type` | `event` |
 | `project` | project of the session as in `stats --by project` (a subagent counts with its parent); `null` without a directory |
+| `attachments` | the event's attachments as in `show --json` (with `--has-attachment=KIND` only that kind); `[]` without |
+| `attachment_count` | number of `attachments` |
 
 #### `search --type session --json`
 
@@ -451,6 +454,7 @@ A session whose name, title or agent name contains every word, newest first.
 | `harness` | |
 | `ended_at` | UTC |
 | `events` | number of events |
+| `attachment_count` | as in `sessions --json` |
 
 #### `search --type memory --json`
 
