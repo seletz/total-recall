@@ -249,7 +249,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		return m.click(msg)
 	case debounceMsg:
-		if msg.seq != m.seq || m.opts.Searcher == nil || m.input.Value() == "" {
+		if msg.seq != m.seq || m.opts.Searcher == nil || !m.canSearch() {
 			return m, nil
 		}
 		return m.search(false)
@@ -336,6 +336,9 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.openPicker(), nil
 		case key.Matches(msg, m.keys.Attach):
 			return m, m.attach()
+		case key.Matches(msg, m.keys.HasAttach):
+			m.filters.attach = (m.filters.attach + 1) % len(attachKinds)
+			return m.refilter()
 		default:
 			for _, t := range searchableTypes() {
 				if key.Matches(msg, m.keys.typeKey(t)) {
@@ -469,8 +472,16 @@ func (m Model) refilter() (tea.Model, tea.Cmd) {
 	m.resizeInputs()
 	m.seq++
 	m.stop()
-	if m.opts.Searcher == nil || m.input.Value() == "" {
+	if m.opts.Searcher == nil {
 		return m, nil
+	}
+	if !m.canSearch() {
+		// The last reason to search is gone (the attachment filter was
+		// switched off over an empty input): the hits go with it.
+		m.query, m.err, m.took = "", nil, 0
+		m.setGroups(nil)
+		m.cursor, m.offset = 0, 0
+		return m, m.follow()
 	}
 	return m.search(false)
 }
@@ -480,7 +491,7 @@ func (m Model) refilter() (tea.Model, tea.Cmd) {
 func (m Model) changed(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	m.seq++
 	m.stop()
-	if m.input.Value() == "" {
+	if !m.canSearch() {
 		m.query, m.err, m.took = "", nil, 0
 		m.setGroups(nil)
 		m.cursor, m.offset = 0, 0
@@ -524,7 +535,7 @@ func (m Model) result(msg resultMsg) (tea.Model, tea.Cmd) {
 // spinner, keeping input, focus, mark and scroll position; the preview
 // follows. Without a database or without a query there is nothing to do.
 func (m Model) Reload() (tea.Model, tea.Cmd) {
-	if m.opts.Searcher == nil || m.input.Value() == "" {
+	if m.opts.Searcher == nil || !m.canSearch() {
 		return m, nil
 	}
 	m.seq++
@@ -554,10 +565,10 @@ func (m Model) search(quiet bool) (tea.Model, tea.Cmd) {
 	seq, now, s := m.seq, m.opts.Now, m.opts.Searcher
 	query := m.input.Value()
 	f := m.filter(now())
-	types, scope := m.types, m.pinScope()
+	types, scope, att := m.types, m.pinScope(), m.filters.attachment()
 	run := func(quiet bool) tea.Msg {
 		start := now()
-		groups, err := searchTypes(ctx, s, query, f, types, scope)
+		groups, err := searchTypes(ctx, s, query, f, types, scope, att)
 		return resultMsg{seq: seq, query: query, groups: groups, took: now().Sub(start), err: err, quiet: quiet,
 			attached: attachmentsOf(ctx, s, groups)}
 	}
@@ -572,26 +583,32 @@ func (m Model) search(quiet bool) (tea.Model, tea.Cmd) {
 // attachmentsOf asks s, when it can tell, for the attachments of the event
 // hits of groups. A failure only costs the marks.
 func attachmentsOf(ctx context.Context, s Searcher, groups []store.TypeHits) map[string][]store.EventAttachment {
-	src, ok := s.(AttachmentSource)
-	if !ok {
-		return nil
-	}
+	// A filtered search brings the attachments of its hits along
+	// (SearchHit.Attachments); only the others have to be asked for.
+	own := map[string][]store.EventAttachment{}
 	var ids []string
 	for _, g := range groups {
 		for _, h := range g.Hits {
-			if h.Event != nil {
+			switch {
+			case h.Event == nil:
+			case len(h.Event.Attachments) > 0:
+				own[h.Event.Event.ID] = h.Event.Attachments
+			default:
 				ids = append(ids, h.Event.Event.ID)
 			}
 		}
 	}
-	if len(ids) == 0 {
+	if src, ok := s.(AttachmentSource); ok && len(ids) > 0 {
+		if atts, err := src.EventsAttachments(ctx, ids); err == nil {
+			for id, a := range atts {
+				own[id] = a
+			}
+		}
+	}
+	if len(own) == 0 {
 		return nil
 	}
-	atts, err := src.EventsAttachments(ctx, ids)
-	if err != nil {
-		return nil
-	}
-	return atts
+	return own
 }
 
 // pinScope is the project scope of the pin, nil without one.
@@ -607,9 +624,14 @@ func (m Model) pinScope() *store.ProjectScope {
 // only the filters it applies (store.Supports): the actor filter does not
 // reach memory, the raw syntax does not reach sessions, so a filter never
 // turns a type into an error.
-func searchTypes(ctx context.Context, s Searcher, query string, f store.SearchFilter, types []store.HitType, scope *store.ProjectScope) ([]store.TypeHits, error) {
+func searchTypes(ctx context.Context, s Searcher, query string, f store.SearchFilter, types []store.HitType, scope *store.ProjectScope, att *store.AttachmentFilter) ([]store.TypeHits, error) {
 	var out []store.TypeHits
 	for _, t := range types {
+		if att != nil && !store.Supports(t, store.FilterAttachment) {
+			// Memory has no attachments; with the filter on it has no hits.
+			out = append(out, store.TypeHits{Type: t, Hits: []store.Hit{}})
+			continue
+		}
 		q := store.TypedQuery{Text: query, Types: []store.HitType{t}, HighlightStart: f.HighlightStart, HighlightEnd: f.HighlightEnd}
 		q.Limit = f.Limit
 		if store.Supports(t, store.FilterSince) {
@@ -627,6 +649,7 @@ func searchTypes(ctx context.Context, s Searcher, query string, f store.SearchFi
 		if store.Supports(t, store.FilterProject) {
 			q.Project = scope
 		}
+		q.Attachment = att
 		g, err := s.SearchTyped(ctx, q)
 		if err != nil {
 			return nil, err
@@ -709,6 +732,14 @@ func (m Model) open() tea.Cmd {
 	return nil
 }
 
+// canSearch reports whether there is something to search for: a text, or
+// the attachment filter, which on its own lists the newest attachments.
+func (m Model) canSearch() bool { return m.input.Value() != "" || m.filters.attach != 0 }
+
+// browsing reports that the list shows what the attachment filter lists
+// without a search word.
+func (m Model) browsing() bool { return m.input.Value() == "" && m.filters.attach != 0 }
+
 // attachments returns the attachments of the marked hit: only an event
 // hit has any.
 func (m Model) attachments() []store.EventAttachment {
@@ -787,7 +818,7 @@ func (m Model) ShortHelp() []key.Binding {
 		if len(m.attachments()) > 0 {
 			help = append(help, m.keys.Attach)
 		}
-		return append(help, m.keys.Types, m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input)
+		return append(help, m.keys.Types, m.keys.Actor, m.keys.HasAttach, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input)
 	case focusRepo, focusPick:
 		return []key.Binding{m.keys.Confirm, m.keys.Cancel}
 	}
@@ -798,7 +829,7 @@ func (m Model) ShortHelp() []key.Binding {
 func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{m.keys.List, m.keys.Input, m.keys.Open, m.keys.Up, m.keys.Down},
-		{m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw},
+		{m.keys.Actor, m.keys.HasAttach, m.keys.Time, m.keys.Repo, m.keys.Raw},
 		{m.keys.TypeEvent, m.keys.TypeSession, m.keys.TypeMemory, m.keys.Pin, m.keys.Project, m.keys.Attach},
 	}
 }
@@ -813,7 +844,7 @@ func (m Model) status() string {
 		return m.th.Error.Render("error: " + m.err.Error())
 	case m.searching:
 		return m.spin.View() + " searching…"
-	case m.query == "":
+	case m.query == "" && !m.browsing():
 		return "type to search"
 	}
 	ms := fmt.Sprintf(" (%d ms)", m.took.Milliseconds())
@@ -852,7 +883,11 @@ func (m Model) hint() string {
 		return "No database open."
 	case m.err != nil:
 		return "The search failed; see the status line."
-	case m.query == "":
+	case m.query == "" && m.browsing() && m.searching:
+		return ""
+	case m.query == "" && m.browsing() && len(m.hits) == 0:
+		return "No attachments."
+	case m.query == "" && !m.browsing():
 		return "Type to search; tab moves to the hits."
 	case m.searching && len(m.hits) == 0:
 		return ""

@@ -15,6 +15,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **JSON:** Event-Treffer haben `attachments` und `attachment_count`, Sessions und Session-Treffer `attachment_count` (nur neue Felder). Die Treffer mit Anhang sind genau die Events von `event_blobs`, die Summen der Anhänge über Treffer, Sessions und Tabelle sind gleich.
 - **MCP:** `search` und `sessions` haben `has_attachment`, `sessions` zusätzlich `actor` und `project`; `query` darf bei `search` mit `has_attachment` fehlen.
 - **Store-API für die TUI:** `SessionFilter.Attachment`, `SessionInfo.Attachments`, `SearchHit.Attachments`, `SessionFilter.Projects` (siehe [Anhänge finden](10-befehle.md#anhaenge-finden)). Die TUI-Filter folgen darauf.
+- **TUI:** `i` in der Suche schaltet den Filter „nur mit Anhang“ (aus → jeder Anhang → Bild → Dokument, Anzeige `attach: …` in der Eingabezeile). Er gilt für Events und Sessions, `a` wirkt als Actor des Anhangs (`human`, neu `tool`: die Screenshots aus Tool-Ergebnissen), `memory` bleibt leer. Eine leere Suche mit Filter zeigt die neuesten Anhänge. Die Taste heißt `search_has_attachment`, der Hinweis steht in der Fußzeile und ist klickbar. Der Actor-Filter kennt dafür den Wert `tool` auch ohne Anhangsfilter.
 
 ### Anhänge in der TUI ([#184](https://github.com/seletz/total-recall/issues/184))
 

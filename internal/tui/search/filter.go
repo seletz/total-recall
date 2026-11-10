@@ -8,7 +8,11 @@ import (
 )
 
 // actors are the actor filter cycle; "" means all.
-var actors = []string{"", "human", "agent", "peer"}
+var actors = []string{"", "human", "agent", "peer", "tool"}
+
+// attachKinds are the attachment filter cycle: off, any attachment, only
+// images, only documents.
+var attachKinds = []string{"", "any", "image", "document"}
 
 // span is one entry of the time filter cycle; a zero Duration means all.
 type span struct {
@@ -25,10 +29,11 @@ var spans = []span{
 
 // filters are the toggles of the hit list. The zero value filters nothing.
 type filters struct {
-	actor int    // index into actors
-	span  int    // index into spans
-	repo  string // substring of remote URL, git root or cwd
-	raw   bool   // FTS5 syntax passed through
+	actor  int    // index into actors
+	attach int    // index into attachKinds; 0 is off
+	span   int    // index into spans
+	repo   string // substring of remote URL, git root or cwd
+	raw    bool   // FTS5 syntax passed through
 }
 
 // label is the text shown at the right end of the input line.
@@ -41,10 +46,25 @@ func (f filters) label() string {
 		repo = "*"
 	}
 	s := "actor: " + actor + "  since: " + spans[f.span].label + "  repo: " + repo
+	if k := attachKinds[f.attach]; k != "" {
+		s += "  attach: " + k
+	}
 	if f.raw {
 		s += "  raw"
 	}
 	return s
+}
+
+// attachment returns the attachment filter for the store, nil when it is
+// off. The actor is the actor of the event with the attachment: the actor
+// filter doubles as that (human for what the user pasted, tool for the
+// screenshots of tool results).
+func (f filters) attachment() *store.AttachmentFilter {
+	if f.attach == 0 {
+		return nil
+	}
+	kind, _ := store.ParseAttachmentKind(attachKinds[f.attach])
+	return &store.AttachmentFilter{Kind: kind, Actor: actors[f.actor]}
 }
 
 // apply writes the filters into a search filter; now anchors the time span.

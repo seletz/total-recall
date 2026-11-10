@@ -194,12 +194,21 @@ Die Filter werden in der **Liste** umgeschaltet (in der Eingabe wären die Buchs
 
 | Taste | Filter | Werte |
 |---|---|---|
-| `a` | Actor | `all` → `human` → `agent` → `peer` → `all` |
+| `a` | Actor | `all` → `human` → `agent` → `peer` → `tool` → `all` |
+| `i` | nur mit Anhang | `off` → `any` → `image` → `document` → `off`; aktiv steht `attach: …` in der Eingabezeile. Siehe [Anhänge finden](#anhaenge-finden) |
 | `t` | Zeitraum (Zeit des Events) | `all` → `7d` → `30d` → `90d` → `all` |
 | `r` | Repo | Teilstring von Remote-URL, Git-Root oder Arbeitsverzeichnis. Öffnet ein Eingabefeld in der Statuszeile: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft. Leer löscht den Filter |
 | ++ctrl+r++ | Rohsyntax | FTS5-Syntax unverändert durchreichen (`AND`, `OR`, `NOT`, `"Phrase"`, `präfix*`), wie `search --raw`. Geht auch aus der Eingabe |
 
 Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in Rohsyntax ohne Operatoren, Anführungszeichen und Sterne.
+
+### Anhänge finden { #anhaenge-finden }
+
+`i` schränkt die Suche auf das ein, was einen [Anhang](#anhaenge) hat: bei `event` die Events, die ein Bild oder Dokument tragen, bei `session` die Sessions mit mindestens einem solchen Event. `image` nimmt nur Bilder, `document` alles andere (PDF, Text). Der Actor-Filter `a` gilt dann auch für den Anhang: `human` sind die Bilder, die man selbst eingefügt hat, `tool` die Bilder aus Tool-Ergebnissen (Screenshots und Ähnliches), davon liegt im Archiv der größte Teil. `memory` hat keine Anhänge und bleibt mit dem Filter leer. Ohne Suchwort listet der Filter **die neuesten Anhänge**: Die leere Suche ist dann kein Hinweis mehr, sondern die Liste der neuesten Events (Zeit, Session, Text-Anfang, `▣` mit der Zahl) beziehungsweise Sessions mit Anhang, damit man ohne Stichwort einsteigen kann; mit Suchwort schränkt der Filter die Treffer ein. Zeitraum, Repo und Projekt-Pin gelten wie sonst. `i` steht in der Fußzeile (`i attached`) und ist dort mit der Maus klickbar wie jeder Hinweis; die Taste ist als `search_has_attachment` über `[keys]` änderbar. Auf der Kommandozeile entspricht dem `search --has-attachment`, siehe [Befehle](10-befehle.md#search).
+
+![Filter „nur mit Anhang“ bei leerer Suche: die neuesten Events und Sessions mit Anhang, der Filter rechts in der Eingabezeile](../assets/screenshots/search-attachment-filter.png)
+
+*Filter „nur mit Anhang“ (`i`) bei leerer Suche: die neuesten Events und Sessions mit Anhang, ohne Suchwort; der Filter steht rechts in der Eingabezeile*
 
 ## Session
 
@@ -506,6 +515,7 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 | ++enter++ | `search_open` | markierten Treffer öffnen | markierten Treffer öffnen |
 | ++up++ / `k`, ++down++ / `j` | `search_up`, `search_down` | – | Markierung bewegen |
 | `a`, `t`, `r` | `search_actor`, `search_time`, `search_repo` | Suchtext | Filter Actor, Zeitraum, Repo |
+| `i` | `search_has_attachment` | Suchtext | Filter „nur mit Anhang“: aus → jeder Anhang → Bild → Dokument |
 | `e`, `s`, `m` | `search_type_event`, `search_type_session`, `search_type_memory` | Suchtext | Typ `event`, `session`, `memory` ein/aus |
 | `p`, `P` | `search_pin`, `search_project` | Suchtext | Projekt des markierten Treffers pinnen oder den Pin aufheben; Liste der Projekte öffnen |
 | `v` | `search_attach` | Suchtext | Anhänge des markierten Events ansehen (nur bei einem Treffer mit Anhang) |
