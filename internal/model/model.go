@@ -44,6 +44,10 @@ func (k InputKind) Valid() bool {
 	return false
 }
 
+// TruncMark ends a text an adapter cut to a size limit (a tool input, a tool
+// result): the full text is then only in the raw line, if that is kept.
+const TruncMark = " …[truncated]"
+
 // Kind classifies what an event is.
 type Kind string
 

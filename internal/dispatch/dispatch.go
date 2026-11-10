@@ -31,6 +31,11 @@ var DefaultCommands = []string{"herdr agent prompt", "tmux send-keys"}
 // DefaultSpawnCommands are the commands known to start a worker session.
 var DefaultSpawnCommands = []string{"herdr agent start"}
 
+// FunctionLookback is how long before a call that invokes a shell function
+// the function's definition (a call of the same session with a spawn or
+// prompt command in its body) may be.
+const FunctionLookback = 10 * time.Minute
+
 // minBranch is the shortest branch name that counts as a reference to a
 // session; the default branches never do.
 const minBranch = 4
@@ -91,6 +96,7 @@ func NewIndex(calls []Call, cfg Config) *Index {
 		ix.calls = append(ix.calls, e)
 	}
 	sort.SliceStable(ix.calls, func(i, j int) bool { return ix.calls[i].TS.Before(ix.calls[j].TS) })
+	ix.inheritFromFunctions()
 	return ix
 }
 
@@ -140,6 +146,49 @@ func Normalize(s string) string {
 		}
 		return r
 	}, s)
+}
+
+var (
+	// funcDef matches the definition of a shell function: "name(){" or
+	// "function name {".
+	funcDef  = regexp.MustCompile(`(?:^|[\s;&|{}()])(?:function\s+([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\))\s*\{`)
+	notAFunc = map[string]bool{"if": true, "for": true, "while": true, "until": true, "case": true, "select": true, "elif": true}
+)
+
+// invokes reports whether text calls the function name as a command: at
+// the start of the text or after ; & | ( or a line break, followed by white
+// space, ; & | ) or the end. A longer word ("respawn") does not match.
+func invokes(text, name string) bool {
+	return regexp.MustCompile(`(?:^|[;&|(\n])\s*` + regexp.QuoteMeta(name) + `(?:[\s;&|)]|$)`).MatchString(text)
+}
+
+// inheritFromFunctions marks the calls that invoke a function a call of the
+// same session defined shortly before, with a spawn or prompt command in its
+// body: the command is only in the definition, the call names the targets as
+// arguments. The call inherits what the definition does (spawn, prompt).
+func (ix *Index) inheritFromFunctions() {
+	type def struct {
+		name          string
+		ts            time.Time
+		spawn, prompt bool
+	}
+	defs := map[string][]def{}
+	for i := range ix.calls {
+		c := &ix.calls[i]
+		for _, d := range defs[c.Session] {
+			if c.TS.Sub(d.ts) <= FunctionLookback && invokes(c.Text, d.name) {
+				c.spawn, c.prompt = c.spawn || d.spawn, c.prompt || d.prompt
+			}
+		}
+		if !c.spawn && !c.prompt {
+			continue
+		}
+		for _, m := range funcDef.FindAllStringSubmatch(c.Text, -1) {
+			if name := m[1] + m[2]; !notAFunc[name] {
+				defs[c.Session] = append(defs[c.Session], def{name, c.TS, c.spawn, c.prompt})
+			}
+		}
+	}
 }
 
 func containsAny(text string, subs []string) bool {

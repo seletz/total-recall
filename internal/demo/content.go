@@ -423,5 +423,32 @@ func featured() []session {
 					reply:  "Done.", replyAt: 10 * time.Second},
 			},
 		},
+		// The same with a shell function: the commands to start the worker and
+		// to hand it the prompt are in the definition, the later call only
+		// names the worktree as an argument.
+		{
+			id: "7d1e4c20-000c-4000-8000-00000000000c", cwd: kompass.cwd, title: "Worker per Funktion starten",
+			turns: []turn{
+				{at: at(time.October, 18, 22, 20),
+					prompt: "<task-notification>Worker w3 finished: export merged.</task-notification>",
+					tools: []tool{
+						{"Bash", `spawn() { herdr agent start w4 --cwd "$1"; herdr agent prompt w4 "$(cat "$2")"; }`, ""},
+						{"Bash", "spawn " + kompassWorktree.cwd + " auftrag-doku.md", "started w4\nsent to w4\n"},
+					},
+					reply:   "I started w4 in the gpx worktree with the docs task.",
+					replyAt: 2 * time.Minute},
+			},
+		},
+		{
+			id: "7d1e4c20-000d-4000-8000-00000000000d", cwd: kompassWorktree.cwd, title: "Doku im Worker",
+			turns: []turn{
+				{at: at(time.October, 18, 22, 20).Add(65 * time.Second),
+					prompt: "Schreibe die Doku zum GPX-Format und verlinke sie im README.",
+					reply:  "Wrote the GPX format page and linked it.", replyAt: 3 * time.Minute},
+				{at: at(time.October, 18, 22, 31),
+					prompt: "Passt, danke.",
+					reply:  "Done.", replyAt: 10 * time.Second},
+			},
+		},
 	}
 }
