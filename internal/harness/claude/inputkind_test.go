@@ -39,3 +39,47 @@ func TestInputKind(t *testing.T) {
 		})
 	}
 }
+
+// TestInputKindImageMessage: a message with an image block and the
+// harness's own marker in a text block gives only pasted events, with or
+// without own text, and a stored placeholder event is pasted again when the
+// kind is derived from the stored text and raw line.
+func TestInputKindImageMessage(t *testing.T) {
+	img := `{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAAA"}}`
+	tests := []struct {
+		name    string
+		content string
+		events  int
+	}{
+		{"marker and image", `[{"type":"text","text":"[Image #2]"},` + img + `]`, 2},
+		{"own text, marker and image", `[{"type":"text","text":"what is this? [Image #3]"},` + img + `]`, 2},
+		{"own text and image", `[{"type":"text","text":"what is this?"},` + img + `]`, 2},
+		{"document", `[{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"AAAA"}}]`, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := New("")
+			line := userLine(`"entrypoint":"cli"`, tt.content)
+			evs := parseLine(t, a, line)
+			if len(evs) != tt.events {
+				t.Fatalf("events = %d, want %d", len(evs), tt.events)
+			}
+			for _, e := range evs {
+				if e.Actor != model.ActorHuman {
+					t.Fatalf("actor = %s", e.Actor)
+				}
+				if tt.name == "own text and image" && e.Text == "what is this?" {
+					// typed text next to an image: the message is
+					// pasted as a whole only for the image event.
+					continue
+				}
+				if e.InputKind != model.InputPasted {
+					t.Errorf("%q: InputKind = %q, want pasted", e.Text, e.InputKind)
+				}
+				if k, ok := a.InputKind(model.Event{Text: e.Text, Raw: line}); !ok || (e.Text != "what is this?" && k != model.InputPasted) {
+					t.Errorf("%q: stored kind = %q, %v", e.Text, k, ok)
+				}
+			}
+		})
+	}
+}

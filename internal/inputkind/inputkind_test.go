@@ -21,6 +21,16 @@ func TestOf(t *testing.T) {
 		{"pasted block after own text", "look at this:\n<pasted_content id=\"a\">x</pasted_content id=\"a\">", false, model.InputPasted},
 		{"pasted tag without close is typed", "write <pasted_content in a sentence", false, model.InputTyped},
 		{"other element is not pasted", "<pasted_contents>x</pasted_contents>", false, model.InputTyped},
+		{"harness image marker", "[Image #2]", false, model.InputPasted},
+		{"harness image marker with own text", "what is wrong here? [Image #12]", false, model.InputPasted},
+		{"archive image placeholder", "[image image/png 84.5 KiB]", false, model.InputPasted},
+		{"archive image placeholder without size", "[image image/jpeg]", false, model.InputPasted},
+		{"archive document placeholder", "[document application/pdf 1.2 MiB]", false, model.InputPasted},
+		{"bare placeholder", "[image]", false, model.InputPasted},
+		{"text plus archive placeholder", "see the screenshot\n[image image/png 3.0 KiB]", false, model.InputPasted},
+		{"bracket word in prose is typed", "add an [image] gallery to the page", false, model.InputTyped},
+		{"image marker without number is typed", "the [Image #] syntax", false, model.InputTyped},
+		{"remote image stays remote", "[Image #2]", true, model.InputRemote},
 		{"remote typed", "hello from the phone", true, model.InputRemote},
 		{"remote beats pasted", "<pasted_content id=\"1\">x</pasted_content id=\"1\">", true, model.InputRemote},
 		{"bash beats remote", "<bash-input>ls</bash-input>", true, model.InputBash},
@@ -82,6 +92,13 @@ func TestFromRaw(t *testing.T) {
 	}
 	if got, ok := FromRaw("<pasted_content id=\"1\">x</pasted_content id=\"1\">", ""); !ok || got != model.InputPasted {
 		t.Errorf("pasted without raw = %q, %v", got, ok)
+	}
+	// A placeholder event is pasted without raw as well.
+	if got, ok := FromRaw("[image image/png 84.5 KiB]", ""); !ok || got != model.InputPasted {
+		t.Errorf("image placeholder without raw = %q, %v", got, ok)
+	}
+	if got, ok := FromRaw("[Image #2]", `{"type":"user","entrypoint":"cli"}`); !ok || got != model.InputPasted {
+		t.Errorf("image marker with raw = %q, %v", got, ok)
 	}
 	if _, ok := FromRaw("plain", ""); ok {
 		t.Errorf("plain text without raw must be unknown")
