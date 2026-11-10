@@ -118,15 +118,21 @@ const freshBackup = 48 * time.Hour
 // the copy and its size of the last backup run. A readable directory is
 // always the truth: a status file does not make a deleted backup exist.
 func ReadBackupStatus(p BackupProbe) BackupStatus {
-	return readBackupStatus(p, os.ReadDir, runtime.GOOS)
+	return readBackupStatus(p, os.ReadDir, dirAccessError, runtime.GOOS)
 }
 
-// readBackupStatus is ReadBackupStatus with the directory listing and the
-// operating system given. Every error of the listing other than "does not
-// exist" makes the state unknown: EPERM (the macOS privacy protection),
-// EACCES (file permissions), EIO and the rest alike.
-func readBackupStatus(p BackupProbe, readDir func(string) ([]os.DirEntry, error), goos string) BackupStatus {
+// readBackupStatus is ReadBackupStatus with the directory listing, the
+// access check and the operating system given. Every error of the listing
+// other than "does not exist" makes the state unknown: EPERM (the macOS
+// privacy protection), EACCES (file permissions), EIO and the rest alike.
+// A listing without copies is only none if the directory is really missing
+// or usable: the access check overrides an empty list or a "does not exist"
+// for a directory that exists but is closed to us.
+func readBackupStatus(p BackupProbe, readDir func(string) ([]os.DirEntry, error), access func(string) error, goos string) BackupStatus {
 	path, at, err := lastBackup(p.Dir, p.Loc, readDir)
+	if err == nil && path == "" {
+		err = access(p.Dir)
+	}
 	if err != nil {
 		st := BackupStatus{State: BackupUnknown, Reason: "no access: " + reasonOf(err)}
 		fresh := false
