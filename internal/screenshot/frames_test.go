@@ -64,7 +64,7 @@ func TestRenderAll(t *testing.T) {
 		"memory-diff":              {"› memory", "history of release-process.md", "· diff", "version 1 of 3 → ", "+8 -3", "@@ -1,9 +1,14 @@", " - A release is a tag on", " + A release is a signed tag on"},
 		"memory-timeline":          {"› memory", "kompass  timeline", "2026-10-28 10:00 ✗ old-notes.md", "2026-10-28 09:35 ~ MEMORY.md", "10 changes", "@@"},
 		"search-attachment":        {"[1 search]", "> image", "▣1", "Höhenprofil prüfen", "▣ image/png", "v view attachments"},
-		"search-attachment-filter": {"[1 search]", "> type to search", "attach: any", " event  2", " session  1", "▣1", "Höhenprofil prüfen", "i attached"},
+		"search-attachment-filter": {"[1 search]", "> type to search", "attach: any", " event  3", " session  1", "▣1", "Höhenprofil prüfen", "i attached"},
 		"attachment-image":         {"› attachments", "Höhenprofil prüfen", "[1 image/png", "2 application/pdf", "png 96×48", "total-recall blob", "▓"},
 		"attachment-document":      {"› attachments", "[2 application/pdf", "PDF 1.4", "pages", "Notes on the track format", "Mara Example"},
 		"attachment-narrow":        {"› attachments", "png 96×48", "total-recall blob"},
