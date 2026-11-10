@@ -97,6 +97,7 @@ var Catalog = []Key{
 	{"worktime.category", KindTable, nil, "Category rules [[worktime.category]] with name, patterns and colour, first match wins; edit them in the file"},
 	{"tui.view", KindEnum, TUIViews, "View shown first"},
 	{"tui.graphics", KindEnum, TUIGraphics, "Chart rendering in the stats view"},
+	{"tui.images", KindEnum, TUIImages, "Image rendering in the attachment view"},
 	{"tui.mouse", KindBool, nil, "Wheel scrolling and clicks; false leaves the mouse to the terminal"},
 	{"tui.stats_period", KindEnum, TUIPeriods, "Period the stats view starts with"},
 	{"tui.stats_dimension", KindEnum, TUIDimensions, "Dimension the stats view starts with"},

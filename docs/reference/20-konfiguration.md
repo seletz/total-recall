@@ -123,6 +123,7 @@ resolve = true
 [tui]
 view = "search"                  # Ansicht beim Start: search, stats, activity, config
 graphics = "auto"                # Chart: auto, text, kitty (--graphics)
+images = "auto"                  # Bilder im Anhang-Viewer: auto, text, kitty
 mouse = true                     # false = --no-mouse
 stats_period = "day"             # Statistik beim Start: day, week, month
 stats_dimension = "project"      # project, agent, directory
@@ -377,6 +378,9 @@ Defaults für [`total-recall tui`](30-tui.md). Flags und das Argument der Ansich
 
 `view`
 :   Ansicht beim Start: `search`, `stats`, `activity` oder `config`. Das Argument `total-recall tui stats` geht vor. Default: `search`.
+
+`images`
+:   Darstellung von Bildern im Anhang-Viewer: `auto` (Kitty Graphics, wo das Terminal es kann, sonst Text), `text` oder `kitty`, siehe [Anhänge](30-tui.md#anhaenge). `NO_COLOR` schaltet immer auf Text. Default: `auto`.
 
 `graphics`
 :   Darstellung des Charts in der Statistik: `auto`, `text` oder `kitty`, siehe [Grafikmodi](30-tui.md#grafikmodi). Override: `--graphics`. Default: `auto`.

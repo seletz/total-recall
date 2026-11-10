@@ -234,6 +234,9 @@ type TUI struct {
 	View string `toml:"view"`
 	// Graphics is the chart mode: auto, text or kitty (--graphics).
 	Graphics string `toml:"graphics"`
+	// Images is how the attachment view shows an image: auto (Kitty
+	// Graphics where the terminal has it, text otherwise), text or kitty.
+	Images string `toml:"images"`
 	// Mouse enables wheel scrolling and clicks (--no-mouse turns it off).
 	Mouse bool `toml:"mouse"`
 	// StatsPeriod and StatsDimension are the period (day, week, month) and
@@ -352,6 +355,7 @@ func ValidReload(d time.Duration) error {
 var (
 	TUIViews      = []string{"search", "stats", "activity", "config"}
 	TUIGraphics   = []string{"auto", "text", "kitty"}
+	TUIImages     = []string{"auto", "text", "kitty"}
 	TUIPeriods    = []string{"day", "week", "month"}
 	TUINewest     = []string{"bottom", "top"}
 	TUIDimensions = []string{"project", "agent", "directory"}
@@ -551,6 +555,7 @@ var fields = []struct {
 	{"worktime.category", func(c *Config) string { return formatCategories(c.Worktime.Categories) }},
 	{"tui.view", func(c *Config) string { return c.TUI.View }},
 	{"tui.graphics", func(c *Config) string { return c.TUI.Graphics }},
+	{"tui.images", func(c *Config) string { return c.TUI.Images }},
 	{"tui.mouse", func(c *Config) string { return strconv.FormatBool(c.TUI.Mouse) }},
 	{"tui.stats_period", func(c *Config) string { return c.TUI.StatsPeriod }},
 	{"tui.stats_dimension", func(c *Config) string { return c.TUI.StatsDimension }},
@@ -663,7 +668,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		MaxGap: Duration{DefaultWorktimeMaxGap}, MinCredit: Duration{DefaultWorktimeMinCredit}, Grid: Duration{DefaultWorktimeGrid},
 		Rounding: DefaultWorktimeRounding, Scope: DefaultWorktimeScope, SummaryMaxChars: DefaultWorktimeSummaryMaxChars, Categories: []Category{},
 	}
-	c.TUI = TUI{View: "search", Graphics: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{DefaultReload}}
+	c.TUI = TUI{View: "search", Graphics: "auto", Images: "auto", Mouse: true, StatsPeriod: "day", StatsDimension: "project", ActivityWindow: "week", ActivityNewest: "bottom", Reload: Duration{DefaultReload}}
 	c.Chart = Chart{Format: DefaultChartFormat, Scale: DefaultChartScale, Title: true, Legend: true, Top: DefaultChartTop, Lang: DefaultChartLang,
 		Background: DefaultChartBackground, Text: figure.DefaultText, Heatmap: []string{},
 		ScaleOrange: slices.Clone(figure.DefaultOrange), ScaleBlue: slices.Clone(figure.DefaultBlue), Palette: slices.Clone(figure.DefaultPalette)}
@@ -973,6 +978,7 @@ func (c *Config) ValidateTUI() error {
 	}{
 		{"tui.view", c.TUI.View, TUIViews},
 		{"tui.graphics", c.TUI.Graphics, TUIGraphics},
+		{"tui.images", c.TUI.Images, TUIImages},
 		{"tui.stats_period", c.TUI.StatsPeriod, TUIPeriods},
 		{"tui.stats_dimension", c.TUI.StatsDimension, TUIDimensions},
 		{"tui.activity_window", c.TUI.ActivityWindow, TUIPeriods},

@@ -297,6 +297,11 @@ func Compute(events []Event, s Settings, opts Options) Report {
 	sorted := make([]Event, len(events))
 	copy(sorted, events)
 	for i := range sorted {
+		// Whole seconds: the gaps, so every credit and every sum of them is
+		// a whole number of seconds and the parts add up to the whole, however
+		// the output cuts fractions (timestamps of the archive have
+		// milliseconds). The error is below a second per day.
+		sorted[i].Time = sorted[i].Time.Truncate(time.Second)
 		if key := opts.Projects.Key(sorted[i].Project, sorted[i].Dir, sorted[i].Remote); key != sorted[i].Project {
 			sorted[i].Project, sorted[i].Dir = key, false
 		}

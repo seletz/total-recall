@@ -158,7 +158,7 @@ func TestNilMapFallsBackToDefaults(t *testing.T) {
 }
 
 func TestBinding(t *testing.T) {
-	m, err := Resolve(map[string][]string{SearchUp: {"up", "w", "i"}})
+	m, err := Resolve(map[string][]string{SearchUp: {"up", "w", "z"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestBinding(t *testing.T) {
 		wantKeys         []string
 		wantKey, wantDes string
 	}{
-		{SearchUp, []string{"up", "w", "i"}, "↑/w/i", "up"},
+		{SearchUp, []string{"up", "w", "z"}, "↑/w/z", "up"},
 		{SearchDown, []string{"down", "j"}, "↓/j", "down"},
 		{SearchRaw, []string{"ctrl+r"}, "^r", "raw fts"},
 		{SessionPageDown, []string{"f", "pgdown", "space"}, "f/pgdn/space", "page down"},

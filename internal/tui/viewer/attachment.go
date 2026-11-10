@@ -74,6 +74,10 @@ type Attachment struct {
 	// Index and Count place it among the attachments of its event
 	// (1-based); Count 0 shows no position.
 	Index, Count int
+	// Picture, when set, is the image already drawn by the terminal: the
+	// placeholder lines of a Kitty Graphics image (ImageRows tall at most).
+	// The viewer shows them under the caption instead of the text image.
+	Picture []string
 }
 
 // Render implements Viewer. The anchor is -1: an attachment has no hit.
@@ -100,6 +104,38 @@ func (v Attachment) Render(env Env, w int) Content {
 	}
 	c.Body = append(c.Body, "", indent+env.Theme.Muted.Render(cut("total-recall blob "+short(v.Info.SHA256)+" --out FILE", inner)))
 	return c
+}
+
+// headRows and tailRows are the lines of an attachment around its body: the
+// head (type, size and position, hash, rule) and the blank line with the
+// blob command at the end.
+const (
+	headRows = 4
+	tailRows = 2
+)
+
+// ImageRows is the height an image can have in a column of total rows: what
+// is left under the head, the caption line and the blob command; at least 1.
+func ImageRows(total int) int {
+	if total <= 0 {
+		total = defaultRows + headRows + tailRows + 1
+	}
+	return max(total-headRows-tailRows-1, 1)
+}
+
+// DecodeImage decodes the data of an image: the image, its format name and
+// its size. A header that claims more than maxPixels is refused before any
+// pixel is read, so a hostile file cannot take the memory.
+func DecodeImage(data []byte) (image.Image, string, error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", err
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > maxPixels/cfg.Height {
+		return nil, "", fmt.Errorf("image too large to show (%d×%d)", cfg.Width, cfg.Height)
+	}
+	img, format, err := image.Decode(bytes.NewReader(data))
+	return img, format, err
 }
 
 // short is the hash as the CLI shows it: the first 12 characters.
@@ -161,18 +197,19 @@ func field(env Env, name, value string, w int) string {
 // imageBody decodes the image and draws it as text in the room it has.
 func (v Attachment) imageBody(env Env, w, rows int) []string {
 	muted := func(s string) string { return env.Theme.Muted.Render(cut(s, w)) }
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(v.Data))
-	if err != nil {
+	img, format, err := DecodeImage(v.Data)
+	switch {
+	case err != nil && strings.HasPrefix(err.Error(), "image too large"):
+		return []string{muted(err.Error())}
+	case err != nil:
 		return []string{muted("cannot decode the image: " + err.Error())}
 	}
-	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > maxPixels/cfg.Height {
-		return []string{muted(fmt.Sprintf("image too large to show (%d×%d)", cfg.Width, cfg.Height))}
+	b := img.Bounds()
+	out := []string{muted(fmt.Sprintf("%s %d×%d", format, b.Dx(), b.Dy()))}
+	if len(v.Picture) > 0 {
+		// Drawn by the terminal: the placeholder cells are not text to cut.
+		return append(out, v.Picture...)
 	}
-	img, _, err := image.Decode(bytes.NewReader(v.Data))
-	if err != nil {
-		return []string{muted("cannot decode the image: " + err.Error())}
-	}
-	out := []string{muted(fmt.Sprintf("%s %d×%d", format, cfg.Width, cfg.Height))}
 	out = append(out, imgtext.Render(img, w, max(rows-1, 1), env.Theme.Dark)...)
 	return out
 }

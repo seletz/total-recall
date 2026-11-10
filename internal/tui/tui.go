@@ -111,6 +111,9 @@ type Options struct {
 	Query string
 	// Graphics is the chart mode; empty means auto.
 	Graphics Graphics
+	// Images is how the attachment view draws images: auto, text or kitty;
+	// empty means auto ([tui] images).
+	Images Graphics
 	// DayStart is the day boundary of the activity view as an offset from
 	// local midnight (4h = 04:00); zero means midnight.
 	DayStart time.Duration
@@ -172,6 +175,9 @@ func (o *Options) defaults() {
 	}
 	if o.Graphics == "" {
 		o.Graphics = GraphicsAuto
+	}
+	if o.Images == "" {
+		o.Images = GraphicsAuto
 	}
 	if o.StatsPeriod == "" {
 		o.StatsPeriod = "day"
@@ -240,7 +246,7 @@ func New(opts Options) (App, error) {
 	if opts.Store != nil {
 		attLoader = opts.Store
 	}
-	attach := attview.New(attview.Options{Loader: attLoader, Location: opts.Location, External: &attview.SystemViewer{}, Keys: opts.Keys})
+	attach := attview.New(attview.Options{Loader: attLoader, Location: opts.Location, External: &attview.SystemViewer{}, Keys: opts.Keys, Images: opts.Images})
 	a := App{opts: opts, views: views, active: active, detail: detail, memory: memview.New(memLoader, opts.Location, opts.Keys), attach: attach,
 		keys: newKeyMap(opts.Keys), th: theme.New(true), stale: make([]bool, len(views)+4), updated: opts.Now(),
 		day: dayview.New(dayOptions(opts, colors)), colors: colors}
