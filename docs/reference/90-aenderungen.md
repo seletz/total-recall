@@ -22,6 +22,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 ### Tool-Nutzung in `stats`
 
 - **`stats --tools --top N` ohne `--by`** ([Befehle](10-befehle.md#stats-tools), #258): kürzt `by_tool` auf die N meistgenutzten Tools, der Rest steht als ein Eintrag `other`; die Einträge ergeben weiter genau `total`. Vorher war `--top` ohne `--by` ein Fehler. Mit `--by` ändert sich nichts. Im MCP-Tool `stats` gilt dasselbe für `top` mit `tools`.
+- **Geänderter Standard: `stats --tools --path` prüft nur Pfad- und Befehlsargumente** ([Befehle](10-befehle.md#stats-tools), #257): Bisher (v1.6.0) wurde der Glob auf die Argumente *jedes* Aufrufs geprüft, auch auf Nachrichten an andere Sessions, Prompts, URLs und MCP-Tools, die einen Pfad nur im Text nennen; im Test waren über 15 % der Treffer für einen Pfad solche Nachrichten. Jetzt zählen standardmäßig nur `Bash`, `Read`, `Edit`, `MultiEdit`, `Write`, `Glob`, `Grep` und `LS`. Das alte Verhalten gibt es mit `--path-in all` (MCP: `path_in: "all"`); wer Zahlen aus v1.6.0 vergleicht, setzt es. `--path-in` ist neu, ebenso das Feld `path_in` in der JSON-Ausgabe (`paths`, `all` oder `null` ohne `--path`). Die Gruppen und Tools ergeben weiter genau `total`.
 
 ### Arbeitstage
 

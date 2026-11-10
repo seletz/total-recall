@@ -17,8 +17,8 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 		by    string
 		bound int
 	}{
-		{"session", 3 << 10},
-		{"day", 2 << 10},
+		{"session", 20 << 10},
+		{"day", 4 << 10},
 		{"repo", 1 << 10},
 		{"project", 1 << 10},
 	} {
@@ -36,6 +36,7 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 			if len(pages) < 2 {
 				t.Fatalf("%d pages for %d bytes", len(pages), len(want))
 			}
+			t.Logf("%d pages for %d bytes", len(pages), len(want))
 			groups, sum := 0, 0
 			for i, pg := range pages {
 				if len(pg) > tc.bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Unit != "groups" {
@@ -81,6 +82,8 @@ func TestMCPToolStatsMatchesCLI(t *testing.T) {
 		{"plain", map[string]any{"tools": true, "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--since=2026-10-01", "--until=2026-10-31"}},
 		{"by day with path", map[string]any{"tools": true, "by": "day", "path": "*go*", "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--by=day", "--path=*go*", "--since=2026-10-01", "--until=2026-10-31"}},
 		{"by session top", map[string]any{"tools": true, "by": "session", "top": 2, "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--by=session", "--top=2", "--since=2026-10-01", "--until=2026-10-31"}},
+		{"path scope all", map[string]any{"tools": true, "path": "*go*", "path_in": "all", "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--path=*go*", "--path-in=all", "--since=2026-10-01", "--until=2026-10-31"}},
+		{"path scope paths", map[string]any{"tools": true, "path": "*go*", "path_in": "paths", "by": "day", "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--path=*go*", "--path-in=paths", "--by=day", "--since=2026-10-01", "--until=2026-10-31"}},
 		{"top without by", map[string]any{"tools": true, "top": 1, "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--top=1", "--since=2026-10-01", "--until=2026-10-31"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,5 +122,40 @@ func TestMCPToolStatsTopSumsToTotal(t *testing.T) {
 		if w.Total == 0 || sum != w.Total || len(w.ByTool) > top+1 || len(w.Groups) != 0 {
 			t.Errorf("top %d: by_tool %v sums to %d, total %d", top, w.ByTool, sum, w.Total)
 		}
+	}
+}
+
+// TestMCPToolStatsPathScopePagesAddUp: tools, path and path_in together,
+// paged: groups of all pages sum to total on every page's total.
+func TestMCPToolStatsPathScopePagesAddUp(t *testing.T) {
+	p := newPagedDemo(t, 20<<10)
+	args := map[string]any{"tools": true, "by": "session", "path": "*", "path_in": "all", "since": "2026-01-01", "until": "2026-12-31"}
+	pages, hints := p.crawl("stats", args)
+	if len(pages) < 2 {
+		t.Fatalf("%d pages", len(pages))
+	}
+	t.Logf("%d pages", len(pages))
+	sum, total := 0, -1
+	for i, pg := range pages {
+		if len(pg) > 20<<10 || hints[i] == nil || hints[i].Truncated {
+			t.Fatalf("page %d: %d bytes, hint %+v", i+1, len(pg), hints[i])
+		}
+		var w ToolStatsJSON
+		if err := json.Unmarshal([]byte(pg), &w); err != nil {
+			t.Fatal(err)
+		}
+		if total >= 0 && w.Total != total {
+			t.Errorf("page %d: total %d, first page %d", i+1, w.Total, total)
+		}
+		total = w.Total
+		for _, g := range w.Groups {
+			sum += g.Count
+		}
+		if w.PathIn != "all" {
+			t.Errorf("page %d: path_in %q", i+1, w.PathIn)
+		}
+	}
+	if sum != total || total == 0 {
+		t.Errorf("groups sum to %d, total %d", sum, total)
 	}
 }
