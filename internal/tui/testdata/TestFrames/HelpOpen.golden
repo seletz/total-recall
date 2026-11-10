@@ -7,18 +7,18 @@
 
 
 
-         ╭───────────────────────────────────────────────────────────────────────────────╮
-         │ keys: search                                                                  │
-         │                                                                               │
-         │ tab     list     a  actor      e events on/off         1 search      ?   help │
-         │ tab/esc input    t  time       s sessions on/off       2 stats       esc back │
-         │ enter   open     r  repo       m memory on/off         3 activity    q   quit │
-         │ ↑/k     up       ^r raw fts    p pin project of hit    4 config      ^c  quit │
-         │ ↓/j     down                   P choose project        R reload               │
-         │                                v view attachments                             │
-         │                                                                               │
-         │ esc or ? closes this help                                                     │
-         ╰───────────────────────────────────────────────────────────────────────────────╯
+         ╭────────────────────────────────────────────────────────────────────────────────╮
+         │ keys: search                                                                   │
+         │                                                                                │
+         │ tab     list     a  actor       e events on/off         1 search      ?   help │
+         │ tab/esc input    i  attached    s sessions on/off       2 stats       esc back │
+         │ enter   open     t  time        m memory on/off         3 activity    q   quit │
+         │ ↑/k     up       r  repo        p pin project of hit    4 config      ^c  quit │
+         │ ↓/j     down     ^r raw fts     P choose project        R reload               │
+         │                                 v view attachments                             │
+         │                                                                                │
+         │ esc or ? closes this help                                                      │
+         ╰────────────────────────────────────────────────────────────────────────────────╯
 
 
 

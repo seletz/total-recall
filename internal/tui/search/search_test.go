@@ -146,7 +146,7 @@ func TestFrames(t *testing.T) {
 		{"FilterActorHuman", "", []string{"type:release", "result", "tab", "a", "result", "preview"}},
 		{"FilterActorAgent", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "preview"}},
 		{"FilterActorPeer", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "a", "result"}},
-		{"FilterActorWraps", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "a", "result", "a", "result", "preview"}},
+		{"FilterActorWraps", "", []string{"type:release", "result", "tab", "a", "result", "a", "result", "a", "result", "a", "result", "a", "result", "preview"}},
 		{"FilterTime7d", "", []string{"type:release", "result", "tab", "t", "result"}},
 		{"FilterTimeCycle", "", []string{"type:release", "result", "tab", "t", "result", "t", "result", "t", "result", "t", "result", "preview"}},
 		{"FilterRepoTyping", "", []string{"type:release", "result", "preview", "tab", "r", "type:bet"}},

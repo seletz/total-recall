@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > type to search                                                          actor: all  since: all  repo: *  attach: any
+─ [event] [session] memory ────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+ event  3                                                  │ Höhenprofil prüfen
+▸2026-10-28 09:06 ▣1  Höhenprofil prüfen              human│ claude:7d1e4c20-0010-4000-8000-000000000010  mara/kompass
+  [document application/pdf 342 B]                         │ 2026-10-28 09:06 – 09:10 (4m)  main
+ 2026-10-28 09:06 ▣1  Höhenprofil prüfen              human│────────────────────────────────────────────────────────────
+  [image image/png 956 B]                                  │── 09:06  human ◄
+ 2026-10-28 09:06 ▣2  Höhenprofil prüfen              human│[document application/pdf 342 B]
+  Das Höhenprofil kippt nach Kilometer 40, siehe Screensho…│▣ application/pdf 342 B
+ session  1                                                │
+ 2026-10-28 09:06  Höhenprofil prüfen                      │── 09:10  agent
+  4 events  kompass                                        │The profile showed the raw altitude of the last segment. I
+                                                           │now smooth the series before the climb is summed up; the
+                                                           │picture matches the route again.
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ event 3, session 1 (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • v view attachments • e/s/m types • a actor • i attached • t time • r repo • ^r raw fts …

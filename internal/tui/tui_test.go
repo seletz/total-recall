@@ -354,7 +354,7 @@ func TestConfiguredKeys(t *testing.T) {
 	}{
 		{"configured key switches the view", []string{"tab", "S"}, 1, []string{"S stats", "X/^q quit", "d/W/m period", "</→/-/+ range"}},
 		{"old key is plain text in the input", []string{"2"}, 0, []string{"> 2"}},
-		{"old key does nothing in the list", []string{"tab", "2"}, 0, []string{"tab/esc input"}},
+		{"old key does nothing in the list", []string{"tab", "2"}, 0, []string{"r repo"}},
 		{"help shows the configured keys", []string{"tab", "S", "?"}, 1, []string{"W weeks", "earlier", "S stats", "X/^q quit", "^c   quit"}},
 	}
 	for _, tt := range tests {
@@ -628,6 +628,12 @@ func TestAttachmentView(t *testing.T) {
 		{"mark in the list", "image", []string{"tab"}, []string{"▣1", "v view attachments"}, nil},
 		{"text of a message with images", "Höhenprofil kippt", []string{"tab"}, []string{"▣2", "▣ image/png", "▣ application/pdf", "v view attachments"}, nil},
 		{"v on that text opens the image", "Höhenprofil kippt", []string{"tab", "v"}, []string{"› attachments", "[1 image/png", "png 96×48"}, nil},
+		{"empty search with the filter lists the attachments", "", []string{"tab", "i"}, []string{"attach: any", "▣1", "▣2", "3 hits", "[image image/png", "[document application/pdf", "Das Höhenprofil kippt"}, []string{"Type to search"}},
+		{"only images", "", []string{"tab", "i", "i"}, []string{"attach: image", "2 hits", "[image image/png 956 B]", "Das Höhenprofil kippt"}, nil},
+		{"only documents", "", []string{"tab", "i", "i", "i"}, []string{"attach: document", "2 hits", "[document application/pdf 342 B]", "Das Höhenprofil kippt"}, nil},
+		{"only attachments of the tool", "", []string{"tab", "a", "a", "a", "a", "i"}, []string{"actor: tool", "attach: any", "No attachments."}, nil},
+		{"filter off again", "", []string{"tab", "i", "i", "i", "i"}, []string{"Type to search"}, []string{"▣", "attach:"}},
+		{"sessions with an attachment", "", []string{"tab", "e", "s", "i"}, []string{"event  3", "session  1", "Höhenprofil prüfen"}, nil},
 		{"from the search", "image", []string{"tab", "v"}, []string{"› attachments", "Höhenprofil prüfen", "png 96×48", "1 image/png", "2 application/pdf"}, nil},
 		{"next shows the document", "image", []string{"tab", "v", "right"}, []string{"Notes on the track format", "PDF 1.4"}, []string{"png 96×48"}},
 		{"back to the search", "image", []string{"tab", "v", "esc"}, []string{"[1 search]", "▣1"}, []string{"› attachments"}},
