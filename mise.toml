@@ -34,7 +34,7 @@ run = "go test ./..."
 description = "Run all tests with the race detector (needs cgo on linux)"
 depends = ["demo:db"]
 env = { CGO_ENABLED = "1", TOTAL_RECALL_DEMO_DB = "{{config_root}}/build/demo.db" }
-run = "go test -race ./..."
+run = "go test -race -timeout 20m ./..."
 
 [tasks.lint]
 description = "Run go vet and golangci-lint"

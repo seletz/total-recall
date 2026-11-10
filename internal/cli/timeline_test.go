@@ -42,6 +42,7 @@ func statsSeries(t *testing.T, args ...string) ActivitySeriesJSON {
 // a window listed by timeline are exactly the human events stats counts
 // for it, in total and per project; nothing drops out silently.
 func TestTimelineMatchesStats(t *testing.T) {
+	t.Parallel()
 	windows := [][]string{
 		{"--since", "2026-10-26", "--until", "2026-10-30"},
 		{"--since", "2026-10-01", "--until", "2026-10-31"},
@@ -100,6 +101,7 @@ func TestTimelineMatchesStats(t *testing.T) {
 }
 
 func TestTimelineFields(t *testing.T) {
+	t.Parallel()
 	tl := runTimeline(t, "--since", "2026-10-20T20:00", "--until", "2026-10-21T06:00", "--text-width", "30")
 	if len(tl) == 0 {
 		t.Fatal("no events")
@@ -138,6 +140,7 @@ func TestTimelineFields(t *testing.T) {
 }
 
 func TestTimelineActorAndErrors(t *testing.T) {
+	t.Parallel()
 	humans := runTimeline(t, "--since", "2026-10-27", "--until", "2026-10-27")
 	agents := runTimeline(t, "--since", "2026-10-27", "--until", "2026-10-27", "--actor", "agent")
 	all := runTimeline(t, "--since", "2026-10-27", "--until", "2026-10-27", "--actor", "all")
@@ -162,6 +165,7 @@ func TestTimelineActorAndErrors(t *testing.T) {
 // those of the other commands (same kind and exit code), never an empty
 // list: an unknown actor, and a window that ends before it starts.
 func TestTimelineArgErrors(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -207,6 +211,7 @@ func TestTimelineArgErrors(t *testing.T) {
 // (tool calls and results belong to agent and tool); an explicit --actor
 // wins, also an explicit human.
 func TestTimelineAllImpliesActorAll(t *testing.T) {
+	t.Parallel()
 	w := []string{"--since", "2026-10-20", "--until", "2026-10-20"}
 	actors := func(evs []TimelineEventJSON) map[string]int {
 		m := map[string]int{}
@@ -236,6 +241,7 @@ func TestTimelineAllImpliesActorAll(t *testing.T) {
 // the fixed order of the full object, with the same values; unknown names
 // are usage errors.
 func TestTimelineFieldsFlag(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now

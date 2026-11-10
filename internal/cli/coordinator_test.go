@@ -45,6 +45,7 @@ type workdayBlocks struct {
 // events and the working time fall by exactly the reclassified event, and the
 // sums of workday and worktime still equal their parts.
 func TestCoordinatorPromptsDemo(t *testing.T) {
+	t.Parallel()
 	checkDispatchedInvariant(t, dispatchedCase{
 		ids:       "text LIKE '" + coordinatorTask + "%' OR text LIKE 'Rebase den Branch%'",
 		n:         2,
@@ -58,6 +59,7 @@ func TestCoordinatorPromptsDemo(t *testing.T) {
 // argument holds the text. The worker's first input is automation (the start
 // command names its directory), its later input stays human.
 func TestSpawnedPromptsDemo(t *testing.T) {
+	t.Parallel()
 	checkDispatchedInvariant(t, dispatchedCase{
 		ids:       "text LIKE 'Ergänze den GPX-Export analog%'",
 		n:         1,
@@ -69,6 +71,7 @@ func TestSpawnedPromptsDemo(t *testing.T) {
 // TestSpawnedThroughFunctionDemo is the same for a worker started with a shell
 // function: the start and prompt commands are only in the definition.
 func TestSpawnedThroughFunctionDemo(t *testing.T) {
+	t.Parallel()
 	checkDispatchedInvariant(t, dispatchedCase{
 		ids:       "text LIKE 'Schreibe die Doku zum GPX-Format%'",
 		n:         1,

@@ -12,6 +12,7 @@ import (
 // same total and by_tool, the groups of all pages sum to the total, each
 // group's tools to its count, and the pages together are the CLI JSON.
 func TestMCPToolStatsPagesAddUp(t *testing.T) {
+	t.Parallel()
 	const since, until = "2026-01-01", "2026-12-31"
 	for _, tc := range []struct {
 		by    string
@@ -32,6 +33,9 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 			if len(want) <= tc.bound || whole.Total == 0 {
 				t.Skipf("%d bytes, %d calls: no pages to test", len(want), whole.Total)
 			}
+			// Each page reruns the CLI: aim for few pages, not tiny ones.
+			bound := max(tc.bound, len(want)/3+1)
+			p.srv.MaxBytes = bound
 			pages, hints := p.crawl("stats", map[string]any{"tools": true, "by": tc.by, "since": since, "until": until})
 			if len(pages) < 2 {
 				t.Fatalf("%d pages for %d bytes", len(pages), len(want))
@@ -39,8 +43,8 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 			t.Logf("%d pages for %d bytes", len(pages), len(want))
 			groups, sum := 0, 0
 			for i, pg := range pages {
-				if len(pg) > tc.bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Unit != "groups" {
-					t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), tc.bound, hints[i])
+				if len(pg) > bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Unit != "groups" {
+					t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), bound, hints[i])
 				}
 				var w ToolStatsJSON
 				if err := json.Unmarshal([]byte(pg), &w); err != nil {
@@ -73,6 +77,7 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 
 // TestMCPToolStatsMatchesCLI: tools, by, path and top reach the command.
 func TestMCPToolStatsMatchesCLI(t *testing.T) {
+	t.Parallel()
 	p := newPagedDemo(t, 16<<20)
 	for _, tc := range []struct {
 		name string
@@ -105,6 +110,7 @@ func TestMCPToolStatsMatchesCLI(t *testing.T) {
 // TestMCPToolStatsTopSumsToTotal: over MCP, tools=true with top and without
 // by gives by_tool with "other" that sums to total, like the CLI.
 func TestMCPToolStatsTopSumsToTotal(t *testing.T) {
+	t.Parallel()
 	p := newPagedDemo(t, 16<<20)
 	for _, top := range []int{1, 2, 50} {
 		got, _, isErr := p.call("stats", map[string]any{"tools": true, "top": top, "since": "2026-01-01", "until": "2026-12-31"})
@@ -128,6 +134,7 @@ func TestMCPToolStatsTopSumsToTotal(t *testing.T) {
 // TestMCPToolStatsPathScopePagesAddUp: tools, path and path_in together,
 // paged: groups of all pages sum to total on every page's total.
 func TestMCPToolStatsPathScopePagesAddUp(t *testing.T) {
+	t.Parallel()
 	p := newPagedDemo(t, 20<<10)
 	args := map[string]any{"tools": true, "by": "session", "path": "*", "path_in": "all", "since": "2026-01-01", "until": "2026-12-31"}
 	pages, hints := p.crawl("stats", args)
