@@ -726,7 +726,14 @@ func (m Model) attach() tea.Cmd {
 		return nil
 	}
 	h := m.marked()
-	o := attview.Open{SessionID: h.Event.Event.SessionID, EventID: h.Event.Event.ID, Title: strings.TrimSpace(h.Event.SessionName)}
+	// The attachment view opens on the first attachment of the hit; for a
+	// text that names its images ("[Image #1]") that is the event that
+	// holds the image, not the text.
+	eventID := h.Event.Event.ID
+	if id := m.attachments()[0].EventID; id != "" {
+		eventID = id
+	}
+	o := attview.Open{SessionID: h.Event.Event.SessionID, EventID: eventID, Title: strings.TrimSpace(h.Event.SessionName)}
 	return func() tea.Msg { return o }
 }
 
