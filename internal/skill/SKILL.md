@@ -658,7 +658,7 @@ Added to every day, only with `--blocks`. Blocks plus pauses make up `span_secon
 
 | field | meaning |
 |---|---|
-| `blocks` | runs of activity in order, `[]` without activity; each has `start`, `end` (UTC), `start_local`, `end_local` (local clock, `(+1)` past midnight) and `seconds` (a single event: 0) |
+| `blocks` | runs of activity in order, `[]` without activity; each has `start`, `end` (UTC), `start_local`, `end_local` (local clock, `(+1)` past midnight) `seconds` (a single event: 0), `events` (counted events in the block) and `single` (`true` for exactly one event: noise for an attendance booking; the seconds stay). Per day the `events` of all blocks add up to `human` + `agent` |
 | `block_seconds` | sum of the blocks |
 | `break_seconds` | sum of the pauses between the blocks |
 

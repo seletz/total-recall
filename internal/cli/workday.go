@@ -86,6 +86,11 @@ type WorkdayBlockJSON struct {
 	StartLocal string `json:"start_local"` // "08:12"; "01:30 (+1)" past midnight
 	EndLocal   string `json:"end_local"`
 	Seconds    int    `json:"seconds"`
+	// Events is the number of counted events in the block; the events of
+	// all blocks of a day add up to human + agent of the day.
+	Events int `json:"events"`
+	// Single is true for a block of exactly one event (zero seconds).
+	Single bool `json:"single"`
 }
 
 // WorkdayTotalJSON sums the range.
@@ -187,6 +192,7 @@ func (r workdayReport) json() WorkdayJSON {
 				bl = append(bl, WorkdayBlockJSON{
 					Start: isoTime(b.Start), End: isoTime(b.End),
 					StartLocal: d.Clock(b.Start, r.loc), EndLocal: d.Clock(b.End, r.loc), Seconds: int(b.Duration().Seconds()),
+					Events: b.Events, Single: b.Single(),
 				})
 			}
 			bs, ps := int(d.BlockSum().Seconds()), int(d.BreakSum().Seconds())
@@ -230,6 +236,7 @@ func (r workdayReport) table(w io.Writer) error {
 		_, _ = fmt.Fprintf(w, "blocks end at a gap above %s\n", store.FormatSpan(r.blockGap))
 	}
 	_, _ = fmt.Fprintln(w)
+	singles := false
 	rows := make([][]string, 0, len(r.days))
 	for _, d := range r.days {
 		row := []string{d.Label, d.Day.Format("Mon"), "-", "-", "-", "-", "-"}
@@ -247,7 +254,12 @@ func (r workdayReport) table(w io.Writer) error {
 			if d.Active() {
 				parts := make([]string, 0, len(d.Blocks))
 				for _, b := range d.Blocks {
-					parts = append(parts, d.Clock(b.Start, r.loc)+"-"+d.Clock(b.End, r.loc))
+					part := d.Clock(b.Start, r.loc) + "-" + d.Clock(b.End, r.loc)
+					if b.Single() {
+						part = d.Clock(b.Start, r.loc) + "*"
+						singles = true
+					}
+					parts = append(parts, part)
 				}
 				row[7], row[8], row[9] = strings.Join(parts, " "), duration(d.BlockSum()), duration(d.BreakSum())
 			}
@@ -260,6 +272,9 @@ func (r workdayReport) table(w io.Writer) error {
 	}
 	if err := table(w, header, rows); err != nil {
 		return err
+	}
+	if singles {
+		_, _ = fmt.Fprintln(w, "\n* a block of a single message (zero seconds)")
 	}
 	b := r.work.Balance(r.days, r.asOf)
 	_, _ = fmt.Fprintf(w, "\ntotal: %s with activity, %s · target %s (%s × %s) · balance %s",
