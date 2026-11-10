@@ -467,3 +467,56 @@ func TestComputeUncategorized(t *testing.T) {
 		})
 	}
 }
+
+// TestComputeWholeSeconds: with fractional seconds in the time stamps every
+// credit, so every sum on every level, is a whole number of seconds: the
+// sessions and projects add up exactly to their category, the categories
+// to the day, the days to the total, whatever the JSON truncates later.
+func TestComputeWholeSeconds(t *testing.T) {
+	ms := func(h, m, s, milli int) time.Time {
+		return at(0, h, m).Add(time.Duration(s)*time.Second + time.Duration(milli)*time.Millisecond)
+	}
+	events := []Event{
+		ev(ms(9, 0, 0, 900), "a1", alpha), ev(ms(9, 4, 1, 700), "a1", alpha),
+		ev(ms(9, 7, 2, 400), "b1", beta), ev(ms(9, 9, 3, 100), "b1", beta),
+		ev(ms(9, 12, 4, 800), "a1", alpha), ev(ms(9, 14, 5, 600), "a1", alpha),
+		ev(ms(9, 40, 0, 300), "a1", alpha), ev(ms(9, 43, 7, 950), "b1", beta),
+	}
+	for _, rl := range [][]Rule{nil, rules(t, "work", "alpha,beta")} {
+		r := Compute(events, defaults().withRules(rl), Options{Location: cet, DayStart: 4 * time.Hour})
+		whole := func(what string, d time.Duration) {
+			if d%time.Second != 0 {
+				t.Errorf("%s = %s, not whole seconds", what, d)
+			}
+		}
+		var total time.Duration
+		for _, d := range r.Days {
+			var dayRaw time.Duration
+			for _, c := range d.Categories {
+				var projRaw, sessRaw time.Duration
+				for _, p := range c.Projects {
+					projRaw += p.Raw
+					whole("project "+p.Name, p.Raw)
+				}
+				for _, s := range c.Sessions {
+					sessRaw += s.Raw
+					whole("session "+s.ID, s.Raw)
+				}
+				whole("category "+c.Name, c.Raw)
+				if projRaw != c.Raw || sessRaw != c.Raw {
+					t.Errorf("%s: projects %s, sessions %s, category %s", c.Name, projRaw, sessRaw, c.Raw)
+				}
+				dayRaw += c.Raw
+			}
+			if dayRaw != d.Raw {
+				t.Errorf("%s: categories %s, day %s", d.Label, dayRaw, d.Raw)
+			}
+			total += d.Raw
+		}
+		if total != r.Total.Raw || total == 0 {
+			t.Errorf("days %s, total %s", total, r.Total.Raw)
+		}
+	}
+}
+
+func (s Settings) withRules(r []Rule) Settings { s.Rules = r; return s }

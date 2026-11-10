@@ -1,13 +1,18 @@
 package cli
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/demo"
+	"github.com/seletz/total-recall/internal/model"
+	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
 
@@ -498,6 +503,119 @@ func TestStatsWorktimeUncategorizedText(t *testing.T) {
 			if tt.want != nil && strings.Count(r.stderr, "without a category") != 1 {
 				t.Errorf("hint not exactly once: %q", r.stderr)
 			}
+		})
+	}
+}
+
+// checkWorktimeRawSums asserts that the raw seconds of a --worktime JSON add
+// up on every level: projects and sessions to their cell, the cells to the
+// day, the days to the total, the category totals to the total, and every
+// category total to its cells. (rounded_seconds of a project does not add up
+// with rounding_scope "category", so it is not checked here.)
+func checkWorktimeRawSums(t *testing.T, out WorktimeJSON) {
+	t.Helper()
+	perCat := map[string]int{}
+	var total int
+	for _, d := range out.Days {
+		var day int
+		for _, c := range d.Categories {
+			var proj, sess int
+			for _, p := range c.Projects {
+				proj += p.RawSeconds
+			}
+			for _, s := range c.Sessions {
+				sess += s.RawSeconds
+			}
+			if proj != c.RawSeconds || sess != c.RawSeconds {
+				t.Errorf("%s %s: projects %d, sessions %d, cell %d", d.Day, c.Category, proj, sess, c.RawSeconds)
+			}
+			day += c.RawSeconds
+			perCat[c.Category] += c.RawSeconds
+		}
+		if day != d.RawSeconds {
+			t.Errorf("%s: cells %d, day %d", d.Day, day, d.RawSeconds)
+		}
+		total += d.RawSeconds
+	}
+	if total != out.Total.RawSeconds {
+		t.Errorf("days %d, total %d", total, out.Total.RawSeconds)
+	}
+	var cats int
+	for _, c := range out.Categories {
+		if c.RawSeconds != perCat[c.Category] {
+			t.Errorf("category %s: total %d, cells %d", c.Category, c.RawSeconds, perCat[c.Category])
+		}
+		cats += c.RawSeconds
+	}
+	if cats != out.Total.RawSeconds {
+		t.Errorf("categories %d, total %d", cats, out.Total.RawSeconds)
+	}
+}
+
+// TestStatsWorktimeRawSums: the sum invariant of the raw seconds on the
+// real --json output of the demo archive, with and without categories.
+func TestStatsWorktimeRawSums(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	for name, cfg := range map[string]string{"no categories": "", "categories": demoCategories} {
+		t.Run(name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.now = demo.Now
+			e.home = demo.Home
+			appendConfig(t, e, cfg)
+			r := runActivity(t, e, db, "--worktime", "--since", "2026-05-01", "--until", "2026-10-31", "--json")
+			if r.code != 0 {
+				t.Fatalf("exit %d: %s", r.code, r.stderr)
+			}
+			out := decode[WorktimeJSON](t, r.stdout)
+			if out.Total.RawSeconds == 0 {
+				t.Fatal("no time in the demo range")
+			}
+			checkWorktimeRawSums(t, out)
+		})
+	}
+}
+
+// TestStatsWorktimeRawSumsFractional: the same with fractional seconds in
+// the time stamps, as the real archive has (milliseconds): every part used
+// to be cut on its own, so the parts differed from their sum by seconds.
+func TestStatsWorktimeRawSumsFractional(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "frac.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sessions []model.Session
+	var evs []model.Event
+	n := 0
+	base := time.Date(2026, 3, 9, 8, 0, 0, 0, time.UTC)
+	for day := range 3 {
+		for i := range 40 {
+			n++
+			at := base.AddDate(0, 0, day).Add(time.Duration(i)*(4*time.Minute+17*time.Second) + time.Duration(i*137%1000)*time.Millisecond)
+			cwd := []string{"/w/alpha", "/w/beta", "/w/gamma"}[(i/3+day)%3]
+			id := fmt.Sprintf("claude:f%d", n)
+			sessions = append(sessions, model.Session{ID: id, Harness: "claude", NativeID: fmt.Sprintf("f%d", n), Cwd: cwd, StartedAt: at, EndedAt: at})
+			evs = append(evs, model.Event{ID: id + "-1", SessionID: id, TS: at, Actor: model.ActorHuman, Kind: model.KindMessage, Role: "user", Text: "x", SourcePath: "/src/f.jsonl", Raw: `{"x":1}`})
+		}
+	}
+	if err := st.WriteBatch(t.Context(), store.SourceState{Path: "/src/f.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+	for name, cfg := range map[string]string{"no categories": "", "one category": "\n[[worktime.category]]\nname = \"work\"\nmatch = [\"alpha\", \"beta\"]\n"} {
+		t.Run(name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.now = time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC)
+			appendConfig(t, e, cfg)
+			r := runActivity(t, e, path, "--worktime", "--since", "2026-03-09", "--until", "2026-03-12", "--json")
+			if r.code != 0 {
+				t.Fatalf("exit %d: %s", r.code, r.stderr)
+			}
+			out := decode[WorktimeJSON](t, r.stdout)
+			if out.Total.RawSeconds == 0 {
+				t.Fatal("no time")
+			}
+			checkWorktimeRawSums(t, out)
 		})
 	}
 }
