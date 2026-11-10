@@ -630,13 +630,15 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
 
 ```json
 "blocks": [
-  {"start": "2026-10-27T06:48:00.000Z", "end": "2026-10-27T08:05:00.000Z", "start_local": "07:48", "end_local": "09:05", "seconds": 4620},
-  {"start": "2026-10-27T10:24:00.000Z", "end": "2026-10-27T11:40:00.000Z", "start_local": "11:24", "end_local": "12:40", "seconds": 4560}
+  {"start": "2026-10-27T06:48:00.000Z", "end": "2026-10-27T08:05:00.000Z", "start_local": "07:48", "end_local": "09:05", "seconds": 4620, "events": 18, "single": false},
+  {"start": "2026-10-27T10:24:00.000Z", "end": "2026-10-27T11:40:00.000Z", "start_local": "11:24", "end_local": "12:40", "seconds": 4560, "events": 23, "single": false}
 ],
 "block_seconds": 9180, "break_seconds": 8340
 ```
 
 Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_seconds` und `break_seconds`; oben steht `block_gap_seconds`, in `total` die Summen `block_seconds` und `break_seconds` über alle Tage. Ohne `--blocks` fehlen diese Felder. Im [MCP-Tool](#mcp) `stats` heißt der Parameter `blocks`.
+
+**Einzelne Nachrichten.** Eine einzelne Nachricht nach einer langen Pause ergibt einen Block von 0 Sekunden: für eine Anwesenheitsbuchung Rauschen. Damit der Aufrufer ihn erkennt, ohne Events nachzuzählen, hat jeder Block `events` (die Zahl der gezählten Events darin) und `single` (`true`, wenn es genau eins ist). Die Sekunden bleiben unverändert, es gibt keinen Mindestwert, nichts fällt weg. Zwei Events mit derselben Zeit sind ein Block von 0 Sekunden mit `events: 2`, kein einzelner. Es gilt immer: Pro Tag ergeben die `events` aller Blöcke genau `human` plus `agent` des Tags, und `block_seconds` plus `break_seconds` die Spanne. Die Tabelle zeigt einen einzelnen Block nur mit der Uhrzeit und einem `*` (`15:00*`) und erklärt das Zeichen unter der Tabelle.
 
 `--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
 

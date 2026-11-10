@@ -64,7 +64,15 @@ type Workday struct {
 // Block is a run of counted activity without a gap above the block gap.
 type Block struct {
 	Start, End time.Time
+	// Events is the number of counted events in the block; the Events of
+	// all blocks of a day add up to the counted events of the day.
+	Events int
 }
+
+// Single reports whether the block is one event: a zero-second block that
+// is noise for an attendance booking. Two events with the same time are
+// not single.
+func (b Block) Single() bool { return b.Events == 1 }
 
 // Duration is the elapsed time of the block; zero for a single event.
 func (b Block) Duration() time.Duration { return b.End.Sub(b.Start) }
@@ -95,14 +103,15 @@ func buildBlocks(times []time.Time, gap time.Duration) []Block {
 		return nil
 	}
 	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	blocks := []Block{{Start: times[0], End: times[0]}}
+	blocks := []Block{{Start: times[0], End: times[0], Events: 1}}
 	for _, t := range times[1:] {
 		last := &blocks[len(blocks)-1]
 		if t.Sub(last.End) > gap {
-			blocks = append(blocks, Block{Start: t, End: t})
+			blocks = append(blocks, Block{Start: t, End: t, Events: 1})
 			continue
 		}
 		last.End = t
+		last.Events++
 	}
 	return blocks
 }

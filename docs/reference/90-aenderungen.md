@@ -16,6 +16,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 - **Demo-Archiv:** Ein erfundenes Bild (96×48, ein Höhenprofil, synthetisch erzeugt) und ein kleines Dokument hängen an einer Session von kompass. Dadurch ändern sich die Zahlen des Demo-Archivs um vier Nachrichten (drei eigene, eine Antwort) am 28. Oktober, in den Beispiel-Charts und den Screenshots.
 - **Store:** `SessionAttachmentList` und `EventsAttachments` lesen die Metadaten der Anhänge, ohne die Daten zu laden; kein Schema, keine Migration.
 
+### Arbeitstage
+
+- **Einzelne Nachrichten in `stats --workday --blocks` erkennbar** ([#256](https://github.com/seletz/total-recall/issues/256)). Jeder Block hat jetzt `events` (Zahl der gezählten Events) und `single` (`true` bei genau einem Event); eine einzelne Nachricht nach einer langen Pause ist so von einem echten Block zu unterscheiden. Die Sekunden bleiben, nichts fällt weg; die Felder sind additiv. Pro Tag ergeben die `events` der Blöcke `human` plus `agent`. Die Tabelle markiert einen einzelnen Block mit `*`, das MCP-Tool `stats` mit `blocks` liefert die Felder auf jeder Seite.
+
 ## v1.6.0
 
 ### Was dieses Update mit dem Archiv macht
