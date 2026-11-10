@@ -148,6 +148,10 @@ The `'utc'` modifier interprets the literal in the machine's time zone. Date-onl
 
 `events.actor`: `human` = typed by the user (also `!cmd` bash input and pasted content); `agent` = the assistant; `peer` = another agent session, a subagent hand-back, or a task a coordinating agent typed or pasted into the session (matched by the configured `peer_prefixes` / `peer_paste_headers`); `automation` = scheduled prompts, system reminders, slash-command plumbing, continuation summaries; `tool` = tool results. "What did the user say or decide" is `actor = 'human'`; the agent's conclusions are `actor = 'agent' AND kind = 'message'`. Ignore `automation` when counting real work.
 
+### Input kind
+
+`events.input_kind` tells, for `actor = 'human'`, how the input reached the harness: `typed` (keyboard of the session), `pasted` (contains a pasted block or image, for example a review handed over from another session), `bash` (`!cmd` input) or `remote` (sent through Remote Control). NULL = unknown (the event has no raw line, so typed cannot be told from remote) or not a human input. Do not guess from the text with `LIKE` patterns: filter `input_kind IN ('typed', 'remote')` for what a person wrote, and count NULL on its own, never as typed. `show --json` and `search --json` carry the field as `input_kind`; `show` in text prints it behind the actor, `human (pasted)`.
+
 ### Subagents
 
 Subagents are separate sessions with `parent_id` set and a native id like `agent-a01`. `sessions` hides them unless `--subagents`. Exclude them with `parent_id IS NULL` when counting sessions, but keep them when searching: their events carry the subagent's session id, not the parent's, and the decisive conversation may be there.
@@ -204,6 +208,7 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `kind` | `message`, `tool_use`, `tool_result`, `system`, `meta` |
 | `role` | `user`, `assistant`, `system`, `tool` |
 | `actor` | `human`, `agent`, `peer`, `automation`, `tool` (see *Actors*) |
+| `input_kind` | `typed`, `pasted`, `bash`, `remote` for human events, NULL if unknown or not human (see *Input kind*) |
 | `text` | readable, redacted text; tool results truncated to 4 KiB |
 | `tool_name` | for `tool_use` |
 | `model` | model of the assistant message |
@@ -337,7 +342,7 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; the same as `search --type memory` |
 | `total-recall search WORDS --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--limit N]` | full-text hits with snippets; all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first; type `event` only |
-| `total-recall timeline --json [--since T] [--until T] [--project P] [--repo R] [--actor human\|agent\|…\|all] [--all] [--text-width N] [--limit N]` | what happened in a time window across all sessions, oldest first; default the human's messages, so "was the evening after 20:00 still work, and on what?" is one call. `--since`/`--until` take a time (`YYYY-MM-DDTHH:MM`, local) or a date and `--since` must be before `--until`; an unknown `--actor` is a `usage` error; `--all` without `--actor` means every actor; each event has `ts` (UTC), `ts_local`, `session_id`, `session_name`, `project`, `repo`, `actor`, `kind` and `text` (one line, cut to `--text-width`; `text_chars` and `text_truncated` say so). Lists exactly the events `stats` counts as `human` in the same window |
+| `total-recall timeline --json [--since T] [--until T] [--project P] [--repo R] [--actor human\|agent\|…\|all] [--all] [--text-width N] [--limit N]` | what happened in a time window across all sessions, oldest first; default the human's messages, so "was the evening after 20:00 still work, and on what?" is one call. `--since`/`--until` take a time (`YYYY-MM-DDTHH:MM`, local) or a date and `--since` must be before `--until`; an unknown `--actor` is a `usage` error; `--all` without `--actor` means every actor; each event has `ts` (UTC), `ts_local`, `session_id`, `session_name`, `project`, `repo`, `actor`, `input_kind` (typed, pasted, bash, remote; null for other actors or when unknown), `kind` and `text` (one line, cut to `--text-width`; `text_chars` and `text_truncated` say so). Lists exactly the events `stats` counts as `human` in the same window |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
 | `total-recall stats --json --period day\|week\|month [--by project\|agent\|directory\|account] [--top N]` | time series per period, optionally per key (`account`: configured names, else ids, `unknown` without one) |
 | `total-recall stats --tools --json [--by day\|session\|repo\|project] [--top N] [--path GLOB] [--since D] [--until D]` | number of `tool_use` events per tool (`by_tool`), optionally per group (`groups[].by_tool`); groups and tools always sum to `total`, `--top` folds the rest into `other`. `--path` filters on the call's arguments: file tools must match the whole path (`*/dir/*`), Bash anywhere in the command; arguments are cut at 1 KiB, so a path behind the cut is missed. Use it instead of ad-hoc `sql` to compare Bash with Edit/Write or to measure a new tool before and after |
@@ -402,6 +407,7 @@ One object per session.
 | `kind` | see `events.kind` |
 | `role` | see `events.role` |
 | `actor` | see `events.actor` |
+| `input_kind` | see `events.input_kind`; `null` if unknown or not a human event |
 | `text` | readable text |
 | `tool_name` | for `tool_use`, else `null` |
 | `model` | `null` for human events |
@@ -421,6 +427,7 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `event_id` | `events.id` |
 | `ts` | UTC |
 | `actor` | |
+| `input_kind` | see `events.input_kind`; `null` if unknown or not a human event |
 | `kind` | `message`, `tool_use`, `tool_result`, … |
 | `snippet` | matched words in `[…]` |
 | `rank` | FTS5 rank, lower is better |

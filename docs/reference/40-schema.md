@@ -23,7 +23,12 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `event_blobs` | welche Events welche Blobs tragen, in welcher Reihenfolge |
 | `memory_projects`, `memory_files`, `memory_versions`, `memory_fts` | das Projekt-Gedächtnis der Harness, versioniert, seit Schema v8; siehe [unten](#memory) |
 
-Wichtige Spalten in `events`: `seq` (Einfügereihenfolge, Primärschlüssel), `id`, `session_id`, `ts` (UTC) und `ts_local` (Ortszeit mit Offset, für Tagesgrenzen), `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `text`, `tool_name`, `model`, `tokens_in`, `tokens_cache_read`, `tokens_cache_write`, `tokens_out`. `tokens_in` ist die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen; die beiden Cache-Spalten (seit Schema v9, [#185](https://github.com/seletz/total-recall/issues/185)) sind deren Teile, die frische Eingabe ist `tokens_in - tokens_cache_read - tokens_cache_write`. `NULL` heißt unbekannt (Event ohne Token-Zahlen, oder ohne `raw`, aus dem sich die Zahlen nachfüllen ließen), `0` heißt gemessen null. Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`; `source_offset` ist der Byte-Offset der Zeile darin. `raw` und `raw_truncated` beschreibt der nächste Abschnitt.
+Wichtige Spalten in `events`: `seq` (Einfügereihenfolge, Primärschlüssel), `id`, `session_id`, `ts` (UTC) und `ts_local` (Ortszeit mit Offset, für Tagesgrenzen), `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `input_kind`, `text`, `tool_name`, `model`, `tokens_in`, `tokens_cache_read`, `tokens_cache_write`, `tokens_out`. `tokens_in` ist die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen; die beiden Cache-Spalten (seit Schema v9, [#185](https://github.com/seletz/total-recall/issues/185)) sind deren Teile, die frische Eingabe ist `tokens_in - tokens_cache_read - tokens_cache_write`. `NULL` heißt unbekannt (Event ohne Token-Zahlen, oder ohne `raw`, aus dem sich die Zahlen nachfüllen ließen), `0` heißt gemessen null.
+
+`input_kind` (seit Schema v10, [#236](https://github.com/seletz/total-recall/issues/236)) sagt bei `actor = 'human'`, wie die Eingabe ankam: `typed` (getippt), `pasted` (enthält einen eingefügten Block `<pasted_content>` oder ein eingefügtes Bild), `bash` (`!cmd`-Eingabe) oder `remote` (Remote Control). `NULL` heißt unbekannt (keine Rohzeile, also lässt sich `typed` nicht von `remote` trennen) oder keine menschliche Eingabe; `NULL` ist nie `typed`.
+{ #input_kind }
+
+Den Pfad der Quelldatei liefert `JOIN sources s ON s.id = e.source_id`; `source_offset` ist der Byte-Offset der Zeile darin. `raw` und `raw_truncated` beschreibt der nächste Abschnitt.
 
 ## `raw` { #raw }
 

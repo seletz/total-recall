@@ -79,7 +79,7 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "show", Title: "Show a session", Command: []string{"show"}, FixedFlags: []string{"--json"}, Units: []string{"events"},
 			Description: "Show the conversation of one session (human and agent messages; all=true adds tool calls and results). Select a window with since/until, from_event (an event_id of a search hit) or limit with offset. " +
-				"Without limit at most 200 events are returned. Same JSON as `total-recall show --json`." + pagingNote,
+				"Without limit at most 200 events are returned. Human events carry input_kind (typed, pasted, bash, remote; null when unknown). Same JSON as `total-recall show --json`." + pagingNote,
 			Defaults: map[string]int{"limit": 200},
 			Params: withLimit(200, 1000, pCursor,
 				mcp.Param{Name: "session", Type: "string", Required: true, Positional: true, Description: "session id, native id or unique prefix"},
@@ -133,7 +133,7 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "timeline", Title: "Timeline across sessions", Command: []string{"timeline"}, FixedFlags: []string{"--json"},
-			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo and a shortened text. " +
+			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo, input_kind (how a human input arrived: typed, pasted, bash, remote; null when unknown) and a shortened text. " +
 				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`." + pagingNote,
 			Units: []string{""},
 			Params: []mcp.Param{

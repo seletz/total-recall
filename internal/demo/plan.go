@@ -73,6 +73,9 @@ type turn struct {
 	reply   string
 	replyAt time.Duration
 	ids     []string
+	// remote marks a prompt sent through Remote Control (entrypoint of the
+	// record), not typed at the terminal.
+	remote bool
 }
 
 // tool is one tool call with its result.

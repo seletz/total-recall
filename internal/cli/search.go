@@ -161,6 +161,6 @@ func typedHitJSON(h store.Hit, cat *project.Catalog) any {
 	}
 	ev := h.Event
 	return HitJSON{SessionID: ev.Event.SessionID, SessionName: NullString(ev.SessionName), Repo: NullString(ev.Repo),
-		EventID: ev.Event.ID, TS: isoTime(ev.Event.TS), Actor: string(ev.Event.Actor), Kind: string(ev.Event.Kind),
+		EventID: ev.Event.ID, TS: isoTime(ev.Event.TS), Actor: string(ev.Event.Actor), InputKind: NullString(ev.Event.InputKind), Kind: string(ev.Event.Kind),
 		Snippet: NullString(ev.Snippet), Rank: ev.Rank, Type: string(h.Type), Project: NullString(cat.Name(h.Project))}
 }

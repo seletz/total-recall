@@ -12,11 +12,11 @@
   ingest all                read every transcript of every harness from the stored offset · migrate first
   doctor                    check the transcripts for format drift; reads only
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- migrate: migrate from schema v8 to v9 after a copy (archive.db.pre-v8.bak)
+ migrate: migrate from schema v9 to v10 after a copy (archive.db.pre-v9.bak)
  y confirms, esc cancels
-   schema    v8 -> v9, 1 pending migration:
-     v9    events: tokens_cache_read and tokens_cache_write, the cached parts of tokens_in; fills them from raw (usage)…
-   backup    ~/.local/share/total-recall/archive.db.pre-v8.bak
+   schema    v9 -> v10, 1 pending migration:
+     v10   events: input_kind (typed, pasted, bash, remote) of human messages; fills it from text and raw for the human…
+   backup    ~/.local/share/total-recall/archive.db.pre-v9.bak
    space     about 0.2 MiB free needed next to the database (copy and migration)
 
 

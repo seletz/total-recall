@@ -23,6 +23,27 @@ func (a Actor) Valid() bool {
 	return false
 }
 
+// InputKind says how a human input (actor human) reached the harness. It is
+// empty for every other actor and for human events whose kind is unknown
+// (no raw line to tell typed from remote).
+type InputKind string
+
+const (
+	InputTyped  InputKind = "typed"  // typed at the keyboard of the session
+	InputPasted InputKind = "pasted" // contains a pasted block (<pasted_content>)
+	InputBash   InputKind = "bash"   // !cmd shell input
+	InputRemote InputKind = "remote" // sent through Remote Control
+)
+
+// Valid reports whether k is one of the defined input kinds.
+func (k InputKind) Valid() bool {
+	switch k {
+	case InputTyped, InputPasted, InputBash, InputRemote:
+		return true
+	}
+	return false
+}
+
 // Kind classifies what an event is.
 type Kind string
 
@@ -108,6 +129,8 @@ type Event struct {
 	Kind      Kind
 	Role      string // user, assistant, system, tool
 	Actor     Actor
+	// InputKind is set for human messages when known (see InputKind).
+	InputKind InputKind
 	Text      string
 	ToolName  string
 	Model     string

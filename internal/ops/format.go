@@ -63,6 +63,13 @@ func FormatReclassify(s ingest.ReclassifySummary) string {
 		}
 		fmt.Fprintf(&b, " (%s)", strings.Join(parts, ", "))
 	}
+	if s.InputKinds > 0 {
+		if s.DryRun {
+			fmt.Fprintf(&b, ", %d input kinds would be set", s.InputKinds)
+		} else {
+			fmt.Fprintf(&b, ", %d input kinds set", s.InputKinds)
+		}
+	}
 	if s.Undecided > 0 {
 		fmt.Fprintf(&b, ", %d undecided (no raw record)", s.Undecided)
 	}

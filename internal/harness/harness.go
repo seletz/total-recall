@@ -30,6 +30,14 @@ type Reclassifier interface {
 	Reclassify(ev model.Event, subagent bool) (actor model.Actor, ok bool)
 }
 
+// InputKinder is implemented by adapters that can derive how a stored human
+// message reached the harness (model.InputKind) from its text and raw
+// record (ingest --reclassify). ok is false when it cannot be decided from
+// what is stored; the stored kind then stays.
+type InputKinder interface {
+	InputKind(ev model.Event) (kind model.InputKind, ok bool)
+}
+
 var registry = map[string]Adapter{}
 
 // Register adds an adapter; called from adapter packages' init or from main.

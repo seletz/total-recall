@@ -250,7 +250,11 @@ func (s session) lines(sid, agentID string) []testfixture.Line {
 		out = append(out, l)
 	}
 	for _, tr := range s.turns {
-		add(testfixture.User(sid, tr.ids[0], stamp(tr.at), s.cwd, tr.prompt))
+		user := testfixture.User(sid, tr.ids[0], stamp(tr.at), s.cwd, tr.prompt)
+		if tr.remote {
+			user["entrypoint"] = "remote"
+		}
+		add(user)
 		t := tr.at.Add(20 * time.Second)
 		for i, tool := range tr.tools {
 			use := tr.ids[1+2*i]

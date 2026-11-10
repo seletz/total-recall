@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/seletz/total-recall/internal/inputkind"
 	"github.com/seletz/total-recall/internal/model"
 )
 
@@ -69,7 +70,7 @@ func (c Classifier) Classify(text string, f userFlags) model.Actor {
 	switch f.originKind {
 	case "peer":
 		return model.ActorPeer
-	case "", "human":
+	case "", "human", "remote", "remote-control", "bridge":
 	default: // task-notification, scheduled, system, ...
 		return model.ActorAutomation
 	}
@@ -177,6 +178,11 @@ func (a *Adapter) Reclassify(ev model.Event, subagent bool) (actor model.Actor, 
 		subagentInput: subagent,
 	}
 	return a.classifier.Classify(ev.Text, flags), true
+}
+
+// InputKind implements harness.InputKinder for a stored human message.
+func (a *Adapter) InputKind(ev model.Event) (model.InputKind, bool) {
+	return inputkind.FromRaw(ev.Text, ev.Raw)
 }
 
 func hasAnyPrefix(s string, prefixes []string) bool {

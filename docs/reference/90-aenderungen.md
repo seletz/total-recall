@@ -8,6 +8,34 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.6.0 (unveröffentlicht)
 
+### Was dieses Update mit dem Archiv macht
+
+Dieses Release bringt Schema **v10**: eine neue Spalte `events.input_kind`, die bei menschlichen Eingaben sagt, **wie** sie ankamen ([#236](https://github.com/seletz/total-recall/issues/236)). Bisher stand für alles `actor = human`, ob die Nachricht getippt, eingefügt, als `!cmd` oder über Remote Control kam. Wer Arbeitszeit nachbuchen wollte, musste das aus Textmustern raten.
+
+- **Werte:** `typed` (getippt), `pasted` (enthält einen eingefügten Block oder ein eingefügtes Bild, etwa ein Review, das von einer anderen Session weitergereicht wurde), `bash` (`!cmd`), `remote` (Remote Control). `NULL` heißt unbekannt oder keine menschliche Eingabe: Agent, Peer, Automation und Tool haben nie einen Wert.
+- **Wo man sie sieht:** `show --json`, `search --json` und `timeline --json` (damit auch das MCP-Tool `timeline`) haben das neue Feld `input_kind` (String oder `null`), `show` im Text schreibt die Art hinter den Actor (`human (pasted)`). Nur neue Felder, nichts Bestehendes ändert sich.
+- **Neue Events** bekommen die Art beim Ingest.
+- **`migrate` füllt den Bestand** für die menschlichen Nachrichten von Claude Code aus Text und Rohzeile (`raw`). Ohne Rohzeile bleibt `NULL`, außer bei `bash` und `pasted`, die der Text allein entscheidet: Ohne Rohzeile lässt sich `typed` nicht von `remote` unterscheiden, und eine Vermutung wäre falscher als ein Fehlen. Events anderer Harnesses bleiben `NULL`.
+- **Danach nachfüllen:** `reindex --actors` setzt die Art aus Text und Rohzeile neu (auch nach einer geänderten Actor-Regel: wird eine Nachricht zu `peer`, verliert sie ihre Art); `ingest --all --reread --rewrite-raw` holt sie aus den Transkripten, solange diese noch da sind.
+- **Remote Control ist nicht belegt.** Im Format von Claude Code erkennt die Erkennung `remote` an `entrypoint` oder `origin.kind` mit den Werten `remote`, `remote-control` oder `bridge`. Diese Werte sind aus keinem echten Transkript belegt (im untersuchten Archiv ist `entrypoint` durchweg `cli`). Wer Remote Control nutzt, sollte prüfen, ob solche Events als `remote` ankommen, und sich melden, wenn die Namen anders lauten.
+
+**Was das kostet**, gemessen auf einer Kopie des Demo-Archivs (Stand v9, 21 898 Events, davon 3 093 menschliche Nachrichten, 11,5 MB; drei Läufe):
+
+| | `migrate` (v10) |
+|---|---|
+| Dauer | 0,14 s, einschließlich der Sicherungskopie |
+| Datei | + 0,2 MB (11,49 MB auf 11,69 MB) |
+| Freier Platz | etwa 14 MiB neben der Datenbank (Kopie und Migration) |
+
+Danach: 3 091 `typed`, 1 `pasted`, 1 `remote`, keine unbekannte Art, weil alle Events eine Rohzeile haben. Die Messung am echten Archiv steht noch aus; die Migration liest nur die menschlichen Nachrichten, nicht das ganze Archiv.
+
+**Die Schritte** ([Aktualisieren](../how-to/10-installieren.md#aktualisieren)):
+
+```sh
+total-recall backup     # 1. sichern
+total-recall migrate    # 2. Sekunden: legt die Spalte an und füllt sie
+```
+
 ### Zeitleiste
 
 - **`timeline`:** die Events eines Zeitfensters über alle Sessions, älteste zuerst, standardmäßig die Nachrichten des Menschen ([Befehle](10-befehle.md#timeline), #235). Filter `--since`/`--until` mit Uhrzeit (`--since` muss vor `--until` liegen, sonst `usage`-Fehler), `--project` (Name wie bei `stats --by project`), `--repo`, `--actor` (ein unbekannter Wert ist ein `usage`-Fehler; mit `--all` und ohne `--actor` gilt `all`); je Event lokale und UTC-Zeit, Session, Projekt und ein gekürzter Text. Neuer Befehl, nichts Bestehendes ändert sich (Minor).

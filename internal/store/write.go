@@ -284,8 +284,8 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 	if len(events) > 0 {
 		sources := map[string]int64{}
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO events
-			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, source_id, source_offset, raw, raw_truncated)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			(id, session_id, ts, ts_local, kind, role, actor, text, tool_name, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, source_id, source_offset, raw, raw_truncated, input_kind)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO NOTHING`)
 		if err != nil {
 			return res, fmt.Errorf("store: prepare: %w", err)
@@ -293,9 +293,9 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		defer func() { _ = stmt.Close() }()
 		var rewrite *sql.Stmt
 		if opts.RewriteRaw {
-			// Only these two columns: the UPDATE OF text trigger that keeps
+			// Only these columns (input_kind only when the transcript decides it): the UPDATE OF text trigger that keeps
 			// events_fts in sync must not fire, actor stays as reindex set it.
-			rewrite, err = tx.PrepareContext(ctx, `UPDATE events SET raw = ?, raw_truncated = ? WHERE id = ?`)
+			rewrite, err = tx.PrepareContext(ctx, `UPDATE events SET raw = ?, raw_truncated = ?, input_kind = COALESCE(?, input_kind) WHERE id = ?`)
 			if err != nil {
 				return res, fmt.Errorf("store: prepare: %w", err)
 			}
@@ -305,7 +305,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 		defer blobs.close()
 		for _, e := range events {
 			if rewrite != nil {
-				r, err := rewrite.ExecContext(ctx, rawBlob(e.Raw), e.RawTruncated, e.ID)
+				r, err := rewrite.ExecContext(ctx, rawBlob(e.Raw), e.RawTruncated, nullStr(string(e.InputKind)), e.ID)
 				if err != nil {
 					return res, fmt.Errorf("store: rewrite raw of event %s: %w", e.ID, err)
 				}
@@ -342,7 +342,7 @@ func (s *Store) WriteBatchOpts(ctx context.Context, src SourceState, sessions []
 			}
 			r, err := stmt.ExecContext(ctx, e.ID, e.SessionID, tsv, local, string(e.Kind), nullStr(e.Role),
 				nullStr(string(e.Actor)), e.Text, nullStr(e.ToolName), nullStr(e.Model), nullInt(e.TokensIn),
-				nullInt(e.TokensOut), cacheInt(e, e.TokensCacheRead), cacheInt(e, e.TokensCacheWrite), srcID, e.SourceOffset, rawBlob(e.Raw), e.RawTruncated)
+				nullInt(e.TokensOut), cacheInt(e, e.TokensCacheRead), cacheInt(e, e.TokensCacheWrite), srcID, e.SourceOffset, rawBlob(e.Raw), e.RawTruncated, nullStr(string(e.InputKind)))
 			if err != nil {
 				return res, fmt.Errorf("store: insert event %s: %w", e.ID, err)
 			}
