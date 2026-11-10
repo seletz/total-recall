@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -92,19 +93,43 @@ func readBackupNote(dbPath string) (backupNote, bool) {
 	return n, true
 }
 
-// ReadBackupStatus returns the state of the last backup in dir: ok with the
-// newest copy, none when dir holds no copy (or does not exist), and unknown
-// when dir cannot be read, with the reason and a hint. Then the status file
-// next to the database at dbPath, if there is one, still gives the time, the
-// copy and its size of the last backup run. A readable directory is always
-// the truth: a status file does not make a deleted backup exist.
-func ReadBackupStatus(dbPath, dir string, loc *time.Location) BackupStatus {
-	path, at, err := LastBackup(dir, loc)
+// BackupProbe says where to look for the last backup.
+type BackupProbe struct {
+	// DB is the database path (the status file lies next to it), Dir the
+	// backup directory, Loc the time zone of the backup names.
+	DB, Dir string
+	Loc     *time.Location
+	// Now and Home are only for the hint: whether the status file shows a
+	// fresh backup, and which folders of the home directory the macOS
+	// privacy protection covers. An empty Home is the user's home directory.
+	Now  time.Time
+	Home string
+}
+
+// freshBackup is how young the backup of the status file must be to count
+// as proof that backups run: the hook backs up daily.
+const freshBackup = 48 * time.Hour
+
+// ReadBackupStatus returns the state of the last backup in p.Dir: ok with the
+// newest copy, none when the directory holds no copy (or does not exist), and
+// unknown when it cannot be read, with the reason and a hint. Then the
+// status file next to the database, if there is one, still gives the time,
+// the copy and its size of the last backup run. A readable directory is
+// always the truth: a status file does not make a deleted backup exist.
+func ReadBackupStatus(p BackupProbe) BackupStatus {
+	path, at, err := LastBackup(p.Dir, p.Loc)
 	if err != nil {
-		st := BackupStatus{State: BackupUnknown, Reason: "no access: " + reasonOf(err), Hint: accessHint(dir)}
-		if n, ok := readBackupNote(dbPath); ok {
-			st.Path, st.At, st.Size = n.File, n.Time.In(loc), n.Size
+		st := BackupStatus{State: BackupUnknown, Reason: "no access: " + reasonOf(err)}
+		fresh := false
+		if n, ok := readBackupNote(p.DB); ok {
+			st.Path, st.At, st.Size = n.File, n.Time.In(p.Loc), n.Size
+			fresh = !p.Now.IsZero() && p.Now.Sub(n.Time) < freshBackup
 		}
+		home := p.Home
+		if home == "" {
+			home, _ = os.UserHomeDir()
+		}
+		st.Hint = accessHint(p.Dir, home, runtime.GOOS, fresh)
 		return st
 	}
 	if path == "" {
@@ -127,12 +152,30 @@ func reasonOf(err error) string {
 	return err.Error()
 }
 
-// accessHint says what to do when the backup directory cannot be read.
-func accessHint(_ string) string {
-	if runtime.GOOS == "darwin" {
-		return "allow this app access to Documents (Privacy & Security > Files & Folders), then restart the terminal or app (running processes keep the old rights), or set [backup] dir elsewhere; the backups are fine"
+// privacyFolders are the folders of the home directory that the macOS
+// privacy protection (TCC) covers for a process without the permission.
+var privacyFolders = []string{"Documents", "Desktop", "Downloads"}
+
+// accessHint says what to do when the backup directory cannot be read: on
+// macOS for a directory in Documents, Desktop or Downloads of home, give the
+// app access to that folder and restart it; otherwise check the file
+// permissions. fresh says that the status file shows a recent backup, only
+// then the hint says the backups are fine.
+func accessHint(dir, home, goos string, fresh bool) string {
+	hint := "check the file permissions of " + dir
+	if goos == "darwin" && home != "" {
+		for _, f := range privacyFolders {
+			root := filepath.Join(home, f)
+			if rel, err := filepath.Rel(root, filepath.Clean(dir)); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				hint = "allow this app access to " + f + " (System Settings > Privacy & Security > Files & Folders), then restart the terminal or app (running processes keep the old rights), or set [backup] dir elsewhere"
+				break
+			}
+		}
 	}
-	return "check the permissions of the backup directory; the backups are fine"
+	if fresh {
+		hint += "; the backups are fine"
+	}
+	return hint
 }
 
 // EnsureBackupNote writes the status file for the copy at path (made at
