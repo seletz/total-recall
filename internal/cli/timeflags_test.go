@@ -12,6 +12,7 @@ import (
 // came from, in the CLI (--since) and in MCP (argument "since"), for every
 // command with a time flag.
 func TestTimeFlagErrorsNameTheFlag(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now

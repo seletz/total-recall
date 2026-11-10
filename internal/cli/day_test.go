@@ -44,6 +44,7 @@ type dayWorktimeJSON struct {
 // modes, stats --day equals stats --workday --blocks and --worktime for the
 // day, and its parts add up.
 func TestStatsDayDemo(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	for _, mode := range [][]string{nil, {"--all-events"}} {
 		wd := decode[dayWorkdayJSON](t, e.mustRun(t, append([]string{"--db", db, "stats", "--workday", "--blocks", "--json", "--month", "2026-10"}, mode...)...))
@@ -129,6 +130,7 @@ func TestStatsDayDemo(t *testing.T) {
 }
 
 func TestStatsDayText(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	out := e.mustRun(t, "--db", db, "stats", "--day", "2026-10-29")
 	for _, want := range []string{"2026-10-29", "span", "PROJECT", "CATEGORY", "total", "1. "} {
@@ -142,6 +144,7 @@ func TestStatsDayText(t *testing.T) {
 }
 
 func TestStatsDayUsage(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	for _, args := range [][]string{{"--workday"}, {"--worktime"}, {"--month", "2026-10"}, {"--blocks"}, {"--period", "day"}} {
 		r := e.run(t, "", append([]string{"--db", db, "stats", "--day", "2026-10-29"}, args...)...)

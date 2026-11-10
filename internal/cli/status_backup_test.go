@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,6 +13,7 @@ import (
 // status file next to the database still gives the last backup. The new
 // JSON fields are additive: last_backup and last_backup_at stay.
 func TestStatusBackupState(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T, backup bool) *testEnv {
 		e := newTestEnv(t)
 		e.mustRun(t, "ingest", "--all")
@@ -77,6 +79,39 @@ func TestStatusBackupState(t *testing.T) {
 				if strings.Contains(out, w) {
 					t.Errorf("status has %q:\n%s", w, out)
 				}
+			}
+		})
+	}
+}
+
+// TestStatusBackupUnderDocuments: the PA's case end to end: a backup
+// directory below <home>/Documents given with --backup-dir, closed with
+// chmod 000, is unknown with reason and the file-permissions hint (EACCES is
+// no privacy block), as it is anywhere else; it is never none without a
+// reason.
+func TestStatusBackupUnderDocuments(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads every directory")
+	}
+	for _, where := range []string{"Documents", "Desktop", "Downloads", "elsewhere"} {
+		t.Run(where, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.mustRun(t, "ingest", "--all")
+			e.home = e.dir
+			dir := filepath.Join(e.dir, where, "tr-test-nobak")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(dir, 0); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+			s := decode[StatusJSON](t, e.mustRun(t, "--backup-dir", dir, "status", "--json"))
+			if s.BackupDir != dir || s.LastBackupState != "unknown" || s.LastBackupReason == "" || s.LastBackupHint == "" {
+				t.Fatalf("backup_dir %q state %q reason %q hint %q", s.BackupDir, s.LastBackupState, s.LastBackupReason, s.LastBackupHint)
+			}
+			if !strings.Contains(string(s.LastBackupHint), "file permissions of "+dir) || strings.Contains(string(s.LastBackupHint), "Privacy") {
+				t.Errorf("hint %q", s.LastBackupHint)
 			}
 		})
 	}

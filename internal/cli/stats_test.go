@@ -22,6 +22,7 @@ func runActivity(t *testing.T, e *testEnv, db string, args ...string) result {
 // TestStatsSeries compares the text and JSON output of the period × key
 // table with golden files (go test ./internal/cli -run TestStatsSeries -update).
 func TestStatsSeries(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -68,6 +69,7 @@ func TestStatsSeries(t *testing.T) {
 // against the documented counts of the Activity fixture. Under the project
 // dimension the subagent counts for alpha in 2025-W49.
 func TestStatsSeriesCounts(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	_, db := fixturedb.Activity(t)
 	r := runActivity(t, e, db, append([]string{"--period", "week", "--by", "project", "--json"}, activityRange...)...)
@@ -139,6 +141,7 @@ func TestStatsSeriesCounts(t *testing.T) {
 // several periods once: in the fixture A5 has events on 2025-12-31 and
 // 2026-01-01, so by day it appears in two buckets of alpha.
 func TestStatsSeriesDistinct(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	_, db := fixturedb.Activity(t)
 	r := runActivity(t, e, db, "--period", "day", "--by", "project", "--since", "2025-12-31", "--until", "2026-01-01", "--json")
@@ -162,6 +165,7 @@ func TestStatsSeriesDistinct(t *testing.T) {
 }
 
 func TestStatsSeriesErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -201,6 +205,7 @@ match = "/w/gamma"
 // matching keys are merged under the project name before --top folds,
 // unmatched keys keep their derived name.
 func TestStatsSeriesProjects(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	_, db := fixturedb.Activity(t)
 	appendConfig(t, e, projectDefinitions)

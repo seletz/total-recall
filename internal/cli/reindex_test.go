@@ -55,6 +55,7 @@ type worktimeDay struct {
 // configured, reindex --actors turns it into a peer message and --workday
 // and --worktime no longer count it.
 func TestReindexActors(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	writeCoordinatorDay(t, e)
 	e.mustRun(t, "ingest", "--all")
@@ -121,6 +122,7 @@ func TestReindexActors(t *testing.T) {
 }
 
 func TestReindexUsage(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if r := e.run(t, "", "reindex"); r.code == 0 || !strings.Contains(r.stderr, "--actors") {

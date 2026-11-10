@@ -58,6 +58,7 @@ func summaryFixture(t *testing.T) string {
 // and own messages only, deduplicated and sorted; the text names the
 // sessions per project.
 func TestStatsWorktimeSummaryValues(t *testing.T) {
+	t.Parallel()
 	db := summaryFixture(t)
 	e := newTestEnv(t)
 	e.now = activityNow
@@ -123,6 +124,7 @@ func TestStatsWorktimeSummaryValues(t *testing.T) {
 // TestStatsWorktimeSummaryText compares the text output of --summary,
 // alone and with --sessions, with golden files.
 func TestStatsWorktimeSummaryText(t *testing.T) {
+	t.Parallel()
 	db := summaryFixture(t)
 	for _, tt := range []struct {
 		name   string

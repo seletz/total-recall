@@ -180,6 +180,7 @@ func sorted(s []string) []string {
 // exactly the real ones (generated columns included, FTS hidden columns
 // excluded).
 func TestSkillSchemaColumns(t *testing.T) {
+	t.Parallel()
 	e := skillEnv(t)
 	st, err := store.OpenReadOnly(e.db)
 	if err != nil {
@@ -231,6 +232,7 @@ func TestSkillSchemaColumns(t *testing.T) {
 // JSON tags of the output types: every object carries exactly the documented
 // keys.
 func TestSkillJSONFields(t *testing.T) {
+	t.Parallel()
 	e := skillEnv(t)
 	sections := skillSections(t)
 	show := []string{"show", skillSession3, "--json", "--all"}
@@ -329,6 +331,7 @@ func TestSkillJSONFields(t *testing.T) {
 // id); the time-window example only has to run, because the 'utc' modifier
 // depends on the machine's time zone.
 func TestSkillQueriesRun(t *testing.T) {
+	t.Parallel()
 	e := skillEnv(t)
 	n := 0
 	for _, b := range skillBlocks() {
@@ -356,6 +359,7 @@ func TestSkillQueriesRun(t *testing.T) {
 // TestSkillOutputContract covers the output contract as the skill documents
 // it: JSON errors on stdout, jsonl, --no-truncate.
 func TestSkillOutputContract(t *testing.T) {
+	t.Parallel()
 	e := skillEnv(t)
 	t.Run("ErrorOnStdout", func(t *testing.T) {
 		tests := []struct {
@@ -404,6 +408,7 @@ func TestSkillOutputContract(t *testing.T) {
 // search --session as the skill documents them. Times are local
 // (Europe/Berlin in the test config): 11:00-12:00 local is 09:00-10:00 UTC.
 func TestSkillShowWindow(t *testing.T) {
+	t.Parallel()
 	e := skillEnv(t)
 	s1 := "claude:" + tf.SmallSession1
 	events := func(args ...string) []map[string]any {

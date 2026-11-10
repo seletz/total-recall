@@ -51,7 +51,7 @@ jobs:
         env:
           CGO_ENABLED: "1"
           TOTAL_RECALL_DEMO_DB: ${{ github.workspace }}/build/demo.db
-        run: go test -race ./...
+        run: go test -race -timeout 20m ./...
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9.3.0

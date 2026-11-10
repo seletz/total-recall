@@ -24,6 +24,7 @@ var activityNow = time.Date(2026, 1, 11, 12, 0, 0, 0, time.UTC)
 // TestStatsWorkday compares the text and JSON output of --workday with
 // golden files (go test ./internal/cli -run TestStatsWorkday -update).
 func TestStatsWorkday(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -61,6 +62,7 @@ func TestStatsWorkday(t *testing.T) {
 // session A5 (2025-12-31 23:40 – 2026-01-01 00:05) is one day ending at
 // "00:05 (+1)"; with day_start = "00:00" it is split over two days.
 func TestStatsWorkdayDayStart(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -106,6 +108,7 @@ func TestStatsWorkdayDayStart(t *testing.T) {
 // workday of the range (this week: five weekdays minus Epiphanias). Only
 // human messages count, so a day with one prompt has a span of zero.
 func TestStatsWorkdayTarget(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -155,6 +158,7 @@ func TestStatsWorkdayTarget(t *testing.T) {
 }
 
 func TestStatsWorkdayErrors(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	tests := []struct {
 		name string
@@ -184,6 +188,7 @@ func TestStatsWorkdayErrors(t *testing.T) {
 // TestRangeBounds pins the relative ranges under the 04:00 day rule, with
 // now shortly after midnight: "today" is still the previous calendar day.
 func TestRangeBounds(t *testing.T) {
+	t.Parallel()
 	loc, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -223,6 +228,7 @@ func TestRangeBounds(t *testing.T) {
 // TestWorkdayBounds checks --since/--until under the day rule: dates mean
 // whole days from the boundary, times are taken as they are.
 func TestWorkdayBounds(t *testing.T) {
+	t.Parallel()
 	loc, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -261,6 +267,7 @@ func TestWorkdayBounds(t *testing.T) {
 // today only (2026-01-11 is a Sunday: Jan 2, 5, 7, 8, 9 after the two
 // holidays).
 func TestStatsWorkdayBundesland(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		bundesland string
@@ -301,6 +308,7 @@ func TestStatsWorkdayBundesland(t *testing.T) {
 // 5, 7, 8 and 9 (Neujahr and Epiphanias are holidays), not the 21
 // workdays of the whole month.
 func TestStatsWorkdayRunningMonth(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -318,6 +326,7 @@ func TestStatsWorkdayRunningMonth(t *testing.T) {
 // --all-events for everything, the deprecated --human-only still accepted,
 // and [work] count = "all" as the default with --human-only overriding it.
 func TestStatsWorkdayCount(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -360,6 +369,7 @@ func TestStatsWorkdayCount(t *testing.T) {
 // TestStatsWorkdayBlocks compares the output of --workday --blocks with
 // golden files.
 func TestStatsWorkdayBlocks(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -386,6 +396,7 @@ func TestStatsWorkdayBlocks(t *testing.T) {
 // TestStatsWorkdayBlocksOptional checks that the block fields are absent
 // without --blocks (the JSON of a plain --workday does not change).
 func TestStatsWorkdayBlocksOptional(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -404,6 +415,7 @@ func TestStatsWorkdayBlocksOptional(t *testing.T) {
 // and bounded by first and last; the total adds up its days; the days
 // match a plain --workday run of the same range.
 func TestStatsWorkdayBlocksSums(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	for _, gap := range []string{"1m", "30m", "2h", "24h"} {
 		for _, all := range []bool{false, true} {
@@ -499,6 +511,7 @@ func TestStatsWorkdayBlocksSums(t *testing.T) {
 // still add up: per day the seconds of the blocks are block_seconds, blocks
 // plus breaks are span_seconds, and the total is the sum of its days.
 func TestStatsWorkdayBlocksFractional(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "frac.db")
 	st, err := store.Open(path)
 	if err != nil {

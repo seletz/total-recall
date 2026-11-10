@@ -43,6 +43,7 @@ func appendConfig(t *testing.T, e *testEnv, content string) {
 // TestStatsWorktime compares the text and JSON output of --worktime with
 // golden files (go test ./internal/cli -run TestStatsWorktime -update).
 func TestStatsWorktime(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config string
@@ -81,6 +82,7 @@ func TestStatsWorktime(t *testing.T) {
 // TestStatsWorktimeDemo renders one week of the synthetic demo archive
 // with categories, as the docs show it.
 func TestStatsWorktimeDemo(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -134,6 +136,7 @@ func cellOf(out WorktimeJSON, day, category string) (WorktimeCellJSON, bool) {
 // the first of the day, then two gaps of 15m: 33m, rounded up 45m); A6 on
 // 2026-01-08 has 17:30 and 17:55 (25m is above the cap: 3m + 3m).
 func TestStatsWorktimeValues(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -201,6 +204,7 @@ func TestStatsWorktimeValues(t *testing.T) {
 // 2026-01-01 00:05): one day with the default 04:00 (the 25m gap is above
 // the cap, 3m + 3m), two days at midnight (3m each, the second on Neujahr).
 func TestStatsWorktimeDayStart(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.now = activityNow
 	_, db := fixturedb.Activity(t)
@@ -231,6 +235,7 @@ func TestStatsWorktimeDayStart(t *testing.T) {
 // TestStatsWorktimeConfig runs the rounding and category settings through
 // the command on 2025-12-18 (alpha 33m) and 2025-12-16 (gamma 3m).
 func TestStatsWorktimeConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		config  string
@@ -274,6 +279,7 @@ func TestStatsWorktimeConfig(t *testing.T) {
 // every cell is the sum of its rounded projects (the fixture has one
 // project per day, so the pure package covers the mixed case).
 func TestStatsWorktimeScope(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Activity(t)
 	e := newTestEnv(t)
 	e.now = activityNow
@@ -301,6 +307,7 @@ func TestStatsWorktimeScope(t *testing.T) {
 }
 
 func TestStatsWorktimeErrors(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	tests := []struct {
 		name string
@@ -355,6 +362,7 @@ func TestStatsWorktimeErrors(t *testing.T) {
 // category rules, which see the configured name; two repositories of one
 // project are one project row.
 func TestStatsWorktimeProjects(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Activity(t)
 	e := newTestEnv(t)
 	e.now = activityNow
@@ -400,6 +408,7 @@ match = ["~/dotfiles", "~/notizen"]
 // its seconds are the sum of its cells over the range, the list is a part
 // of the total, and the cells add up to the total.
 func TestStatsWorktimeUncategorized(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -470,6 +479,7 @@ func TestStatsWorktimeUncategorized(t *testing.T) {
 // on stderr, once, with the projects and their time; no hint without
 // uncategorized projects and none when no category is configured at all.
 func TestStatsWorktimeUncategorizedText(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	tests := []struct {
 		name, config string
@@ -555,6 +565,7 @@ func checkWorktimeRawSums(t *testing.T, out WorktimeJSON) {
 // TestStatsWorktimeRawSums: the sum invariant of the raw seconds on the
 // real --json output of the demo archive, with and without categories.
 func TestStatsWorktimeRawSums(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	for name, cfg := range map[string]string{"no categories": "", "categories": demoCategories} {
 		t.Run(name, func(t *testing.T) {
@@ -579,6 +590,7 @@ func TestStatsWorktimeRawSums(t *testing.T) {
 // the time stamps, as the real archive has (milliseconds): every part used
 // to be cut on its own, so the parts differed from their sum by seconds.
 func TestStatsWorktimeRawSumsFractional(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "frac.db")
 	st, err := store.Open(path)
 	if err != nil {
