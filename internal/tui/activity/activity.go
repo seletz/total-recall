@@ -66,6 +66,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
+	"github.com/seletz/total-recall/internal/tui/dayview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
@@ -207,6 +208,10 @@ type shown struct {
 	loaded    bool // data holds the window (false until the first answer)
 }
 
+// Select selects a day of the rows, if it is in them; the app sends it
+// when the day view is left, so the view comes back on the day it showed.
+type Select struct{ Day time.Time }
+
 // Model is the activity view.
 type Model struct {
 	opts      Options
@@ -227,6 +232,9 @@ type Model struct {
 	took    time.Duration // the query that completed the shown window; 0 from the cache
 	err     error
 
+	// sel is the label of the selected day, "" until one is selected (the
+	// newest day of the window then); see selected.
+	sel           string
 	offset        int  // first visible day row, in the drawn order
 	newestTop     bool // the newest day is the top row, see rows
 	width, height int
@@ -295,6 +303,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.down()
 		}
 		return m, nil
+	case Select:
+		m.sel = msg.Day.Format("2006-01-02")
+		return m, nil
 	case resultMsg:
 		return m.result(msg), nil
 	case tea.BackgroundColorMsg:
@@ -338,8 +349,79 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.up()
 	case key.Matches(msg, k.Down):
 		return m.down()
+	case key.Matches(msg, k.SelUp):
+		return m.selectBy(-1), nil
+	case key.Matches(msg, k.SelDown):
+		return m.selectBy(1), nil
+	case key.Matches(msg, k.Open):
+		return m.openDay()
 	}
 	return m, nil
+}
+
+// visible is the range [from, to) of the drawn rows that are on screen.
+func (m Model) visible() (from, to int) {
+	from = m.offset
+	return from, min(from+m.rowsAvail(), len(m.shown.before)+len(m.shown.days))
+}
+
+// selected is the index in the drawn rows of the selected day, -1 without
+// rows. A selection that is not on screen (the rows scrolled on) stands at
+// the edge it left by; without a selection it is the newest day of the
+// window.
+func (m Model) selected() int {
+	rows := m.rows()
+	from, to := m.visible()
+	if len(rows) == 0 || to <= from {
+		return -1
+	}
+	idx := -1
+	for i, r := range rows {
+		if r.day.Label == m.sel {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		for i, r := range rows {
+			if r.in && (idx < 0 || r.day.Day.After(rows[idx].day.Day)) {
+				idx = i
+			}
+		}
+	}
+	if idx < 0 {
+		idx = from
+	}
+	return max(from, min(idx, to-1))
+}
+
+// selectBy moves the selection by n rows, scrolling the rows when it
+// leaves the screen.
+func (m Model) selectBy(n int) Model {
+	rows := m.rows()
+	i := m.selected()
+	if i < 0 {
+		return m
+	}
+	i = max(0, min(i+n, len(rows)-1))
+	m.sel = rows[i].day.Label
+	switch from, to := m.visible(); {
+	case i < from:
+		m.offset = i
+	case i >= to:
+		m.offset += i - to + 1
+	}
+	m.clampOffset()
+	return m
+}
+
+// openDay opens the day view on the selected day.
+func (m Model) openDay() (tea.Model, tea.Cmd) {
+	i := m.selected()
+	if i < 0 {
+		return m, nil
+	}
+	day, human := m.rows()[i].day.Day, m.humanOnly
+	return m, func() tea.Msg { return dayview.Open{Day: day, HumanOnly: human} }
 }
 
 // click handles a left click: on the switches line a period name sets the
@@ -368,6 +450,12 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.Y == m.headerY() && msg.X >= 1 && msg.X < 1+dateWidth && m.hint() == "" {
 		return m.toggleOrder(), nil
+	}
+	if from, to := m.visible(); m.hint() == "" && msg.Y > m.headerY() && msg.Y <= m.headerY()+to-from {
+		if i := from + msg.Y - m.headerY() - 1; i < len(m.rows()) {
+			m.sel = m.rows()[i].day.Label
+			return m.openDay()
+		}
 	}
 	if first := m.height - 1 - figureRows; m.showFigures() && msg.Y >= first && msg.Y < first+figureRows {
 		m.figures = false
@@ -756,6 +844,9 @@ func (m Model) FullHelp() [][]key.Binding { return m.keys.FullHelp() }
 // lead without colours too.
 const marker = "▎"
 
+// selMarker stands in front of the selected day.
+const selMarker = "▸"
+
 // View implements tea.Model: the switches, for a week or a month the
 // headline, the header with the time axis, one row per day (the window's
 // with the marker, the lead's dimmed), a rule, the legend of the projects
@@ -782,10 +873,19 @@ func (m Model) View() tea.View {
 		parts = append(parts, line(" "+l.header()))
 		rows := m.rows()
 		end := min(m.offset+pad, len(rows))
-		for _, r := range rows[m.offset:end] {
-			if r.in {
+		sel := m.selected()
+		for i, r := range rows[m.offset:end] {
+			switch {
+			case m.offset+i == sel:
+				// The selected day carries ▸ whatever the row is.
+				body := l.row(r.day)
+				if !r.in {
+					body = dim.row(r.day)
+				}
+				parts = append(parts, line(m.th.Mark.Render(selMarker)+body))
+			case r.in:
 				parts = append(parts, line(m.styles.mark.Render(marker)+l.row(r.day)))
-			} else {
+			default:
 				parts = append(parts, line(" "+dim.row(r.day)))
 			}
 		}

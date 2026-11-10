@@ -17,7 +17,9 @@ import (
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/attview"
+	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/configview"
+	"github.com/seletz/total-recall/internal/tui/dayview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/search"
@@ -64,10 +66,17 @@ type App struct {
 	attach           attview.Model
 	showAttach       bool
 	attachFromDetail bool
-	keys             KeyMap
-	help             bool
-	width            int
-	height           int
+	// day is the day view, a layer like the detail, opened from the
+	// activity view. A session opened from it is shown in the detail
+	// (detailFromDay), and Back returns to the day.
+	day           dayview.Model
+	showDay       bool
+	detailFromDay bool
+	colors        *chart.Colors
+	keys          KeyMap
+	help          bool
+	width         int
+	height        int
 	// th is the theme of the chrome; dark until the terminal answers the
 	// background colour query of Init.
 	th theme.Theme
@@ -91,7 +100,7 @@ func (a App) Init() tea.Cmd {
 	for _, v := range a.views {
 		cmds = append(cmds, v.Init())
 	}
-	return tea.Batch(append(cmds, a.detail.Init(), a.memory.Init(), a.attach.Init(), tea.RequestBackgroundColor, a.tick())...)
+	return tea.Batch(append(cmds, a.detail.Init(), a.memory.Init(), a.attach.Init(), a.day.Init(), tea.RequestBackgroundColor, a.tick())...)
 }
 
 // tick schedules the next change check, or nothing when the reload is off
@@ -150,7 +159,7 @@ func (a App) reopened(msg reopenMsg) (tea.Model, tea.Cmd) {
 // reload loads the view on screen again and marks every other one stale;
 // the header shows the time.
 func (a *App) reload() tea.Cmd {
-	a.stale = make([]bool, len(a.views)+3)
+	a.stale = make([]bool, len(a.views)+4)
 	for i := range a.stale {
 		a.stale[i] = true
 	}
@@ -179,6 +188,12 @@ func (a *App) reloadCurrent() tea.Cmd {
 		a.detail = m.(session.Model)
 		return cmd
 	}
+	if a.showDay {
+		a.setStale(len(a.views)+3, false)
+		m, cmd := a.day.Reload()
+		a.day = m.(dayview.Model)
+		return cmd
+	}
 	a.setStale(a.active, false)
 	m, cmd := a.views[a.active].Reload()
 	a.views = a.replace(a.active, m)
@@ -197,7 +212,7 @@ func (a *App) setStale(i int, v bool) {
 // show switches to view i, closing the detail, and reloads the view when
 // its data went stale while it was hidden.
 func (a *App) show(i int) tea.Cmd {
-	a.active, a.showDetail, a.showMemory, a.showAttach = i, false, false, false
+	a.active, a.showDetail, a.showMemory, a.showAttach, a.showDay, a.detailFromDay = i, false, false, false, false, false
 	if !a.stale[i] {
 		return nil
 	}
@@ -221,7 +236,22 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.mouse(msg, func(y int) tea.Msg { msg.Y = y; return msg })
 	case tea.MouseReleaseMsg, tea.MouseMotionMsg:
 		return a, nil
+	case dayview.Open:
+		a.showDay, a.showDetail, a.detailFromDay = true, false, false
+		a.setStale(len(a.views)+3, false) // Open loads afresh
+		return a.updateDay(msg)
+	case dayview.OpenSession:
+		a.showDay, a.showDetail, a.detailFromDay = false, true, true
+		a.setStale(len(a.views), false) // Open loads afresh
+		return a.updateDetail(session.Open{SessionID: msg.SessionID, EventID: msg.EventID})
+	case dayview.Back:
+		a.showDay = false
+		cmd := a.show(a.active)
+		m, c := a.views[a.active].Update(activity.Select{Day: msg.Day})
+		a.views = a.replace(a.active, m)
+		return a, tea.Batch(cmd, c)
 	case search.OpenSession:
+		a.detailFromDay = false
 		a.showDetail = true
 		a.setStale(len(a.views), false) // Open loads afresh
 		return a.updateDetail(session.Open{SessionID: msg.SessionID, EventID: msg.EventID, Terms: msg.Terms})
@@ -243,7 +273,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		return a, a.show(a.active)
-	case session.Back, memview.Back:
+	case session.Back:
+		if a.detailFromDay {
+			a.detailFromDay, a.showDetail, a.showDay = false, false, true
+			if a.stale[len(a.views)+3] {
+				return a, a.reloadCurrent() // the day went stale underneath
+			}
+			return a, nil
+		}
+		return a, a.show(a.active)
+	case memview.Back:
 		return a, a.show(a.active)
 	case tickMsg:
 		if a.opts.Store == nil {
@@ -335,7 +374,7 @@ func (a App) configChanged(msg configview.Changed) (tea.Model, tea.Cmd) {
 	a.opts.Reload = cfg.TUI.Reload.Duration
 	a.opts.NoMouse = !cfg.TUI.Mouse
 	_, cmd := a.broadcastModel(msg)
-	cmds := []tea.Cmd{cmd, a.setProjects(cfg), a.setWork(cfg)}
+	cmds := []tea.Cmd{cmd, a.setProjects(cfg), a.setWork(cfg), a.setDay(cfg)}
 	a.setKeys(cfg)
 	if wasOff && a.opts.Reload > 0 {
 		cmds = append(cmds, a.tick())
@@ -412,6 +451,21 @@ func (a *App) setWork(cfg *config.Config) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// setDay hands the working-time settings, the block gap and what setWork
+// and setProjects took over to the day view, which loads its day again.
+// A table with a problem keeps the values the app started with.
+func (a *App) setDay(cfg *config.Config) tea.Cmd {
+	if s, err := cfg.WorktimeSettings(); err == nil {
+		a.opts.Worktime = s
+	}
+	if g := cfg.Work.BlockGap.Duration; g > 0 {
+		a.opts.BlockGap = g
+	}
+	m, cmd := a.day.SetOptions(dayOptions(a.opts, a.colors))
+	a.day = m.(dayview.Model)
+	return cmd
+}
+
 // keysView is a view that takes over changed key bindings itself.
 type keysView interface {
 	SetKeys(keys.Map) tea.Model
@@ -435,13 +489,14 @@ func (a *App) setKeys(cfg *config.Config) {
 	a.detail = a.detail.SetKeys(km).(session.Model)
 	a.memory = a.memory.SetKeys(km).(memview.Model)
 	a.attach = a.attach.SetKeys(km).(attview.Model)
+	a.day = a.day.SetKeys(km).(dayview.Model)
 }
 
 // openAttachments shows the attachment view above the view it was opened
 // from: the detail (fromDetail, which Back returns to) or the search.
 func (a App) openAttachments(o attview.Open, fromDetail bool) (tea.Model, tea.Cmd) {
 	a.showAttach, a.attachFromDetail = true, fromDetail
-	a.showDetail, a.showMemory = false, false
+	a.showDetail, a.showMemory, a.showDay = false, false, false
 	a.setStale(len(a.views)+2, false) // Open loads afresh
 	return a.updateAttach(o)
 }
@@ -498,6 +553,9 @@ func (a App) current() View {
 	if a.showDetail {
 		return a.detail
 	}
+	if a.showDay {
+		return a.day
+	}
 	return a.views[a.active]
 }
 
@@ -512,6 +570,9 @@ func (a App) forward(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.showDetail {
 		return a.updateDetail(msg)
 	}
+	if a.showDay {
+		return a.updateDay(msg)
+	}
 	m, cmd := a.views[a.active].Update(msg)
 	a.views = a.replace(a.active, m)
 	return a, cmd
@@ -521,6 +582,13 @@ func (a App) forward(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a App) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m, cmd := a.detail.Update(msg)
 	a.detail = m.(session.Model)
+	return a, cmd
+}
+
+// updateDay passes msg to the day view.
+func (a App) updateDay(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m, cmd := a.day.Update(msg)
+	a.day = m.(dayview.Model)
 	return a, cmd
 }
 
@@ -540,7 +608,7 @@ func (a App) updateAttach(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // broadcast passes msg to every view, the detail and the layers.
 func (a *App) broadcast(msg tea.Msg) tea.Cmd {
-	cmds := make([]tea.Cmd, len(a.views)+3)
+	cmds := make([]tea.Cmd, len(a.views)+4)
 	for i, v := range a.views {
 		m, cmd := v.Update(msg)
 		a.views = a.replace(i, m)
@@ -552,6 +620,8 @@ func (a *App) broadcast(msg tea.Msg) tea.Cmd {
 	a.memory, cmds[len(a.views)+1] = m.(memview.Model), cmd
 	m, cmd = a.attach.Update(msg)
 	a.attach, cmds[len(a.views)+2] = m.(attview.Model), cmd
+	m, cmd = a.day.Update(msg)
+	a.day, cmds[len(a.views)+3] = m.(dayview.Model), cmd
 	return tea.Batch(cmds...)
 }
 
@@ -667,8 +737,12 @@ func (a App) tabs() []string {
 			t += a.th.AccentText.Render(" › " + a.attach.Title())
 		case a.showMemory:
 			t += a.th.AccentText.Render(" › " + a.memory.Title())
+		case a.showDetail && a.detailFromDay:
+			t += a.th.AccentText.Render(" › " + a.day.Title() + " › " + a.detail.Title())
 		case a.showDetail:
 			t += a.th.AccentText.Render(" › " + a.detail.Title())
+		case a.showDay:
+			t += a.th.AccentText.Render(" › " + a.day.Title())
 		}
 		tabs[i] = t
 	}

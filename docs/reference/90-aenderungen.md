@@ -12,6 +12,9 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **`stats --day DATUM`:** ein Tag chronologisch, als Text und als JSON: der Kopf wie bei `--workday --blocks` (Spanne, `block_seconds`, `break_seconds`, Soll, Saldo, Events nach Mensch und Agent), die Blöcke mit Start, Ende, Sekunden, Events und `single`, je Block die Projekte mit Sekunden und die Sessions, dazu die Projekte des Tags mit der Zeit von `--worktime`. Es gibt keine zweite Rechnung (neues Paket `internal/dayreport` über `store.Workday`, `store.Timeline` und `worktime.Compute`); die Invarianten prüft ein Test auf dem Demo-Archiv. `--all-events` wie bei `--workday`. Siehe [`--day`](10-befehle.md#stats-day). Neue Option, Minor.
 - **MCP:** das Tool `stats` hat den Parameter `day`; die Seitenliste ist `blocks`.
+- **Tagesansicht in der TUI:** Ein Klick auf einen Tag der Aktivität oder ++enter++ auf dem gewählten Tag öffnet einen Tag in zeitlicher Reihenfolge: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo, die Blöcke mit Balken in Projektfarben, Projekten und Sessions, die Projekte des Tages mit Zeit und Events nach Mensch und Agent. ++enter++ auf einem Block oder einer Session öffnet die Session (++esc++ führt in den Tag zurück), ++left++/++right++ wechseln den Tag, ++esc++ führt zur Aktivität. Die Zahlen sind die von `stats --day`. Siehe [Tagesansicht](30-tui.md#tagesansicht).
+- **Gewählter Tag in der Aktivität:** `▸` markiert eine Tageszeile; `K`/`J` bewegen die Wahl, ++enter++ öffnet den Tag. ++up++/++down++ ändern sich nicht.
+- **Tasten:** `activity_select_up` (`K`, ++shift+up++), `activity_select_down` (`J`, ++shift+down++), `activity_open` (++enter++) und die Gruppe `day_*` (`day_up`, `day_down`, `day_prev`, `day_next`, `day_open`, `day_human`), alle über `[keys]` änderbar.
 
 ### Anhänge in der TUI ([#184](https://github.com/seletz/total-recall/issues/184))
 

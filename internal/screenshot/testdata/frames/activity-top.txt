@@ -3,7 +3,7 @@
  period: day [week] month  count: all [human]  bars: [hours] projects    this week · 2026-W23 · 2026-06-01 – 2026-06-07
  week: 39h13m in 6 days · target 32h00m (4 workdays × 8h00m) · balance +7h13m · Thu 04 Fronleichnam
  day ↑           first  last          span     diff  04         08         12         16         20         00
-▎Sun 2026-06-07  -      -                -        -  ··································································
+▸Sun 2026-06-07  -      -                -        -  ··································································
 ▎Sat 2026-06-06  10:15  12:40        2h25m   +2h25m  ·················███████··········································
 ▎Fri 2026-06-05  09:30  13:15        3h45m   -4h15m  ·············│─███████████─────────│······························
 ▎Thu 2026-06-04  16:30  17:40        1h10m   +1h10m  ·Fronleichnam·····················████····························
@@ -33,4 +33,4 @@
  span   median 5h40m  mean 6h32m  min 1h10m  max 15h35m
  7 days + 17 before · 0 ms · human only · 1 holiday
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • ←/→ earlier/later • c/l this/last • h human/all events • s summary figures • p by project …
+ d/w/m period • ←/→ earlier/later • c/l this/last • K/J select day • enter open the selected day • h human/all events …

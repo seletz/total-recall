@@ -99,6 +99,9 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	if err != nil {
 		return tui.Options{}, errKind(ErrKindConfig, err)
 	}
+	// A [worktime] table with a problem leaves the day view with a hint
+	// instead of stopping the whole TUI (config show and doctor name it).
+	worktimeSettings, _ := cfg.WorktimeSettings()
 	view := cfg.TUI.View
 	if f.View != "" {
 		view = f.View
@@ -129,6 +132,6 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse, Reload: reload,
 		DayStart: cfg.DayStartOffset(), Work: work, Holidays: ops.Holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home, Projects: projects,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow, ActivityProjects: cfg.TUI.ActivityProjects, ActivityNewest: cfg.TUI.ActivityNewest,
-		Keys: km,
+		Keys: km, Worktime: worktimeSettings, BlockGap: cfg.Work.BlockGap.Duration,
 	}, nil
 }

@@ -1,0 +1,36 @@
+ total-recall                    updated 12:00:00                     1 search   2 stats  [3 activity] › day  4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ‹ Tue 2026-06-02 ›  · all events [h]
+ first 09:10 · last 00:47 (+1) · span 15h37m · work 12h27m · breaks 3h10m
+ target 8h00m · diff +7h37m · working time 5h32m (rounded 6h00m)
+ events 177 (human 37 · agent 140) · sessions 12
+
+▸   1 09:10–18:30    9h20m   148 ev (h28 a120)  ███████████▓▓▓▓▓▓▒▒▒▒▒▒▒  fahrtenbuch 4h31m · wetterwarte 2h26m · kompa…
+       09:10–10:42  █ PDF-Export  h5 a12
+       10:53–11:57  █ Monatsübersicht  h4 a8
+       11:32–11:35  █ tests  h0 a3
+       11:54–11:57  █ reviewer  h0 a3
+       12:20–13:41  █ Fahrten zusammenfassen  h5 a14
+       13:54–15:12  ▓ Dashboard-Layout  h5 a14
+       15:33–16:07  ▓ MQTT reconnect  h3 a11
+       16:17–18:30  ▒ GPX-Export  h6 a47
+       17:08–17:12  ▒ tests  h0 a4
+       18:21–18:25  ▒ docs  h0 a4
+      ··· pause 3h10m
+    2 21:40–00:47 (+1)  3h07m    29 ev (h9 a20)  ████████████████████████  fahrtenbuch 3h07m
+       21:40–23:22  █ Adressen vervollständigen  h5 a12
+       23:33–00:47 (+1)  █ Datenbank-Migration  h4 a8
+
+ projects
+                     time  rounded   human   agent
+   █ fahrtenbuch    2h59m    3h00m      23      60
+   ▓ wetterwarte    1h46m    2h00m       8      25
+   ▒ kompass          47m    1h00m       6      55
+     total          5h32m    6h00m      37     140
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open session • ←/→ prev/next day • h human/all events • esc back • 1 search • 2 stats • 3 activity …

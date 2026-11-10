@@ -371,7 +371,32 @@ Die dritte Ansicht (`3`, `total-recall tui activity`) zeigt je Tag die **erste u
 - **Farben** kommen aus dem gemeinsamen [Theme](#farben) und folgen damit dem Terminalhintergrund; Magenta ist den Feiertagen vorbehalten, die Projektfarben sind die der Statistik.
 - **Statuszeile:** Anzahl Tage der Periode und der Tage davor (`7 days + 11 before`), Dauer der Abfrage, Zählweise (`human only` oder `all events`) und Feiertage der Periode. Passt ein Monat nicht in die Höhe, zeigt sie die sichtbaren Zeilen (`rows 1–21 of 31`); ++up++/++down++ bzw. `k`/`j` und das Mausrad scrollen erst durch die Zeilen und blättern dann tageweise weiter. Die Tage werden je Zählweise einzeln gecacht; eine Abfrage holt die Zeilen samt einer Periode (mindestens sieben Tagen) Vorlauf und Nachlauf, sodass Tagesschritte und die Nachbarperioden ohne neue Abfrage erscheinen. Bis die Antwort da ist, bleibt der bisherige Inhalt stehen, auch nach einer Größenänderung.
 
+- **Tag wählen und öffnen:** Eine Zeile ist gewählt, markiert mit `▸` vor dem Datum; am Anfang ist es der neueste Tag der Periode. `K`/`J` (++shift+up++/++shift+down++) bewegen die Wahl über die Zeilen und scrollen, wenn sie den Bildschirm verlässt; ++enter++ oder ein Klick auf eine Tageszeile öffnet die [Tagesansicht](#tagesansicht) für diesen Tag.
+
 Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikmodi); bei weniger als etwa 65 Spalten entfällt er (und mit ihm der Feiertagsname auf der Achse), die Uhrzeiten, Spanne und Differenz bleiben. Die Kopfzeile wird bei schmalen Fenstern rechts abgeschnitten (`…`); die Feiertage stehen dann noch in den Zeilen.
+
+## Tagesansicht { #tagesansicht }
+
+Ein Klick auf einen Tag der [Aktivität](#aktivitat) oder ++enter++ auf dem gewählten Tag öffnet die **Tagesansicht**: ein Tag in zeitlicher Reihenfolge, mit dem, was `stats` zu diesem Tag sagt. Im Tab steht sie als Ebene (`[3 activity] › day`), ++esc++ führt zurück zur Aktivität, die dann auf dem zuletzt gezeigten Tag steht. Dieselben Zahlen liefert [`stats --day`](10-befehle.md#stats-day) als Text und JSON.
+
+![Tagesansicht: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo; zwei Blöcke mit Balken in Projektfarben, Projekten und Sessions, darunter die Projekte mit Zeit und Events](../assets/screenshots/day.png)
+
+*Tagesansicht: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo; zwei Blöcke mit Balken in Projektfarben, Projekten und Sessions, darunter die Projekte mit Zeit und Events*
+
+![Mit `h` über alle Events: die Agent-Events kommen zu den eigenen Nachrichten hinzu, Blöcke und Zeiten ändern sich](../assets/screenshots/day-all.png)
+
+*Mit `h` über alle Events: die Agent-Events kommen zu den eigenen Nachrichten hinzu, Blöcke und Zeiten ändern sich*
+
+![Tagesansicht bei 80×24: ohne Balken, Zeilen werden gekürzt](../assets/screenshots/day-compact.png)
+
+*Tagesansicht bei 80×24: ohne Balken, Zeilen werden gekürzt*
+
+- **Keine zweite Rechnung.** Die Ansicht rechnet nichts selbst: Kopf, Blöcke und Pausen sind die Zahlen von [`stats --workday --blocks`](10-befehle.md#stats-workday), die Zeit je Projekt die von [`stats --worktime`](10-befehle.md#stats-worktime), die Events die der [Zeitleiste](10-befehle.md#timeline), alles für denselben Tag und unter denselben Regeln (`day_start`, `count` bzw. `h`, `block_gap`, `[worktime]`, `[[project]]`). Zusammengeführt werden sie in `internal/dayreport`, das auch `stats --day` benutzt. Ein Test prüft auf dem Demo-Archiv, dass die gezeigten Zahlen denen von `stats` entsprechen und aufgehen.
+- **Kopf:** Datum und Wochentag mit Pfeilen zum vorigen und nächsten Tag (anklickbar), bei einem Feiertag sein Name, am Wochenende `weekend`; die Zählweise (`human events only` oder `all events`, `h` schaltet um und übernimmt am Anfang die der Aktivität). Darunter erste und letzte Aktivität (nach Mitternacht mit `(+1)`), Spanne (gefärbt nach der Bewertung wie in der Aktivität), `work` (Summe der Blöcke) und `breaks` (Summe der Pausen, zusammen die Spanne), Soll und Differenz, die geschätzte Arbeitszeit roh und gerundet, die Events nach `human` und `agent` und die Zahl der Sessions.
+- **Blöcke:** je Block die Nummer, Start und Ende, die Dauer, die Zahl der Events (`h` eigene, `a` Agent), ein Balken in den Farben seiner Projekte (breit genug ab etwa 90 Spalten) und die Projekte mit ihrer Zeit im Block. Die Sekunden eines Blocks verteilen sich auf die Projekte seiner Events: das Intervall vor einem Event zählt für dessen Projekt, so wie `--worktime` die Lücke der späteren Nachricht gibt. Ein einzelnes Event ist ein Block von 0 s und trägt `*`. Eine Lücke über `block_gap` beendet einen Block; zwischen den Blöcken steht die Pause. Unter jedem Block stehen seine Sessions in der Reihenfolge ihres ersten Events, mit Zeitspanne, Projekt (Zeichen und Farbe wie im Balken) und Titel.
+- **Projekte:** unter den Blöcken je Projekt des Tages die Zeit roh und gerundet (wie `--worktime`), die eigenen Nachrichten und die Agent-Events, absteigend nach Zeit, und eine Summenzeile. Projekte haben dieselbe Farbe und Zuordnung wie in Statistik und Aktivität; ohne Farben (`NO_COLOR`) unterscheiden sie sich durch ihr Zeichen (`█ ▓ ▒ ▞ ▚ ▌`, danach `▪`).
+- **Navigation:** ++up++/`k` und ++down++/`j` (und das Mausrad) wählen Blöcke und Sessions; am Ende scrollen sie weiter zu den Projekten. ++enter++ oder ein Klick öffnet die **Session**, bei einem Block die erste, jeweils am ersten Event des Blocks bzw. Abschnitts; ++esc++ in der Session führt zurück in den Tag. ++left++/`[` und ++right++/`]` wechseln zum vorigen und nächsten Tag, nicht über heute hinaus. Ein Tag ohne Aktivität zeigt nur den Kopf und `no activity on this day`.
+- **Ohne gültige Einstellungen:** Fehlt der Ansicht ein gültiges `block_gap` oder `[worktime]`, zeigt sie einen Hinweis statt der Zahlen; `config show` und `doctor` nennen den Fehler.
 
 ## Config { #config }
 
@@ -573,7 +598,19 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `s` | `activity_figures` | Kennzahlen (Median, Mittelwert, Min/Max) ein/aus |
 | `p` | `activity_projects` | Balken nach Projekt statt nach Kernzeit färben, mit Legende |
 | `o` | `activity_order` | neuester Tag unten ↔ oben |
+| `K` / `J`, ++shift+up++ / ++shift+down++ | `activity_select_up`, `activity_select_down` | den gewählten Tag (`▸`) nach oben / unten bewegen |
+| ++enter++ | `activity_open` | die [Tagesansicht](#tagesansicht) des gewählten Tages öffnen (ein Klick auf die Zeile tut dasselbe) |
 | ++up++ / `k`, ++down++ / `j` | `activity_up`, `activity_down` | die Zeile darüber / darunter: erst durch die Zeilen der Periode scrollen, dann die Periode um einen Tag rücken (mit dem neuesten Tag unten ist ++up++ zurück, ++down++ vor; oben umgekehrt) |
+
+### Tagesansicht
+
+| Taste | Aktion | Wirkung |
+|---|---|---|
+| ++up++ / `k`, ++down++ / `j` | `day_up`, `day_down` | Block oder Session wählen, am Ende zu den Projekten scrollen |
+| ++enter++ | `day_open` | die Session des gewählten Blocks oder Abschnitts öffnen |
+| ++left++ / ++right++, `,` / `.`, `[` / `]` | `day_prev`, `day_next` | voriger / nächster Tag (nicht über heute hinaus) |
+| `h` | `day_human` | Zählweise: nur eigene Nachrichten ↔ alle Events |
+| ++esc++ | `global_back` | zurück zur Aktivität (aus der Session zurück in den Tag) |
 
 ### Config
 
@@ -594,7 +631,7 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 
 ### Tastenbelegung anpassen { #tastenbelegung-anpassen }
 
-Im Abschnitt `[keys]` der [Konfiguration](20-konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `stats_`, `activity_`, `config_`). Auf der Seite [Settings](#settings) der Ansicht Config steht jede Aktion als `keys.<aktion>`; eine dort geänderte Belegung gilt sofort in allen Ansichten, in der Fußzeile und in der Hilfe.
+Im Abschnitt `[keys]` der [Konfiguration](20-konfiguration.md#keys) steht je Aktion eine Taste oder eine Liste von Tasten. Nur genannte Aktionen ändern sich, alle anderen behalten die Standardbelegung aus den Tabellen oben. Die Aktionsnamen tragen die Ansicht als Präfix (`global_`, `search_`, `session_`, `memory_`, `attach_`, `stats_`, `activity_`, `day_`, `config_`). Auf der Seite [Settings](#settings) der Ansicht Config steht jede Aktion als `keys.<aktion>`; eine dort geänderte Belegung gilt sofort in allen Ansichten, in der Fußzeile und in der Hilfe.
 
 ```toml
 [keys]
