@@ -17,6 +17,7 @@ func (h typedHit) s(key string) string {
 }
 
 func TestSearchTypeJSON(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	beta := "claude:" + tf.SmallSession2
 	tests := []struct {
@@ -108,6 +109,7 @@ func TestSearchTypeJSON(t *testing.T) {
 }
 
 func TestSearchTypeConfiguredProject(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	e.appendConfig(t, "\n[[project]]\nname = \"leuchtturm\"\nmatch = [\"/w/alpha\"]\n")
 	hits := decode[[]typedHit](t, e.mustRun(t, "search", "--json", "--type", "memory,event", "--project", "leuchtturm", "--raw", "beacon OR files"))
@@ -122,6 +124,7 @@ func TestSearchTypeConfiguredProject(t *testing.T) {
 }
 
 func TestSearchTypeErrors(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	tests := []struct {
 		name string
@@ -156,6 +159,7 @@ func TestSearchTypeErrors(t *testing.T) {
 }
 
 func TestSearchTypeText(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	r := e.run(t, "", "search", "--type", "session,memory", "beta")
 	for _, want := range []string{"session  ", "Beta work", "[Beta] work", "memory  ", "/w/beta", "MEMORY.md", "[beta]"} {

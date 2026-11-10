@@ -42,6 +42,7 @@ func chartEnv(t *testing.T) (*testEnv, string) {
 // TestChartGolden compares the SVG of every figure for October of the
 // demo archive with golden files (go test ./internal/cli -run TestChartGolden -update).
 func TestChartGolden(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	tests := []struct {
 		name string
@@ -85,6 +86,7 @@ func TestChartGolden(t *testing.T) {
 
 // TestChartConfig: [chart] sets the defaults, flags override them.
 func TestChartConfig(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	appendConfig(t, e, "\n[chart]\ntitle = false\nlegend = false\nheatmap = [\"green\", \"#08519c\"]\ntop = 2\n")
 	r := e.run(t, "", "--db", db, "chart", "calendar", "--month", "2026-10")
@@ -110,6 +112,7 @@ func TestChartConfig(t *testing.T) {
 // TestChartLang: [chart] lang sets the language, --lang overrides it and
 // the file names stay the same.
 func TestChartLang(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	appendConfig(t, e, "\n[chart]\nlang = \"de\"\n")
 	r := e.run(t, "", "--db", db, "chart", "worktime", "--month", "2026-10")
@@ -139,6 +142,7 @@ func TestChartLang(t *testing.T) {
 // TestChartFiles writes all figures as PNG into a directory and checks
 // names and sizes.
 func TestChartFiles(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	out := filepath.Join(t.TempDir(), "charts")
 	r := e.run(t, "", "--db", db, "chart", "all", "--month", "2026-10", "--format", "png", "--scale", "2", "--out", out)
@@ -194,6 +198,7 @@ func TestChartFiles(t *testing.T) {
 
 // TestChartErrors checks the flag validation.
 func TestChartErrors(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	tests := []struct {
 		name string
@@ -232,6 +237,7 @@ func TestChartErrors(t *testing.T) {
 // TestChartProjectColors: a [[project]] definition fixes the colour of its
 // project in the project chart and merges its repositories.
 func TestChartProjectColors(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	appendConfig(t, e, "\n[[project]]\nname = \"Kompass\"\ncolor = \"red\"\nmatch = [\"https://git.invalid/mara/kompass\"]\n")
 	r := e.run(t, "", "--db", db, "chart", "projects", "--month", "2026-10")

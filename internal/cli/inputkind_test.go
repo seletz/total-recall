@@ -26,6 +26,7 @@ type inputKindOut struct {
 // in the database), only human events have a kind, and search reports the
 // same kind for an event as show.
 func TestInputKindDemoInvariants(t *testing.T) {
+	t.Parallel()
 	e, db := chartEnv(t)
 	st, _ := fixturedb.Demo(t)
 	// One timeline run lists every event of the archive with its kind; show
@@ -136,6 +137,7 @@ func TestInputKindDemoInvariants(t *testing.T) {
 // pages the input kinds plus the unknown ones add up to the human events,
 // only human events carry a kind, and the pages hold the events of the CLI.
 func TestMCPInputKindAddsUp(t *testing.T) {
+	t.Parallel()
 	whole := newPagedDemo(t, 16<<20)
 	var tl []struct {
 		inputKindOut
@@ -199,6 +201,7 @@ type tev struct {
 }
 
 func TestTimelineInputKind(t *testing.T) {
+	t.Parallel()
 	w := []string{"--since", "2000-01-01", "--until", "2100-01-01"}
 	count := func(evs []tev) (kinds map[string]int, human int) {
 		kinds = map[string]int{}

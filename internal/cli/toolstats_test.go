@@ -48,6 +48,7 @@ func toolUseCount(t *testing.T, e *testEnv, db, where string) int {
 // group's tools to its count, for every grouping, with and without --top and
 // --path, and the total equals the tool_use events of the archive.
 func TestStatsToolsInvariants(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -119,6 +120,7 @@ func TestStatsToolsInvariants(t *testing.T) {
 // TestStatsToolsDemoValues pins the shape on the demo archive: known tools,
 // the path filter against SQL, and --top folding.
 func TestStatsToolsDemoValues(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -148,6 +150,7 @@ func TestStatsToolsDemoValues(t *testing.T) {
 }
 
 func TestStatsToolsFlags(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	tests := []struct {
@@ -177,6 +180,7 @@ func TestStatsToolsFlags(t *testing.T) {
 }
 
 func TestStatsToolsTable(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -194,6 +198,7 @@ func TestStatsToolsTable(t *testing.T) {
 // TestStatsToolsTopWithoutBy: --top N keeps the N most used tools in by_tool
 // and folds the rest into "other"; a larger N changes nothing.
 func TestStatsToolsTopWithoutBy(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now
@@ -221,6 +226,7 @@ func TestStatsToolsTopWithoutBy(t *testing.T) {
 // tools, "all" every call; "*" matches every argument, so with "all" it is
 // every tool_use of the archive and the default is a part of it. Both add up.
 func TestStatsToolsPathScope(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	e := newTestEnv(t)
 	e.now = demo.Now

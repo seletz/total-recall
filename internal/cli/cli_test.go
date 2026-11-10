@@ -157,6 +157,7 @@ func (e *testEnv) hookPayload(t *testing.T, event string) string {
 }
 
 func TestHookContract(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		payload    func(e *testEnv, t *testing.T) string
@@ -248,6 +249,7 @@ func TestHookContract(t *testing.T) {
 // internal agents without a transcript. That is expected, not an error: the
 // hook logs it at INFO and still ingests whatever exists.
 func TestHookMissingTranscript(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		payload    func(e *testEnv) string
@@ -295,6 +297,7 @@ func TestHookMissingTranscript(t *testing.T) {
 }
 
 func TestHookDetach(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	payload := e.hookPayload(t, "Stop")
 	r := e.run(t, payload, "--config", e.configPath, "ingest", "--hook", "--detach")
@@ -337,6 +340,7 @@ func TestHookDetach(t *testing.T) {
 }
 
 func TestHooksPrint(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	type hook struct {
 		Type    string `json:"type"`
@@ -398,6 +402,7 @@ func TestHooksPrint(t *testing.T) {
 }
 
 func TestEndToEnd(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	out := e.mustRun(t, "ingest", "--all")
 	// The workflow journal is the one meta record of the small tree (#201).
@@ -492,6 +497,7 @@ func TestEndToEnd(t *testing.T) {
 // TestStatsTokens: the JSON has the token counts under "tokens" (always),
 // --tokens appends them to the table, and the flag refuses the other modes.
 func TestStatsTokens(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	// The shared fixture has no usage: add a session with some.
 	const sid = "aaaaaaaa-0000-4000-8000-0000000000c1"
@@ -525,6 +531,7 @@ func TestStatsTokens(t *testing.T) {
 }
 
 func TestSearch(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	hits := decode[[]HitJSON](t, e.mustRun(t, "search", "release", "notes", "--json"))
@@ -545,6 +552,7 @@ func TestSearch(t *testing.T) {
 }
 
 func TestSearchBySession(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	sub := "claude:agent-a01"
@@ -601,6 +609,7 @@ func TestSearchBySession(t *testing.T) {
 }
 
 func TestSQL(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	q := "SELECT harness, count(*) AS n FROM sessions GROUP BY harness"
@@ -631,6 +640,7 @@ func TestSQL(t *testing.T) {
 }
 
 func TestStatus(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	if r := e.run(t, "", "status"); r.code == 0 || !strings.Contains(r.stderr, "ingest --all") {
 		t.Errorf("status without DB = %+v", r)
@@ -707,6 +717,7 @@ func TestStatus(t *testing.T) {
 }
 
 func TestIngestErrorsExitNonZero(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	if r := e.run(t, "", "ingest"); r.code == 0 {
 		t.Error("ingest without arguments succeeded")
@@ -718,6 +729,7 @@ func TestIngestErrorsExitNonZero(t *testing.T) {
 }
 
 func TestBackup(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	if r := e.run(t, "", "backup"); r.code == 0 {
 		t.Error("backup without DB succeeded")
@@ -758,6 +770,7 @@ func TestBackup(t *testing.T) {
 // TestBackupSameDay: a second copy of a day stays next to the first in any
 // format, --if-older and status see it, and retention logs what it deletes.
 func TestBackupSameDay(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		first string
@@ -800,6 +813,7 @@ func TestBackupSameDay(t *testing.T) {
 // in its name at 15:05 and a later one with only the date at 22:03. status
 // shows the later one and --if-older measures from it.
 func TestLastBackupOfMixedDay(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if err := os.MkdirAll(e.backups, 0o755); err != nil {
@@ -835,6 +849,7 @@ func TestLastBackupOfMixedDay(t *testing.T) {
 
 // TestBackupLogsPruned: the log file names each copy retention deleted.
 func TestBackupLogsPruned(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if err := os.MkdirAll(e.backups, 0o755); err != nil {
@@ -869,6 +884,7 @@ func TestBackupLogsPruned(t *testing.T) {
 }
 
 func TestRestore(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	e.mustRun(t, "backup")
@@ -898,6 +914,7 @@ func TestRestore(t *testing.T) {
 }
 
 func TestSessionsHidesEmpty(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	tf.WriteFile(t, e.projects, "-w-delta/44444444-4444-4444-8444-444444444444.jsonl",
 		tf.CustomTitle("44444444-4444-4444-8444-444444444444", "title only").JSON())
@@ -918,6 +935,7 @@ func TestSessionsHidesEmpty(t *testing.T) {
 // a third session is continued in session 2, and sessions, show, search
 // and stats expose both.
 func TestAccountsAndContinuation(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	tf.AppendFile(t, e.configPath, "\n[accounts]\n\""+tf.Account1+"\" = \"work\"\n")
 	s3 := "33333333-3333-4333-8333-333333333333"
@@ -983,6 +1001,7 @@ func TestAccountsAndContinuation(t *testing.T) {
 // without duplicating events or full-text rows, and refuses to run
 // without sources.
 func TestIngestReread(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if r := e.run(t, "", "ingest", "--reread"); r.code == 0 || !strings.Contains(r.stderr, "--reread") {
@@ -1008,6 +1027,7 @@ func TestIngestReread(t *testing.T) {
 }
 
 func TestIngestRegit(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if r := e.run(t, "", "ingest", "--regit"); r.code == 0 || !strings.Contains(r.stderr, "git.resolve") {
@@ -1030,6 +1050,7 @@ func TestIngestRegit(t *testing.T) {
 }
 
 func TestDoctor(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	r := e.run(t, "", "doctor")
 	if r.code != 0 || !strings.Contains(r.stdout, "no unknown") {
@@ -1064,6 +1085,7 @@ func TestDoctor(t *testing.T) {
 }
 
 func TestConfigCommands(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	c := decode[ConfigJSON](t, e.mustRun(t, "config", "show", "--json"))
 	if !c.Loaded || c.File != e.configPath || c.FileOrigin != "env" {
@@ -1093,6 +1115,7 @@ func TestConfigCommands(t *testing.T) {
 }
 
 func TestLLMSkillAndVersion(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	if out := e.mustRun(t, "llm", "--skill"); out != skill.Text() {
 		t.Error("llm --skill differs from the embedded skill")
@@ -1108,6 +1131,7 @@ func TestLLMSkillAndVersion(t *testing.T) {
 // TestVersion: the subcommand and the flag print the build version, nothing
 // else, the same way.
 func TestVersion(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	want := version.Version + "\n"
 	for _, tc := range []struct {
@@ -1132,6 +1156,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestReadOnlyOnOlderSchemaWarns(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	db, err := sql.Open("sqlite", e.db)
@@ -1149,6 +1174,7 @@ func TestReadOnlyOnOlderSchemaWarns(t *testing.T) {
 }
 
 func TestChildArgs(t *testing.T) {
+	t.Parallel()
 	got := childArgs([]string{"--db", "x", "ingest", "--hook", "--detach"}, "--hook-payload", "/tmp/p")
 	want := "--db x ingest --hook --detached-child --hook-payload /tmp/p"
 	if strings.Join(got, " ") != want {
@@ -1157,6 +1183,7 @@ func TestChildArgs(t *testing.T) {
 }
 
 func TestTUICommand(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	// Flags and arguments are validated before anything is opened, so these
 	// never start the program.
@@ -1186,6 +1213,7 @@ func TestTUICommand(t *testing.T) {
 // TestTUIOptions checks the precedence flag > config > default for the
 // [tui] table and that the key map reaches the app.
 func TestTUIOptions(t *testing.T) {
+	t.Parallel()
 	base := func() *config.Config {
 		return &config.Config{Timezone: "UTC",
 			Work: config.Work{Hours: "09:00-17:00", Target: config.Duration{Duration: 8 * time.Hour}, DailyHigh: config.Duration{Duration: 9 * time.Hour}, WeeklyHigh: config.Duration{Duration: 48 * time.Hour}, Count: "human", BlockGap: config.Duration{Duration: 30 * time.Minute}},
@@ -1253,6 +1281,7 @@ func TestTUIOptions(t *testing.T) {
 // archiving. Hooks and search run, tui and stats --workday fail with the
 // error, config show and doctor report it.
 func TestDeferredConfigErrors(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	b, err := os.ReadFile(e.configPath)
 	if err != nil {
@@ -1304,6 +1333,7 @@ func TestDeferredConfigErrors(t *testing.T) {
 // events at 08:00:00Z, 08:00:02Z, 09:30:00Z and 09:30:05Z, i.e. 10:00 and
 // 11:30 in Europe/Berlin (CEST).
 func TestShowWindow(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	type showOut struct {
@@ -1390,6 +1420,7 @@ func TestShowWindow(t *testing.T) {
 // TestShowHint checks the stderr hint for an unbounded show of a large
 // session, and that no hint appears when the output is bounded.
 func TestShowHint(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	const big = "33333333-3333-4333-8333-333333333333"
 	var lines []tf.Line
@@ -1436,6 +1467,7 @@ func TestShowHint(t *testing.T) {
 
 // TestSearchSession covers search --session with full IDs and prefixes.
 func TestSearchSession(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	tests := []struct {
@@ -1479,6 +1511,7 @@ func TestSearchSession(t *testing.T) {
 // TestIngestRewriteRaw: --reread --rewrite-raw replaces raw of existing
 // events, keeps every count and refuses to run without --reread (#130).
 func TestIngestRewriteRaw(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if r := e.run(t, "", "ingest", "--all", "--rewrite-raw"); r.code == 0 || !strings.Contains(r.stderr, "--reread") {
@@ -1527,6 +1560,7 @@ func imageTranscript(t *testing.T, e *testEnv, img []byte) string {
 }
 
 func TestBlobCommand(t *testing.T) {
+	t.Parallel()
 	img := []byte("\x89PNG\r\n\x1a\nsynthetic picture for the blob command")
 	e := newTestEnv(t)
 	sid := imageTranscript(t, e, img)
@@ -1570,6 +1604,7 @@ func TestBlobCommand(t *testing.T) {
 }
 
 func TestShowAttachments(t *testing.T) {
+	t.Parallel()
 	img := []byte("\x89PNG\r\n\x1a\nsynthetic picture for show")
 	e := newTestEnv(t)
 	sid := imageTranscript(t, e, img)
@@ -1599,6 +1634,7 @@ func TestShowAttachments(t *testing.T) {
 // also on a terminal), counted by status and the ingest summary;
 // store_file_history = false leaves it out.
 func TestFileHistoryCommand(t *testing.T) {
+	t.Parallel()
 	const sid = "44444444-4444-4444-8444-444444444444"
 	src := []byte("package demo\n\nfunc Hello() string { return \"hallo\" }\n")
 	setup := func(t *testing.T) *testEnv {
@@ -1649,6 +1685,7 @@ func TestFileHistoryCommand(t *testing.T) {
 // TestAddSummaryCoversEveryField: a counter added to ingest.Summary and
 // forgotten in addSummary silently prints 0 (#201).
 func TestAddSummaryCoversEveryField(t *testing.T) {
+	t.Parallel()
 	var one ingest.Summary
 	v := reflect.ValueOf(&one).Elem()
 	for i := range v.NumField() {

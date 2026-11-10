@@ -18,6 +18,7 @@ var longWord = strings.Repeat("x", 300)
 // --json or --format json|jsonl an error is one JSON object on stdout,
 // the message is on stderr as before and the exit code is 1.
 func TestJSONErrors(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	broken := filepath.Join(e.dir, "broken.toml")
@@ -97,6 +98,7 @@ func TestJSONErrors(t *testing.T) {
 // TestJSONKeys checks that every documented key is present in the JSON
 // output of the read commands and that empty values are null.
 func TestJSONKeys(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	first := func(v any) map[string]any { return v.([]any)[0].(map[string]any) }
@@ -177,6 +179,7 @@ func TestJSONKeys(t *testing.T) {
 // piped, never with --no-truncate; a cut cell ends with "…" and a hint with
 // the count goes to stderr.
 func TestTableTruncation(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	tf.WriteFile(t, e.projects, "-w-beta/44444444-4444-4444-8444-444444444444.jsonl", tf.Join(
 		tf.CustomTitle("44444444-4444-4444-8444-444444444444", "A session with a title "+longWord),
@@ -243,6 +246,7 @@ func TestTableTruncation(t *testing.T) {
 
 // TestJSONL checks that --format jsonl writes one compact object per line.
 func TestJSONL(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	tests := []struct {
@@ -283,6 +287,7 @@ func TestJSONL(t *testing.T) {
 }
 
 func TestFitColumns(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		widths []int
@@ -306,6 +311,7 @@ func TestFitColumns(t *testing.T) {
 }
 
 func TestJSONRequested(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		args []string
 		want bool
@@ -327,6 +333,7 @@ func TestJSONRequested(t *testing.T) {
 }
 
 func TestNullString(t *testing.T) {
+	t.Parallel()
 	type v struct {
 		A NullString `json:"a"`
 		B NullString `json:"b"`

@@ -12,6 +12,7 @@ import (
 // status file next to the database still gives the last backup. The new
 // JSON fields are additive: last_backup and last_backup_at stay.
 func TestStatusBackupState(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T, backup bool) *testEnv {
 		e := newTestEnv(t)
 		e.mustRun(t, "ingest", "--all")

@@ -12,6 +12,7 @@ import (
 )
 
 func TestMaintenance(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	if r := e.run(t, "", "maintenance"); r.code == 0 || !strings.Contains(r.stderr, "no archive") {
 		t.Errorf("maintenance without DB = %+v", r)
@@ -80,6 +81,7 @@ func TestMaintenance(t *testing.T) {
 }
 
 func TestMaintenanceLockSkipsHooks(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	// Hold the maintenance lock as a running maintenance would.
@@ -124,6 +126,7 @@ func TestMaintenanceLockSkipsHooks(t *testing.T) {
 // TestMaintenanceLogsPruned: the backup of maintenance prunes like backup and
 // leaves the same lines in the log file, with --json too.
 func TestMaintenanceLogsPruned(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.mustRun(t, "ingest", "--all")
 	if err := os.MkdirAll(e.backups, 0o755); err != nil {

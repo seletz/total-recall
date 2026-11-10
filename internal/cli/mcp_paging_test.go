@@ -172,6 +172,7 @@ func jsonKeys(doc string) []string {
 // that forces pages: no page is larger than the bound or cut, and all pages
 // together are byte for byte the compact JSON of the CLI.
 func TestMCPPagesAddUp(t *testing.T) {
+	t.Parallel()
 	const bound = 12 << 10
 	list, _, _ := newPagedDemo(t, 16<<20).call("sessions", map[string]any{"limit": 500})
 	var rows []struct {
@@ -275,6 +276,7 @@ type worktimePage struct {
 // projects, the totals are the same on every page and equal the sum of the
 // days of all pages, and no category, project or session is missing.
 func TestMCPWorktimeSumsOnEveryPage(t *testing.T) {
+	t.Parallel()
 	// A bound of about four days: the list of days itself spans many pages.
 	full := newPagedDemo(t, 16<<20)
 	args := map[string]any{"worktime": true, "sessions": true, "summary": true, "since": "2026-05-01", "until": "2026-10-31"}
@@ -359,6 +361,7 @@ func TestMCPWorktimeSumsOnEveryPage(t *testing.T) {
 }
 
 func TestMCPCursorErrors(t *testing.T) {
+	t.Parallel()
 	p := newPagedDemo(t, 6<<10)
 	args := map[string]any{"limit": 500}
 	_, h, _ := p.call("sessions", args)
@@ -402,6 +405,7 @@ func timelineBound(p *pagedDemo, pages int, cli ...string) int {
 // byte the CLI JSON, for the human events and, with every actor and kind,
 // for the largest list the demo archive gives in a window.
 func TestMCPTimelinePagesAddUp(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		args map[string]any
@@ -435,6 +439,7 @@ func TestMCPTimelinePagesAddUp(t *testing.T) {
 // the events of all pages of timeline are the human events stats counts
 // for the window, in total and per project; no event is missing or doubled.
 func TestMCPTimelineMatchesStatsOnEveryPage(t *testing.T) {
+	t.Parallel()
 	const since, until = "2026-10-12", "2026-10-23"
 	cli := []string{"timeline", "--since=" + since, "--until=" + until, "--fields=" + mcpTimelineFields}
 	bound := timelineBound(newPagedDemo(t, 16<<20), 4, cli...)
@@ -482,6 +487,7 @@ func TestMCPTimelineMatchesStatsOnEveryPage(t *testing.T) {
 // page; it is a part of the total, and each of its projects has exactly the
 // seconds its cells have over the days of all pages.
 func TestMCPUncategorizedOnEveryPage(t *testing.T) {
+	t.Parallel()
 	type page struct {
 		Days []struct {
 			Categories []struct {
@@ -559,6 +565,7 @@ func TestMCPUncategorizedOnEveryPage(t *testing.T) {
 // the span), the totals are the same on every page and equal the sums of
 // the days of all pages, and no block is missing.
 func TestMCPWorkdayBlocksSumsOnEveryPage(t *testing.T) {
+	t.Parallel()
 	type page struct {
 		Days []struct {
 			Day          string
@@ -648,6 +655,7 @@ func TestMCPWorkdayBlocksSumsOnEveryPage(t *testing.T) {
 // TestMCPDescriptionsSayWherePagingIs: the tool descriptions (tools/list)
 // say that page, next and hint are in the second content block.
 func TestMCPDescriptionsSayWherePagingIs(t *testing.T) {
+	t.Parallel()
 	for _, tool := range mcpTools() {
 		has := false
 		for _, p := range tool.Params {
@@ -665,6 +673,7 @@ func TestMCPDescriptionsSayWherePagingIs(t *testing.T) {
 // field) the pages are byte for byte the CLI default output again, so
 // nothing is lost, only left out on request.
 func TestMCPTimelineFewerPages(t *testing.T) {
+	t.Parallel()
 	day := map[string]any{"since": "2026-10-20", "until": "2026-10-20", "actor": "all", "all": true}
 	full := []string{"timeline", "--since=2026-10-20", "--until=2026-10-20", "--actor=all", "--all"}
 	bound := timelineBound(newPagedDemo(t, 16<<20), 4, full...)
@@ -727,6 +736,7 @@ func TestMCPTimelineFewerPages(t *testing.T) {
 // archive has three of them (a text and two attachment events of one
 // message); a bound just above the largest one gives a page for each.
 func TestMCPAttachmentPagesAddUp(t *testing.T) {
+	t.Parallel()
 	cli := []string{"search", "--has-attachment=any", "--limit=20"}
 	var largest int
 	var entries []json.RawMessage

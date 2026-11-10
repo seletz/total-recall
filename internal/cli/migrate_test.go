@@ -33,6 +33,7 @@ func (e *testEnv) schemaVersion(t *testing.T) int {
 // TestNoAutoMigration: no write command migrates an older archive; each
 // fails with the advice and changes nothing. backup works, as advised.
 func TestNoAutoMigration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -95,6 +96,7 @@ func TestNoAutoMigration(t *testing.T) {
 // one WARN line per day, exits 0, and the first hook after the migration
 // reads everything that was skipped.
 func TestHookOutdatedArchive(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.outdatedDB(t)
 	for i := 0; i < 3; i++ {
@@ -134,6 +136,7 @@ func TestHookOutdatedArchive(t *testing.T) {
 }
 
 func TestMigrateCommand(t *testing.T) {
+	t.Parallel()
 	latest := store.LatestSchemaVersion()
 	t.Run("no archive", func(t *testing.T) {
 		e := newTestEnv(t)
@@ -289,6 +292,7 @@ func TestMigrateCommand(t *testing.T) {
 // TestOutdatedReadCommands: reading works as far as the schema allows, with a
 // warning; status and doctor say loudly that a migration is pending.
 func TestOutdatedReadCommands(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.outdatedDB(t)
 	latest := store.LatestSchemaVersion()

@@ -46,6 +46,7 @@ func sqlCount(t *testing.T, e *testEnv, base []string, q string) int {
 // attachment, all at the same moment. The filter finds the text too, with
 // the attachments of its message, as the viewer does.
 func TestSearchHasAttachment(t *testing.T) {
+	t.Parallel()
 	e, base := attachEnv(t)
 	const text, img, doc = "claude:e00558b#0", "claude:e00558b#1", "claude:e00558b#2"
 	all := []string{doc, img, text}
@@ -88,6 +89,7 @@ func TestSearchHasAttachment(t *testing.T) {
 // TestSearchWithoutFilterHasCounts: a plain search is unchanged, and every
 // hit says how many attachments the event has (0 for most).
 func TestSearchWithoutFilterHasCounts(t *testing.T) {
+	t.Parallel()
 	e, base := attachEnv(t)
 	hits := decode[[]HitJSON](t, e.json(t, base, "search", "image", "--limit", "0"))
 	if len(hits) == 0 {
@@ -111,6 +113,7 @@ func TestSearchWithoutFilterHasCounts(t *testing.T) {
 // TestSearchAttachmentTypeAndErrors: the filter applies to the types event
 // and session, not to memory; a search needs a word or the filter.
 func TestSearchAttachmentTypeAndErrors(t *testing.T) {
+	t.Parallel()
 	e, base := attachEnv(t)
 	ss := decode[[]SessionSearchHitJSON](t, e.json(t, base, "search", "--has-attachment", "--type", "session"))
 	if len(ss) != 1 || ss[0].AttachmentCount != 2 || ss[0].Type != "session" {
@@ -143,6 +146,7 @@ func TestSearchAttachmentTypeAndErrors(t *testing.T) {
 // TestSessionsHasAttachment: the filter finds the sessions with an
 // attachment of the kind and actor and counts them.
 func TestSessionsHasAttachment(t *testing.T) {
+	t.Parallel()
 	e, base := attachEnv(t)
 	for _, tc := range []struct {
 		name string
@@ -194,6 +198,7 @@ func TestSessionsHasAttachment(t *testing.T) {
 // count twice. The sessions count the same rows, with and without the
 // filter.
 func TestAttachmentInvariants(t *testing.T) {
+	t.Parallel()
 	e, base := attachEnv(t)
 	events := sqlCount(t, e, base, "SELECT count(DISTINCT event_id) FROM event_blobs")
 	rows := sqlCount(t, e, base, "SELECT count(*) FROM event_blobs")

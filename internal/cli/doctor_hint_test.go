@@ -15,6 +15,7 @@ import (
 // that have no [[project]] or no category: in the text on stdout, with
 // --json on stderr, and never a change of the exit code or of the JSON.
 func TestDoctorSetupHint(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	const projects = "\n[[project]]\nname = \"Kompass\"\nmatch = [\"https://git.invalid/mara/kompass\"]\n"
 	tests := []struct {
@@ -101,6 +102,7 @@ func TestDoctorSetupHint(t *testing.T) {
 // nothing to say; the exit code stays 0 for hints only; the findings keys
 // are unchanged.
 func TestDoctorHintsJSON(t *testing.T) {
+	t.Parallel()
 	_, db := fixturedb.Demo(t)
 	const projects = "\n[[project]]\nname = \"Kompass\"\nmatch = [\"https://git.invalid/mara/kompass\"]\n"
 	type hint struct {

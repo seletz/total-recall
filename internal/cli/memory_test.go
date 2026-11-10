@@ -39,6 +39,7 @@ func memoryEnv(t *testing.T) *testEnv {
 }
 
 func TestMemoryList(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	files := decode[[]MemoryFileJSON](t, e.mustRun(t, "memory", "--json"))
 	if len(files) != 3 {
@@ -71,6 +72,7 @@ func TestMemoryList(t *testing.T) {
 }
 
 func TestMemoryHistoryAtAndDeleted(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	// A change and a deletion, archived by the next Stop hook.
 	e.memFile(t, "-w-alpha", "lighthouse.md", "The beacon rotates every ten seconds now.\n", time.Date(2026, 10, 10, 8, 0, 0, 0, time.UTC))
@@ -135,6 +137,7 @@ func vs0(t *testing.T, e *testEnv) string {
 }
 
 func TestMemoryGrep(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	hits := decode[[]MemoryHitJSON](t, e.mustRun(t, "memory", "--json", "--grep", "beacon"))
 	if len(hits) != 1 || hits[0].Project != "/w/alpha" || hits[0].ProjectKey != "-w-alpha" || hits[0].Path != "lighthouse.md" ||
@@ -158,6 +161,7 @@ func TestMemoryGrep(t *testing.T) {
 }
 
 func TestMemoryStatusAndBlob(t *testing.T) {
+	t.Parallel()
 	e := memoryEnv(t)
 	s := decode[StatusJSON](t, e.mustRun(t, "status", "--json"))
 	if s.MemoryProjects != 2 || s.MemoryFiles != 3 || s.MemoryDeleted != 0 || s.MemoryVersions != 3 || s.MemoryBytes <= 0 || s.MemoryStoredBytes <= 0 {
@@ -177,6 +181,7 @@ func TestMemoryStatusAndBlob(t *testing.T) {
 }
 
 func TestMemorySwitchedOff(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.memFile(t, "-w-alpha", "MEMORY.md", "# Memory\n", time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC))
 	cfg, err := os.ReadFile(e.configPath)

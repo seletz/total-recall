@@ -61,6 +61,7 @@ func demoMCP(t *testing.T) (*mcpSession, *testEnv) {
 }
 
 func TestMCPHandshakeAndTools(t *testing.T) {
+	t.Parallel()
 	s, _ := demoMCP(t)
 	m := s.rpc("initialize", `{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}`)
 	res := m["result"].(map[string]any)
@@ -84,6 +85,7 @@ func TestMCPHandshakeAndTools(t *testing.T) {
 // TestMCPToolsMatchCLI: every tool returns exactly the --json output of its
 // command against the demo archive.
 func TestMCPToolsMatchCLI(t *testing.T) {
+	t.Parallel()
 	s, e := demoMCP(t)
 	sess := decode[[]struct {
 		ID string `json:"id"`
@@ -150,6 +152,7 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 }
 
 func TestMCPErrors(t *testing.T) {
+	t.Parallel()
 	s, _ := demoMCP(t)
 	for _, tc := range []struct {
 		name, tool string
@@ -195,6 +198,7 @@ func TestMCPErrors(t *testing.T) {
 // TestMCPArchiveGone: a missing archive and an archive that appears later
 // are handled per call; the server needs no restart.
 func TestMCPArchiveGone(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	dir := t.TempDir()
 	db := filepath.Join(dir, "later.db")
@@ -220,6 +224,7 @@ func TestMCPArchiveGone(t *testing.T) {
 // error with the migrate hint (or works for queries that do not need the
 // new tables); the call never crashes the server.
 func TestMCPOutdatedSchema(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	e.outdatedDB(t)
 	s := &mcpSession{t: t, e: e, args: []string{"--db", e.db}}
@@ -238,6 +243,7 @@ func TestMCPOutdatedSchema(t *testing.T) {
 // TestMCPBounded: a result over the byte limit is cut at an item boundary;
 // the first content item stays valid CLI JSON and a second one says so.
 func TestMCPPrint(t *testing.T) {
+	t.Parallel()
 	e := newTestEnv(t)
 	got := decode[map[string]map[string]map[string]any](t, e.mustRun(t, "mcp", "print", "--binary", "/opt/tr"))
 	entry := got["mcpServers"]["total-recall"]
@@ -255,6 +261,7 @@ func TestMCPPrint(t *testing.T) {
 // TestMCPSkillDocumentsTools keeps SKILL.md honest: every tool and every
 // argument appears in the MCP section.
 func TestMCPSkillDocumentsTools(t *testing.T) {
+	t.Parallel()
 	text := skill.Text()
 	i := strings.Index(text, "## MCP server")
 	j := strings.Index(text, "## Cost notes")
@@ -278,6 +285,7 @@ func TestMCPSkillDocumentsTools(t *testing.T) {
 // before it starts names the arguments, like the other argument errors of
 // the MCP; the CLI keeps the flag names.
 func TestMCPTimelineSinceUntilMessage(t *testing.T) {
+	t.Parallel()
 	s, e := demoMCP(t)
 	got, isErr := s.call("timeline", map[string]any{"since": "2026-10-21", "until": "2026-10-20"})
 	if !isErr {
@@ -296,6 +304,7 @@ func TestMCPTimelineSinceUntilMessage(t *testing.T) {
 // TestMCPAttachmentMessages: the usage errors of the attachment filter name
 // the arguments of the tool, not the flags.
 func TestMCPAttachmentMessages(t *testing.T) {
+	t.Parallel()
 	s, _ := demoMCP(t)
 	for _, tc := range []struct {
 		name, tool string
