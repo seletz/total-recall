@@ -7,8 +7,10 @@ DATE        DAY  FIRST  LAST        SPAN  DIFF    HOLIDAY  BLOCKS            WOR
 2025-12-30  Tue  -      -           -     -       -        -                 -     -
 2025-12-31  Wed  23:40  00:05 (+1)  25m   -7h35m  -        23:40-00:05 (+1)  25m   0s
 2026-01-01  Thu  -      -           -     -       Neujahr  -                 -     -
-2026-01-02  Fri  15:00  15:00       0s    -8h00m  -        15:00-15:00       0s    0s
+2026-01-02  Fri  15:00  15:00       0s    -8h00m  -        15:00*            0s    0s
 2026-01-03  Sat  -      -           -     -       -        -                 -     -
 2026-01-04  Sun  -      -           -     -       -        -                 -     -
+
+* a block of a single message (zero seconds)
 
 total: 2 days with activity, 25m · target 32h00m (4 workdays × 8h00m) · balance -31h35m · 1 holiday

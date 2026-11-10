@@ -42,6 +42,11 @@ func seedBlocks(t *testing.T, s *Store) {
 	}
 	n++
 	add(n, "2026-03-06T09:00:00Z", model.ActorAgent)
+	// Two events with the same time are one block of two events, not a single.
+	n++
+	add(n, "2026-03-07T12:00:00Z", model.ActorHuman)
+	n++
+	add(n, "2026-03-07T12:00:00Z", model.ActorHuman)
 	if err := s.WriteBatch(ctx, SourceState{Path: "/src/b.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +55,11 @@ func seedBlocks(t *testing.T, s *Store) {
 func fmtBlocks(d Workday) string {
 	var b []string
 	for _, bl := range d.Blocks {
-		b = append(b, fmt.Sprintf("%s-%s %s", bl.Start.UTC().Format("15:04"), bl.End.UTC().Format("15:04"), bl.Duration()))
+		one := ""
+		if bl.Single() {
+			one = " single"
+		}
+		b = append(b, fmt.Sprintf("%s-%s %s n=%d%s", bl.Start.UTC().Format("15:04"), bl.End.UTC().Format("15:04"), bl.Duration(), bl.Events, one))
 	}
 	return fmt.Sprintf("%s [%s] sum=%s breaks=%s", d.Label, strings.Join(b, ", "), d.BlockSum(), d.BreakSum())
 }
@@ -67,32 +76,37 @@ func TestWorkdayBlocks(t *testing.T) {
 		{
 			name: "gap at the threshold stays in the block, above it breaks",
 			f:    WorkdayFilter{Since: day(2), Until: day(3), Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 30 * time.Minute, HumanOnly: true},
-			want: []string{"2026-03-02 [07:48-09:10 1h22m0s, 10:30-10:50 20m0s] sum=1h42m0s breaks=1h20m0s"},
+			want: []string{"2026-03-02 [07:48-09:10 1h22m0s n=4, 10:30-10:50 20m0s n=2] sum=1h42m0s breaks=1h20m0s"},
 		},
 		{
 			name: "break across midnight, day belongs to the previous date until day_start",
 			f:    WorkdayFilter{Since: day(3), Until: day(4), Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 30 * time.Minute, HumanOnly: true},
-			want: []string{"2026-03-03 [22:00-22:50 50m0s, 00:10-00:30 20m0s, 03:59-03:59 0s] sum=1h10m0s breaks=4h49m0s"},
+			want: []string{"2026-03-03 [22:00-22:50 50m0s n=3, 00:10-00:30 20m0s n=2, 03:59-03:59 0s n=1 single] sum=1h10m0s breaks=4h49m0s"},
 		},
 		{
 			name: "event on the boundary starts the next day",
 			f:    WorkdayFilter{Since: day(4), Until: day(5), Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 30 * time.Minute, HumanOnly: true},
-			want: []string{"2026-03-04 [04:00-04:20 20m0s] sum=20m0s breaks=0s"},
+			want: []string{"2026-03-04 [04:00-04:20 20m0s n=2] sum=20m0s breaks=0s"},
 		},
 		{
 			name: "single event is a zero block; a larger threshold merges the day",
 			f:    WorkdayFilter{Since: day(2), Until: day(6), Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 3 * time.Hour, HumanOnly: true},
 			want: []string{
-				"2026-03-02 [07:48-10:50 3h2m0s] sum=3h2m0s breaks=0s",
-				"2026-03-03 [22:00-00:30 2h30m0s, 03:59-03:59 0s] sum=2h30m0s breaks=3h29m0s",
-				"2026-03-04 [04:00-04:20 20m0s] sum=20m0s breaks=0s",
-				"2026-03-05 [10:00-10:00 0s] sum=0s breaks=0s",
+				"2026-03-02 [07:48-10:50 3h2m0s n=6] sum=3h2m0s breaks=0s",
+				"2026-03-03 [22:00-00:30 2h30m0s n=5, 03:59-03:59 0s n=1 single] sum=2h30m0s breaks=3h29m0s",
+				"2026-03-04 [04:00-04:20 20m0s n=2] sum=20m0s breaks=0s",
+				"2026-03-05 [10:00-10:00 0s n=1 single] sum=0s breaks=0s",
 			},
 		},
 		{
 			name: "human only skips the agent day, all events counts it",
 			f:    WorkdayFilter{Since: day(6), Until: day(7), Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 30 * time.Minute},
-			want: []string{"2026-03-06 [09:00-09:00 0s] sum=0s breaks=0s"},
+			want: []string{"2026-03-06 [09:00-09:00 0s n=1 single] sum=0s breaks=0s"},
+		},
+		{
+			name: "two events with the same time are one block of two, not a single",
+			f:    WorkdayFilter{Since: day(7), Until: day(8), Location: time.UTC, DayStart: 4 * time.Hour, BlockGap: 30 * time.Minute, HumanOnly: true},
+			want: []string{"2026-03-07 [12:00-12:00 0s n=2] sum=0s breaks=0s"},
 		},
 		{
 			name: "no BlockGap, no blocks",
@@ -112,6 +126,23 @@ func TestWorkdayBlocks(t *testing.T) {
 			}
 			if strings.Join(got, "\n") != strings.Join(tt.want, "\n") {
 				t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+			// Invariant: the events of the blocks are the counted events of
+			// the day; a block is single exactly when it has one event.
+			for _, d := range days {
+				if len(d.Blocks) == 0 {
+					continue
+				}
+				n := 0
+				for _, b := range d.Blocks {
+					n += b.Events
+					if b.Single() != (b.Events == 1) {
+						t.Errorf("%s: block with %d events, single=%v", d.Label, b.Events, b.Single())
+					}
+				}
+				if n != d.Human+d.Agent {
+					t.Errorf("%s: blocks have %d events, the day counts %d", d.Label, n, d.Human+d.Agent)
+				}
 			}
 			// Invariant: blocks plus breaks make up the span.
 			for _, d := range days {

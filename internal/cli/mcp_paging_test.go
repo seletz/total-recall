@@ -565,8 +565,12 @@ func TestMCPWorkdayBlocksSumsOnEveryPage(t *testing.T) {
 			Span         int `json:"span_seconds"`
 			BlockSeconds int `json:"block_seconds"`
 			BreakSeconds int `json:"break_seconds"`
+			Human        int
+			Agent        int
 			Blocks       []struct {
 				Seconds int
+				Events  int
+				Single  bool
 			}
 		}
 		Total json.RawMessage
@@ -604,9 +608,16 @@ func TestMCPWorkdayBlocksSumsOnEveryPage(t *testing.T) {
 			t.Errorf("page %d: totals differ from the whole", i+1)
 		}
 		for _, d := range w.Days {
-			sum := 0
+			sum, events := 0, 0
 			for _, b := range d.Blocks {
 				sum += b.Seconds
+				events += b.Events
+				if b.Events < 1 || b.Single != (b.Events == 1) {
+					t.Errorf("%s: block with %d events, single %v", d.Day, b.Events, b.Single)
+				}
+			}
+			if events != d.Human+d.Agent {
+				t.Errorf("%s: blocks have %d events, the day counts %d", d.Day, events, d.Human+d.Agent)
 			}
 			if sum != d.BlockSeconds || sum+d.BreakSeconds != d.Span {
 				t.Errorf("%s: blocks %d, block_seconds %d, break_seconds %d, span %d", d.Day, sum, d.BlockSeconds, d.BreakSeconds, d.Span)

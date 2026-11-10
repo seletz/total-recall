@@ -425,7 +425,7 @@ func TestStatsWorkdayBlocksSums(t *testing.T) {
 				if len(out.Days) != len(plain.Days) || len(out.Days) == 0 {
 					t.Fatalf("days = %d, plain %d", len(out.Days), len(plain.Days))
 				}
-				var sumBlocks, sumBreaks, sumSpan, nBlocks int
+				var sumBlocks, sumBreaks, sumSpan, nBlocks, nEvents int
 				for i, d := range out.Days {
 					if d.SpanSeconds != plain.Days[i].SpanSeconds || d.First != plain.Days[i].First || d.Last != plain.Days[i].Last {
 						t.Errorf("%s: differs from plain --workday", d.Day)
@@ -437,8 +437,12 @@ func TestStatsWorkdayBlocksSums(t *testing.T) {
 					if (d.First == "") != (len(blocks) == 0) {
 						t.Errorf("%s: first=%q with %d blocks", d.Day, d.First, len(blocks))
 					}
-					var sum, breaks int
+					var sum, breaks, events int
 					for j, b := range blocks {
+						events += b.Events
+						if b.Events < 1 || b.Single != (b.Events == 1) || (b.Single && b.Seconds != 0) {
+							t.Errorf("%s block %d: events %d, single %v, seconds %d", d.Day, j, b.Events, b.Single, b.Seconds)
+						}
 						if b.Seconds < 0 {
 							t.Errorf("%s block %d: negative", d.Day, j)
 						}
@@ -466,6 +470,10 @@ func TestStatsWorkdayBlocksSums(t *testing.T) {
 					if sum != *d.BlockSeconds || breaks != *d.BreakSeconds || sum+breaks != d.SpanSeconds {
 						t.Errorf("%s: blocks %d + breaks %d vs block_seconds %d, break_seconds %d, span %d", d.Day, sum, breaks, *d.BlockSeconds, *d.BreakSeconds, d.SpanSeconds)
 					}
+					if events != d.Human+d.Agent {
+						t.Errorf("%s: blocks have %d events, the day counts %d (human %d, agent %d)", d.Day, events, d.Human+d.Agent, d.Human, d.Agent)
+					}
+					nEvents += events
 					sumBlocks, sumBreaks, sumSpan, nBlocks = sumBlocks+sum, sumBreaks+breaks, sumSpan+d.SpanSeconds, nBlocks+len(blocks)
 				}
 				if out.Total.BlockSeconds == nil || out.Total.BreakSeconds == nil {
@@ -474,7 +482,7 @@ func TestStatsWorkdayBlocksSums(t *testing.T) {
 				if *out.Total.BlockSeconds != sumBlocks || *out.Total.BreakSeconds != sumBreaks || sumBlocks+sumBreaks != out.Total.SpanSeconds || sumSpan != out.Total.SpanSeconds {
 					t.Errorf("total: block %d break %d span %d; days add up to %d + %d, span %d", *out.Total.BlockSeconds, *out.Total.BreakSeconds, out.Total.SpanSeconds, sumBlocks, sumBreaks, sumSpan)
 				}
-				if nBlocks == 0 {
+				if nBlocks == 0 || nEvents == 0 {
 					t.Error("demo month has no blocks")
 				}
 			})

@@ -65,7 +65,9 @@
           "end": "2025-12-31T23:05:00.000Z",
           "start_local": "23:40",
           "end_local": "00:05 (+1)",
-          "seconds": 1500
+          "seconds": 1500,
+          "events": 2,
+          "single": false
         }
       ],
       "block_seconds": 1500,
@@ -111,7 +113,9 @@
           "end": "2026-01-02T14:00:00.000Z",
           "start_local": "15:00",
           "end_local": "15:00",
-          "seconds": 0
+          "seconds": 0,
+          "events": 1,
+          "single": true
         }
       ],
       "block_seconds": 0,
