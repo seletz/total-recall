@@ -370,6 +370,7 @@ Claude Code führt je Projekt ein Gedächtnis aus Markdown-Dateien (`<projects_d
 | `type=user`, Text vom Menschen getippt | `human` |
 | Text beginnt mit „Another Claude session“, `<agent-message`, `[Cross-session` oder einem Präfix aus `peer_prefixes`; `origin.kind = "peer"` (Nachrichten anderer Sessions über den Socket, `<cross-session-message …>`); Subagent-Hand-back | `peer` |
 | Nachricht besteht nur aus einem `<pasted_content …>`-Block, dessen erste nicht leere Zeile mit einem Eintrag aus `peer_paste_headers` beginnt (ein in das Terminal eingefügter Auftrag eines Koordinators) | `peer` |
+| Eine menschliche Eingabe, die ein Tool-Aufruf einer **anderen** Session kurz vorher (Fenster `prompt_window`, Standard 120 s) als Argument verschickt hat, etwa `herdr agent prompt w1 "…"` oder `tmux send-keys` | `automation` |
 | `<task-notification>`, geplante Prompts („Hourly …“, Scheduled), `isMeta`, `<command-…>`/`<local-command-…>`, `This session is being continued`, `Base directory for this skill`, `<system-reminder>` | `automation` |
 | `<bash-input>` | `human` (der Benutzer hat `!cmd` getippt) |
 | `<pasted_content …>` sonst | `human` |
@@ -379,6 +380,8 @@ Claude Code führt je Projekt ein Gedächtnis aus Markdown-Dateien (`<projects_d
 Ein Assistant-Eintrag mit mehreren Content-Blöcken ergibt mehrere Events (`<uuid>#<block index>`).
 
 Reihenfolge: zuerst die Textregeln (Peer-Präfixe, Peer-Paste-Kopfzeilen, Human-Präfixe, Automation-Präfixe), dann `origin.kind`, dann `isMeta`/`isCompactSummary`/`scheduledTaskId`, dann Subagent-Transkript, sonst `human`. Eine Nachricht, die ein Koordinator per Terminal-Multiplexer in die Session tippt oder einfügt, hat keine harness-seitige Markierung (`origin.kind = "human"`, `promptSource = "typed"`); nur die konfigurierten Präfixe und Kopfzeilen unterscheiden sie von eigener Eingabe. `reindex --actors` wendet die aktuellen Regeln auf gespeicherte User-Nachrichten an: Textregeln auf `text`, die Flags aus `raw`; ohne `raw` (nicht gespeichert oder wegen der Größe weggelassen) entscheiden nur die Textregeln, sonst bleibt der Actor stehen.
+
+**Koordinator-Prompts per Abgleich** (#265). Was ein Koordinator mit einem Terminal-Befehl in die Session eines Workers tippt oder einfügt, trägt im Transkript des Workers dieselben Felder wie eine Eingabe des Menschen (`origin.kind = human`, `promptSource = typed`, `entrypoint = cli`); ein unmittelbareres Signal gibt es nicht. Deshalb vergleicht die Erkennung den Text: Eine Eingabe in Session B ist `automation`, wenn das Argument eines Tool-Aufrufs von Session A ≠ B, höchstens `prompt_window` vor der Eingabe, denselben Text enthält. Verglichen wird ohne Leerraum, Anführungszeichen und Backslashes, ohne die Hülle `<pasted_content …>`, bei langen Texten nur der Anfang (200 Zeichen), weil das gespeicherte Tool-Argument gekürzt ist. Ein Text unter 12 Zeichen („ok“) passt nur zu Aufrufen, die einen Befehl aus `prompt_commands` enthalten; sonst träfe er zu viel. Die Erkennung braucht den Aufruf der anderen Session im Archiv: Beim Einlesen läuft sie nach jedem Lauf über die Zeit der neuen Events, in beiden Richtungen (der Aufruf kann nach der Eingabe eingelesen werden), und `reindex --actors` wendet sie auf den Bestand an. Die Art der Eingabe (`input_kind`) entfällt, wie bei jedem Actor außer `human`.
 
 ### Welche Claude-Records
 

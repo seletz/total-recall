@@ -104,6 +104,8 @@ skip_record_types = []                # zusätzlich zu den Standard-Ausschlüsse
 peer_prefixes = []
 peer_paste_headers = []          # erste Zeile eines allein eingefügten Blocks, z. B. ["# Task:", "Auftrag:"]
 automation_prefixes = ["Hourly ", "Weekend watch"]
+prompt_commands = ["herdr agent prompt", "tmux send-keys"]
+prompt_window = "120s"
 
 [git]
 resolve = true
@@ -233,6 +235,12 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 
 `automation_prefixes`
 :   Nachrichten, die mit einem dieser Texte beginnen, gelten als `automation`. Beispiel: geplante Prompts wie „Hourly …“.
+
+`prompt_commands`
+:   Teile von Tool-Argumenten, die Text in das Terminal einer anderen Session schicken. Standard: `["herdr agent prompt", "tmux send-keys"]`. Ein kurzer Text (unter 12 Zeichen, etwa „ok“) wird nur mit einem Aufruf verglichen, der einen dieser Einträge enthält; längere Texte brauchen ihn nicht.
+
+`prompt_window`
+:   Wie lange vor einer Eingabe der Tool-Aufruf einer anderen Session liegen darf, der denselben Text verschickt hat. Standard `"120s"`. Passt ein Aufruf, ist die Eingabe `automation` statt `human` ([Design](../explanation/design.md#actor-klassifikation-claude-code)); `"0s"` schaltet die Erkennung aus. Sie braucht keine Muster: Verglichen wird der Text, der Aufruf kann jeder Tool-Aufruf sein.
 
 Nachrichten, die eine andere Session über den Socket schickt (`<cross-session-message …>`), erkennt der Adapter ohne Konfiguration als `peer`. Was ein Koordinator dagegen in das Terminal tippt oder einfügt, sieht im Transkript aus wie eigene Eingabe; dafür sind die beiden Listen da. Ein Setup mit mehreren Agenten, in dem ein Koordinator Aufträge mit einem festen Präfix oder als Block mit Kopfzeile verteilt:
 

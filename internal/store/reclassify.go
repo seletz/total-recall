@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/seletz/total-recall/internal/model"
 )
@@ -11,6 +13,8 @@ import (
 // fields a harness needs to derive its actor again.
 type UserMessage struct {
 	ID        string
+	SessionID string
+	TS        time.Time
 	Actor     model.Actor
 	Text      string
 	InputKind model.InputKind
@@ -21,11 +25,26 @@ type UserMessage struct {
 // UserMessages calls fn for every user message (role user, kind message)
 // of the harness in insertion order. It stops at the first error fn returns.
 func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMessage) error) error {
-	rows, err := s.db().QueryContext(ctx, `SELECT e.id, COALESCE(e.actor, ''), COALESCE(e.input_kind, ''), e.text, e.raw,
+	return s.UserMessagesBetween(ctx, harness, time.Time{}, time.Time{}, fn)
+}
+
+// UserMessagesBetween is UserMessages limited to the messages with
+// from <= ts <= to; a zero bound leaves that side open.
+func (s *Store) UserMessagesBetween(ctx context.Context, harness string, from, to time.Time, fn func(UserMessage) error) error {
+	q := `SELECT e.id, e.session_id, e.ts, COALESCE(e.actor, ''), COALESCE(e.input_kind, ''), e.text, e.raw,
 			COALESCE(s.parent_id, '') <> ''
 		FROM events e JOIN sessions s ON s.id = e.session_id
-		WHERE s.harness = ? AND e.role = 'user' AND e.kind = 'message'
-		ORDER BY e.seq`, harness)
+		WHERE s.harness = ? AND e.role = 'user' AND e.kind = 'message'`
+	args := []any{harness}
+	if !from.IsZero() {
+		q += " AND e.ts >= ?"
+		args = append(args, formatTime(from))
+	}
+	if !to.IsZero() {
+		q += " AND e.ts <= ?"
+		args = append(args, formatTime(to))
+	}
+	rows, err := s.db().QueryContext(ctx, q+" ORDER BY e.seq", args...)
 	if err != nil {
 		return fmt.Errorf("store: user messages: %w", err)
 	}
@@ -33,10 +52,12 @@ func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMe
 	for rows.Next() {
 		var m UserMessage
 		var actor, ik string
+		var ts sql.NullString
 		var raw []byte
-		if err := rows.Scan(&m.ID, &actor, &ik, &m.Text, &raw, &m.Subagent); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionID, &ts, &actor, &ik, &m.Text, &raw, &m.Subagent); err != nil {
 			return fmt.Errorf("store: user messages: %w", err)
 		}
+		m.TS = parseTime(ts)
 		if m.Raw, err = rawText(raw); err != nil {
 			return fmt.Errorf("store: user messages: %s: %w", m.ID, err)
 		}
@@ -49,6 +70,47 @@ func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMe
 		return fmt.Errorf("store: user messages: %w", err)
 	}
 	return nil
+}
+
+// ToolCall is the argument text of a tool_use event.
+type ToolCall struct {
+	SessionID string
+	TS        time.Time
+	Text      string
+}
+
+// ToolCalls lists the tool calls with from <= ts <= to, oldest first. The
+// text is the argument as stored (cut at ingest.tool_input_max).
+func (s *Store) ToolCalls(ctx context.Context, from, to time.Time) ([]ToolCall, error) {
+	q := `SELECT session_id, ts, COALESCE(text, '') FROM events WHERE kind = 'tool_use'`
+	var args []any
+	if !from.IsZero() {
+		q += " AND ts >= ?"
+		args = append(args, formatTime(from))
+	}
+	if !to.IsZero() {
+		q += " AND ts <= ?"
+		args = append(args, formatTime(to))
+	}
+	rows, err := s.db().QueryContext(ctx, q+" ORDER BY ts, seq", args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: tool calls: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []ToolCall
+	for rows.Next() {
+		var c ToolCall
+		var ts sql.NullString
+		if err := rows.Scan(&c.SessionID, &ts, &c.Text); err != nil {
+			return nil, fmt.Errorf("store: tool calls: %w", err)
+		}
+		c.TS = parseTime(ts)
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: tool calls: %w", err)
+	}
+	return out, nil
 }
 
 // ActorChange sets the actor and the input kind of one event. InputKind is

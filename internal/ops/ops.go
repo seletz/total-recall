@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/dispatch"
 	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/harness/claude"
 	"github.com/seletz/total-recall/internal/ingest"
@@ -63,6 +64,10 @@ func Deps(cfg *config.Config, st *store.Store, log *logfile.Logger) (ingest.Deps
 		d.Redactor = r
 	}
 	d.Adapters = adapters(cfg, d.Logf)
+	d.Dispatch = dispatch.Config{Window: cfg.Harness.Claude.Actors.PromptWindow.Duration, Commands: cfg.Harness.Claude.Actors.PromptCommands}
+	if d.Dispatch.Window == 0 {
+		d.Dispatch.Window = -1 // 0 in the configuration turns the detection off
+	}
 	return d, nil
 }
 
