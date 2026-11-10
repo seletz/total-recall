@@ -107,3 +107,35 @@ func TestSpawned(t *testing.T) {
 		t.Error("a negative window turns the detection off")
 	}
 }
+
+func TestSpawnedThroughFunctions(t *testing.T) {
+	const def = `spawn(){ herdr agent start w --cwd "$1"; herdr agent prompt w "$(cat $2)"; }`
+	invoke := `COMMON='x'; spawn /home/u/src/p/feat-y /tmp/a.md; spawn /home/u/src/p/feat-z /tmp/b.md`
+	tests := []struct {
+		name    string
+		calls   []Call
+		session string
+		cwd     string
+		after   time.Duration // the first input this long after t0
+		want    bool
+	}{
+		{"called in a later call of the same session", []Call{{"A", t0, def}, {"A", t0.Add(45 * time.Second), invoke}}, "B", "/home/u/src/p/feat-y", 46 * time.Second, true},
+		{"second target of the same call", []Call{{"A", t0, def}, {"A", t0.Add(45 * time.Second), invoke}}, "B", "/home/u/src/p/feat-z", 71 * time.Second, true},
+		{"function keyword form", []Call{{"A", t0, `function spawn { herdr agent start w --cwd "$1"; herdr agent prompt w x; }`}, {"A", t0.Add(time.Minute), invoke}}, "B", "/home/u/src/p/feat-y", 61 * time.Second, true},
+		{"defined and called in one call", []Call{{"A", t0, def + "; " + invoke}}, "B", "/home/u/src/p/feat-y", 3 * time.Second, true},
+		{"defined by another session", []Call{{"C", t0, def}, {"A", t0.Add(45 * time.Second), invoke}}, "B", "/home/u/src/p/feat-y", 46 * time.Second, false},
+		{"definition too long ago", []Call{{"A", t0, def}, {"A", t0.Add(11 * time.Minute), invoke}}, "B", "/home/u/src/p/feat-y", 11*time.Minute + time.Second, false},
+		{"function without spawn or prompt command", []Call{{"A", t0, `spawn(){ echo "$1"; }`}, {"A", t0.Add(time.Second), invoke}}, "B", "/home/u/src/p/feat-y", 2 * time.Second, false},
+		{"the name is only part of a word", []Call{{"A", t0, def}, {"A", t0.Add(time.Second), `respawn /home/u/src/p/feat-y /tmp/a.md`}}, "B", "/home/u/src/p/feat-y", 2 * time.Second, false},
+		{"call names another directory", []Call{{"A", t0, def}, {"A", t0.Add(time.Second), invoke}}, "B", "/home/u/src/p/feat-other", 2 * time.Second, false},
+		{"called before the definition", []Call{{"A", t0, invoke}, {"A", t0.Add(time.Second), def}}, "B", "/home/u/src/p/feat-y", 2 * time.Second, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ix := NewIndex(tt.calls, Config{})
+			if got := ix.Spawned(tt.session, t0.Add(tt.after), "", tt.cwd); got != tt.want {
+				t.Errorf("Spawned = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

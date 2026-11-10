@@ -18,7 +18,7 @@ import (
 )
 
 // truncMark is appended to text that was cut.
-const truncMark = " …[truncated]"
+const truncMark = model.TruncMark
 
 // Known record and content block types. The parser and the format check
 // (CheckFormat, `total-recall doctor`) share these lists; when Claude Code

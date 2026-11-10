@@ -25,7 +25,8 @@ import (
 // ---- status ----
 
 // StatusJSON is the JSON output of status. Every key is always present;
-// LastBackup and LastBackupAt are null without a backup.
+// LastBackup and LastBackupAt are null without a backup; LastBackupState
+// says why (ok, none, unknown).
 //
 // Errors come from the log file. RecentErrors lists the ERROR lines of the
 // window ErrorsWindow (default "24h"; ErrorsSince is its start), oldest
@@ -78,12 +79,19 @@ type StatusJSON struct {
 	BackupDir         string            `json:"backup_dir"`
 	LastBackup        NullString        `json:"last_backup"`
 	LastBackupAt      NullString        `json:"last_backup_at"`
-	Log               string            `json:"log"`
-	ErrorsWindow      NullString        `json:"errors_window"`
-	ErrorsSince       NullString        `json:"errors_since"`
-	RecentErrors      []StatusError     `json:"recent_errors"`
-	RecentErrorsTotal int               `json:"recent_errors_total"`
-	OlderErrors       int               `json:"older_errors"`
+	// LastBackupState is "ok" (a backup was found), "none" (the directory
+	// was read and holds none) or "unknown" (it cannot be read: the reason
+	// and the hint say why and what to do; last_backup and last_backup_at
+	// then come from the status file next to the database, or are null).
+	LastBackupState   string        `json:"last_backup_state"`
+	LastBackupReason  NullString    `json:"last_backup_reason"`
+	LastBackupHint    NullString    `json:"last_backup_hint"`
+	Log               string        `json:"log"`
+	ErrorsWindow      NullString    `json:"errors_window"`
+	ErrorsSince       NullString    `json:"errors_since"`
+	RecentErrors      []StatusError `json:"recent_errors"`
+	RecentErrorsTotal int           `json:"recent_errors_total"`
+	OlderErrors       int           `json:"older_errors"`
 }
 
 // pageSizeCell renders the page size with a hint when a rebuild with the
@@ -279,11 +287,12 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		for h, t := range s.LastIngest {
 			out.LastIngest[h] = isoTime(t)
 		}
-		bp, bt, err := store.LastBackup(cfg.Backup.Dir, cfg.Location())
-		if err != nil {
-			return err
+		bk := store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location())
+		bp, bt := bk.Path, bk.At
+		out.LastBackup, out.LastBackupAt, out.LastBackupState = NullString(bp), NullString(isoTime(bt)), string(bk.State)
+		if bk.State == store.BackupUnknown {
+			out.LastBackupReason, out.LastBackupHint = NullString(bk.Reason), NullString(bk.Hint)
 		}
-		out.LastBackup, out.LastBackupAt = NullString(bp), NullString(isoTime(bt))
 
 		var since time.Time
 		cap := nErrors
@@ -334,10 +343,18 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			t := s.LastIngest[h]
 			rows = append(rows, []string{"last ingest (" + h + ")", localTime(t, loc) + "  (" + age(now, t) + ")"})
 		}
-		if bp == "" {
+		switch {
+		case bk.State == store.BackupUnknown && bp == "":
+			rows = append(rows, []string{"last backup", "unknown in " + cfg.Backup.Dir + "  (" + bk.Reason + ")"})
+		case bk.State == store.BackupUnknown:
+			rows = append(rows, []string{"last backup", bp + "  (" + age(now, bt) + ", from the status file; unknown in " + cfg.Backup.Dir + ": " + bk.Reason + ")"})
+		case bp == "":
 			rows = append(rows, []string{"last backup", "none in " + cfg.Backup.Dir})
-		} else {
+		default:
 			rows = append(rows, []string{"last backup", bp + "  (" + age(now, bt) + ")"})
+		}
+		if bk.State == store.BackupUnknown {
+			rows = append(rows, []string{"", "hint: " + bk.Hint})
 		}
 		rows = append(rows, []string{"log", cfg.LogPath()})
 		if err := o.table(nil, rows); err != nil {
@@ -598,6 +615,11 @@ type EventJSON struct {
 // the hash `blob` takes, its type and size as delivered, and its position
 // among the event's attachments.
 type AttachmentJSON struct {
+	// EventID is the event the attachment is linked to. Only in the hits
+	// of search (since v1.7.0): the text of a message with images shows
+	// the attachments of the image events of its line, and this says
+	// whose they are. Missing in show, where it is the event itself.
+	EventID   string `json:"event_id,omitempty"`
 	SHA256    string `json:"sha256"`
 	MediaType string `json:"media_type"`
 	Bytes     int64  `json:"bytes"`
@@ -1112,7 +1134,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var top int
 	var of outputFlags
 	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks bool
-	var toolPath, toolPathIn string
+	var toolPath, toolPathIn, dayArg string
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -1164,6 +1186,18 @@ block_gap (default 30m) ends a block. Per day the blocks, their sum (WORK) and
 the pauses between them (BREAKS) are listed; WORK plus BREAKS is the span. The
 JSON has blocks, block_seconds and break_seconds per day and in the total.
 
+With --day DATE (YYYY-MM-DD, today or yesterday) the output is that one day
+chronologically, with the same numbers as --workday --blocks and --worktime for
+the day: first and last activity, span, WORK (the blocks) and BREAKS, target and
+diff, the events by human and agent, then the blocks in order with start, end,
+seconds, events and the projects of the block with their seconds (the interval
+before a message counts for the project of that message, so the projects of a
+block add up to its seconds), the sessions in it and the pauses between, and
+finally the projects of the day with their time as --worktime estimates it
+(raw and rounded) and their events. A single message is marked "single".
+--all-events counts human and agent events as with --workday. The JSON has
+all of it; it cannot be combined with the range flags.
+
 With --worktime the output is the estimated working time per day and
 category (for timesheets): the gap between two of your own messages, across
 all sessions, counts for the project of the later one, in full up to the
@@ -1197,6 +1231,13 @@ messages: the values are a lower bound.`,
 		}
 		if toolPathIn != "" && toolPath == "" {
 			return usagef("--path-in requires --path")
+		}
+		if dayArg != "" {
+			if workday || worktime || tokens || tools || series || blocks || sessions || summary || rng != "" || month != "" || sinceArg != "" || untilArg != "" {
+				return usagef("--day cannot be combined with --workday, --worktime, --tokens, --tools, --period, --by, --top, --blocks, --sessions, --summary, --range, --month, --since or --until")
+			}
+			humanOnly = (cfg.Work.HumanOnly() || humanOnly) && !allEvents
+			return e.runDay(cmd, cfg, o, dayArg, humanOnly)
 		}
 		if err := checkWorkdayFlags(workday, worktime, sessions || summary, series, rng, humanOnly || allEvents, period, by); err != nil {
 			return err
@@ -1313,6 +1354,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&tools, "tools", false, "count tool_use events per tool; --by day, session, repo or project groups them, --path GLOB filters on the arguments")
 	c.Flags().StringVar(&toolPathIn, "path-in", "", "with --path: paths (default: only calls of tools whose argument is a path, a path pattern or a command) or all (every call, also messages, prompts and URLs)")
 	c.Flags().StringVar(&toolPath, "path", "", "with --tools: only calls whose arguments match this glob (file tools: the whole path; Bash: anywhere in the command); see --path-in for the tools checked")
+	c.Flags().StringVar(&dayArg, "day", "", "one day chronologically: the blocks with their projects and sessions, the target and balance, the time per project (YYYY-MM-DD, today or yesterday)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")
 	c.Flags().BoolVar(&worktime, "worktime", false, "working time per day and category from the gaps between your messages (default range: this-week)")
 	c.Flags().BoolVar(&sessions, "sessions", false, "with --worktime: list the sessions and projects of every day and category")
@@ -1320,7 +1362,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&tokens, "tokens", false, "append the token counts (fresh input, cache writes, cache reads, output) per day and model to the day/repo/hour tables (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
 	c.Flags().BoolVar(&blocks, "blocks", false, "with --workday: the blocks of activity per day, split at gaps above [work] block_gap (default 30m), with sums and pauses")
-	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday: count human and agent events (default: human messages only)")
+	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday or --day: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
 	_ = c.Flags().MarkHidden("human-only")
 	of.register(c)

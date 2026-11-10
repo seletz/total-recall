@@ -63,7 +63,7 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "by_session", Type: "boolean", Description: "one row per session instead of one row per hit"},
 				mcp.Param{Name: "order", Type: "string", Enum: []string{"first_hit", "hits"}, Description: "with by_session: first_hit (oldest first, default) or hits (most hits first)"},
 				mcp.Param{Name: "raw", Type: "boolean", Description: "pass query to FTS5 unchanged"},
-				pHasAttachment("events and sessions", "each event hit then lists its attachments (sha256, media_type, bytes, position) and attachment_count; without query the result is the newest events with attachments, the way to find pasted images and documents"),
+				pHasAttachment("events and sessions", "each event hit then lists its attachments (event_id, sha256, media_type, bytes, position: the text of a message with images has those of the message) and attachment_count; without query the result is the newest events with attachments, the way to find pasted images and documents"),
 			),
 		},
 		{
@@ -76,7 +76,7 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "account", Type: "string", Description: "account name, id or prefix"},
 				mcp.Param{Name: "subagents", Type: "boolean", Description: "include subagent sessions"},
 				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
-				pHasAttachment("sessions", "attachment_count then counts those attachments"),
+				pHasAttachment("sessions", "attachment_count then counts those attachments over the whole session, not only the since/until window"),
 				mcp.Param{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool"}, Description: "with has_attachment: whose event carries the attachment (human = pasted by the user, tool = screenshots of tool results)"},
 			),
 		},
@@ -96,8 +96,8 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "stats", Title: "Activity statistics", Command: []string{"stats"}, FixedFlags: []string{"--json"},
 			Narrow:      "drop sessions or summary, set a smaller range (month, since/until, range) or use period/by with top",
-			Units:       []string{"groups", "days", "buckets", "by_day"},
-			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day (blocks adds the blocks of activity with pauses), with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series, with tools the number of tool calls per tool (by day, session, repo or project; path filters on the arguments). Same JSON as `total-recall stats --json`." + pagingNote,
+			Units:       []string{"groups", "days", "buckets", "by_day", "blocks"},
+			Description: "Activity numbers per day, repo and hour; with workday the first and last activity per day (blocks adds the blocks of activity with pauses), with day one date chronologically (blocks with their projects and sessions, pauses, target and balance, time per project; the numbers of workday+blocks and worktime for that day), with worktime the working time per day and category (summary adds issue/PR references and booking texts), with period or by a time series, with tools the number of tool calls per tool (by day, session, repo or project; path filters on the arguments). Same JSON as `total-recall stats --json`." + pagingNote,
 			Params: []mcp.Param{
 				pCursor,
 				{Name: "month", Type: "string", Description: "month YYYY-MM (default: current month)"},
@@ -108,6 +108,7 @@ func mcpTools() []mcp.Tool {
 				{Name: "tools", Type: "boolean", Description: "count tool calls (tool_use events) per tool instead of activity; by groups them, groups always sum to total"},
 				{Name: "path", Type: "string", Description: "with tools: only calls whose arguments match this glob (file tools: the whole path, e.g. */src/*; Bash: anywhere in the command; arguments are cut at 1 KiB); by default only calls of tools whose argument is a path or a command are checked, see path_in"},
 				{Name: "path_in", Type: "string", Enum: []string{"paths", "all"}, Description: "with path: paths (default) checks only Bash, Read, Edit, MultiEdit, Write, Glob, Grep and LS; all checks every call, also messages to other sessions, prompts and URLs"},
+				{Name: "day", Type: "string", Description: "one day chronologically (YYYY-MM-DD, today or yesterday): the blocks of activity with start, end, seconds, events, projects with seconds and sessions, the pauses, span, target and diff, the events by human and agent and the time per project as worktime estimates it; all_events counts agent events too; not with workday, worktime or a range"},
 				{Name: "workday", Type: "boolean", Description: "first and last activity per day"},
 				{Name: "blocks", Type: "boolean", Description: "with workday: the blocks of activity per day (a gap above [work] block_gap, default 30m, ends a block) with their sum and the pauses, for booking attendance"},
 				{Name: "worktime", Type: "boolean", Description: "working time per day and category"},
