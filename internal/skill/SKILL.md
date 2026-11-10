@@ -572,7 +572,7 @@ One object per memory file whose current content matches, best first.
 | `last_backup_at` | time of the last backup, `null` if none |
 | `last_backup_state` | `ok` (backup found), `none` (directory read, no backup) or `unknown` (directory cannot be read, e.g. macOS privacy block on ~/Documents: not a sign that backups are missing; `last_backup`/`last_backup_at` then come from the status file next to the database, or are `null`) |
 | `last_backup_reason` | with `unknown`: why, e.g. `no access: operation not permitted`; else `null` |
-| `last_backup_hint` | with `unknown`: what to do about it: the macOS privacy hint (naming the folder) only when the directory is in ~/Documents, ~/Desktop or ~/Downloads, else check the file permissions; "the backups are fine" only if the status file shows a backup of the last 48 h; else `null` |
+| `last_backup_hint` | with `unknown`: what to do about it: the macOS privacy hint (naming the folder) only when the directory is in ~/Documents, ~/Desktop or ~/Downloads and the error is `operation not permitted`, else check the file permissions (any read error but "does not exist" makes the state `unknown`); "the backups are fine" only if the status file shows a backup of the last 48 h; else `null` |
 | `log` | path of the log file |
 | `errors_window` | age limit of `recent_errors`, `"24h"`; `null` with `--all-errors` |
 | `errors_since` | start of the window (UTC); `null` with `--all-errors` |

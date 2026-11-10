@@ -1,9 +1,12 @@
 package store
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -158,6 +161,7 @@ func TestAccessHint(t *testing.T) {
 		{"similar name", "darwin", "/home/u/DocumentsOld/b", false, []string{"file permissions"}, []string{"Privacy", "fine"}},
 		{"documents of another user", "darwin", "/home/other/Documents/b", false, []string{"file permissions"}, []string{"Privacy"}},
 		{"documents on Linux", "linux", "/home/u/Documents/b", true, []string{"file permissions"}, []string{"Privacy", "restart"}},
+		{"EACCES in Documents is a plain permission problem", "darwin", "/home/u/Documents/b", true, []string{"file permissions", "the backups are fine"}, []string{"Privacy", "restart"}},
 		{"no home", "darwin", "/home/u/Documents/b", false, []string{"file permissions"}, []string{"Privacy"}},
 	}
 	for _, tt := range tests {
@@ -166,7 +170,7 @@ func TestAccessHint(t *testing.T) {
 			if tt.name == "no home" {
 				home = ""
 			}
-			got := accessHint(tt.dir, home, tt.goos, tt.fresh)
+			got := accessHint(tt.dir, home, tt.goos, tt.fresh, !strings.HasPrefix(tt.name, "EACCES"))
 			for _, w := range tt.want {
 				if !strings.Contains(got, w) {
 					t.Errorf("hint %q lacks %q", got, w)
@@ -213,5 +217,61 @@ func TestBackupHintFresh(t *testing.T) {
 				t.Errorf("temp dir is not under Documents: %+v", got)
 			}
 		})
+	}
+}
+
+// TestBackupStatusErrors: whatever the read of the directory fails with
+// (EPERM, EACCES, EIO, ...), in any folder, the state is unknown with
+// reason and hint; only a missing or an empty directory is none. The macOS
+// privacy hint needs EPERM (what the protection reports) in Documents,
+// Desktop or Downloads of the home directory.
+func TestBackupStatusErrors(t *testing.T) {
+	errs := []struct {
+		name    string
+		err     error
+		unknown bool
+		reason  string
+	}{
+		{"EPERM", &fs.PathError{Op: "open", Path: "x", Err: syscall.EPERM}, true, "operation not permitted"},
+		{"EACCES", &fs.PathError{Op: "open", Path: "x", Err: syscall.EACCES}, true, "permission denied"},
+		{"EIO", &fs.PathError{Op: "open", Path: "x", Err: syscall.EIO}, true, "input/output error"},
+		{"ENOTDIR", &fs.PathError{Op: "open", Path: "x", Err: syscall.ENOTDIR}, true, "not a directory"},
+		{"other error", errors.New("boom"), true, "boom"},
+		{"ENOENT", &fs.PathError{Op: "open", Path: "x", Err: syscall.ENOENT}, false, ""},
+		{"empty directory", nil, false, ""},
+	}
+	folders := []struct {
+		dir string
+		tcc bool
+	}{
+		{"/home/u/Documents/total-recall", true},
+		{"/home/u/Desktop/b", true},
+		{"/home/u/Downloads/b", true},
+		{"/home/u/Library/Application Support/total-recall/backups", false},
+		{"/var/backups/total-recall", false},
+	}
+	for _, e := range errs {
+		for _, f := range folders {
+			t.Run(e.name+" in "+f.dir, func(t *testing.T) {
+				readDir := func(string) ([]os.DirEntry, error) { return nil, e.err }
+				got := readBackupStatus(BackupProbe{DB: filepath.Join(t.TempDir(), "a.db"), Dir: f.dir, Loc: time.UTC, Home: "/home/u"}, readDir, "darwin")
+				if !e.unknown {
+					if got.State != BackupNone || got.Reason != "" || got.Hint != "" {
+						t.Errorf("want none: %+v", got)
+					}
+					return
+				}
+				if got.State != BackupUnknown || got.Reason != "no access: "+e.reason || got.Hint == "" {
+					t.Fatalf("want unknown / %q: %+v", e.reason, got)
+				}
+				privacy := strings.Contains(got.Hint, "Privacy & Security")
+				if want := f.tcc && e.name == "EPERM"; privacy != want {
+					t.Errorf("privacy hint = %v, want %v: %q", privacy, want, got.Hint)
+				}
+				if !privacy && !strings.Contains(got.Hint, "file permissions of "+f.dir) {
+					t.Errorf("hint %q", got.Hint)
+				}
+			})
+		}
 	}
 }

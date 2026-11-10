@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -117,7 +118,15 @@ const freshBackup = 48 * time.Hour
 // the copy and its size of the last backup run. A readable directory is
 // always the truth: a status file does not make a deleted backup exist.
 func ReadBackupStatus(p BackupProbe) BackupStatus {
-	path, at, err := LastBackup(p.Dir, p.Loc)
+	return readBackupStatus(p, os.ReadDir, runtime.GOOS)
+}
+
+// readBackupStatus is ReadBackupStatus with the directory listing and the
+// operating system given. Every error of the listing other than "does not
+// exist" makes the state unknown: EPERM (the macOS privacy protection),
+// EACCES (file permissions), EIO and the rest alike.
+func readBackupStatus(p BackupProbe, readDir func(string) ([]os.DirEntry, error), goos string) BackupStatus {
+	path, at, err := lastBackup(p.Dir, p.Loc, readDir)
 	if err != nil {
 		st := BackupStatus{State: BackupUnknown, Reason: "no access: " + reasonOf(err)}
 		fresh := false
@@ -129,7 +138,7 @@ func ReadBackupStatus(p BackupProbe) BackupStatus {
 		if home == "" {
 			home, _ = os.UserHomeDir()
 		}
-		st.Hint = accessHint(p.Dir, home, runtime.GOOS, fresh)
+		st.Hint = accessHint(p.Dir, home, goos, fresh, errors.Is(err, syscall.EPERM))
 		return st
 	}
 	if path == "" {
@@ -159,11 +168,13 @@ var privacyFolders = []string{"Documents", "Desktop", "Downloads"}
 // accessHint says what to do when the backup directory cannot be read: on
 // macOS for a directory in Documents, Desktop or Downloads of home, give the
 // app access to that folder and restart it; otherwise check the file
-// permissions. fresh says that the status file shows a recent backup, only
-// then the hint says the backups are fine.
-func accessHint(dir, home, goos string, fresh bool) string {
+// permissions. The privacy hint needs EPERM (eperm), the error the protection
+// reports; EACCES is an ordinary permission problem. fresh says that the
+// status file shows a recent backup, only then the hint says the backups
+// are fine.
+func accessHint(dir, home, goos string, fresh, eperm bool) string {
 	hint := "check the file permissions of " + dir
-	if goos == "darwin" && home != "" {
+	if goos == "darwin" && eperm && home != "" {
 		for _, f := range privacyFolders {
 			root := filepath.Join(home, f)
 			if rel, err := filepath.Rel(root, filepath.Clean(dir)); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
