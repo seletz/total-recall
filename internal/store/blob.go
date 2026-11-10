@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/seletz/total-recall/internal/blobref"
@@ -322,6 +323,56 @@ func (s *Store) SessionAttachments(ctx context.Context, sessionID string) (map[s
 		out[id] = append(out[id], a)
 	}
 	return out, rows.Err()
+}
+
+// eventsAttachmentsBatch is how many event IDs one query takes, far below
+// SQLite's limit on variables.
+const eventsAttachmentsBatch = 500
+
+// EventsAttachments returns the attachments of the events with the given
+// IDs that have any, by event ID and in position order: metadata only, no
+// data. The search view uses it to mark the hits that carry images or
+// documents; unknown IDs and events without attachments are not in the
+// map.
+func (s *Store) EventsAttachments(ctx context.Context, ids []string) (map[string][]EventAttachment, error) {
+	out := map[string][]EventAttachment{}
+	seen := map[string]bool{}
+	var uniq []string
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			uniq = append(uniq, id)
+		}
+	}
+	for start := 0; start < len(uniq); start += eventsAttachmentsBatch {
+		batch := uniq[start:min(start+eventsAttachmentsBatch, len(uniq))]
+		args := make([]any, len(batch))
+		for i, id := range batch {
+			args[i] = id
+		}
+		q := `SELECT eb.event_id, eb.position, b.sha256, b.media_type, b.bytes, length(b.data)
+			FROM event_blobs eb JOIN blobs b ON b.sha256 = eb.sha256
+			WHERE eb.event_id IN (?` + strings.Repeat(",?", len(batch)-1) + `) ORDER BY eb.event_id, eb.position`
+		rows, err := s.db().QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, fmt.Errorf("store: events attachments: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			var a EventAttachment
+			if err := rows.Scan(&id, &a.Position, &a.SHA256, &a.MediaType, &a.Bytes, &a.StoredBytes); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("store: events attachments: %w", err)
+			}
+			out[id] = append(out[id], a)
+		}
+		err = rows.Err()
+		_ = rows.Close()
+		if err != nil {
+			return nil, fmt.Errorf("store: events attachments: %w", err)
+		}
+	}
+	return out, nil
 }
 
 // BlobStats counts the stored attachments, in total and per kind (by
