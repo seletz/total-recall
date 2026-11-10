@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -34,22 +35,33 @@ func env(t *testing.T) *Env {
 	return e
 }
 
-// frames renders every shot against the demo archive.
+var (
+	framesOnce sync.Once
+	framesAll  []Frame
+	framesErr  error
+)
+
+// frames renders every shot against the demo archive, once for the whole
+// package: a render costs about 40 s under the race detector and the tests
+// only read the frames.
 func frames(t *testing.T) []Frame {
 	t.Helper()
-	out, err := RenderAll(env(t))
-	if err != nil {
-		t.Fatal(err)
+	framesOnce.Do(func() {
+		framesAll, framesErr = RenderAll(env(t))
+	})
+	if framesErr != nil {
+		t.Fatal(framesErr)
 	}
-	if len(out) != len(Shots) {
-		t.Fatalf("%d frames, want %d", len(out), len(Shots))
+	if len(framesAll) != len(Shots) {
+		t.Fatalf("%d frames, want %d", len(framesAll), len(Shots))
 	}
-	return out
+	return framesAll
 }
 
 // TestRenderAll renders every shot: the frame has the shot's size and shows
 // the markers of its view, and no frame holds a path of the machine.
 func TestRenderAll(t *testing.T) {
+	t.Parallel()
 	latest := store.LatestSchemaVersion()
 	markers := map[string][]string{
 		"search":                   {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
@@ -127,17 +139,17 @@ func TestRenderAll(t *testing.T) {
 // TestRenderDeterministic: the same shot renders the same frame twice; the
 // fixed clock keeps the durations in the status lines at zero.
 func TestRenderDeterministic(t *testing.T) {
+	t.Parallel()
+	// A second render, made while the shared frames are being rendered, must
+	// equal them.
 	e := env(t)
-	for _, s := range Shots {
-		f1, err := Render(s, e)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f2, err := Render(s, e)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if f1.Content != f2.Content {
+	second, err := RenderAll(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := frames(t)
+	for i, s := range Shots {
+		if first[i].Shot.Name != s.Name || first[i].Content != second[i].Content {
 			t.Errorf("shot %s differs between two renders", s.Name)
 		}
 	}
@@ -146,6 +158,7 @@ func TestRenderDeterministic(t *testing.T) {
 // TestRenderNeedsArchive: a shot without an archive is an error, not an
 // empty frame.
 func TestRenderNeedsArchive(t *testing.T) {
+	t.Parallel()
 	for _, s := range Shots {
 		if _, err := Render(s, nil); err == nil {
 			t.Errorf("shot %s renders without an archive", s.Name)
@@ -159,6 +172,7 @@ func TestRenderNeedsArchive(t *testing.T) {
 // TestShotClocks: every shot's clock lies after the activity it shows, so
 // nothing is cut off by a time filter.
 func TestShotClocks(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, _ := fixturedb.Demo(t)
 	hits, err := st.Search(ctx, demo.Query, store.SearchFilter{})
@@ -186,6 +200,7 @@ func TestShotClocks(t *testing.T) {
 // file written by `mise run docs:screenshots` next to the images. A
 // difference means the TUI changed and the images in the docs are stale.
 func TestFramesGolden(t *testing.T) {
+	t.Parallel()
 	const hint = "run `mise run docs:screenshots` and commit the images"
 	for _, f := range frames(t) {
 		t.Run(f.Shot.Name, func(t *testing.T) {
@@ -248,6 +263,7 @@ func diff(want, got string) string {
 // TestWriteGoldens: the goldens are the plain frames, one file per shot,
 // and files of vanished shots are removed.
 func TestWriteGoldens(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "gone.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
