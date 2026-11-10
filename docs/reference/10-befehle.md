@@ -442,7 +442,7 @@ total-recall sessions --has-attachment --project kompass   # Sessions mit Anhang
 
 ## `stats` { #stats }
 
-Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
+Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--day`](#stats-day) ein Tag chronologisch mit Blöcken, Projekten und Arbeitszeit, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
 
 ```sh
 total-recall stats                                   # aktueller Monat
@@ -675,6 +675,44 @@ Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_sec
 **Einzelne Nachrichten.** Eine einzelne Nachricht nach einer langen Pause ergibt einen Block von 0 Sekunden: für eine Anwesenheitsbuchung Rauschen. Damit der Aufrufer ihn erkennt, ohne Events nachzuzählen, hat jeder Block `events` (die Zahl der gezählten Events darin) und `single` (`true`, wenn es genau eins ist). Die Sekunden bleiben unverändert, es gibt keinen Mindestwert, nichts fällt weg. Zwei Events mit derselben Zeit sind ein Block von 0 Sekunden mit `events: 2`, kein einzelner. Es gilt immer: Pro Tag ergeben die `events` aller Blöcke genau `human` plus `agent` des Tags, und `block_seconds` plus `break_seconds` die Spanne. Alle Sekunden sind ganze Sekunden: Die Blockgrenzen werden nach der ersten Aktivität des Tags auf ganze Sekunden abgerundet, bevor die Dauern gebildet werden, daher ist `block_seconds` exakt die Summe der `seconds` der Blöcke und `block_seconds` plus `break_seconds` exakt `span_seconds` (auch bei Zeitstempeln mit Millisekunden), in `total` genauso. Die Tabelle zeigt einen einzelnen Block nur mit der Uhrzeit und einem `*` (`15:00*`) und erklärt das Zeichen unter der Tabelle.
 
 `--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
+
+### Ein Tag chronologisch: `--day` { #stats-day }
+
+Mit `--day DATUM` (`YYYY-MM-DD`, `today` oder `yesterday`) zeigt `stats` **einen Tag in zeitlicher Reihenfolge**: für Zeitbuchung und Tagesabschluss, und dieselbe Ansicht wie die Tagesansicht der TUI. Es gibt keine zweite Rechnung: Kopf und Blöcke sind die Zahlen von [`--workday --blocks`](#stats-workday), die Zeiten je Projekt die von [`--worktime`](#stats-worktime), für denselben Tag und unter denselben Regeln (`day_start`, `count`, `block_gap`, `[worktime]`, `[[project]]`).
+
+```sh
+total-recall stats --day 2026-10-29
+total-recall stats --day yesterday --json
+total-recall stats --day today --all-events
+```
+
+```text
+Thu 2026-10-29 (Europe/Berlin, day starts 04:00, human events only)
+first 21:30 · last 21:46 · span 16m · work 16m · breaks 0s
+target 8h00m · diff -7h44m
+events 3 human, 0 agent · working time 19m (rounded 30m)
+
+1. 21:30-21:46  16m  3 events (3 human, 0 agent)  kompass 16m
+     21:30-21:41  kompass  Worker koordinieren  (2 human, 0 agent)
+     21:46-21:46  kompass  Lint-Fix im Worker  (1 human, 0 agent)
+
+PROJECT  TIME  ROUNDED  HUMAN  AGENT
+kompass  19m   30m      3      0
+```
+
+Die Textausgabe hat den Kopf (erste und letzte Aktivität, Spanne, `work` als Summe der Blöcke, `breaks` als Summe der Pausen, Soll und Differenz, Events nach Mensch und Agent, Arbeitszeit roh und gerundet), je Block eine Zeile mit Start, Ende, Dauer, Events und den Projekten mit ihrer Zeit, darunter die Sessions des Blocks, zwischen den Blöcken die Pause, und am Ende die Projekte des Tags. Ein einzelnes Event ist ein Block von 0 s und trägt `*` statt eines Endes. `--all-events` zählt wie bei `--workday` auch Agent-Events (Standard: `count` in [`[work]`](20-konfiguration.md#work)); `--day` lässt sich nicht mit `--workday`, `--worktime`, `--blocks`, `--tools`, `--tokens`, `--period`, `--by`, `--top`, `--range`, `--month`, `--since` oder `--until` kombinieren.
+
+**Zeit je Projekt im Block.** Die Sekunden eines Blocks verteilen sich auf die Projekte seiner Events: Das Intervall vor einem Event zählt für das Projekt dieses Events, das erste Event eines Blocks für keines, so wie `--worktime` die Lücke dem Projekt der späteren Nachricht gibt. Die Sekunden der Projekte eines Blocks ergeben deshalb immer genau dessen `seconds`.
+
+**JSON.** Der Kopf hat die Felder eines Tags von `--workday --blocks` (`first`, `last`, `first_local`, `last_local`, `span_seconds`, `target_seconds`, `diff_seconds`, `block_seconds`, `break_seconds`, `weekend`, `holiday`, `sessions`, `human`, `agent`) und `block_gap_seconds`. `blocks` hat je Block `start`, `end`, `start_local`, `end_local`, `seconds`, `events`, `single`, dazu `pause_seconds` (die Lücke davor, 0 beim ersten), `human`, `agent`, `projects` (`project`, `seconds`, `human`, `agent`) und `sessions` (`id`, `title`, `project`, `first_event`, `start`, `end`, `human`, `agent`). `worktime` hat `raw_seconds` und `rounded_seconds` des Tags, `projects` je Projekt `raw_seconds`, `rounded_seconds`, `human` und `agent`, absteigend nach Zeit. Es gilt immer, und ein Test prüft es auf dem Demo-Archiv:
+
+- die Blöcke ergeben `block_seconds`, Blöcke plus Pausen die Spanne (`span_seconds`);
+- die Projekte eines Blocks ergeben seine `seconds`, ihre Events seine `events`;
+- `human` plus `agent` der Blöcke und der Projekte ergeben die Events des Tags;
+- die Projekte ergeben `worktime.raw_seconds`, und das ist die Tageszeit von `--worktime`;
+- alles ist gleich der Ausgabe von `--workday --blocks` und `--worktime` für denselben Tag.
+
+Im [MCP-Tool](#mcp) `stats` heißt der Parameter `day`.
 
 ### Arbeitszeit je Projekt: `--worktime` { #stats-worktime }
 

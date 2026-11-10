@@ -8,6 +8,11 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.7.0 (unveröffentlicht)
 
+### Tagesansicht ([#276](https://github.com/seletz/total-recall/issues/276))
+
+- **`stats --day DATUM`:** ein Tag chronologisch, als Text und als JSON: der Kopf wie bei `--workday --blocks` (Spanne, `block_seconds`, `break_seconds`, Soll, Saldo, Events nach Mensch und Agent), die Blöcke mit Start, Ende, Sekunden, Events und `single`, je Block die Projekte mit Sekunden und die Sessions, dazu die Projekte des Tags mit der Zeit von `--worktime`. Es gibt keine zweite Rechnung (neues Paket `internal/dayreport` über `store.Workday`, `store.Timeline` und `worktime.Compute`); die Invarianten prüft ein Test auf dem Demo-Archiv. `--all-events` wie bei `--workday`. Siehe [`--day`](10-befehle.md#stats-day). Neue Option, Minor.
+- **MCP:** das Tool `stats` hat den Parameter `day`; die Seitenliste ist `blocks`.
+
 ### Anhänge finden ([#272](https://github.com/seletz/total-recall/issues/272))
 
 - **`search --has-attachment[=image|document]` und `sessions --has-attachment[=…]`** finden Events und Sessions mit einem Bild oder Dokument, kombinierbar mit `--actor`, `--since`/`--until` und `--project`. `sessions` hat dafür neu `--project` und `--actor` (mit `--has-attachment`). Die Art folgt mit `=`.
