@@ -150,7 +150,7 @@ The `'utc'` modifier interprets the literal in the machine's time zone. Date-onl
 
 ### Input kind
 
-`events.input_kind` tells, for `actor = 'human'`, how the input reached the harness: `typed` (keyboard of the session), `pasted` (contains a pasted block or image, for example a review handed over from another session), `bash` (`!cmd` input) or `remote` (sent through Remote Control). NULL = unknown (the event has no raw line, so typed cannot be told from remote) or not a human input. Do not guess from the text with `LIKE` patterns: filter `input_kind IN ('typed', 'remote')` for what a person wrote, and count NULL on its own, never as typed. `show --json` and `search --json` carry the field as `input_kind`; `show` in text prints it behind the actor, `human (pasted)`.
+`events.input_kind` tells, for `actor = 'human'`, how the input reached the harness: `typed` (keyboard of the session), `pasted` (contains a pasted block, image or document, also as a bare placeholder such as `[Image #2]`, for example a review handed over from another session), `bash` (`!cmd` input) or `remote` (sent through Remote Control). Dictation into the input field counts as typed (the harness cannot tell it from typing). NULL = unknown (the event has no raw line, so typed cannot be told from remote) or not a human input. Do not guess from the text with `LIKE` patterns: filter `input_kind IN ('typed', 'remote')` for what a person wrote, and count NULL on its own, never as typed. `show --json` and `search --json` carry the field as `input_kind`; `show` in text prints it behind the actor, `human (pasted)`.
 
 ### Subagents
 

@@ -1,11 +1,15 @@
 // Package inputkind tells how a human input reached the harness: typed,
 // pasted, as !cmd bash input or through Remote Control. The rules are
 // shared by the adapter (ingest) and the schema migration that fills
-// existing events, so both give the same answer.
+// existing events, so both give the same answer. Pasted covers a
+// <pasted_content> block and a pasted image or document (its marker or
+// placeholder in the text); dictation into the input field is typed, the
+// harness does not tell it from typing.
 package inputkind
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	"github.com/seletz/total-recall/internal/model"
@@ -26,10 +30,28 @@ func Of(text string, remote bool) model.InputKind {
 		return model.InputBash
 	case remote:
 		return model.InputRemote
-	case hasPaste(text):
+	case hasPaste(text), hasAttachment(text):
 		return model.InputPasted
 	}
 	return model.InputTyped
+}
+
+// attachmentMark matches the marker of a pasted image or document: the
+// harness's own "[Image #2]" in the text of the message, and the
+// placeholder the adapter writes for an image or document block
+// ("[image image/png 84.5 KiB]", "[document application/pdf]"). Matched
+// anywhere in the text, so own text next to the attachment still counts.
+var attachmentMark = regexp.MustCompile(`(?i)\[(?:image #[0-9]+|(?:image|document) [a-z]+/[^\]\n]*)\]`)
+
+// bareAttachment is the placeholder of a block without media type ("[image]",
+// "[document]"); only the whole text counts, a bracketed word in a sentence
+// does not.
+var bareAttachment = regexp.MustCompile(`(?i)^\s*\[(?:image|document)\]\s*$`)
+
+// hasAttachment reports whether text carries the marker of a pasted image or
+// document.
+func hasAttachment(text string) bool {
+	return attachmentMark.MatchString(text) || bareAttachment.MatchString(text)
 }
 
 // hasPaste reports whether text contains a complete pasted block: an
