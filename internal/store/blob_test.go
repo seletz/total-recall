@@ -321,3 +321,31 @@ func TestEventsAttachmentsMany(t *testing.T) {
 		t.Errorf("EventsAttachments(2000 ids) = %+v, %v", got, err)
 	}
 }
+
+func TestSessionAttachmentList(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess, evs := attachedEvents()
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.SessionAttachmentList(ctx, "claude:s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// In transcript order: the events by sequence, the attachments of an
+	// event by position.
+	var order []string
+	for _, a := range got {
+		order = append(order, a.EventID+"/"+strings.Split(a.MediaType, "/")[1])
+	}
+	want := "claude:e1/png,claude:e1/png,claude:e2/png,claude:e2/pdf"
+	if strings.Join(order, ",") != want {
+		t.Errorf("order = %v, want %s", order, want)
+	}
+	if got[3].Bytes != int64(len(testPDF)) || got[3].Position != 1 {
+		t.Errorf("last = %+v", got[3])
+	}
+	if got, err := s.SessionAttachmentList(ctx, "claude:none"); err != nil || len(got) != 0 {
+		t.Errorf("unknown session = %+v, %v", got, err)
+	}
+}

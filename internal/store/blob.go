@@ -325,6 +325,36 @@ func (s *Store) SessionAttachments(ctx context.Context, sessionID string) (map[s
 	return out, rows.Err()
 }
 
+// SessionAttachment is an attachment of a session with the event it
+// belongs to.
+type SessionAttachment struct {
+	EventID string
+	EventAttachment
+}
+
+// SessionAttachmentList returns every attachment of a session in
+// transcript order (the events by sequence, the attachments of an event
+// by position): metadata only, no data. The attachment view pages
+// through it.
+func (s *Store) SessionAttachmentList(ctx context.Context, sessionID string) ([]SessionAttachment, error) {
+	rows, err := s.db().QueryContext(ctx, `SELECT eb.event_id, eb.position, b.sha256, b.media_type, b.bytes, length(b.data)
+		FROM event_blobs eb JOIN events e ON e.id = eb.event_id JOIN blobs b ON b.sha256 = eb.sha256
+		WHERE e.session_id = ? ORDER BY e.seq, eb.position`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("store: session attachment list: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []SessionAttachment
+	for rows.Next() {
+		var a SessionAttachment
+		if err := rows.Scan(&a.EventID, &a.Position, &a.SHA256, &a.MediaType, &a.Bytes, &a.StoredBytes); err != nil {
+			return nil, fmt.Errorf("store: session attachment list: %w", err)
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // eventsAttachmentsBatch is how many event IDs one query takes, far below
 // SQLite's limit on variables.
 const eventsAttachmentsBatch = 500
