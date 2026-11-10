@@ -31,6 +31,11 @@ type dayWorktimeJSON struct {
 		Day     string `json:"day"`
 		Raw     int    `json:"raw_seconds"`
 		Rounded int    `json:"rounded_seconds"`
+		Cats    []struct {
+			Category string `json:"category"`
+			Raw      int    `json:"raw_seconds"`
+			Rounded  int    `json:"rounded_seconds"`
+		} `json:"categories"`
 	} `json:"days"`
 }
 
@@ -44,8 +49,13 @@ func TestStatsDayDemo(t *testing.T) {
 		wd := decode[dayWorkdayJSON](t, e.mustRun(t, append([]string{"--db", db, "stats", "--workday", "--blocks", "--json", "--month", "2026-10"}, mode...)...))
 		wt := decode[dayWorktimeJSON](t, e.mustRun(t, "--db", db, "stats", "--worktime", "--json", "--month", "2026-10"))
 		worktime := map[string][2]int{}
+		cats := map[string]map[string][2]int{}
 		for _, d := range wt.Days {
 			worktime[d.Day] = [2]int{d.Raw, d.Rounded}
+			cats[d.Day] = map[string][2]int{}
+			for _, c := range d.Cats {
+				cats[d.Day][c.Category] = [2]int{c.Raw, c.Rounded}
+			}
 		}
 		active := 0
 		for _, w := range wd.Days {
@@ -95,6 +105,19 @@ func TestStatsDayDemo(t *testing.T) {
 			if d.Worktime.RawSeconds != want[0] || raw != want[0] || d.Worktime.RoundedSeconds != want[1] {
 				t.Errorf("%s: worktime %d/%d (projects %d), want %d/%d", w.Day, d.Worktime.RawSeconds, d.Worktime.RoundedSeconds, raw, want[0], want[1])
 			}
+			// The categories are what adds up to the day, raw and rounded,
+			// and are the cells of --worktime.
+			craw, crounded := 0, 0
+			for _, c := range d.Categories {
+				craw += c.RawSeconds
+				crounded += c.RoundedSeconds
+				if got, ok := cats[w.Day][c.Category]; !ok || got != [2]int{c.RawSeconds, c.RoundedSeconds} {
+					t.Errorf("%s: category %s %d/%d, --worktime has %v", w.Day, c.Category, c.RawSeconds, c.RoundedSeconds, got)
+				}
+			}
+			if len(d.Categories) != len(cats[w.Day]) || craw != want[0] || crounded != want[1] {
+				t.Errorf("%s: categories %d (%d/%d s), want %d cells and %d/%d s", w.Day, len(d.Categories), craw, crounded, len(cats[w.Day]), want[0], want[1])
+			}
 			if ph != d.Human || pa != d.Agent {
 				t.Errorf("%s: project events %d/%d, want %d/%d", w.Day, ph, pa, d.Human, d.Agent)
 			}
@@ -108,7 +131,7 @@ func TestStatsDayDemo(t *testing.T) {
 func TestStatsDayText(t *testing.T) {
 	e, db := chartEnv(t)
 	out := e.mustRun(t, "--db", db, "stats", "--day", "2026-10-29")
-	for _, want := range []string{"2026-10-29", "span", "PROJECT", "1. "} {
+	for _, want := range []string{"2026-10-29", "span", "PROJECT", "CATEGORY", "total", "1. "} {
 		if !strings.Contains(out, want) {
 			t.Errorf("text lacks %q:\n%s", want, out)
 		}
