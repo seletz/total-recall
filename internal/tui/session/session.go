@@ -27,6 +27,16 @@ type Open struct {
 	Terms     []string
 }
 
+// OpenAttachments is sent by the view when the user asks for the
+// attachments of the session (the attachment view is above this package,
+// so the app turns it into that view's Open): EventID is the event whose
+// attachment is marked first, Title the name of the session.
+type OpenAttachments struct {
+	SessionID string
+	EventID   string
+	Title     string
+}
+
 // Back is sent by the view when the user presses esc; the app returns to
 // the previous view.
 type Back struct{}
@@ -39,6 +49,9 @@ type loadedMsg struct {
 	events  []model.Event
 	all     bool
 	err     error
+	// atts are the attachments of the session in transcript order; a
+	// failed lookup only leaves the marks out.
+	atts []store.SessionAttachment
 }
 
 // chromeHeight is the number of chrome rows inside the body: two header
@@ -67,6 +80,11 @@ type Model struct {
 	err     error
 	session store.SessionInfo
 	events  []model.Event
+	// attached counts the attachments by event ID, for the events that
+	// are listed (with tools off, the events of tool results are not);
+	// attachedEvents lists those events in transcript order.
+	attached       map[string][]store.SessionAttachment
+	attachedEvents []string
 
 	// keep is the event to return to after a load with the tools toggled:
 	// its ID, its time for the fallback when it is no longer listed, and
@@ -123,8 +141,11 @@ func (m Model) SessionID() string {
 // Init implements tea.Model.
 func (Model) Init() tea.Cmd { return nil }
 
-// ShortHelp implements help.KeyMap.
-func (m Model) ShortHelp() []key.Binding { return m.keys.ShortHelp() }
+// ShortHelp implements help.KeyMap. The attachment key is named only in a
+// session that has attachments.
+func (m Model) ShortHelp() []key.Binding {
+	return m.keys.ShortHelp(len(m.attachedEvents) > 0)
+}
 
 // FullHelp implements help.KeyMap.
 func (m Model) FullHelp() [][]key.Binding { return m.keys.FullHelp() }
@@ -170,6 +191,8 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Copy):
 		m.notice = "copied"
 		return m, tea.SetClipboard(m.session.ID)
+	case key.Matches(msg, m.keys.Attach):
+		return m.attach()
 	case key.Matches(msg, m.keys.Tools):
 		m.all = !m.all
 		m.refresh.on = false // a reload in flight is superseded
@@ -247,6 +270,9 @@ func (m Model) load() (tea.Model, tea.Cmd) {
 		}
 		res.session = s
 		res.events, res.err = st.Events(ctx, s.ID, all)
+		if res.err == nil {
+			res.atts, _ = st.SessionAttachmentList(ctx, s.ID)
+		}
 		return res
 	}
 }
@@ -262,6 +288,7 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 	m.err = msg.err
 	m.loaded = msg.err == nil
 	m.session, m.events, m.all = msg.session, msg.events, msg.all
+	m.setAttached(msg.atts)
 	refresh := m.refresh.on
 	m.refresh.on = false
 	if refresh && m.loaded {
@@ -309,6 +336,54 @@ func (m Model) loadedResult(msg loadedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.render()
 	return m, nil
+}
+
+// setAttached groups the attachments by event, keeping those of the
+// events that are listed.
+func (m *Model) setAttached(atts []store.SessionAttachment) {
+	m.attached, m.attachedEvents = nil, nil
+	listed := make(map[string]bool, len(m.events))
+	for _, e := range m.events {
+		listed[e.ID] = true
+	}
+	for _, a := range atts {
+		if !listed[a.EventID] {
+			continue
+		}
+		if m.attached == nil {
+			m.attached = map[string][]store.SessionAttachment{}
+		}
+		if len(m.attached[a.EventID]) == 0 {
+			m.attachedEvents = append(m.attachedEvents, a.EventID)
+		}
+		m.attached[a.EventID] = append(m.attached[a.EventID], a)
+	}
+}
+
+// attach emits OpenAttachments for the attachments of the session, marked at
+// the event shown: the marked event when it has attachments, else the
+// first event with some at or below the first visible line, else the last
+// one above it. Without attachments it only says so.
+func (m Model) attach() (tea.Model, tea.Cmd) {
+	if len(m.attachedEvents) == 0 {
+		m.notice = "no attachments"
+		return m, nil
+	}
+	id := m.attachedEvents[len(m.attachedEvents)-1]
+	switch {
+	case m.current >= 0 && len(m.attached[m.events[m.current].ID]) > 0:
+		id = m.events[m.current].ID
+	default:
+		top := m.eventOf(m.vp.YOffset())
+		for _, cand := range m.attachedEvents {
+			if i := m.indexOf(cand); i >= top {
+				id = cand
+				break
+			}
+		}
+	}
+	o := OpenAttachments{SessionID: m.session.ID, EventID: id, Title: m.session.DisplayName()}
+	return m, func() tea.Msg { return o }
 }
 
 // refreshed applies a reload of the same session (see Reload): the mark

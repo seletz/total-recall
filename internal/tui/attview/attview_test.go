@@ -124,7 +124,7 @@ func TestOpenExternal(t *testing.T) {
 	if got := frame(m); !strings.Contains(got, "opened /tmp/x/") {
 		t.Errorf("status lacks the path:\n%s", got)
 	}
-	m = send(t, m, tuitest.Key("right"), tuitest.Key("enter"))
+	send(t, m, tuitest.Key("right"), tuitest.Key("enter"))
 	if !strings.HasSuffix(op.name, ".pdf") {
 		t.Errorf("second attachment opened as %q", op.name)
 	}
@@ -229,7 +229,7 @@ func TestKeysCanBeRebound(t *testing.T) {
 	if op.name != "" {
 		t.Errorf("o no longer opens: %q", op.name)
 	}
-	m = send(t, m, tuitest.Key("x"))
+	send(t, m, tuitest.Key("x"))
 	if op.name == "" {
 		t.Error("x opens")
 	}

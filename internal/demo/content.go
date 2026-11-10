@@ -339,7 +339,7 @@ func featured() []session {
 		{
 			id: "7d1e4c20-0008-4000-8000-000000000008", cwd: kompass.cwd, title: "Höhenprofil prüfen",
 			turns: []turn{
-				{at: at(time.October, 29, 14, 20),
+				{at: at(time.October, 28, 9, 6),
 					prompt: "Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.",
 					attached: []testfixture.Attached{
 						{Kind: "image", MediaType: "image/png", Data: profileImage()},

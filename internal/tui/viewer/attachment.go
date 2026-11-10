@@ -16,6 +16,7 @@ import (
 	"github.com/seletz/total-recall/internal/docmeta"
 	"github.com/seletz/total-recall/internal/imgtext"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/session"
 )
 
 // maxPixels is the largest image the viewer decodes (width × height); a
@@ -27,7 +28,7 @@ const maxPixels = 40_000_000
 const defaultRows = 24
 
 // AttachmentMark marks an event with attachments in the lists and views.
-const AttachmentMark = "▣"
+const AttachmentMark = session.AttachmentMark
 
 // SizeLabel formats a byte count: "29 B", "1.2 KiB", "3.4 MiB".
 func SizeLabel(n int64) string {

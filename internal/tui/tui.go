@@ -13,7 +13,9 @@
 // session detail is a layer above the views:
 // opened by the search view's OpenSession, closed by its Back, it replaces
 // the body while the search view keeps its state underneath. The memory
-// view (package memview) is a second such layer, opened by a memory hit.
+// view (package memview) is a second such layer, opened by a memory hit,
+// and the attachment view (package attview) a third, opened from an event
+// with images or documents in the search or in the session.
 //
 // Reloading: every Options.Reload the app asks the store whether anything
 // changed (store.Poll, one PRAGMA, no queries otherwise). When it did, the
@@ -38,6 +40,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
+	"github.com/seletz/total-recall/internal/tui/attview"
 	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
@@ -223,8 +226,13 @@ func New(opts Options) (App, error) {
 	if opts.Store != nil {
 		memLoader = opts.Store
 	}
-	a := App{opts: opts, views: views, active: active, detail: detail, memory: memview.New(memLoader, opts.Location, opts.Keys), keys: newKeyMap(opts.Keys), th: theme.New(true),
-		stale: make([]bool, len(views)+2), updated: opts.Now()}
+	var attLoader attview.Loader
+	if opts.Store != nil {
+		attLoader = opts.Store
+	}
+	attach := attview.New(attview.Options{Loader: attLoader, Location: opts.Location, External: &attview.SystemViewer{}, Keys: opts.Keys})
+	a := App{opts: opts, views: views, active: active, detail: detail, memory: memview.New(memLoader, opts.Location, opts.Keys), attach: attach,
+		keys: newKeyMap(opts.Keys), th: theme.New(true), stale: make([]bool, len(views)+3), updated: opts.Now()}
 	if opts.Store != nil {
 		// The baseline of the change check is taken before the views load
 		// for the first time, so nothing written in between is missed.

@@ -15,10 +15,10 @@
          │ enter   open     r  repo       m memory on/off         3 activity    q   quit │
          │ ↑/k     up       ^r raw fts    p pin project of hit    4 config      ^c  quit │
          │ ↓/j     down                   P choose project        R reload               │
+         │                                v view attachments                             │
          │                                                                               │
          │ esc or ? closes this help                                                     │
          ╰───────────────────────────────────────────────────────────────────────────────╯
-
 
 
 

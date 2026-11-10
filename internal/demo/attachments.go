@@ -28,17 +28,18 @@ func profileImage() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, profileW, profileH))
 	for y := 0; y < profileH; y++ {
 		for x := 0; x < profileW; x++ {
-			// A sky that gets lighter towards the horizon.
-			img.Set(x, y, color.RGBA{R: uint8(30 + y*2), G: uint8(60 + y*3), B: uint8(110 + y*2), A: 255})
+			// A dark sky that gets lighter towards the horizon.
+			img.Set(x, y, color.RGBA{R: uint8(10 + y), G: uint8(25 + y*2), B: uint8(60 + y*3), A: 255})
 		}
 	}
 	for x := 0; x < profileW; x++ {
 		top := profileAt(x)
 		for y := top; y < profileH; y++ {
-			shade := uint8(min(60+(y-top)*4, 140))
-			img.Set(x, y, color.RGBA{R: 40, G: shade + 40, B: 70, A: 255})
+			// The ground is brightest below the line and fades downwards.
+			g := max(235-(y-top)*5, 120)
+			img.Set(x, y, color.RGBA{R: uint8(g * 6 / 10), G: uint8(g), B: uint8(g / 2), A: 255})
 		}
-		img.Set(x, top, color.RGBA{R: 250, G: 240, B: 200, A: 255})
+		img.Set(x, top, color.RGBA{R: 255, G: 250, B: 210, A: 255})
 	}
 	var b bytes.Buffer
 	if err := png.Encode(&b, img); err != nil {
