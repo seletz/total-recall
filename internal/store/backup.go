@@ -420,7 +420,13 @@ func compareBackups(a, b backupFile) int {
 // backupFiles returns the backup copies in dir, newest first; loc is the
 // time zone of their names. A missing dir yields no files.
 func backupFiles(dir string, loc *time.Location) ([]backupFile, error) {
-	ents, err := os.ReadDir(dir)
+	return backupFilesIn(dir, loc, os.ReadDir)
+}
+
+// backupFilesIn is backupFiles with the directory listing given, so a test
+// can make it fail the way the system does.
+func backupFilesIn(dir string, loc *time.Location, readDir func(string) ([]os.DirEntry, error)) ([]backupFile, error) {
+	ents, err := readDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -498,7 +504,11 @@ func PruneBackups(dir string, keepDaily, keepMonthly int, loc *time.Location) ([
 // zone of the names. path is empty if there is none (also if dir does not
 // exist).
 func LastBackup(dir string, loc *time.Location) (path string, at time.Time, err error) {
-	files, err := backupFiles(dir, loc)
+	return lastBackup(dir, loc, os.ReadDir)
+}
+
+func lastBackup(dir string, loc *time.Location, readDir func(string) ([]os.DirEntry, error)) (path string, at time.Time, err error) {
+	files, err := backupFilesIn(dir, loc, readDir)
 	if err != nil || len(files) == 0 {
 		return "", time.Time{}, err
 	}
