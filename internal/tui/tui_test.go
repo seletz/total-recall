@@ -692,12 +692,12 @@ func TestDayView(t *testing.T) {
 	}{
 		{"enter opens the selected day", []string{"enter"}, []string{"[3 activity] › day", "Sun 2026-06-07", "no activity on this day"}, nil},
 		{"selection moves", []string{"K", "enter"}, []string{"› day", "Sat 2026-06-06", "weekend"}, nil},
-		{"a workday", []string{"K", "K", "K", "K", "K", "K", "enter"}, []string{"Mon 2026-06-01", "first ", "projects", "kompass"}, nil},
+		{"a workday", []string{"K", "K", "K", "K", "K", "K", "enter"}, []string{"Mon 2026-06-01", "span ", "projects", "kompass"}, nil},
 		{"previous and next day", []string{"enter", "[", "[", "]"}, []string{"Sat 2026-06-06"}, []string{"Sun 2026-06-07"}},
 		{"esc returns to the activity", []string{"K", "K", "K", "K", "K", "K", "enter", "esc"}, []string{"[3 activity]", "▸Mon 2026-06-01"}, []string{"› day"}},
 		{"back selects the day last shown", []string{"K", "enter", "[", "esc"}, []string{"▸Fri 2026-06-05"}, []string{"› day"}},
-		{"session from a block", []string{"K", "K", "K", "K", "K", "K", "enter", "enter"}, []string{"› day › session"}, []string{"projects"}},
-		{"esc from the session returns to the day", []string{"K", "K", "K", "K", "K", "K", "enter", "enter", "esc"}, []string{"[3 activity] › day", "Mon 2026-06-01", "projects"}, []string{"› session"}},
+		{"session from a block", []string{"K", "K", "K", "K", "K", "K", "enter", "enter", "enter"}, []string{"› day › session"}, []string{"projects"}},
+		{"esc from the session returns to the day", []string{"K", "K", "K", "K", "K", "K", "enter", "enter", "enter", "esc"}, []string{"[3 activity] › day", "Mon 2026-06-01", "projects"}, []string{"› session"}},
 		{"number key leaves", []string{"enter", "2"}, []string{"[2 stats]"}, []string{"› day"}},
 		{"help", []string{"enter", "?"}, []string{"keys: day", "previous day"}, nil},
 	}

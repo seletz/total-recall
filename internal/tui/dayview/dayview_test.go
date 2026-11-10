@@ -76,7 +76,7 @@ func TestShowsTheNumbersOfStats(t *testing.T) {
 			frame := plain(open(t, m, d.Label, human))
 			loc := demo.Location
 			want := []string{
-				"first " + d.FirstClock(loc), "last " + d.LastClock(loc), "span " + store.FormatSpan(d.Span()),
+				d.FirstClock(loc) + "–" + d.LastClock(loc), "span " + store.FormatSpan(d.Span()),
 				"work " + store.FormatSpan(d.BlockSum()), "breaks " + store.FormatSpan(d.BreakSum()),
 			}
 			for _, b := range d.Blocks {
@@ -169,13 +169,22 @@ func TestBackAndOpenSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// enter on the block opens the first session at its first event
-	_, cmd = m.Update(tuitest.Key("enter"))
+	// enter on a block with several sessions lists them, a second enter (the
+	// block is expanded) opens the first at its first event
 	first := rep.Blocks[0].Sessions[0]
-	if o, ok := cmd().(OpenSession); !ok || o.SessionID != first.SessionID || o.EventID != first.FirstEvent {
-		t.Fatalf("enter on block: %#v, want %+v", cmd(), first)
+	if len(rep.Blocks[0].Sessions) < 2 {
+		t.Fatal("the first block of the day has one session")
 	}
-	// down to the first session row; enter opens that one
+	m2, cmd := m.Update(tuitest.Key("enter"))
+	if cmd != nil || len(m2.(Model).items()) != len(m.items())+len(rep.Blocks[0].Sessions) {
+		t.Fatalf("enter on a collapsed block: cmd %v, %d items", cmd, len(m2.(Model).items()))
+	}
+	m = m2.(Model)
+	_, cmd = m.Update(tuitest.Key("enter"))
+	if o, ok := cmd().(OpenSession); !ok || o.SessionID != first.SessionID || o.EventID != first.FirstEvent {
+		t.Fatalf("enter on the expanded block: %#v, want %+v", cmd(), first)
+	}
+	// j moves to the first session row; enter opens that one
 	m = tuitest.Send(t, m, tuitest.Key("j")).(Model)
 	_, cmd = m.Update(tuitest.Key("enter"))
 	if o, ok := cmd().(OpenSession); !ok || o.SessionID != first.SessionID {
@@ -184,7 +193,7 @@ func TestBackAndOpenSession(t *testing.T) {
 	// a click on a row opens it, a click on the arrows moves the day
 	l := m.layout()
 	for y, r := range l.rows {
-		if r.item == 1 {
+		if r.item == m.cursor {
 			_, cmd = m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: 10, Y: l.bodyTop + y})
 			if o, ok := cmd().(OpenSession); !ok || o.SessionID != first.SessionID {
 				t.Fatalf("click on session: %#v", cmd())
@@ -192,9 +201,60 @@ func TestBackAndOpenSession(t *testing.T) {
 		}
 	}
 	_, prev, _ := m.title()
-	m2 := tuitest.Send(t, m, tea.MouseClickMsg{Button: tea.MouseLeft, X: prev.Start, Y: 0}).(Model)
-	if m2.Day().Format("2006-01-02") != "2026-10-28" {
-		t.Errorf("click on the arrow: %s", m2.Day().Format("2006-01-02"))
+	m3 := tuitest.Send(t, m, tea.MouseClickMsg{Button: tea.MouseLeft, X: prev.Start, Y: 0}).(Model)
+	if m3.Day().Format("2006-01-02") != "2026-10-28" {
+		t.Errorf("click on the arrow: %s", m3.Day().Format("2006-01-02"))
+	}
+}
+
+// TestExpandSessions: the sessions of a block are hidden until the block is
+// expanded with space or enter; the cursor stays on the block.
+func TestExpandSessions(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	rep, err := dayreport.Load(context.Background(), st, time.Date(2026, 10, 26, 0, 0, 0, 0, demo.Location), reportOptions(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	multi := -1
+	for i, b := range rep.Blocks {
+		if len(b.Sessions) > 1 {
+			multi = i
+			break
+		}
+	}
+	if multi < 0 {
+		t.Fatal("no block with several sessions")
+	}
+	m := open(t, view(t, st, 120, 40, true), "2026-10-26", true)
+	for i := 0; i < multi; i++ {
+		m = tuitest.Send(t, m, tuitest.Key("j")).(Model)
+	}
+	title := rep.Blocks[multi].Sessions[1].Title
+	if title == "" || strings.Contains(plain(m), title) {
+		t.Fatalf("collapsed view shows the session %q (or it has no title)", title)
+	}
+	n := len(m.items())
+	for _, k := range []string{"space", "enter"} {
+		m = tuitest.Send(t, m, tuitest.Key(k)).(Model)
+		if got := len(m.items()); got != n+len(rep.Blocks[multi].Sessions) || !strings.Contains(plain(m), title) {
+			t.Fatalf("%s did not list the sessions: %d items (want %d), title %q:\n%s", k, got, n+len(rep.Blocks[multi].Sessions), title, plain(m))
+		}
+		if it := m.items()[m.cursor]; it.block != multi || it.session != -1 {
+			t.Fatalf("%s moved the cursor to %+v", k, it)
+		}
+		// hide again with space (the second round expands with enter)
+		if k == "space" {
+			m = tuitest.Send(t, m, tuitest.Key("space")).(Model)
+			if len(m.items()) != n || strings.Contains(plain(m), title) {
+				t.Fatal("space did not hide the sessions")
+			}
+		}
+	}
+	// on a session row space hides the block's sessions and selects the block
+	m = tuitest.Send(t, m, tuitest.Key("j")).(Model)
+	m = tuitest.Send(t, m, tuitest.Key("space")).(Model)
+	if it := m.items()[m.cursor]; len(m.items()) != n || it.block != multi || it.session != -1 {
+		t.Fatalf("space on a session: %d items, cursor %+v", len(m.items()), it)
 	}
 }
 

@@ -129,11 +129,13 @@ var Shots = []Shot{
 	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"},
 		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende; kompass (blau), wetterwarte (violett) und fahrtenbuch (türkis) mit Farben aus [[project]]"},
 	{Name: "day", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter"},
-		Caption: "Tagesansicht: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo, die zwei Blöcke des Tages mit Balken in Projektfarben, Projekten und Sessions, darunter die Projekte mit Zeit und Events"},
+		Caption: "Tagesansicht: eine ruhige Kopfzeile, der Tag als Zeitstrahl (der gewählte Block in Projektfarben), die Blöcke als Liste mit Projekten, darunter Projekte und Kategorien mit Zeit"},
+	{Name: "day-sessions", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter", "space"},
+		Caption: "Tagesansicht mit aufgeklappten Sessions des gewählten Blocks (Leertaste oder Enter)"},
 	{Name: "day-all", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter", "h"},
 		Caption: "Tagesansicht mit h über alle Events: die Agent-Events kommen zu den eigenen Nachrichten hinzu, Blöcke und Zeiten ändern sich"},
 	{Name: "day-compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter"},
-		Caption: "Tagesansicht bei 80×24: ohne Balken, Zeilen werden gekürzt"},
+		Caption: "Tagesansicht bei 80×24: ohne Zeitstrahl, Zeilen werden gekürzt"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
 	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},
@@ -237,11 +239,13 @@ func RenderAll(env *Env) ([]Frame, error) {
 }
 
 // keyPress builds the key press for a name: a single character or one of
-// enter, tab, shift+tab, esc, right.
+// enter, space, tab, shift+tab, esc, right.
 func keyPress(name string) tea.KeyPressMsg {
 	switch name {
 	case "enter":
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "space":
+		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 	case "tab":
 		return tea.KeyPressMsg{Code: tea.KeyTab}
 	case "shift+tab":
