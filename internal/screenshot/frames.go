@@ -98,6 +98,8 @@ var Shots = []Shot{
 		Keys: []string{"tab", "m", "e", "enter", "t", "j"}, Caption: "Zeitleiste eines Projekts: was wann hinzukam, sich änderte oder gelöscht wurde, rechts der Diff der markierten Änderung"},
 	{Name: "search-attachment", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,
 		Keys: []string{"tab"}, Caption: "Treffer mit Anhang: in der Liste die Markierung ▣ mit der Zahl der Anhänge, in der Vorschau eine Zeile je Anhang, in der Fußzeile die Taste v"},
+	{Name: "search-attachment-filter", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "", Now: searchNow,
+		Keys: []string{"tab", "s", "i"}, Caption: "Filter „nur mit Anhang“ (i) bei leerer Suche: die neuesten Events und Sessions mit Anhang, ohne Suchwort; der Filter steht rechts in der Eingabezeile"},
 	{Name: "attachment-image", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,
 		Keys: []string{"tab", "v"}, Caption: "Anhang-Viewer: ein Bild als Text (Schattierung und Farbe je Zelle), oben die Reiter der Anhänge der Session, unten der Befehl total-recall blob"},
 	{Name: "attachment-document", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "image", Now: searchNow,

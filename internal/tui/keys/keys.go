@@ -73,6 +73,7 @@ const (
 	SearchPin         = "search_pin"
 	SearchProject     = "search_project"
 	SearchAttach      = "search_attach"
+	SearchHasAttach   = "search_has_attachment"
 
 	SessionUp       = "session_up"
 	SessionDown     = "session_down"
@@ -174,6 +175,7 @@ var Actions = []Action{
 	{SearchPin, Search, []string{"p"}, "pin project of hit"},
 	{SearchProject, Search, []string{"P"}, "choose project"},
 	{SearchAttach, Search, []string{"v"}, "view attachments"},
+	{SearchHasAttach, Search, []string{"i"}, "attached"},
 
 	{SessionUp, Session, []string{"up", "k"}, "up"},
 	{SessionDown, Session, []string{"down", "j"}, "down"},

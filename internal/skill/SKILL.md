@@ -709,7 +709,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `weekday` | `Mon` … `Sun` |
 | `weekend` | |
 | `holiday` | name of the public holiday, else `null` |
-| `raw_seconds` | credited time of the day |
+| `raw_seconds` | credited time of the day; exactly the sum of its categories |
 | `rounded_seconds` | sum of the rounded categories |
 | `categories` | categories with time on the day, sorted by name; empty without activity |
 
@@ -718,8 +718,8 @@ Working time per day and category, estimated from the gaps between the user's ow
 | field | meaning |
 |---|---|
 | `category` | |
-| `raw_seconds` | credited time |
-| `rounded_seconds` | time to book |
+| `raw_seconds` | credited time; exactly the sum of its projects and of its sessions, whole seconds |
+| `rounded_seconds` | time to book; sums over cells only where rounding happens (`rounding_scope`), see the projects |
 | `projects` | projects of the category with time on the day, sorted by name |
 | `sessions` | sessions of the category on the day, in order of their first message; titles are the template for booking texts |
 | `refs` | issue and pull-request references of all sessions of the cell, from the session titles and the user's own messages only (never agent or tool output): `#31`, `PR #32`, `owner/repo#123`, `PR owner/repo#124`; deduplicated, sorted by repository and number; `[]` without any |
@@ -733,7 +733,7 @@ Working time per day and category, estimated from the gaps between the user's ow
 | `key` | git root, else working directory |
 | `remote` | remote URL, `null` without a repository |
 | `raw_seconds` | |
-| `rounded_seconds` | the project rounded alone; with `rounding_scope` `category` the projects can sum to more than the category |
+| `rounded_seconds` | the project rounded alone, **not summable** with `rounding_scope` `category` (there only the category is rounded, and the projects can sum to more or less than it); with `project` the category is their sum |
 | `refs` | references of the project's sessions, as in the cell |
 
 #### `stats --json --worktime` days[].categories[].sessions[]
