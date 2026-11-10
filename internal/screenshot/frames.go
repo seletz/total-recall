@@ -128,6 +128,12 @@ var Shots = []Shot{
 		Caption: "Aktivität je Tag, mit o der neueste Tag oben"},
 	{Name: "activity-projects", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"p"},
 		Caption: "Aktivität je Tag, die Balken in Projektfarben mit Legende; kompass (blau), wetterwarte (violett) und fahrtenbuch (türkis) mit Farben aus [[project]]"},
+	{Name: "day", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter"},
+		Caption: "Tagesansicht: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo, die zwei Blöcke des Tages mit Balken in Projektfarben, Projekten und Sessions, darunter die Projekte mit Zeit und Events"},
+	{Name: "day-all", Width: Width, Height: Height, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter", "h"},
+		Caption: "Tagesansicht mit h über alle Events: die Agent-Events kommen zu den eigenen Nachrichten hinzu, Blöcke und Zeiten ändern sich"},
+	{Name: "day-compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow, Keys: []string{"K", "K", "K", "K", "K", "enter"},
+		Caption: "Tagesansicht bei 80×24: ohne Balken, Zeilen werden gekürzt"},
 	{Name: "compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewActivity, Now: weekNow,
 		Caption: "Kompakte Ansicht bei 80×24"},
 	{Name: "help", Width: Width, Height: Height, Start: tui.ViewStats, Now: statsNow, Keys: []string{"?"},
@@ -179,11 +185,15 @@ func options(s Shot, env *Env) (tui.Options, error) {
 	if err != nil {
 		return tui.Options{}, fmt.Errorf("shot %s: %w", s.Name, err)
 	}
+	wt, err := env.Config.WorktimeSettings()
+	if err != nil {
+		return tui.Options{}, fmt.Errorf("shot %s: %w", s.Name, err)
+	}
 	opts := tui.Options{
 		Store: env.Store, Location: berlin, Now: func() time.Time { return now },
 		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, Images: tui.GraphicsText, NoMouse: true,
 		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: env.Home,
-		Config: env.Config, ConfigView: cv, Projects: projects,
+		Config: env.Config, ConfigView: cv, Projects: projects, Worktime: wt, BlockGap: env.Config.Work.BlockGap.Duration,
 		// A shot never waits for a reload tick: the renderer runs commands
 		// synchronously, and a tick would block it.
 		Tick: func(time.Duration, func(time.Time) tea.Msg) tea.Cmd { return nil },

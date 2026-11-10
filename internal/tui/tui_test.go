@@ -15,11 +15,13 @@ import (
 
 	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/holiday"
+	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 func TestParseGraphics(t *testing.T) {
@@ -661,4 +663,77 @@ func TestAttachmentView(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDayView drives the day view over the demo archive: opened from the
+// activity view by enter and by a click, a session opened from it, back
+// with esc to where it came from, the layer named in the tab.
+func TestDayView(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	week := time.Date(2026, 6, 7, 12, 0, 0, 0, demo.Location)
+	newApp := func() tea.Model {
+		app, err := New(Options{
+			Store: st, Start: ViewActivity, Now: func() time.Time { return week }, Location: demo.Location, DayStart: 4 * time.Hour,
+			Work:      store.WorkHours{Start: 9 * time.Hour, End: 17 * time.Hour, Target: 8 * time.Hour, Low: 6 * time.Hour, High: 9 * time.Hour, WeeklyLow: 32 * time.Hour, WeeklyHigh: 48 * time.Hour},
+			Holidays:  holiday.New("Baden-Württemberg"),
+			HumanOnly: true, BlockGap: 30 * time.Minute,
+			Worktime: worktime.Settings{MaxGap: 20 * time.Minute, MinCredit: 2 * time.Minute, Grid: 15 * time.Minute},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tuitest.Drive(t, app, tea.WindowSizeMsg{Width: 120, Height: 36})
+	}
+	tests := []struct {
+		name  string
+		steps []string
+		want  []string
+		not   []string
+	}{
+		{"enter opens the selected day", []string{"enter"}, []string{"[3 activity] › day", "Sun 2026-06-07", "no activity on this day"}, nil},
+		{"selection moves", []string{"K", "enter"}, []string{"› day", "Sat 2026-06-06", "weekend"}, nil},
+		{"a workday", []string{"K", "K", "K", "K", "K", "K", "enter"}, []string{"Mon 2026-06-01", "first ", "projects", "kompass"}, nil},
+		{"previous and next day", []string{"enter", "[", "[", "]"}, []string{"Sat 2026-06-06"}, []string{"Sun 2026-06-07"}},
+		{"esc returns to the activity", []string{"K", "K", "K", "K", "K", "K", "enter", "esc"}, []string{"[3 activity]", "▸Mon 2026-06-01"}, []string{"› day"}},
+		{"back selects the day last shown", []string{"K", "enter", "[", "esc"}, []string{"▸Fri 2026-06-05"}, []string{"› day"}},
+		{"session from a block", []string{"K", "K", "K", "K", "K", "K", "enter", "enter"}, []string{"› day › session"}, []string{"projects"}},
+		{"esc from the session returns to the day", []string{"K", "K", "K", "K", "K", "K", "enter", "enter", "esc"}, []string{"[3 activity] › day", "Mon 2026-06-01", "projects"}, []string{"› session"}},
+		{"number key leaves", []string{"enter", "2"}, []string{"[2 stats]"}, []string{"› day"}},
+		{"help", []string{"enter", "?"}, []string{"keys: day", "previous day"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newApp()
+			for _, s := range tt.steps {
+				m = tuitest.Send(t, m, tuitest.Key(s))
+			}
+			frame := tuitest.Frame(m)
+			for _, w := range tt.want {
+				if !strings.Contains(frame, w) {
+					t.Errorf("frame lacks %q:\n%s", w, frame)
+				}
+			}
+			for _, w := range tt.not {
+				if strings.Contains(frame, w) {
+					t.Errorf("frame has %q:\n%s", w, frame)
+				}
+			}
+		})
+	}
+	t.Run("click on a day", func(t *testing.T) {
+		m := newApp()
+		var y = -1
+		for i, line := range strings.Split(tuitest.Frame(m), "\n") {
+			if strings.Contains(line, "Mon 2026-06-01") {
+				y = i
+			}
+		}
+		if y < 0 {
+			t.Fatal("no row of Monday")
+		}
+		m = tuitest.Send(t, m, tea.MouseClickMsg{Button: tea.MouseLeft, X: 10, Y: y})
+		if f := tuitest.Frame(m); !strings.Contains(f, "› day") || !strings.Contains(f, "Mon 2026-06-01") {
+			t.Errorf("click did not open the day:\n%s", f)
+		}
+	})
 }

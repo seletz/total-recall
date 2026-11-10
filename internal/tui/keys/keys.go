@@ -33,6 +33,7 @@ const (
 	Attach   Context = "attach"
 	Stats    Context = "stats"
 	Activity Context = "activity"
+	Day      Context = "day"
 	Config   Context = "config"
 )
 
@@ -133,6 +134,16 @@ const (
 	ActivityOrder    = "activity_order"
 	ActivityUp       = "activity_up"
 	ActivityDown     = "activity_down"
+	ActivitySelUp    = "activity_select_up"
+	ActivitySelDown  = "activity_select_down"
+	ActivityOpen     = "activity_open"
+
+	DayUp    = "day_up"
+	DayDown  = "day_down"
+	DayPrev  = "day_prev"
+	DayNext  = "day_next"
+	DayOpen  = "day_open"
+	DayHuman = "day_human"
 
 	ConfigNext    = "config_next"
 	ConfigPrev    = "config_prev"
@@ -235,6 +246,16 @@ var Actions = []Action{
 	{ActivityOrder, Activity, []string{"o"}, "newest top/bottom"},
 	{ActivityUp, Activity, []string{"up", "k"}, "row above (scroll)"},
 	{ActivityDown, Activity, []string{"down", "j"}, "row below (scroll)"},
+	{ActivitySelUp, Activity, []string{"K", "shift+up"}, "select day above"},
+	{ActivitySelDown, Activity, []string{"J", "shift+down"}, "select day below"},
+	{ActivityOpen, Activity, []string{"enter"}, "open the selected day"},
+
+	{DayUp, Day, []string{"up", "k"}, "up"},
+	{DayDown, Day, []string{"down", "j"}, "down"},
+	{DayPrev, Day, []string{"left", ",", "["}, "previous day"},
+	{DayNext, Day, []string{"right", ".", "]"}, "next day"},
+	{DayOpen, Day, []string{"enter"}, "open session"},
+	{DayHuman, Day, []string{"h"}, "human/all events"},
 
 	{ConfigNext, Config, []string{"tab", "right"}, "next page"},
 	{ConfigPrev, Config, []string{"shift+tab", "left"}, "previous page"},
@@ -257,7 +278,7 @@ var Actions = []Action{
 var ForceQuit = key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp(Display("ctrl+c"), "quit"))
 
 // Contexts lists the contexts in catalogue order.
-var Contexts = []Context{Global, Search, Session, Memory, Attach, Stats, Activity, Config}
+var Contexts = []Context{Global, Search, Session, Memory, Attach, Stats, Activity, Day, Config}
 
 // ByContext groups the catalogue by context, keeping the order.
 func ByContext() map[Context][]Action {

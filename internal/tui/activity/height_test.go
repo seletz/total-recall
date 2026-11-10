@@ -78,7 +78,7 @@ func checkHeight(t *testing.T, m Model, prefix string) {
 	}
 	marked := 0
 	for _, l := range lines {
-		if strings.HasPrefix(l, marker) {
+		if strings.HasPrefix(l, marker) || strings.HasPrefix(l, selMarker) {
 			marked++
 		}
 	}

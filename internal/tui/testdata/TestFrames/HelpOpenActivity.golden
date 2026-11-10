@@ -8,21 +8,21 @@
 
 
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────
-──╮
+─────────────────────────────────╮
 │ keys: activity
 │
 │
 │
-│ d one day             ←/,/[ earlier                s   summary figures       1 search      ?
-help │
-│ w one week            →/./] later                  p   by project            2 stats       esc
-back │
-│ m one month           c     this day/week/month    o   newest top/bottom     3 activity    q
-quit │
-│ h human/all events    l     last day/week/month    ↑/k row above (scroll)    4 config      ^c
-quit │
-│                                                    ↓/j row below (scroll)    R reload
-│
+│ d one day             ←/,/[ earlier                s   summary figures       K/⇧↑  select day
+above         1 search      ?   help │
+│ w one week            →/./] later                  p   by project            J/⇧↓  select day
+below         2 stats       esc back │
+│ m one month           c     this day/week/month    o   newest top/bottom     enter open the
+selected day    3 activity    q   quit │
+│ h human/all events    l     last day/week/month    ↑/k row above (scroll)
+4 config      ^c  quit │
+│                                                    ↓/j row below (scroll)
+R reload               │
 │
 │
 │ esc or ? closes this help

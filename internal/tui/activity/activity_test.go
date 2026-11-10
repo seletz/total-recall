@@ -399,7 +399,7 @@ func TestCache(t *testing.T) {
 }
 
 // dayRow matches a day row of the frame.
-var dayRow = regexp.MustCompile(`(?m)^[ ▎](Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} `)
+var dayRow = regexp.MustCompile(`(?m)^[ ▎▸](Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{4}-\d{2}-\d{2} `)
 
 // wheel repeats the wheel message n times.
 func wheel(msg tea.MouseWheelMsg, n int) []tea.Msg {

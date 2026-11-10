@@ -1,0 +1,24 @@
+ total-recall                 1 search   2 stats  [3 activity] › day  4 config
+────────────────────────────────────────────────────────────────────────────────
+ ‹ Tue 2026-06-02 ›  · human events only [h]
+ first 09:10 · last 00:45 (+1) · span 15h35m · work 12h15m · breaks 3h20m
+ target 8h00m · diff +7h35m · working time 5h32m (rounded 6h00m)
+ events 37 (human 37 · agent 0) · sessions 8
+
+▸   1 09:10–18:20    9h10m    28 ev (h28 a0)  fahrtenbuch 4h26m · wetterwarte 2…
+       09:10–10:38  █ PDF-Export  h5 a0
+       10:53–11:53  █ Monatsübersicht  h4 a0
+       12:20–13:36  █ Fahrten zusammenfassen  h5 a0
+       13:54–15:10  ▓ Dashboard-Layout  h5 a0
+       15:33–16:01  ▓ MQTT reconnect  h3 a0
+       16:17–18:20  ▒ GPX-Export  h6 a0
+      ··· pause 3h20m
+    2 21:40–00:45 (+1)  3h05m     9 ev (h9 a0)  fahrtenbuch 3h05m
+       21:40–23:16  █ Adressen vervollständigen  h5 a0
+       23:33–00:45 (+1)  █ Datenbank-Migration  h4 a0
+
+ projects
+                     time  rounded   human   agent
+   █ fahrtenbuch    2h59m    3h00m      23       0
+────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open session • ←/→ prev/next day • h human/all events …

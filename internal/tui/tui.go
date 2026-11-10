@@ -15,7 +15,9 @@
 // the body while the search view keeps its state underneath. The memory
 // view (package memview) is a second such layer, opened by a memory hit,
 // and the attachment view (package attview) a third, opened from an event
-// with images or documents in the search or in the session.
+// with images or documents in the search or in the session. The day view
+// (package dayview) is a fourth, opened from the activity view by a click
+// or enter on a day; a session opened from it returns to it.
 //
 // Reloading: every Options.Reload the app asks the store whether anything
 // changed (store.Poll, one PRAGMA, no queries otherwise). When it did, the
@@ -37,18 +39,21 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/dayreport"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
 	"github.com/seletz/total-recall/internal/tui/attview"
 	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/configview"
+	"github.com/seletz/total-recall/internal/tui/dayview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
 	"github.com/seletz/total-recall/internal/tui/stats"
 	"github.com/seletz/total-recall/internal/tui/theme"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // Graphics selects how charts are drawn; the stats view owns the type.
@@ -120,6 +125,11 @@ type Options struct {
 	Holidays store.Holidays
 	// HumanOnly makes the activity view start counting own messages only.
 	HumanOnly bool
+	// Worktime are the settings of the working-time estimate ([worktime])
+	// and BlockGap the gap that ends an activity block ([work] block_gap),
+	// both for the day view; without them it shows a hint.
+	Worktime worktime.Settings
+	BlockGap time.Duration
 	// Home is the home directory, shown as "~" in project names of
 	// directories without a repository; empty keeps full paths.
 	Home string
@@ -238,7 +248,8 @@ func New(opts Options) (App, error) {
 	}
 	attach := attview.New(attview.Options{Loader: attLoader, Location: opts.Location, External: &attview.SystemViewer{}, Keys: opts.Keys, Images: opts.Images})
 	a := App{opts: opts, views: views, active: active, detail: detail, memory: memview.New(memLoader, opts.Location, opts.Keys), attach: attach,
-		keys: newKeyMap(opts.Keys), th: theme.New(true), stale: make([]bool, len(views)+3), updated: opts.Now()}
+		keys: newKeyMap(opts.Keys), th: theme.New(true), stale: make([]bool, len(views)+4), updated: opts.Now(),
+		day: dayview.New(dayOptions(opts, colors)), colors: colors}
 	if opts.Store != nil {
 		// The baseline of the change check is taken before the views load
 		// for the first time, so nothing written in between is missed.
@@ -307,4 +318,20 @@ func activityOptions(opts Options, colors *chart.Colors) (activity.Options, erro
 		ao.Loader = opts.Store
 	}
 	return ao, nil
+}
+
+// dayOptions is what the day view gets from the app options; a nil store
+// stays a nil Source.
+func dayOptions(opts Options, colors *chart.Colors) dayview.Options {
+	do := dayview.Options{
+		Now: opts.Now, Keys: opts.Keys, Colors: colors,
+		Report: dayreport.Options{
+			Location: opts.Location, DayStart: opts.DayStart, BlockGap: opts.BlockGap, HumanOnly: opts.HumanOnly, Work: opts.Work, Holidays: opts.Holidays,
+			Worktime: opts.Worktime, Projects: opts.Projects, Home: opts.Home,
+		},
+	}
+	if opts.Store != nil {
+		do.Source = opts.Store
+	}
+	return do
 }

@@ -678,7 +678,7 @@ Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_sec
 
 ### Ein Tag chronologisch: `--day` { #stats-day }
 
-Mit `--day DATUM` (`YYYY-MM-DD`, `today` oder `yesterday`) zeigt `stats` **einen Tag in zeitlicher Reihenfolge**: für Zeitbuchung und Tagesabschluss, und dieselbe Ansicht wie die Tagesansicht der TUI. Es gibt keine zweite Rechnung: Kopf und Blöcke sind die Zahlen von [`--workday --blocks`](#stats-workday), die Zeiten je Projekt die von [`--worktime`](#stats-worktime), für denselben Tag und unter denselben Regeln (`day_start`, `count`, `block_gap`, `[worktime]`, `[[project]]`).
+Mit `--day DATUM` (`YYYY-MM-DD`, `today` oder `yesterday`) zeigt `stats` **einen Tag in zeitlicher Reihenfolge**: für Zeitbuchung und Tagesabschluss, und dieselbe Ansicht wie die [Tagesansicht der TUI](30-tui.md#tagesansicht). Es gibt keine zweite Rechnung: Kopf und Blöcke sind die Zahlen von [`--workday --blocks`](#stats-workday), die Zeiten je Projekt die von [`--worktime`](#stats-worktime), für denselben Tag und unter denselben Regeln (`day_start`, `count`, `block_gap`, `[worktime]`, `[[project]]`).
 
 ```sh
 total-recall stats --day 2026-10-29
