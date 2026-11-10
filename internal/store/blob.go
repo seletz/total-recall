@@ -36,6 +36,10 @@ type BlobInfo struct {
 // EventAttachment is one attachment of an event (SessionAttachments).
 type EventAttachment struct {
 	BlobInfo
+	// EventID is the event the attachment is linked to. EventsAttachments
+	// also reports the attachments of a message under its text event; this
+	// tells whose they are. Not part of any JSON output.
+	EventID string `json:"-"`
 	// Position is the attachment's index among the event's attachments,
 	// the order of the references in its raw line.
 	Position int `json:"position"`
@@ -320,6 +324,7 @@ func (s *Store) SessionAttachments(ctx context.Context, sessionID string) (map[s
 		if err := rows.Scan(&id, &a.Position, &a.SHA256, &a.MediaType, &a.Bytes, &a.StoredBytes); err != nil {
 			return nil, fmt.Errorf("store: session attachments: %w", err)
 		}
+		a.EventID = id
 		out[id] = append(out[id], a)
 	}
 	return out, rows.Err()
@@ -328,7 +333,6 @@ func (s *Store) SessionAttachments(ctx context.Context, sessionID string) (map[s
 // SessionAttachment is an attachment of a session with the event it
 // belongs to.
 type SessionAttachment struct {
-	EventID string
 	EventAttachment
 }
 
@@ -364,6 +368,12 @@ const eventsAttachmentsBatch = 500
 // data. The search view uses it to mark the hits that carry images or
 // documents; unknown IDs and events without attachments are not in the
 // map.
+//
+// A message with images is several events of one transcript line: the
+// text, then one event per image or document (the text only names them,
+// "[Image #1]"). A text search finds the text event, so an event without
+// attachments of its own gets those of the other events of its line, in
+// transcript order; EventAttachment.EventID says which event holds each.
 func (s *Store) EventsAttachments(ctx context.Context, ids []string) (map[string][]EventAttachment, error) {
 	out := map[string][]EventAttachment{}
 	seen := map[string]bool{}
@@ -394,6 +404,7 @@ func (s *Store) EventsAttachments(ctx context.Context, ids []string) (map[string
 				_ = rows.Close()
 				return nil, fmt.Errorf("store: events attachments: %w", err)
 			}
+			a.EventID = id
 			out[id] = append(out[id], a)
 		}
 		err = rows.Err()
@@ -401,8 +412,50 @@ func (s *Store) EventsAttachments(ctx context.Context, ids []string) (map[string
 		if err != nil {
 			return nil, fmt.Errorf("store: events attachments: %w", err)
 		}
+		if err := s.lineAttachments(ctx, batch, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
+}
+
+// lineAttachments adds to out, for every event of ids that has no
+// attachments of its own, those of the other events of its transcript
+// line (same source and offset, and the same time and session, which the
+// events_session_ts index finds). An event alone on its line, or whose
+// line carries no blob, gets none.
+func (s *Store) lineAttachments(ctx context.Context, ids []string, out map[string][]EventAttachment) error {
+	var args []any
+	for _, id := range ids {
+		if len(out[id]) == 0 {
+			args = append(args, id)
+		}
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	q := `SELECT t.id, eb.event_id, eb.position, b.sha256, b.media_type, b.bytes, length(b.data)
+		FROM events t
+		JOIN events s ON s.session_id = t.session_id AND s.ts = t.ts AND s.id <> t.id
+			AND s.source_id = t.source_id AND s.source_offset = t.source_offset
+		JOIN event_blobs eb ON eb.event_id = s.id
+		JOIN blobs b ON b.sha256 = eb.sha256
+		WHERE t.id IN (?` + strings.Repeat(",?", len(args)-1) + `)
+		ORDER BY t.id, s.seq, eb.position`
+	rows, err := s.db().QueryContext(ctx, q, args...)
+	if err != nil {
+		return fmt.Errorf("store: line attachments: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id string
+		var a EventAttachment
+		if err := rows.Scan(&id, &a.EventID, &a.Position, &a.SHA256, &a.MediaType, &a.Bytes, &a.StoredBytes); err != nil {
+			return fmt.Errorf("store: line attachments: %w", err)
+		}
+		out[id] = append(out[id], a)
+	}
+	return rows.Err()
 }
 
 // BlobStats counts the stored attachments, in total and per kind (by

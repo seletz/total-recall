@@ -58,3 +58,52 @@ func TestConfig(t *testing.T) {
 		t.Error("a negative window turns the detection off")
 	}
 }
+
+func TestSpawned(t *testing.T) {
+	const (
+		cwd    = "/home/u/src/proj__worktrees/feat-x"
+		branch = "feat/x-spawn"
+	)
+	start := Call{"A", t0, `herdr agent start w2 --cwd ` + cwd + ` --branch ` + branch}
+	prompt := func(after time.Duration) Call {
+		return Call{"A", t0.Add(after), `herdr agent prompt w2 "$(cat /tmp/p.md)"`}
+	}
+	tests := []struct {
+		name     string
+		calls    []Call
+		session  string
+		after    time.Duration
+		branch   string
+		cwd      string
+		wantSent bool
+	}{
+		{"start naming the cwd, prompt delivered", []Call{start, prompt(2 * time.Second)}, "B", 5 * time.Second, "", cwd, true},
+		{"start naming the branch, prompt delivered", []Call{start, prompt(2 * time.Second)}, "B", 5 * time.Second, branch, "/elsewhere", true},
+		{"loop over the worker directories", []Call{
+			{"A", t0, `for d in /home/u/src/p/a /home/u/src/p/b /home/u/src/p/c; do herdr agent start w --cwd $d; herdr agent prompt w "$(cat $d/PROMPT.md)"; done`},
+		}, "B", time.Second, "", "/home/u/src/p/b", true},
+		{"a human opens the session, no spawn", nil, "B", 5 * time.Second, branch, cwd, false},
+		{"start without a prompt delivered", []Call{start}, "B", 5 * time.Second, branch, cwd, false},
+		{"prompt delivered before the start", []Call{prompt(0), {"A", t0.Add(time.Second), start.Text}}, "B", 5 * time.Second, branch, cwd, false},
+		{"start of another session's branch", []Call{start, prompt(2 * time.Second)}, "B", 5 * time.Second, "feat/other", "/home/u/src/other", false},
+		{"default branch is no reference", []Call{{"A", t0, `herdr agent start w2 --branch main`}, prompt(time.Second)}, "B", 5 * time.Second, "main", "", false},
+		{"outside the window", []Call{start, prompt(2 * time.Second)}, "B", 200 * time.Second, branch, cwd, false},
+		{"same session", []Call{start, prompt(2 * time.Second)}, "A", 5 * time.Second, branch, cwd, false},
+		{"unrelated command names the cwd", []Call{{"A", t0, `ls ` + cwd}, prompt(time.Second)}, "B", 5 * time.Second, branch, cwd, false},
+		{"prompt from another session does not deliver", []Call{start, {"C", t0.Add(time.Second), `herdr agent prompt w9 "x"`}}, "B", 5 * time.Second, branch, cwd, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ix := NewIndex(tt.calls, Config{})
+			if got := ix.Spawned(tt.session, t0.Add(tt.after), tt.branch, tt.cwd); got != tt.wantSent {
+				t.Errorf("Spawned = %v, want %v", got, tt.wantSent)
+			}
+		})
+	}
+	if NewIndex([]Call{start, prompt(time.Second)}, Config{SpawnCommands: []string{"mystart"}}).Spawned("B", t0.Add(5*time.Second), branch, cwd) {
+		t.Error("with another spawn command list, herdr agent start no longer counts")
+	}
+	if NewIndex([]Call{start, prompt(time.Second)}, Config{Window: -1}).Spawned("B", t0.Add(5*time.Second), branch, cwd) {
+		t.Error("a negative window turns the detection off")
+	}
+}

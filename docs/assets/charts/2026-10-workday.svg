@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="690" height="611" viewBox="0 0 690 611" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
 <text x="0" y="14" font-size="14" font-weight="600" fill="#8b8b8b">Working days · October 2026</text>
-<text x="0" y="32" font-size="11" fill="#8b8b8b">220h07m in 25 days · target 176h00m (22 workdays × 8h00m) · balance +44h07m</text>
+<text x="0" y="32" font-size="11" fill="#8b8b8b">220h07m in 26 days · target 176h00m (22 workdays × 8h00m) · balance +44h07m</text>
 <text x="66" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">4</text>
 <text x="100" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">6</text>
 <text x="134" y="50" font-size="10" text-anchor="middle" fill="#8b8b8b">8</text>
@@ -210,6 +210,11 @@
 <text x="690" y="459" font-size="10" text-anchor="end" fill="#8b8b8b">+0h00m</text>
 <rect x="66" y="465" width="408" height="15" rx="2" fill="#8b8b8b" fill-opacity="0.1"/>
 <text x="0" y="476" font-size="11" fill="#8b8b8b">Sun 10-25</text>
+<rect x="379.78" y="468" width="2" height="9" rx="1" fill="#3b73b0"><title>Sun 10-25: 22:31 – 22:31, 0m, +0h00m</title></rect>
+<text x="520" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">22:31</text>
+<text x="584" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">22:31</text>
+<text x="634" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">0m</text>
+<text x="690" y="476" font-size="10" text-anchor="end" fill="#8b8b8b">+0h00m</text>
 <rect x="151" y="482" width="136" height="15" rx="2" fill="#3b73b0" fill-opacity="0.16"/>
 <text x="0" y="493" font-size="11" fill="#8b8b8b">Mon 10-26</text>
 <rect x="162.05" y="485" width="124.95" height="9" rx="2" fill="#3b73b0"><title>Mon 10-26: 09:39 – 17:57, 8h18m, +0h18m</title></rect>

@@ -626,6 +626,8 @@ func TestAttachmentView(t *testing.T) {
 		not   []string
 	}{
 		{"mark in the list", "image", []string{"tab"}, []string{"▣1", "v view attachments"}, nil},
+		{"text of a message with images", "Höhenprofil kippt", []string{"tab"}, []string{"▣2", "▣ image/png", "▣ application/pdf", "v view attachments"}, nil},
+		{"v on that text opens the image", "Höhenprofil kippt", []string{"tab", "v"}, []string{"› attachments", "[1 image/png", "png 96×48"}, nil},
 		{"from the search", "image", []string{"tab", "v"}, []string{"› attachments", "Höhenprofil prüfen", "png 96×48", "1 image/png", "2 application/pdf"}, nil},
 		{"next shows the document", "image", []string{"tab", "v", "right"}, []string{"Notes on the track format", "PDF 1.4"}, []string{"png 96×48"}},
 		{"back to the search", "image", []string{"tab", "v", "esc"}, []string{"[1 search]", "▣1"}, []string{"› attachments"}},

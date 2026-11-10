@@ -27,6 +27,17 @@ func dispatchIndex(ctx context.Context, d Deps, from, to time.Time) (*dispatch.I
 	return dispatch.NewIndex(in, d.Dispatch), nil
 }
 
+// sentByAnother reports whether the human message m was typed in by another
+// session: its text is the argument of a recent tool call of another session
+// (Sent), or it is the session's first prompt and the session was started
+// and handed its prompt by another session (Spawned).
+func sentByAnother(ix *dispatch.Index, m store.UserMessage) bool {
+	if ix.Sent(m.SessionID, m.TS, m.Text) {
+		return true
+	}
+	return !m.EarlierPrompt && ix.Spawned(m.SessionID, m.TS, m.GitBranch, m.Cwd)
+}
+
 // markDispatched sets the actor automation (and no input kind) on the human
 // inputs, within the time range this run wrote and the window after it, that
 // another session sent. It looks both ways: a new input may match an old
@@ -48,7 +59,10 @@ func (r *runner) markDispatched(ctx context.Context) {
 	for _, a := range d.Adapters {
 		var changes []store.ActorChange
 		err := d.Store.UserMessagesBetween(ctx, a.Name(), r.lo, r.hi.Add(w), func(m store.UserMessage) error {
-			if m.Actor == model.ActorHuman && ix.Sent(m.SessionID, m.TS, m.Text) {
+			if m.Actor != model.ActorHuman {
+				return nil
+			}
+			if sentByAnother(ix, m) {
 				changes = append(changes, store.ActorChange{ID: m.ID, Actor: model.ActorAutomation})
 			}
 			return nil

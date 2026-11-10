@@ -105,6 +105,7 @@ peer_prefixes = []
 peer_paste_headers = []          # erste Zeile eines allein eingefügten Blocks, z. B. ["# Task:", "Auftrag:"]
 automation_prefixes = ["Hourly ", "Weekend watch"]
 prompt_commands = ["herdr agent prompt", "tmux send-keys"]
+spawn_commands = ["herdr agent start"]
 prompt_window = "120s"
 
 [git]
@@ -238,6 +239,9 @@ Jedes Event bekommt einen `actor`: Wer hat das geschrieben? Mensch, Agent, ein a
 
 `prompt_commands`
 :   Teile von Tool-Argumenten, die Text in das Terminal einer anderen Session schicken. Standard: `["herdr agent prompt", "tmux send-keys"]`. Ein kurzer Text (unter 12 Zeichen, etwa „ok“) wird nur mit einem Aufruf verglichen, der einen dieser Einträge enthält; längere Texte brauchen ihn nicht.
+
+`spawn_commands`
+:   Teile von Tool-Argumenten, die einen Worker starten. Standard: `["herdr agent start"]`. Nennt ein solcher (oder ein `prompt_commands`-)Befehl einer anderen Session das Arbeitsverzeichnis oder den Branch einer Session und liefert dieselbe Session danach einen Prompt, ist die **erste** Eingabe der gestarteten Session `automation`, auch wenn der Text aus einer Datei, einer Variablen oder einer Schleife kam. Eine Session, die du selbst öffnest, und spätere Eingaben bleiben `human`.
 
 `prompt_window`
 :   Wie lange vor einer Eingabe der Tool-Aufruf einer anderen Session liegen darf, der denselben Text verschickt hat. Standard `"120s"`. Passt ein Aufruf, ist die Eingabe `automation` statt `human` ([Design](../explanation/design.md#actor-klassifikation-claude-code)); `"0s"` schaltet die Erkennung aus. Sie braucht keine Muster: Verglichen wird der Text, der Aufruf kann jeder Tool-Aufruf sein.
