@@ -12,7 +12,7 @@ import (
 func seedUserMessages(t *testing.T, s *Store) {
 	t.Helper()
 	sessions := []model.Session{
-		{ID: "claude:m1", Harness: "claude", NativeID: "m1", StartedAt: ts("2026-01-05T08:00:00Z"), EndedAt: ts("2026-01-05T09:00:00Z")},
+		{ID: "claude:m1", Harness: "claude", NativeID: "m1", Cwd: "/w/m1-dir", GitBranch: "feat/m1", StartedAt: ts("2026-01-05T08:00:00Z"), EndedAt: ts("2026-01-05T09:00:00Z")},
 		{ID: "claude:agent-y", Harness: "claude", NativeID: "agent-y", ParentID: "claude:m1", StartedAt: ts("2026-01-05T08:10:00Z"), EndedAt: ts("2026-01-05T08:11:00Z")},
 		{ID: "other:o1", Harness: "other", NativeID: "o1", StartedAt: ts("2026-01-05T08:00:00Z"), EndedAt: ts("2026-01-05T08:00:00Z")},
 	}
@@ -38,8 +38,8 @@ func TestUserMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []UserMessage{
-		{ID: "claude:m1-1", SessionID: "claude:m1", TS: ts("2026-01-05T08:00:00Z"), Actor: model.ActorHuman, Text: "a", Raw: `{"type":"user","origin":{"kind":"human"}}`},
-		{ID: "claude:m1-2", SessionID: "claude:m1", TS: ts("2026-01-05T09:00:00Z"), Actor: model.ActorHuman, Text: "# Task: c"},
+		{ID: "claude:m1-1", SessionID: "claude:m1", TS: ts("2026-01-05T08:00:00Z"), Actor: model.ActorHuman, Text: "a", Cwd: "/w/m1-dir", GitBranch: "feat/m1", Raw: `{"type":"user","origin":{"kind":"human"}}`},
+		{ID: "claude:m1-2", SessionID: "claude:m1", TS: ts("2026-01-05T09:00:00Z"), Actor: model.ActorHuman, Text: "# Task: c", Cwd: "/w/m1-dir", GitBranch: "feat/m1", EarlierPrompt: true},
 		{ID: "claude:y-1", SessionID: "claude:agent-y", TS: ts("2026-01-05T08:10:00Z"), Actor: model.ActorPeer, Text: "task", Raw: `{"type":"user","origin":{"kind":"human"}}`, Subagent: true},
 	}
 	if len(got) != len(want) {

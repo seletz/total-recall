@@ -111,7 +111,7 @@ total-recall reindex --actors             # anwenden
 
 `--actors` setzt außerdem [`input_kind`](40-schema.md#input_kind) der menschlichen Nachrichten neu (aus Text und `raw`) und lässt ihn bei Nachrichten weg, die nicht mehr `human` sind; die Zahl steht als `input kinds set` in der Ausgabe, wenn sie nicht 0 ist.
 
-`--actors` erkennt auch Eingaben, die ein Koordinator mit einem Befehl in die Session eines Workers getippt hat (`herdr agent prompt`, `tmux send-keys`): Sie werden `automation`, wenn eine andere Session sie kurz vorher als Argument eines Tool-Aufrufs verschickt hat ([`prompt_window`, `prompt_commands`](20-konfiguration.md#harnessclaudeactors)). Die Zahl steht in der Ausgabe als `of them were typed in by another session`; sie ist ein Teil der geänderten Nachrichten.
+`--actors` erkennt auch Eingaben, die ein Koordinator mit einem Befehl in die Session eines Workers getippt hat (`herdr agent prompt`, `tmux send-keys`): Sie werden `automation`, wenn eine andere Session sie kurz vorher als Argument eines Tool-Aufrufs verschickt hat ([`prompt_window`, `prompt_commands`](20-konfiguration.md#harnessclaudeactors)). Dazu gehört die erste Eingabe eines Workers, den ein Koordinator gestartet und dessen Auftrag er aus einer Datei oder Variablen geschickt hat ([`spawn_commands`](20-konfiguration.md#harnessclaudeactors)). Die Zahl steht in der Ausgabe als `of them were typed in by another session`; sie ist ein Teil der geänderten Nachrichten.
 
 Ausgabe:
 

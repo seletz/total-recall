@@ -76,6 +76,7 @@ var Catalog = []Key{
 	{"harness.claude.actors.peer_paste_headers", KindList, nil, "First lines of a pasted block that make it a task from another agent"},
 	{"harness.claude.actors.automation_prefixes", KindList, nil, "Message prefixes of scheduled automations (actor automation)"},
 	{"harness.claude.actors.prompt_commands", KindList, nil, "Commands that send text into another session's terminal (short inputs match only these)"},
+	{"harness.claude.actors.spawn_commands", KindList, nil, "Commands that start a worker session (its first prompt is then not the person's)"},
 	{"harness.claude.actors.prompt_window", KindDuration, nil, "How long before an input another session's tool call may have sent it (actor automation); 0 = off"},
 	{"git.resolve", KindBool, nil, "Resolve git root, remote URL and branch of the session directories"},
 	{"work.hours", KindString, nil, "Core hours HH:MM-HH:MM; activity outside them is marked early or late"},

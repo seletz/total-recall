@@ -3,7 +3,7 @@
  status settings [projects] actions setup                                            ~/.config/total-recall/config.toml
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    NAME                DESCRIPTION                      SESSIONS  MATCH
-▸ ■ kompass             Wanderkarten, alle Repositories       321  https://git.invalid/mara/kompass*, ~/src/kompass*
+▸ ■ kompass             Wanderkarten, alle Repositories       323  https://git.invalid/mara/kompass*, ~/src/kompass*
   ■ wetterwarte         Messstation und Auswertung            218  https://git.invalid/mara/wetterwarte
   ■ fahrtenbuch                                                88  https://git.invalid/mara/fahrtenbuch
 
@@ -30,7 +30,7 @@
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- kompass  #4e79a7  matches 1 path · 321 sessions: kompass
+ kompass  #4e79a7  matches 1 path · 323 sessions: kompass
  enter edits · a adds · x removes · K/J move (first match wins) · m adds a path as a pattern
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  tab page • ↑/↓ move • enter edit / run • a add • x remove • m add as pattern • E open config in $EDITOR • 1 search …

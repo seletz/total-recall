@@ -2,6 +2,7 @@ package cli
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,19 +45,46 @@ type workdayBlocks struct {
 // events and the working time fall by exactly the reclassified event, and the
 // sums of workday and worktime still equal their parts.
 func TestCoordinatorPromptsDemo(t *testing.T) {
+	checkDispatchedInvariant(t, dispatchedCase{
+		ids:       "text LIKE '" + coordinatorTask + "%' OR text LIKE 'Rebase den Branch%'",
+		n:         2,
+		day:       "2026-10-29",
+		stayHuman: []string{"text LIKE 'Danke. Trag bitte%'", "text LIKE 'Gib den Lint-Fix%'"},
+	})
+}
+
+// TestSpawnedPromptsDemo is the same invariant for #269: a coordinator
+// starts a worker in a worktree and hands it a prompt from a file, so no
+// argument holds the text. The worker's first input is automation (the start
+// command names its directory), its later input stays human.
+func TestSpawnedPromptsDemo(t *testing.T) {
+	checkDispatchedInvariant(t, dispatchedCase{
+		ids:       "text LIKE 'Ergänze den GPX-Export analog%'",
+		n:         1,
+		day:       "2026-10-25",
+		stayHuman: []string{"text LIKE 'Danke, passt so.'"},
+	})
+}
+
+type dispatchedCase struct {
+	ids       string   // SQL condition: the events another session sent, stored as automation
+	n         int      // how many there are
+	day       string   // the day the invariant is checked on
+	stayHuman []string // SQL conditions of human events that must stay human, one each
+}
+
+func checkDispatchedInvariant(t *testing.T, c dispatchedCase) {
+	t.Helper()
 	e, db := chartEnv(t)
 	st, _ := fixturedb.Demo(t)
 	ctx := t.Context()
-	_, rows, err := st.Query(ctx, "SELECT id FROM events WHERE actor = 'automation' AND (text LIKE '"+coordinatorTask+"%' OR text LIKE 'Rebase den Branch%')")
-	if err != nil || len(rows) != 2 {
-		t.Fatalf("dispatched events = %v, %v; want the worker's two inputs", rows, err)
+	_, rows, err := st.Query(ctx, "SELECT id FROM events WHERE actor = 'automation' AND ("+c.ids+")")
+	if err != nil || len(rows) != c.n {
+		t.Fatalf("dispatched events = %v, %v; want %d", rows, err, c.n)
 	}
-	// Control cases stay human: the worker's own later input, and the
-	// coordinator's input in its own session.
-	for _, q := range []string{
-		"SELECT count(*) FROM events WHERE actor = 'human' AND text LIKE 'Danke. Trag bitte%'",
-		"SELECT count(*) FROM events WHERE actor = 'human' AND text LIKE 'Gib den Lint-Fix%'",
-	} {
+	// Control cases stay human.
+	for _, cond := range c.stayHuman {
+		q := "SELECT count(*) FROM events WHERE actor = 'human' AND " + cond
 		if _, r, err := st.Query(ctx, q); err != nil || r[0][0] != int64(1) {
 			t.Fatalf("%s = %v, %v; want 1", q, r, err)
 		}
@@ -82,7 +110,7 @@ func TestCoordinatorPromptsDemo(t *testing.T) {
 	}
 	_ = raw.Close()
 
-	day := []string{"--since", "2026-10-29", "--until", "2026-10-29"}
+	day := []string{"--since", c.day, "--until", c.day}
 	humans := func(db string) int {
 		return decode[ActivitySeriesJSON](t, e.mustRun(t, append([]string{"--db", db, "stats", "--json", "--period", "day"}, day...)...)).Total.Human
 	}
@@ -121,15 +149,15 @@ func TestCoordinatorPromptsDemo(t *testing.T) {
 	wNow, _ := work(db)
 	wOld, _ := work(old)
 	sNow, sOld := span(db), span(old)
-	if hOld != hNow+2 {
-		t.Errorf("human events: %d before, %d after; want exactly two fewer", hOld, hNow)
+	if hOld != hNow+c.n {
+		t.Errorf("human events: %d before, %d after; want exactly %d fewer", hOld, hNow, c.n)
 	}
 	if wOld <= wNow || sOld < sNow {
 		t.Errorf("working time %d s -> %d s, workday span %d s -> %d s; the reclassified event must not count", wOld, wNow, sOld, sNow)
 	}
 
 	out := e.mustRun(t, "--db", old, "reindex", "--actors")
-	if !strings.Contains(out, "human -> automation: 2") || !strings.Contains(out, "2 of them were typed in by another session") {
+	if want := fmt.Sprintf("human -> automation: %d", c.n); !strings.Contains(out, want) || !strings.Contains(out, fmt.Sprintf("%d of them were typed in by another session", c.n)) {
 		t.Errorf("reindex --actors: %s", out)
 	}
 	if h, w := humans(old), func() int { v, _ := work(old); return v }(); h != hNow || w != wNow || span(old) != sNow {

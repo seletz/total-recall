@@ -20,6 +20,13 @@ type UserMessage struct {
 	InputKind model.InputKind
 	Raw       string // "" when raw was not stored or dropped for size
 	Subagent  bool   // the session is a subagent transcript (has a parent)
+	// Cwd and GitBranch are the session's working directory and (last seen)
+	// branch; "" when unknown.
+	Cwd, GitBranch string
+	// EarlierPrompt says that the session has an earlier user message that
+	// is a prompt: actor human, or automation that is no harness plumbing
+	// (text not starting with "<"), such as a prompt another session sent.
+	EarlierPrompt bool
 }
 
 // UserMessages calls fn for every user message (role user, kind message)
@@ -32,7 +39,9 @@ func (s *Store) UserMessages(ctx context.Context, harness string, fn func(UserMe
 // from <= ts <= to; a zero bound leaves that side open.
 func (s *Store) UserMessagesBetween(ctx context.Context, harness string, from, to time.Time, fn func(UserMessage) error) error {
 	q := `SELECT e.id, e.session_id, e.ts, COALESCE(e.actor, ''), COALESCE(e.input_kind, ''), e.text, e.raw,
-			COALESCE(s.parent_id, '') <> ''
+			COALESCE(s.parent_id, '') <> '', COALESCE(s.cwd, ''), COALESCE(s.git_branch, ''),
+			EXISTS (SELECT 1 FROM events p WHERE p.session_id = e.session_id AND p.role = 'user' AND p.kind = 'message'
+				AND p.seq < e.seq AND (p.actor = 'human' OR (p.actor = 'automation' AND p.text NOT LIKE '<%')))
 		FROM events e JOIN sessions s ON s.id = e.session_id
 		WHERE s.harness = ? AND e.role = 'user' AND e.kind = 'message'`
 	args := []any{harness}
@@ -54,7 +63,7 @@ func (s *Store) UserMessagesBetween(ctx context.Context, harness string, from, t
 		var actor, ik string
 		var ts sql.NullString
 		var raw []byte
-		if err := rows.Scan(&m.ID, &m.SessionID, &ts, &actor, &ik, &m.Text, &raw, &m.Subagent); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionID, &ts, &actor, &ik, &m.Text, &raw, &m.Subagent, &m.Cwd, &m.GitBranch, &m.EarlierPrompt); err != nil {
 			return fmt.Errorf("store: user messages: %w", err)
 		}
 		m.TS = parseTime(ts)

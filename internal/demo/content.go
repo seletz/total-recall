@@ -375,5 +375,36 @@ func featured() []session {
 					reply:  "Rebased onto develop and pushed the branch.", replyAt: 40 * time.Second},
 			},
 		},
+		// The coordinator starts a worker in a worktree and hands it a prompt
+		// from a file: no argument holds the text, but the start command names
+		// the worktree (see package dispatch, Spawned). Again the coordinator
+		// wakes on a notification, so the worker's first input is the only
+		// one of the stretch.
+		{
+			id: "7d1e4c20-000a-4000-8000-00000000000a", cwd: kompass.cwd, title: "Worker starten",
+			turns: []turn{
+				{at: at(time.October, 25, 22, 20),
+					prompt: "<task-notification>Worker w2 finished: import merged.</task-notification>",
+					tools: []tool{
+						{"Bash", "herdr agent start w3 --cwd " + kompassWorktree.cwd, "started w3\n"},
+						{"Bash", `herdr agent prompt w3 "$(cat auftrag-gpx.md)"`, "sent to w3\n"},
+					},
+					reply:   "I started w3 in the gpx worktree and sent it the task file.",
+					replyAt: 2 * time.Minute},
+			},
+		},
+		{
+			id: "7d1e4c20-000b-4000-8000-00000000000b", cwd: kompassWorktree.cwd, title: "GPX-Export im Worker",
+			turns: []turn{
+				{at: at(time.October, 25, 22, 20).Add(55 * time.Second),
+					prompt:  "Ergänze den GPX-Export analog zum Import und dokumentiere ihn im README.",
+					tools:   []tool{{"Bash", "go build ./internal/gpx/...", ""}},
+					reply:   "Added the GPX export next to the import and a README section.",
+					replyAt: 4 * time.Minute},
+				{at: at(time.October, 25, 22, 31),
+					prompt: "Danke, passt so.",
+					reply:  "Done.", replyAt: 10 * time.Second},
+			},
+		},
 	}
 }

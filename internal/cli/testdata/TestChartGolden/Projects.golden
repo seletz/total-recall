@@ -5,28 +5,28 @@
 <rect x="370" y="22" width="12" height="10" rx="2" fill="#8b8b8b" fill-opacity="0.5"/>
 <text x="388" y="31" font-size="11" fill="#8b8b8b">own attention (own messages)</text>
 <text x="162" y="54" font-size="11" text-anchor="end" fill="#8b8b8b">kompass</text>
-<rect x="170" y="40" width="370.67" height="9" rx="2" fill="#4e79a7"><title>kompass: 1183 agent events (58 %)</title></rect>
-<text x="544.67" y="48" font-size="10" fill="#8b8b8b">58 %</text>
-<rect x="170" y="50" width="380" height="9" rx="2" fill="#4e79a7" fill-opacity="0.5"><title>kompass: 346 own messages (60 %)</title></rect>
+<rect x="170" y="40" width="371.02" height="9" rx="2" fill="#4e79a7"><title>kompass: 1189 agent events (58 %)</title></rect>
+<text x="545.02" y="48" font-size="10" fill="#8b8b8b">58 %</text>
+<rect x="170" y="50" width="380" height="9" rx="2" fill="#4e79a7" fill-opacity="0.5"><title>kompass: 347 own messages (60 %)</title></rect>
 <text x="554" y="58" font-size="10" fill="#8b8b8b">60 %</text>
 <text x="162" y="80" font-size="11" text-anchor="end" fill="#8b8b8b">wetterwarte</text>
-<rect x="170" y="66" width="183.61" height="9" rx="2" fill="#f28e2b"><title>wetterwarte: 586 agent events (29 %)</title></rect>
-<text x="357.61" y="74" font-size="10" fill="#8b8b8b">29 %</text>
-<rect x="170" y="76" width="169.13" height="9" rx="2" fill="#f28e2b" fill-opacity="0.5"><title>wetterwarte: 154 own messages (27 %)</title></rect>
-<text x="343.13" y="84" font-size="10" fill="#8b8b8b">27 %</text>
+<rect x="170" y="66" width="182.86" height="9" rx="2" fill="#f28e2b"><title>wetterwarte: 586 agent events (29 %)</title></rect>
+<text x="356.86" y="74" font-size="10" fill="#8b8b8b">29 %</text>
+<rect x="170" y="76" width="168.65" height="9" rx="2" fill="#f28e2b" fill-opacity="0.5"><title>wetterwarte: 154 own messages (27 %)</title></rect>
+<text x="342.65" y="84" font-size="10" fill="#8b8b8b">27 %</text>
 <text x="162" y="106" font-size="11" text-anchor="end" fill="#8b8b8b">fahrtenbuch</text>
-<rect x="170" y="92" width="56.71" height="9" rx="2" fill="#59a14f"><title>fahrtenbuch: 181 agent events (9 %)</title></rect>
-<text x="230.71" y="100" font-size="10" fill="#8b8b8b">9 %</text>
-<rect x="170" y="102" width="52.72" height="9" rx="2" fill="#59a14f" fill-opacity="0.5"><title>fahrtenbuch: 48 own messages (8 %)</title></rect>
-<text x="226.72" y="110" font-size="10" fill="#8b8b8b">8 %</text>
+<rect x="170" y="92" width="56.48" height="9" rx="2" fill="#59a14f"><title>fahrtenbuch: 181 agent events (9 %)</title></rect>
+<text x="230.48" y="100" font-size="10" fill="#8b8b8b">9 %</text>
+<rect x="170" y="102" width="52.56" height="9" rx="2" fill="#59a14f" fill-opacity="0.5"><title>fahrtenbuch: 48 own messages (8 %)</title></rect>
+<text x="226.56" y="110" font-size="10" fill="#8b8b8b">8 %</text>
 <text x="162" y="132" font-size="11" text-anchor="end" fill="#8b8b8b">~/notizen</text>
-<rect x="170" y="118" width="18.8" height="9" rx="2" fill="#e15759"><title>~/notizen: 60 agent events (3 %)</title></rect>
-<text x="192.8" y="126" font-size="10" fill="#8b8b8b">3 %</text>
-<rect x="170" y="128" width="24.16" height="9" rx="2" fill="#e15759" fill-opacity="0.5"><title>~/notizen: 22 own messages (4 %)</title></rect>
-<text x="198.16" y="136" font-size="10" fill="#8b8b8b">4 %</text>
+<rect x="170" y="118" width="18.72" height="9" rx="2" fill="#e15759"><title>~/notizen: 60 agent events (3 %)</title></rect>
+<text x="192.72" y="126" font-size="10" fill="#8b8b8b">3 %</text>
+<rect x="170" y="128" width="24.09" height="9" rx="2" fill="#e15759" fill-opacity="0.5"><title>~/notizen: 22 own messages (4 %)</title></rect>
+<text x="198.09" y="136" font-size="10" fill="#8b8b8b">4 %</text>
 <text x="162" y="158" font-size="11" text-anchor="end" fill="#8b8b8b">dotfiles</text>
-<rect x="170" y="144" width="7.21" height="9" rx="2" fill="#b07aa1"><title>dotfiles: 23 agent events (1 %)</title></rect>
-<text x="181.21" y="152" font-size="10" fill="#8b8b8b">1 %</text>
-<rect x="170" y="154" width="10.98" height="9" rx="2" fill="#b07aa1" fill-opacity="0.5"><title>dotfiles: 10 own messages (2 %)</title></rect>
-<text x="184.98" y="162" font-size="10" fill="#8b8b8b">2 %</text>
+<rect x="170" y="144" width="7.18" height="9" rx="2" fill="#b07aa1"><title>dotfiles: 23 agent events (1 %)</title></rect>
+<text x="181.18" y="152" font-size="10" fill="#8b8b8b">1 %</text>
+<rect x="170" y="154" width="10.95" height="9" rx="2" fill="#b07aa1" fill-opacity="0.5"><title>dotfiles: 10 own messages (2 %)</title></rect>
+<text x="184.95" y="162" font-size="10" fill="#8b8b8b">2 %</text>
 </svg>
