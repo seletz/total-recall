@@ -67,6 +67,12 @@ type Block struct {
 	// Events is the number of counted events in the block; the Events of
 	// all blocks of a day add up to the counted events of the day.
 	Events int
+	// Secs is the length in whole seconds, from boundaries floored to whole
+	// seconds after the first activity of the day (off0, off1), so the Secs
+	// of the blocks and the pauses between them add up exactly to the whole
+	// seconds of the span, however the raw durations would round one by one.
+	Secs       int
+	off0, off1 int
 }
 
 // Single reports whether the block is one event: a zero-second block that
@@ -96,6 +102,25 @@ func (d Workday) BreakSum() time.Duration {
 	return sum
 }
 
+// BlockSeconds is the sum of the Secs of the blocks of the day.
+func (d Workday) BlockSeconds() int {
+	n := 0
+	for _, b := range d.Blocks {
+		n += b.Secs
+	}
+	return n
+}
+
+// BreakSeconds is the whole seconds of the pauses between the blocks:
+// BlockSeconds + BreakSeconds is exactly int(Span().Seconds()).
+func (d Workday) BreakSeconds() int {
+	n := 0
+	for i := 1; i < len(d.Blocks); i++ {
+		n += d.Blocks[i].off0 - d.Blocks[i-1].off1
+	}
+	return n
+}
+
 // buildBlocks groups the event times into blocks: a gap above gap starts a
 // new block. times is sorted in place.
 func buildBlocks(times []time.Time, gap time.Duration) []Block {
@@ -112,6 +137,12 @@ func buildBlocks(times []time.Time, gap time.Duration) []Block {
 		}
 		last.End = t
 		last.Events++
+	}
+	for i := range blocks {
+		b := &blocks[i]
+		b.off0 = int(b.Start.Sub(times[0]).Seconds())
+		b.off1 = int(b.End.Sub(times[0]).Seconds())
+		b.Secs = b.off1 - b.off0
 	}
 	return blocks
 }

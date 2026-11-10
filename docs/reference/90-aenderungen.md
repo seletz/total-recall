@@ -12,6 +12,10 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **Einzelne Nachrichten in `stats --workday --blocks` erkennbar** ([#256](https://github.com/seletz/total-recall/issues/256)). Jeder Block hat jetzt `events` (Zahl der gezählten Events) und `single` (`true` bei genau einem Event); eine einzelne Nachricht nach einer langen Pause ist so von einem echten Block zu unterscheiden. Die Sekunden bleiben, nichts fällt weg; die Felder sind additiv. Pro Tag ergeben die `events` der Blöcke `human` plus `agent`. Die Tabelle markiert einen einzelnen Block mit `*`, das MCP-Tool `stats` mit `blocks` liefert die Felder auf jeder Seite.
 
+### Behoben
+
+- **`stats --workday --blocks`: die Sekunden stimmen jetzt** ([#256](https://github.com/seletz/total-recall/issues/256), seit v1.6.0). Mit Bruchteilsekunden in den Zeitstempeln (das echte Archiv hat Millisekunden) rundete jeder Block einzeln ab, `block_seconds` aber aus der ungerundeten Summe: Die `seconds` der Blöcke eines Tags ergaben zum Beispiel 28166, `block_seconds` sagte 28169. Jetzt werden die Blockgrenzen auf ganze Sekunden nach der ersten Aktivität des Tags abgerundet, bevor die Dauern gebildet werden. Damit ist `block_seconds` genau die Summe der `blocks[].seconds`, und `block_seconds` plus `break_seconds` ergeben genau `span_seconds`. Im `total` stehen die Summen der Tage: `span_seconds` ist die Summe der `span_seconds` der Tage (es konnte um wenige Sekunden abweichen) und `balance_seconds` ist `span_seconds` minus `target_seconds`.
+
 ## v1.6.0
 
 ### Was dieses Update mit dem Archiv macht

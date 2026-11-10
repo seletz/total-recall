@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/seletz/total-recall/internal/demo"
+	"github.com/seletz/total-recall/internal/model"
+	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
 
@@ -487,5 +491,62 @@ func TestStatsWorkdayBlocksSums(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestStatsWorkdayBlocksFractional: with fractional seconds in the time
+// stamps (the real archive has milliseconds) the whole seconds in the JSON
+// still add up: per day the seconds of the blocks are block_seconds, blocks
+// plus breaks are span_seconds, and the total is the sum of its days.
+func TestStatsWorkdayBlocksFractional(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "frac.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sessions []model.Session
+	var evs []model.Event
+	n := 0
+	for _, at := range []string{
+		"2026-03-09T08:00:00.900Z", "2026-03-09T08:00:01.800Z", "2026-03-09T09:00:00.700Z", "2026-03-09T09:00:02.600Z",
+		"2026-03-09T11:00:00.400Z", "2026-03-09T11:00:00.500Z", "2026-03-09T11:00:00.600Z",
+		"2026-03-10T08:00:00.950Z", "2026-03-10T08:00:01.900Z", "2026-03-10T10:00:00.100Z", "2026-03-10T10:00:00.990Z",
+	} {
+		n++
+		id := fmt.Sprintf("claude:f%d", n)
+		tm, _ := time.Parse(time.RFC3339, at)
+		sessions = append(sessions, model.Session{ID: id, Harness: "claude", NativeID: fmt.Sprintf("f%d", n), Cwd: "/w/app", StartedAt: tm, EndedAt: tm})
+		evs = append(evs, model.Event{ID: id + "-1", SessionID: id, TS: tm, Actor: model.ActorHuman, Kind: model.KindMessage, Role: "user", Text: "x", SourcePath: "/src/f.jsonl", Raw: `{"x":1}`})
+	}
+	if err := st.WriteBatch(t.Context(), store.SourceState{Path: "/src/f.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Close()
+	e := newTestEnv(t)
+	e.now = time.Date(2026, 3, 12, 12, 0, 0, 0, time.UTC)
+	r := runActivity(t, e, path, "--workday", "--since", "2026-03-09", "--until", "2026-03-11", "--blocks", "--json")
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	out := decode[WorkdayJSON](t, r.stdout)
+	var sumBlocks, sumBreaks, sumSpan int
+	for _, d := range out.Days {
+		if d.Blocks == nil {
+			continue
+		}
+		sum := 0
+		for _, b := range *d.Blocks {
+			sum += b.Seconds
+		}
+		if sum != *d.BlockSeconds || *d.BlockSeconds+*d.BreakSeconds != d.SpanSeconds {
+			t.Errorf("%s: blocks %d, block_seconds %d, break_seconds %d, span %d", d.Day, sum, *d.BlockSeconds, *d.BreakSeconds, d.SpanSeconds)
+		}
+		sumBlocks, sumBreaks, sumSpan = sumBlocks+*d.BlockSeconds, sumBreaks+*d.BreakSeconds, sumSpan+d.SpanSeconds
+	}
+	tot := out.Total
+	if sumSpan == 0 || *tot.BlockSeconds != sumBlocks || *tot.BreakSeconds != sumBreaks || tot.SpanSeconds != sumSpan ||
+		*tot.BlockSeconds+*tot.BreakSeconds != tot.SpanSeconds || tot.BalanceSeconds != tot.SpanSeconds-tot.TargetSeconds {
+		t.Errorf("total: block %d break %d span %d balance %d target %d; days: %d + %d, span %d",
+			*tot.BlockSeconds, *tot.BreakSeconds, tot.SpanSeconds, tot.BalanceSeconds, tot.TargetSeconds, sumBlocks, sumBreaks, sumSpan)
 	}
 }
