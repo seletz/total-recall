@@ -111,7 +111,7 @@ LIMIT 50"
 | `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `top`, `tools`, `path`, `path_in`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
 | `memory` | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | none |
-| `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`; with `all=true` and no `actor`: `all`), `all`, `text_width` (default 160), `fields` (default `event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated`; `all` for every key; fewer keys mean fewer pages), `limit` (leave out for all; large windows come in pages) |
+| `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`; with `all=true` and no `actor`: `all`), `all`, `text_width` (default 160), `fields` (default `event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated`; `all` for every key; a name given twice counts once, empty means the default; fewer keys mean fewer pages: for an overview of a whole day use `fields: "ts_local,actor,text"` with `text_width: 80`), `limit` (leave out for all; large windows come in pages) |
 
 The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version (v1.5.0 replaced the cut-off results of v1.4 by pages).
 

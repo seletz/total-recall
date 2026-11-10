@@ -689,7 +689,35 @@ func TestMCPTimelineFewerPages(t *testing.T) {
 		t.Errorf("default pages do not add up to the CLI output with the compact fields (%d vs %d bytes)", len(got), len(want))
 	}
 	// The hint tells how to get fewer pages.
-	if h := hints[0]; h == nil || !strings.Contains(h.Hint, "fields") || !strings.Contains(h.Hint, "text_width") {
-		t.Errorf("hint = %+v, want it to name fields and text_width", h)
+	if h := hints[0]; h == nil || !strings.Contains(h.Hint, `fields="ts_local,actor,text"`) || !strings.Contains(h.Hint, "text_width=80") {
+		t.Errorf("hint = %+v, want the overview example fields=\"ts_local,actor,text\" with text_width=80", h)
+	}
+	// An empty fields is the default, a repeated name counts once; the
+	// parameter description says so.
+	empty := map[string]any{"fields": ""}
+	twice := map[string]any{"fields": "text,text,kind"}
+	once := map[string]any{"fields": "text,kind"}
+	for _, m := range []map[string]any{empty, twice, once} {
+		for k, v := range day {
+			m[k] = v
+		}
+	}
+	if pg, _ := p.crawl("timeline", empty); reassemble(t, pg, "") != reassemble(t, compact, "") {
+		t.Error(`fields "" is not the default`)
+	}
+	pt, _ := p.crawl("timeline", twice)
+	po, _ := p.crawl("timeline", once)
+	if reassemble(t, pt, "") != reassemble(t, po, "") {
+		t.Error(`fields "text,text,kind" differs from "text,kind"`)
+	}
+	for _, tool := range mcpTools() {
+		if tool.Name != "timeline" {
+			continue
+		}
+		for _, par := range tool.Params {
+			if par.Name == "fields" && (!strings.Contains(par.Description, "once") || !strings.Contains(par.Description, "empty")) {
+				t.Errorf("fields description does not say that repeats count once and empty is the default: %s", par.Description)
+			}
+		}
 	}
 }
