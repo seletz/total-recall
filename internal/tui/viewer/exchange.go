@@ -17,6 +17,10 @@ type Exchange struct {
 	// among them.
 	Events []model.Event
 	Hit    int
+	// Attachments are the attachments of the events by event ID (the
+	// store's EventsAttachments); an event with some gets a line for each
+	// under its text.
+	Attachments map[string][]store.EventAttachment
 }
 
 // Render implements Viewer.
@@ -27,6 +31,7 @@ func (v Exchange) Render(env Env, w int) Content {
 			c.Anchor = len(c.Body)
 		}
 		c.Body = append(c.Body, eventLines(env, e, i == v.Hit, w)...)
+		c.Body = append(c.Body, attachmentLines(env, v.Attachments[e.ID], w)...)
 		if i < len(v.Events)-1 {
 			c.Body = append(c.Body, "")
 		}

@@ -30,6 +30,7 @@ import (
 
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/tui/attview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/theme"
@@ -46,6 +47,14 @@ const DefaultDebounce = 150 * time.Millisecond
 // *store.Store implements it.
 type Searcher interface {
 	SearchTyped(ctx context.Context, q store.TypedQuery) ([]store.TypeHits, error)
+}
+
+// AttachmentSource is implemented by a Searcher that can also tell which
+// events have attachments (*store.Store does); the list marks those hits
+// and the attachment key opens them. A Searcher without it leaves the
+// list unmarked.
+type AttachmentSource interface {
+	EventsAttachments(ctx context.Context, ids []string) (map[string][]store.EventAttachment, error)
 }
 
 // Options configure the view.
@@ -115,6 +124,8 @@ type resultMsg struct {
 	took   time.Duration
 	err    error
 	quiet  bool
+	// attached are the attachments of the event hits that have any.
+	attached map[string][]store.EventAttachment
 }
 
 type focus int
@@ -147,12 +158,15 @@ type Model struct {
 	seq    uint64
 	cancel context.CancelFunc
 
-	query     string // text of the shown hits (or the running search)
-	groups    []store.TypeHits
-	hits      []store.Hit // the hits of all groups, in group order
-	rows      []row       // the list: group headers and hits
-	cursor    int         // marked hit
-	offset    int         // first visible row
+	query  string // text of the shown hits (or the running search)
+	groups []store.TypeHits
+	hits   []store.Hit // the hits of all groups, in group order
+	// attached are the attachments of the event hits that have any, by
+	// event ID (marks in the list, the attachment key).
+	attached  map[string][]store.EventAttachment
+	rows      []row // the list: group headers and hits
+	cursor    int   // marked hit
+	offset    int   // first visible row
 	took      time.Duration
 	err       error
 	searching bool
@@ -320,6 +334,8 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.togglePin()
 		case key.Matches(msg, m.keys.Project):
 			return m.openPicker(), nil
+		case key.Matches(msg, m.keys.Attach):
+			return m, m.attach()
 		default:
 			for _, t := range searchableTypes() {
 				if key.Matches(msg, m.keys.typeKey(t)) {
@@ -484,6 +500,7 @@ func (m Model) result(msg resultMsg) (tea.Model, tea.Cmd) {
 		marked = hitKey(*h)
 	}
 	m.query, m.took, m.err = msg.query, msg.took, msg.err
+	m.attached = msg.attached
 	m.setGroups(msg.groups)
 	if !msg.quiet {
 		m.cursor, m.offset = 0, 0
@@ -541,7 +558,8 @@ func (m Model) search(quiet bool) (tea.Model, tea.Cmd) {
 	run := func(quiet bool) tea.Msg {
 		start := now()
 		groups, err := searchTypes(ctx, s, query, f, types, scope)
-		return resultMsg{seq: seq, query: query, groups: groups, took: now().Sub(start), err: err, quiet: quiet}
+		return resultMsg{seq: seq, query: query, groups: groups, took: now().Sub(start), err: err, quiet: quiet,
+			attached: attachmentsOf(ctx, s, groups)}
 	}
 	if quiet {
 		return m, func() tea.Msg { return run(true) }
@@ -549,6 +567,31 @@ func (m Model) search(quiet bool) (tea.Model, tea.Cmd) {
 	m.searching = true
 	m.query = query
 	return m, tea.Batch(func() tea.Msg { return run(false) }, m.spin.Tick)
+}
+
+// attachmentsOf asks s, when it can tell, for the attachments of the event
+// hits of groups. A failure only costs the marks.
+func attachmentsOf(ctx context.Context, s Searcher, groups []store.TypeHits) map[string][]store.EventAttachment {
+	src, ok := s.(AttachmentSource)
+	if !ok {
+		return nil
+	}
+	var ids []string
+	for _, g := range groups {
+		for _, h := range g.Hits {
+			if h.Event != nil {
+				ids = append(ids, h.Event.Event.ID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	atts, err := src.EventsAttachments(ctx, ids)
+	if err != nil {
+		return nil
+	}
+	return atts
 }
 
 // pinScope is the project scope of the pin, nil without one.
@@ -666,6 +709,27 @@ func (m Model) open() tea.Cmd {
 	return nil
 }
 
+// attachments returns the attachments of the marked hit: only an event
+// hit has any.
+func (m Model) attachments() []store.EventAttachment {
+	h := m.marked()
+	if h == nil || h.Event == nil {
+		return nil
+	}
+	return m.attached[h.Event.Event.ID]
+}
+
+// attach emits attview.Open for the marked event hit with attachments; the
+// app shows them above the search. Without attachments it does nothing.
+func (m Model) attach() tea.Cmd {
+	if len(m.attachments()) == 0 {
+		return nil
+	}
+	h := m.marked()
+	o := attview.Open{SessionID: h.Event.Event.SessionID, EventID: h.Event.Event.ID, Title: strings.TrimSpace(h.Event.SessionName)}
+	return func() tea.Msg { return o }
+}
+
 // move marks the hit delta entries away and lets the preview follow.
 func (m *Model) move(delta int) tea.Cmd {
 	if len(m.hits) == 0 {
@@ -712,7 +776,11 @@ func (m *Model) clampOffset() {
 func (m Model) ShortHelp() []key.Binding {
 	switch m.focus {
 	case focusList:
-		return []key.Binding{m.keys.Move, m.keys.Open, m.keys.Types, m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input}
+		help := []key.Binding{m.keys.Move, m.keys.Open}
+		if len(m.attachments()) > 0 {
+			help = append(help, m.keys.Attach)
+		}
+		return append(help, m.keys.Types, m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input)
 	case focusRepo, focusPick:
 		return []key.Binding{m.keys.Confirm, m.keys.Cancel}
 	}
@@ -724,7 +792,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{m.keys.List, m.keys.Input, m.keys.Open, m.keys.Up, m.keys.Down},
 		{m.keys.Actor, m.keys.Time, m.keys.Repo, m.keys.Raw},
-		{m.keys.TypeEvent, m.keys.TypeSession, m.keys.TypeMemory, m.keys.Pin, m.keys.Project},
+		{m.keys.TypeEvent, m.keys.TypeSession, m.keys.TypeMemory, m.keys.Pin, m.keys.Project, m.keys.Attach},
 	}
 }
 

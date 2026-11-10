@@ -35,6 +35,8 @@ type KeyMap struct {
 	TypeEvent, TypeSession, TypeMemory key.Binding
 	Types                              key.Binding
 	Pin, Project                       key.Binding
+	// Attach opens the attachments of the marked event.
+	Attach key.Binding
 	// Confirm and Cancel apply while the repo filter is typed.
 	Confirm key.Binding
 	Cancel  key.Binding
@@ -60,6 +62,7 @@ func newKeyMap(m keys.Map) KeyMap {
 		Types:       m.Group("types", keys.SearchTypeEvent, keys.SearchTypeSession, keys.SearchTypeMemory),
 		Pin:         m.Binding(keys.SearchPin),
 		Project:     m.Binding(keys.SearchProject),
+		Attach:      m.Binding(keys.SearchAttach),
 
 		Confirm: key.NewBinding(key.WithKeys(slices.Concat(open, focus)...), key.WithHelp(keys.Display(open[0]), "apply")),
 		Cancel:  key.NewBinding(key.WithKeys(back...), key.WithHelp(keys.Display(back[0]), "cancel")),

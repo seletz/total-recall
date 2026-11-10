@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,10 @@ import (
 // mark is appended to the separator of the marked event; it reads without
 // colour, like the brackets of the active tab in the app header.
 const mark = " ◄"
+
+// AttachmentMark follows the separator of an event with attachments,
+// with their number.
+const AttachmentMark = "▣"
 
 // minIDWidth is the narrowest the session ID is shown at in the header.
 const minIDWidth = 12
@@ -79,6 +84,11 @@ func (m *Model) render() {
 			st.Base = textStyle(m.th, m.events[event])
 		}
 		out[i] = HighlightLine(line, m.matches[start:next], m.hit-start, st)
+	}
+	for i, e := range m.events {
+		if n := len(m.attached[e.ID]); n > 0 && i < len(m.eventAt) {
+			out[m.eventAt[i]] += m.th.Mark.Render(" " + AttachmentMark + strconv.Itoa(n))
+		}
 	}
 	if m.current >= 0 && m.current < len(m.eventAt) {
 		out[m.eventAt[m.current]] += m.th.Mark.Render(mark)

@@ -16,6 +16,7 @@ import (
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/activity"
+	"github.com/seletz/total-recall/internal/tui/attview"
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/memview"
@@ -57,10 +58,16 @@ type App struct {
 	// showMemory is set.
 	memory     memview.Model
 	showMemory bool
-	keys       KeyMap
-	help       bool
-	width      int
-	height     int
+	// attach is the attachment view, a layer like the detail. It is
+	// opened from a search hit or from the detail; attachFromDetail makes
+	// Back return to the detail then.
+	attach           attview.Model
+	showAttach       bool
+	attachFromDetail bool
+	keys             KeyMap
+	help             bool
+	width            int
+	height           int
 	// th is the theme of the chrome; dark until the terminal answers the
 	// background colour query of Init.
 	th theme.Theme
@@ -80,11 +87,11 @@ type App struct {
 // Init starts every view, asks the terminal for its background colour (the
 // answer reaches every view through Update) and starts the reload cycle.
 func (a App) Init() tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(a.views)+3)
+	cmds := make([]tea.Cmd, 0, len(a.views)+4)
 	for _, v := range a.views {
 		cmds = append(cmds, v.Init())
 	}
-	return tea.Batch(append(cmds, a.detail.Init(), a.memory.Init(), tea.RequestBackgroundColor, a.tick())...)
+	return tea.Batch(append(cmds, a.detail.Init(), a.memory.Init(), a.attach.Init(), tea.RequestBackgroundColor, a.tick())...)
 }
 
 // tick schedules the next change check, or nothing when the reload is off
@@ -143,7 +150,7 @@ func (a App) reopened(msg reopenMsg) (tea.Model, tea.Cmd) {
 // reload loads the view on screen again and marks every other one stale;
 // the header shows the time.
 func (a *App) reload() tea.Cmd {
-	a.stale = make([]bool, len(a.views)+2)
+	a.stale = make([]bool, len(a.views)+3)
 	for i := range a.stale {
 		a.stale[i] = true
 	}
@@ -154,6 +161,12 @@ func (a *App) reload() tea.Cmd {
 // reloadCurrent reloads the view on screen (the detail while it is shown)
 // and clears its stale mark.
 func (a *App) reloadCurrent() tea.Cmd {
+	if a.showAttach {
+		a.setStale(len(a.views)+2, false)
+		m, cmd := a.attach.Reload()
+		a.attach = m.(attview.Model)
+		return cmd
+	}
 	if a.showMemory {
 		a.setStale(len(a.views)+1, false)
 		m, cmd := a.memory.Reload()
@@ -184,7 +197,7 @@ func (a *App) setStale(i int, v bool) {
 // show switches to view i, closing the detail, and reloads the view when
 // its data went stale while it was hidden.
 func (a *App) show(i int) tea.Cmd {
-	a.active, a.showDetail, a.showMemory = i, false, false
+	a.active, a.showDetail, a.showMemory, a.showAttach = i, false, false, false
 	if !a.stale[i] {
 		return nil
 	}
@@ -216,6 +229,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.showMemory, a.showDetail = true, false
 		a.setStale(len(a.views)+1, false) // Open loads afresh
 		return a.updateMemory(msg)
+	case session.OpenAttachments:
+		return a.openAttachments(attview.Open(msg), true)
+	case attview.Open:
+		return a.openAttachments(msg, a.showDetail)
+	case attview.Back:
+		a.showAttach = false
+		if a.attachFromDetail {
+			a.showDetail = true
+			if a.stale[len(a.views)] {
+				return a, a.reloadCurrent() // the detail went stale underneath
+			}
+			return a, nil
+		}
+		return a, a.show(a.active)
 	case session.Back, memview.Back:
 		return a, a.show(a.active)
 	case tickMsg:
@@ -407,6 +434,16 @@ func (a *App) setKeys(cfg *config.Config) {
 	}
 	a.detail = a.detail.SetKeys(km).(session.Model)
 	a.memory = a.memory.SetKeys(km).(memview.Model)
+	a.attach = a.attach.SetKeys(km).(attview.Model)
+}
+
+// openAttachments shows the attachment view above the view it was opened
+// from: the detail (fromDetail, which Back returns to) or the search.
+func (a App) openAttachments(o attview.Open, fromDetail bool) (tea.Model, tea.Cmd) {
+	a.showAttach, a.attachFromDetail = true, fromDetail
+	a.showDetail, a.showMemory = false, false
+	a.setStale(len(a.views)+2, false) // Open loads afresh
+	return a.updateAttach(o)
 }
 
 // broadcastModel is broadcast on a value receiver.
@@ -452,6 +489,9 @@ func (a App) mouse(msg tea.MouseMsg, shift func(y int) tea.Msg) (tea.Model, tea.
 // current is the view that owns the body: the detail while it is shown,
 // else the active view.
 func (a App) current() View {
+	if a.showAttach {
+		return a.attach
+	}
 	if a.showMemory {
 		return a.memory
 	}
@@ -463,6 +503,9 @@ func (a App) current() View {
 
 // forward passes msg to the current view only.
 func (a App) forward(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.showAttach {
+		return a.updateAttach(msg)
+	}
 	if a.showMemory {
 		return a.updateMemory(msg)
 	}
@@ -488,9 +531,16 @@ func (a App) updateMemory(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
-// broadcast passes msg to every view, the detail and the memory view.
+// updateAttach passes msg to the attachment view.
+func (a App) updateAttach(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m, cmd := a.attach.Update(msg)
+	a.attach = m.(attview.Model)
+	return a, cmd
+}
+
+// broadcast passes msg to every view, the detail and the layers.
 func (a *App) broadcast(msg tea.Msg) tea.Cmd {
-	cmds := make([]tea.Cmd, len(a.views)+2)
+	cmds := make([]tea.Cmd, len(a.views)+3)
 	for i, v := range a.views {
 		m, cmd := v.Update(msg)
 		a.views = a.replace(i, m)
@@ -500,6 +550,8 @@ func (a *App) broadcast(msg tea.Msg) tea.Cmd {
 	a.detail, cmds[len(a.views)] = m.(session.Model), cmd
 	m, cmd = a.memory.Update(msg)
 	a.memory, cmds[len(a.views)+1] = m.(memview.Model), cmd
+	m, cmd = a.attach.Update(msg)
+	a.attach, cmds[len(a.views)+2] = m.(attview.Model), cmd
 	return tea.Batch(cmds...)
 }
 
@@ -609,6 +661,10 @@ func (a App) tabs() []string {
 		}
 		t := a.th.Active.Render("[" + itoa(i+1) + " " + v.Title() + "]")
 		switch {
+		case a.showAttach && a.attachFromDetail:
+			t += a.th.AccentText.Render(" › " + a.detail.Title() + " › " + a.attach.Title())
+		case a.showAttach:
+			t += a.th.AccentText.Render(" › " + a.attach.Title())
 		case a.showMemory:
 			t += a.th.AccentText.Render(" › " + a.memory.Title())
 		case a.showDetail:

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -267,5 +268,84 @@ func TestBlobEncoding(t *testing.T) {
 		if got := blobEncoding(mt); got != want {
 			t.Errorf("blobEncoding(%q) = %q, want %q", mt, got, want)
 		}
+	}
+}
+
+func TestEventsAttachments(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess, evs := attachedEvents()
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		ids  []string
+		want map[string]int // event ID -> number of attachments
+	}{
+		{"both", []string{"claude:e1", "claude:e2"}, map[string]int{"claude:e1": 2, "claude:e2": 2}},
+		{"one", []string{"claude:e2"}, map[string]int{"claude:e2": 2}},
+		{"unknown id", []string{"claude:none"}, map[string]int{}},
+		{"none", nil, map[string]int{}},
+		{"duplicates", []string{"claude:e1", "claude:e1"}, map[string]int{"claude:e1": 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := s.EventsAttachments(ctx, tt.ids)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("EventsAttachments = %+v, want %v", got, tt.want)
+			}
+			for id, n := range tt.want {
+				if len(got[id]) != n {
+					t.Errorf("%s: %d attachments, want %d", id, len(got[id]), n)
+				}
+			}
+		})
+	}
+	got, _ := s.EventsAttachments(ctx, []string{"claude:e2"})
+	if a := got["claude:e2"]; a[0].Position != 0 || a[1].Position != 1 || a[1].MediaType != "application/pdf" {
+		t.Errorf("order or type: %+v", a)
+	}
+}
+
+func TestEventsAttachmentsMany(t *testing.T) {
+	// More ids than SQLite's variable limit are split into batches.
+	s, _ := openTestStore(t)
+	ids := make([]string, 2000)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("claude:x%d", i)
+	}
+	if got, err := s.EventsAttachments(ctx, ids); err != nil || len(got) != 0 {
+		t.Errorf("EventsAttachments(2000 ids) = %+v, %v", got, err)
+	}
+}
+
+func TestSessionAttachmentList(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess, evs := attachedEvents()
+	if err := s.WriteBatch(ctx, SourceState{}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.SessionAttachmentList(ctx, "claude:s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// In transcript order: the events by sequence, the attachments of an
+	// event by position.
+	var order []string
+	for _, a := range got {
+		order = append(order, a.EventID+"/"+strings.Split(a.MediaType, "/")[1])
+	}
+	want := "claude:e1/png,claude:e1/png,claude:e2/png,claude:e2/pdf"
+	if strings.Join(order, ",") != want {
+		t.Errorf("order = %v, want %s", order, want)
+	}
+	if got[3].Bytes != int64(len(testPDF)) || got[3].Position != 1 {
+		t.Errorf("last = %+v", got[3])
+	}
+	if got, err := s.SessionAttachmentList(ctx, "claude:none"); err != nil || len(got) != 0 {
+		t.Errorf("unknown session = %+v, %v", got, err)
 	}
 }

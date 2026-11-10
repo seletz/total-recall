@@ -30,6 +30,7 @@ const (
 	Search   Context = "search"
 	Session  Context = "session"
 	Memory   Context = "memory"
+	Attach   Context = "attach"
 	Stats    Context = "stats"
 	Activity Context = "activity"
 	Config   Context = "config"
@@ -71,6 +72,7 @@ const (
 	SearchTypeMemory  = "search_type_memory"
 	SearchPin         = "search_pin"
 	SearchProject     = "search_project"
+	SearchAttach      = "search_attach"
 
 	SessionUp       = "session_up"
 	SessionDown     = "session_down"
@@ -84,6 +86,7 @@ const (
 	SessionPrev     = "session_prev"
 	SessionTools    = "session_tools"
 	SessionCopy     = "session_copy"
+	SessionAttach   = "session_attach"
 
 	MemoryUp       = "memory_up"
 	MemoryDown     = "memory_down"
@@ -93,6 +96,14 @@ const (
 	MemoryDiff     = "memory_diff"
 	MemoryBase     = "memory_base"
 	MemoryTimeline = "memory_timeline"
+
+	AttachPrev     = "attach_prev"
+	AttachNext     = "attach_next"
+	AttachUp       = "attach_up"
+	AttachDown     = "attach_down"
+	AttachPageUp   = "attach_page_up"
+	AttachPageDown = "attach_page_down"
+	AttachOpen     = "attach_open"
 
 	StatsDays      = "stats_days"
 	StatsWeeks     = "stats_weeks"
@@ -162,6 +173,7 @@ var Actions = []Action{
 	{SearchTypeMemory, Search, []string{"m"}, "memory on/off"},
 	{SearchPin, Search, []string{"p"}, "pin project of hit"},
 	{SearchProject, Search, []string{"P"}, "choose project"},
+	{SearchAttach, Search, []string{"v"}, "view attachments"},
 
 	{SessionUp, Session, []string{"up", "k"}, "up"},
 	{SessionDown, Session, []string{"down", "j"}, "down"},
@@ -175,6 +187,7 @@ var Actions = []Action{
 	{SessionPrev, Session, []string{"N"}, "previous hit"},
 	{SessionTools, Session, []string{"T"}, "tools on/off"},
 	{SessionCopy, Session, []string{"y"}, "copy session id"},
+	{SessionAttach, Session, []string{"v"}, "view attachments"},
 
 	{MemoryUp, Memory, []string{"up", "k"}, "up"},
 	{MemoryDown, Memory, []string{"down", "j"}, "down"},
@@ -184,6 +197,14 @@ var Actions = []Action{
 	{MemoryDiff, Memory, []string{"d"}, "diff on/off"},
 	{MemoryBase, Memory, []string{"c"}, "compare with this version"},
 	{MemoryTimeline, Memory, []string{"t"}, "timeline"},
+
+	{AttachPrev, Attach, []string{"left", "p"}, "previous attachment"},
+	{AttachNext, Attach, []string{"right", "n"}, "next attachment"},
+	{AttachUp, Attach, []string{"up", "k"}, "scroll up"},
+	{AttachDown, Attach, []string{"down", "j"}, "scroll down"},
+	{AttachPageUp, Attach, []string{"b", "pgup"}, "page up"},
+	{AttachPageDown, Attach, []string{"f", "pgdown", "space"}, "page down"},
+	{AttachOpen, Attach, []string{"o", "enter"}, "open with the system viewer"},
 
 	{StatsDays, Stats, []string{"d"}, "days"},
 	{StatsWeeks, Stats, []string{"w"}, "weeks"},
@@ -234,7 +255,7 @@ var Actions = []Action{
 var ForceQuit = key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp(Display("ctrl+c"), "quit"))
 
 // Contexts lists the contexts in catalogue order.
-var Contexts = []Context{Global, Search, Session, Memory, Stats, Activity, Config}
+var Contexts = []Context{Global, Search, Session, Memory, Attach, Stats, Activity, Config}
 
 // ByContext groups the catalogue by context, keeping the order.
 func ByContext() map[Context][]Action {

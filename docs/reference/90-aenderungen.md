@@ -8,6 +8,14 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.7.0 (unveröffentlicht)
 
+### Anhänge in der TUI ([#184](https://github.com/seletz/total-recall/issues/184))
+
+- **Anhang-Viewer:** Bilder und Dokumente, die zu einem Event gehören, lassen sich in der TUI ansehen. `v` öffnet in der Suche (bei einem Treffer mit Anhang) und in der Session (mit Anhängen) eine dritte Ebene, die durch alle Anhänge der Session blättert. Bilder erscheinen als Text (Schattenzeichen in der Farbe des Bildes, auch mit `NO_COLOR` lesbar, an die Fenstergröße angepasst), PDFs mit Seitenzahl und Titel, Texte mit ihrem Anfang; `o` öffnet den Anhang mit dem Programm des Systems, `total-recall blob` bleibt die Rückfallebene. Die Kitty-Grafik für Bilder folgt.
+- **Markierung:** Treffer mit Anhang tragen `▣` und die Zahl in der Liste, die Vorschau nennt jeden Anhang, die Trennzeile in der Session endet auf `▣`. Treffer und Sessions ohne Anhänge bleiben unverändert.
+- **Tasten:** `search_attach` und `session_attach` (`v`) sowie die Gruppe `attach_*` (`attach_prev`, `attach_next`, `attach_up`, `attach_down`, `attach_page_up`, `attach_page_down`, `attach_open`), alle über `[keys]` änderbar.
+- **Demo-Archiv:** Ein erfundenes Bild (96×48, ein Höhenprofil, synthetisch erzeugt) und ein kleines Dokument hängen an einer Session von kompass. Dadurch ändern sich die Zahlen des Demo-Archivs um vier Nachrichten (drei eigene, eine Antwort) am 28. Oktober, in den Beispiel-Charts und den Screenshots.
+- **Store:** `SessionAttachmentList` und `EventsAttachments` lesen die Metadaten der Anhänge, ohne die Daten zu laden; kein Schema, keine Migration.
+
 ### Koordinator-Prompts zählen nicht mehr als Eingabe des Menschen
 
 - **Per Terminal eingetippte Aufträge werden `automation`** ([#265](https://github.com/seletz/total-recall/issues/265)). Ein Koordinator, der mit `herdr agent prompt <name> "…"` oder `tmux send-keys` Text in das Terminal eines Workers schickt, erschien im Transkript des Workers als Eingabe des Menschen (`actor = human`, `input_kind` `typed` oder `pasted`) und dehnte Arbeitstag, Blöcke und Arbeitszeit. Ein unmittelbareres Signal gibt es im Format nicht: `origin.kind`, `promptSource` und `entrypoint` sind dieselben wie bei echter Eingabe. Deshalb **gleicht die Erkennung den Text ab**: Eine Eingabe ist `automation`, wenn eine andere Session höchstens 120 s vorher einen Tool-Aufruf hatte, dessen Argument denselben Text enthält (ohne Leerraum und Anführungszeichen verglichen, bei langen Texten der Anfang). Kein Muster nötig.
