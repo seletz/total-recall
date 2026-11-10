@@ -73,6 +73,11 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 			return err
 		}
 		if p != "" && now.Sub(t) < d {
+			if err := store.EnsureBackupNote(cfg.DB, p, t); err != nil {
+				if log != nil {
+					log.Warnf("backup: status file next to the database not written: %v", err)
+				}
+			}
 			_, _ = fmt.Fprintf(out, "backup skipped: %s is %s old (< %s)\n", p, duration(now.Sub(t)), d)
 			return nil
 		}
