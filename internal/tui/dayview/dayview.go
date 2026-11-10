@@ -5,7 +5,7 @@
 // estimate of stats --worktime; the body lists the activity blocks of the
 // day with a bar in project colours, the projects of each block with their
 // time and the sessions in it, the pauses between the blocks, and then the
-// projects of the day with their time and their events split by human and
+// projects and the categories of the day with their time and their events split by human and
 // agent.
 //
 // The view calculates nothing: package dayreport assembles the day from
@@ -38,6 +38,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // Open asks the app to show the view for a day (any time of it); the
@@ -528,7 +529,26 @@ func (m Model) bodyRows(ps map[string]projectStyle) []row {
 		s := ps[p.Key]
 		rows = append(rows, row{text: fmt.Sprintf("   %s %s  %7s  %7s  %6d  %6d", s.style.Render(string(s.glyph)), pad(p.Name, nameW), store.FormatSpan(p.Raw), store.FormatSpan(p.Rounded), p.Human, p.Agent), item: -1})
 	}
-	rows = append(rows, row{text: fmt.Sprintf("   %s %s  %7s  %7s  %6d  %6d", " ", pad("total", nameW), store.FormatSpan(r.Worktime.Raw), store.FormatSpan(r.Worktime.Rounded), w.Human, w.Agent), item: -1})
+	// With rounding_scope category a category is rounded once, so the
+	// rounded times of its projects do not add up: the total leaves them out.
+	projRounded := store.FormatSpan(r.Worktime.Rounded)
+	if m.opts.Report.Worktime.Scope == worktime.ScopeCategory {
+		projRounded = "-"
+	}
+	rows = append(rows, row{text: fmt.Sprintf("   %s %s  %7s  %7s  %6d  %6d", " ", pad("total", nameW), store.FormatSpan(r.Worktime.Raw), projRounded, w.Human, w.Agent), item: -1})
+	rows = append(rows, row{item: -1}, row{text: " " + st.Label.Render("categories"), item: -1})
+	catW := 8
+	for _, c := range r.Worktime.Categories {
+		catW = max(catW, lipgloss.Width(c.Name))
+	}
+	rows = append(rows, row{text: st.Muted.Render(fmt.Sprintf("     %s  %7s  %7s", pad("", catW), "time", "rounded")), item: -1})
+	for _, c := range r.Worktime.Categories {
+		rows = append(rows, row{text: fmt.Sprintf("     %s  %7s  %7s", pad(c.Name, catW), store.FormatSpan(c.Raw), store.FormatSpan(c.Rounded)), item: -1})
+	}
+	rows = append(rows, row{text: fmt.Sprintf("     %s  %7s  %7s", pad("total", catW), store.FormatSpan(r.Worktime.Raw), store.FormatSpan(r.Worktime.Rounded)), item: -1})
+	if m.opts.Report.Worktime.Scope == worktime.ScopeCategory {
+		rows = append(rows, row{text: st.Muted.Render("     rounded is per category; per project it does not add up"), item: -1})
+	}
 	return rows
 }
 

@@ -22,15 +22,15 @@
    █ fahrtenbuch    2h59m    3h00m      23       0
    ▓ wetterwarte    1h46m    2h00m       8       0
    ▒ kompass          47m    1h00m       6       0
-     total          5h32m    6h00m      37       0
+     total          5h32m        -      37       0
 
-
-
-
-
-
-
-
+ categories
+                     time  rounded
+     fahrtenbuch    2h59m    3h00m
+     kompass          47m    1h00m
+     wetterwarte    1h46m    2h00m
+     total          5h32m    6h00m
+     rounded is per category; per project it does not add up
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open session • ←/→ prev/next day • h human/all events • esc back • 1 search • 2 stats • 3 activity …

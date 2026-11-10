@@ -103,6 +103,25 @@ func TestShowsTheNumbersOfStats(t *testing.T) {
 					t.Errorf("%s (human=%v): no row for project %+v:\n%s", d.Label, human, p, frame)
 				}
 			}
+			// The categories add up to the day, raw and rounded, as --worktime.
+			craw, crounded := time.Duration(0), time.Duration(0)
+			for _, c := range rep.Worktime.Categories {
+				craw += c.Raw
+				crounded += c.Rounded
+				ok := false
+				for _, line := range strings.Split(frame, "\n") {
+					f := strings.Fields(line)
+					if len(f) == 3 && f[0] == c.Name && f[1] == store.FormatSpan(c.Raw) && f[2] == store.FormatSpan(c.Rounded) {
+						ok = true
+					}
+				}
+				if !ok {
+					t.Errorf("%s (human=%v): no row for category %+v:\n%s", d.Label, human, c, frame)
+				}
+			}
+			if craw != rep.Worktime.Raw || crounded != rep.Worktime.Rounded || !strings.Contains(frame, "categories") {
+				t.Errorf("%s: categories %s/%s, day %s/%s", d.Label, craw, crounded, rep.Worktime.Raw, rep.Worktime.Rounded)
+			}
 			for _, w := range want {
 				if !strings.Contains(frame, w) {
 					t.Errorf("%s (human=%v): view lacks %q:\n%s", d.Label, human, w, frame)
