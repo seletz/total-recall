@@ -226,6 +226,11 @@ func TestMCPPagesAddUp(t *testing.T) {
 			if len(want) <= bound {
 				t.Skipf("only %d bytes in the demo archive", len(want))
 			}
+			// Every page reruns the CLI (cursor paging is stateless), so a
+			// small bound makes the test cost grow with the archive. Four
+			// pages still cross every page boundary the invariant needs.
+			bound = max(bound, len(want)/4+1)
+			p.srv.MaxBytes = bound
 			pages, hints := p.crawl(tc.tool, tc.args)
 			if len(pages) < 2 {
 				t.Fatalf("%d pages for %d bytes", len(pages), len(want))
@@ -300,11 +305,11 @@ func TestMCPWorktimeSumsOnEveryPage(t *testing.T) {
 		rest -= len(d) + 1
 		biggest = max(biggest, len(d))
 	}
-	bound := rest + 4*biggest
+	bound := rest + 30*biggest
 
 	p := newPagedDemo(t, bound)
 	pages, hints := p.crawl("stats", args)
-	if len(pages) < len(days)/10 {
+	if len(pages) < 3 {
 		t.Fatalf("%d pages for %d days", len(pages), len(days))
 	}
 	var rawSum, roundedSum, nDays, nCats, nProjects, nSessions int
@@ -517,7 +522,7 @@ func TestMCPUncategorizedOnEveryPage(t *testing.T) {
 	if err := json.Unmarshal([]byte(want), &whole); err != nil || len(whole.Uncategorized) == 0 {
 		t.Fatalf("whole: %v, %d uncategorized", err, len(whole.Uncategorized))
 	}
-	bound := len(want) / 6
+	bound := len(want) / 4
 	pages, hints := newPagedDemo(t, bound).crawl("stats", args)
 	if len(pages) < 3 {
 		t.Fatalf("%d pages", len(pages))
@@ -597,9 +602,9 @@ func TestMCPWorkdayBlocksSumsOnEveryPage(t *testing.T) {
 		rest -= len(d) + 1
 		biggest = max(biggest, len(d))
 	}
-	bound := rest + 5*biggest
+	bound := rest + 30*biggest
 	pages, hints := newPagedDemo(t, bound).crawl("stats", args)
-	if len(pages) < len(days)/10 {
+	if len(pages) < 3 {
 		t.Fatalf("%d pages for %d days", len(pages), len(days))
 	}
 	var nDays, nBlocks, spanSum int

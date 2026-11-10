@@ -33,6 +33,9 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 			if len(want) <= tc.bound || whole.Total == 0 {
 				t.Skipf("%d bytes, %d calls: no pages to test", len(want), whole.Total)
 			}
+			// Each page reruns the CLI: aim for few pages, not tiny ones.
+			bound := max(tc.bound, len(want)/3+1)
+			p.srv.MaxBytes = bound
 			pages, hints := p.crawl("stats", map[string]any{"tools": true, "by": tc.by, "since": since, "until": until})
 			if len(pages) < 2 {
 				t.Fatalf("%d pages for %d bytes", len(pages), len(want))
@@ -40,8 +43,8 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 			t.Logf("%d pages for %d bytes", len(pages), len(want))
 			groups, sum := 0, 0
 			for i, pg := range pages {
-				if len(pg) > tc.bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Unit != "groups" {
-					t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), tc.bound, hints[i])
+				if len(pg) > bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Unit != "groups" {
+					t.Fatalf("page %d: %d bytes (bound %d), hint %+v", i+1, len(pg), bound, hints[i])
 				}
 				var w ToolStatsJSON
 				if err := json.Unmarshal([]byte(pg), &w); err != nil {

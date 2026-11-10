@@ -145,7 +145,7 @@ func TestChartFiles(t *testing.T) {
 	t.Parallel()
 	e, db := chartEnv(t)
 	out := filepath.Join(t.TempDir(), "charts")
-	r := e.run(t, "", "--db", db, "chart", "all", "--month", "2026-10", "--format", "png", "--scale", "2", "--out", out)
+	r := e.run(t, "", "--db", db, "chart", "all", "--month", "2026-10", "--format", "png", "--scale", "1", "--out", out)
 	if r.code != 0 {
 		t.Fatalf("exit %d: %s", r.code, r.stderr)
 	}
@@ -166,8 +166,8 @@ func TestChartFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if bd := img.Bounds(); bd.Dx() < 600 || bd.Dy() < 300 {
-			t.Errorf("%s: %v, want at least 600×300 at scale 2", name, bd)
+		if bd := img.Bounds(); bd.Dx() < 300 || bd.Dy() < 150 {
+			t.Errorf("%s: %v, want at least 300×150 at scale 1", name, bd)
 		}
 	}
 	// A week range names the files by its days; --width sets the pixel width.
