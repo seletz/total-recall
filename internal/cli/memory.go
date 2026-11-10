@@ -201,7 +201,7 @@ versioned, redacted, deletions included.
 			return err
 		}
 		loc := cfg.Location()
-		atTime, err := parseTimeArg(at, loc, true)
+		atTime, err := parseTimeArg("at", at, loc, true)
 		if err != nil {
 			return err
 		}

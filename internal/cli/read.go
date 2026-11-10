@@ -395,11 +395,11 @@ func (f *filterFlags) register(c *cobra.Command, defaultLimit int) {
 // filter builds the store filter; cfg resolves an account name.
 func (f *filterFlags) filter(cfg *config.Config) (store.SessionFilter, error) {
 	loc := cfg.Location()
-	since, err := parseTimeArg(f.since, loc, false)
+	since, err := parseTimeArg("since", f.since, loc, false)
 	if err != nil {
 		return store.SessionFilter{}, err
 	}
-	until, err := parseTimeArg(f.until, loc, true)
+	until, err := parseTimeArg("until", f.until, loc, true)
 	if err != nil {
 		return store.SessionFilter{}, err
 	}
@@ -618,10 +618,10 @@ window.`,
 		}
 		loc := cfg.Location()
 		f := store.EventFilter{All: all, FromEvent: fromEvent, Limit: limit, Offset: offset}
-		if f.Since, err = parseTimeArg(since, loc, false); err != nil {
+		if f.Since, err = parseTimeArg("since", since, loc, false); err != nil {
 			return err
 		}
-		if f.Until, err = parseTimeArg(until, loc, true); err != nil {
+		if f.Until, err = parseTimeArg("until", until, loc, true); err != nil {
 			return err
 		}
 		if limit < 0 {
@@ -1296,11 +1296,11 @@ func statsPeriod(month, sinceArg, untilArg string, now time.Time, loc *time.Loca
 		return time.Time{}, time.Time{}, usagef("use either --month or --since/--until")
 	}
 	if sinceArg != "" || untilArg != "" {
-		since, err := parseTimeArg(sinceArg, loc, false)
+		since, err := parseTimeArg("since", sinceArg, loc, false)
 		if err != nil {
 			return since, since, err
 		}
-		until, err := parseTimeArg(untilArg, loc, true)
+		until, err := parseTimeArg("until", untilArg, loc, true)
 		return since, until, err
 	}
 	var start time.Time
