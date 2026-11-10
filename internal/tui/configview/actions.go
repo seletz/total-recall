@@ -136,7 +136,7 @@ func (m Model) actions() []action {
 		plan := s.plan
 		plan.Backup = m.tilde(plan.Backup)
 		migrate.details = ops.PlanLines(plan)
-		if s.backup == "" {
+		if s.backup == "" && s.backupInfo.State != store.BackupUnknown {
 			migrate.summary = "apply the pending schema migrations; no backup yet, run backup first"
 		}
 	}

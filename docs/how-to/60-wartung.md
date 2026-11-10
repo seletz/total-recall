@@ -37,6 +37,16 @@ total-recall maintenance
 
 Der Befehl schreibt zuerst ein Backup wie [`backup`](../reference/10-befehle.md#backup), baut dann die Kopie, prüft sie (`PRAGMA integrity_check`, gleiche Zeilenzahlen) und tauscht die Datei atomar aus. Jeder Fehler vorher lässt das Archiv unverändert, auch ein `Ctrl-C`. Danach zeigt `status` die neue Seitengröße ohne Hinweis.
 
+## `status` zeigt „last backup: unknown“ { #backup-unbekannt }
+
+Liegt `[backup] dir` unter `~/Documents` und darf der lesende Prozess den Ordner nicht lesen, zeigen [`status`](../reference/10-befehle.md#status) und die TUI `unknown` statt `none`, mit Grund (`no access: operation not permitted`) und Hinweis. Das heißt nicht, dass es keine Backups gibt: Der Hook schreibt sie weiter. Unter macOS liegt es am Datenschutz für „Dokumente“:
+
+1. Der App, aus der du `total-recall` startest (Terminal, IDE), unter Systemeinstellungen → Datenschutz & Sicherheit → Dateien und Ordner den Zugriff auf „Dokumente“ geben.
+2. **Das Terminal bzw. die App danach neu starten.** Laufende Prozesse behalten die alten Rechte; ein Terminal, das seit Tagen läuft, bekommt die Freigabe erst nach dem Neustart.
+3. Oder `[backup] dir` außerhalb von `~/Documents` legen.
+
+Die Zeit des letzten Backups zeigt `status` auch ohne Leserechte, aus der Statusdatei `<db>.backup.json` neben der Datenbank, die jedes Backup schreibt.
+
 ## Backup wiederherstellen { #backup-wiederherstellen }
 
 `backup` schreibt seit v1.3.0 `archive-YYYY-MM-DD.db.zst` (zstd); bis v1.2 schrieben `archive-YYYY-MM-DD.db.gz` (gzip), Vorabversionen davor unkomprimierte `archive-YYYY-MM-DD.db`. Alle drei liest [`restore`](../reference/10-befehle.md#restore), alle drei zählen bei der Aufbewahrung (`keep_daily`, `keep_monthly`) gleich, und `status`, `backup --if-older`, die Config-Seite und das Setup der TUI nehmen die jeweils neueste Kopie, egal in welchem Format. Alte `.db.gz` musst du also weder umwandeln noch löschen; sie fallen mit der Zeit aus der Aufbewahrung.

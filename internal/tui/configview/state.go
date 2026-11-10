@@ -43,6 +43,10 @@ type state struct {
 	// backup is the newest backup copy and its time; empty without one.
 	backup   string
 	backupAt time.Time
+	// backupInfo is the state of the last backup: unknown when the backup
+	// directory cannot be read (then backup and backupAt come from the status
+	// file next to the database, if there is one).
+	backupInfo store.BackupStatus
 	// problems are the errors of the config tables checked when used.
 	problems []error
 	// errs are the ERROR lines of the log of the last errorWindow,
@@ -93,11 +97,8 @@ func load(opts Options, now time.Time) state {
 	} else {
 		s.errs, s.older = logfile.SplitErrors(errs, now.Add(-errorWindow))
 	}
-	if p, t, err := store.LastBackup(cfg.Backup.Dir, cfg.Location()); err != nil {
-		s.err = err
-	} else {
-		s.backup, s.backupAt = p, t
-	}
+	s.backupInfo = store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location())
+	s.backup, s.backupAt = s.backupInfo.Path, s.backupInfo.At
 	if _, err := os.Stat(cfg.DB); err != nil {
 		s.noArchive = true
 	}
