@@ -67,7 +67,9 @@ type ToolFilter struct {
 	// tool it must match the whole argument. "" matches everything.
 	Path string
 	// TopN keeps the TopN largest groups and folds the rest into OtherKey
-	// (last). 0 keeps all. Not applied to ToolByDay.
+	// (last). 0 keeps all. Not applied to ToolByDay. Without a grouping
+	// (ToolNoGroup) it keeps the TopN most used tools in ByTool and folds
+	// the rest into one OtherKey entry (last); the sum stays Total.
 	TopN int
 	// Project renames the keys of ToolByProject, as ActivityFilter.Project.
 	Project func(key string, dir bool, remote string) string
@@ -207,6 +209,13 @@ func (s *Store) ToolStats(ctx context.Context, f ToolFilter) (ToolStats, error) 
 	}
 	out.ByTool = total.list()
 	if f.By == ToolNoGroup {
+		if f.TopN > 0 && len(out.ByTool) > f.TopN {
+			other := 0
+			for _, c := range out.ByTool[f.TopN:] {
+				other += c.Count
+			}
+			out.ByTool = append(out.ByTool[:f.TopN:f.TopN], ToolCount{Tool: OtherKey, Count: other})
+		}
 		return out, nil
 	}
 	keys := make([]string, 0, len(groups))

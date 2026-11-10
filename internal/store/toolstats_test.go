@@ -156,3 +156,56 @@ func TestParseToolGroup(t *testing.T) {
 		t.Error("agent accepted")
 	}
 }
+
+// TestToolStatsTopWithoutGroups: --top without a grouping folds by_tool.
+func TestToolStatsTopWithoutGroups(t *testing.T) {
+	s, _ := openTestStore(t)
+	seedTools(t, s)
+	tests := []struct {
+		name   string
+		f      ToolFilter
+		byTool []string
+	}{
+		{"One", ToolFilter{TopN: 1}, []string{"Bash:4", "other:3"}},
+		{"Two", ToolFilter{TopN: 2}, []string{"Bash:4", "Edit:2", "other:1"}},
+		{"ExactlyAll", ToolFilter{TopN: 3}, []string{"Bash:4", "Edit:2", "Read:1"}},
+		{"MoreThanTools", ToolFilter{TopN: 10}, []string{"Bash:4", "Edit:2", "Read:1"}},
+		{"WithPath", ToolFilter{TopN: 1, Path: "/w/app*"}, []string{"Bash:2", "other:2"}},
+		{"Nothing", ToolFilter{TopN: 1, Path: "/nowhere"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := s.ToolStats(ctx, tt.f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g := fmtTools(got.ByTool); !slices.Equal(g, tt.byTool) {
+				t.Errorf("by tool = %v, want %v", g, tt.byTool)
+			}
+			sum := 0
+			for _, c := range got.ByTool {
+				sum += c.Count
+			}
+			if sum != got.Total {
+				t.Errorf("by tool sums to %d, total %d", sum, got.Total)
+			}
+			if len(got.Groups) != 0 {
+				t.Errorf("groups without By: %v", got.Groups)
+			}
+		})
+	}
+}
+
+// TestToolStatsTopWithGroupsKeepsTools: with a grouping --top folds groups,
+// not the tools of by_tool.
+func TestToolStatsTopWithGroupsKeepsTools(t *testing.T) {
+	s, _ := openTestStore(t)
+	seedTools(t, s)
+	got, err := s.ToolStats(ctx, ToolFilter{By: ToolBySession, TopN: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := fmtTools(got.ByTool); !slices.Equal(g, []string{"Bash:4", "Edit:2", "Read:1"}) {
+		t.Errorf("by tool = %v", g)
+	}
+}

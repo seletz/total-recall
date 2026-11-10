@@ -100,7 +100,7 @@ func mcpTools() []mcp.Tool {
 				pSince, pUntil,
 				{Name: "period", Type: "string", Enum: []string{"day", "week", "month"}, Description: "time series per day, week or month"},
 				{Name: "by", Type: "string", Enum: []string{"project", "agent", "directory", "account", "day", "session", "repo"}, Description: "break the series down by this key; with tools: day, session, repo or project"},
-				{Name: "top", Type: "integer", Description: "with by: keep the N largest keys, fold the rest into other"},
+				{Name: "top", Type: "integer", Description: "with by: keep the N largest keys, fold the rest into other; with tools and without by: keep the N most used tools in by_tool, the rest is one entry other"},
 				{Name: "tools", Type: "boolean", Description: "count tool calls (tool_use events) per tool instead of activity; by groups them, groups always sum to total"},
 				{Name: "path", Type: "string", Description: "with tools: only calls whose arguments match this glob (file tools: the whole path, e.g. */src/*; Bash: anywhere in the command; arguments are cut at 1 KiB)"},
 				{Name: "workday", Type: "boolean", Description: "first and last activity per day"},

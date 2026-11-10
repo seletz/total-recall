@@ -1229,7 +1229,7 @@ messages: the values are a lower bound.`,
 	c.Flags().StringVar(&untilArg, "until", "", "until this time; a date includes the whole day")
 	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
 	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory or account (implies --period day)")
-	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\" (0 = all)")
+	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\"; with --tools and no --by: the N most used tools (0 = all)")
 	c.Flags().BoolVar(&tools, "tools", false, "count tool_use events per tool; --by day, session, repo or project groups them, --path GLOB filters on the arguments")
 	c.Flags().StringVar(&toolPath, "path", "", "with --tools: only calls whose arguments match this glob (file tools: the whole path; Bash: anywhere in the command)")
 	c.Flags().BoolVar(&workday, "workday", false, "first and last activity per day (default range: this-week)")

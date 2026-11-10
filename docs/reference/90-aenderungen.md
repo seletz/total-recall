@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.7.0 (unveröffentlicht)
+
+### Tool-Nutzung in `stats`
+
+- **`stats --tools --top N` ohne `--by`** ([Befehle](10-befehle.md#stats-tools), #258): kürzt `by_tool` auf die N meistgenutzten Tools, der Rest steht als ein Eintrag `other`; die Einträge ergeben weiter genau `total`. Vorher war `--top` ohne `--by` ein Fehler. Mit `--by` ändert sich nichts. Im MCP-Tool `stats` gilt dasselbe für `top` mit `tools`.
+
 ## v1.6.0
 
 ### Was dieses Update mit dem Archiv macht
