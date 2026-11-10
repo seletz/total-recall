@@ -431,6 +431,10 @@ type SessionJSON struct {
 	HumanEvents     int        `json:"human_events"`
 	AgentEvents     int        `json:"agent_events"`
 	Events          int        `json:"events"`
+	// AttachmentCount is the number of attachments of the session: those
+	// of the kind and actor of --has-attachment/--actor, else all of
+	// them (since v1.7.0).
+	AttachmentCount int `json:"attachment_count"`
 	// ContinuedIn is the session this one was continued in, ContinuedFrom
 	// the session that was continued in this one (both full IDs; the
 	// target of ContinuedIn may not be archived).
@@ -452,7 +456,7 @@ func sessionJSON(s store.SessionInfo, accountName func(string) string) SessionJS
 		GitBranch: NullString(s.GitBranch), Model: NullString(s.Model), HarnessVersion: NullString(s.HarnessVersion),
 		StartedAt: NullString(isoTime(s.StartedAt)), EndedAt: NullString(isoTime(s.EndedAt)),
 		DurationSeconds: int64(s.EndedAt.Sub(s.StartedAt).Seconds()),
-		HumanEvents:     s.HumanEvents, AgentEvents: s.AgentEvents, Events: s.Events,
+		HumanEvents:     s.HumanEvents, AgentEvents: s.AgentEvents, Events: s.Events, AttachmentCount: s.Attachments,
 		ContinuedIn: NullString(s.ContinuedIn), ContinuedFrom: NullString(s.ContinuedFrom),
 		AccountID: NullString(s.AccountID), OrganizationID: NullString(s.OrganizationID), Account: NullString(accountName(s.AccountID))}
 }
@@ -482,10 +486,17 @@ func (e *env) sessionsCmd() *cobra.Command {
 	var f filterFlags
 	var of outputFlags
 	var subagents, allSessions bool
+	var hasAttachment, actor, projectRef string
 	c := &cobra.Command{
 		Use:   "sessions",
 		Short: "List sessions (newest first)",
-		Args:  usageArgs(cobra.NoArgs),
+		Long: `Lists sessions, newest first. --has-attachment[=image|document] keeps the
+sessions with an image or a document (give the kind with "="; --actor
+then says whose event carries it, e.g. human for what the user pasted)
+and attachment_count in the JSON counts those attachments. --project
+keeps one project (name as in stats --by project, else a part of name,
+path or remote URL).`,
+		Args: usageArgs(cobra.NoArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
 		cfg, err := e.loadConfig()
@@ -498,14 +509,34 @@ func (e *env) sessionsCmd() *cobra.Command {
 		}
 		sf.TopLevel = !subagents
 		sf.HideEmpty = !allSessions
+		if sf.Attachment, err = attachmentFilter(cmd, hasAttachment, actor); err != nil {
+			return err
+		}
+		if err := checkAttachmentActor(actor, sf.Attachment != nil); err != nil {
+			return err
+		}
 		st, err := e.openRead(cfg)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = st.Close() }()
-		list, err := st.Sessions(cmd.Context(), sf)
-		if err != nil {
-			return err
+		noMatch := false
+		if projectRef != "" {
+			cat, err := loadProjectCatalog(cmd.Context(), st, cfg)
+			if err != nil {
+				return err
+			}
+			scope, err := cat.Scope(projectRef)
+			if err != nil {
+				return errKind(ErrKindNotFound, err)
+			}
+			sf.Projects, noMatch = scope.Keys, len(scope.Keys) == 0
+		}
+		var list []store.SessionInfo
+		if !noMatch {
+			if list, err = st.Sessions(cmd.Context(), sf); err != nil {
+				return err
+			}
 		}
 		if o.format.IsJSON() {
 			out := make([]SessionJSON, 0, len(list))
@@ -515,16 +546,27 @@ func (e *env) sessionsCmd() *cobra.Command {
 			return writeList(o, out)
 		}
 		loc := cfg.Location()
+		head := []string{"START", "DUR", "ID", "NAME", "REPO", "BRANCH", "HUMAN", "AGENT"}
+		if sf.Attachment != nil {
+			head = append(head, "ATTACHMENTS")
+		}
 		rows := make([][]string, 0, len(list))
 		for _, s := range list {
-			rows = append(rows, []string{localTime(s.StartedAt, loc), duration(s.EndedAt.Sub(s.StartedAt)),
+			row := []string{localTime(s.StartedAt, loc), duration(s.EndedAt.Sub(s.StartedAt)),
 				shortID(s.Session), s.DisplayName(), shortRepo(s.Repo()), s.GitBranch,
-				strconv.Itoa(s.HumanEvents), strconv.Itoa(s.AgentEvents)})
+				strconv.Itoa(s.HumanEvents), strconv.Itoa(s.AgentEvents)}
+			if sf.Attachment != nil {
+				row = append(row, strconv.Itoa(s.Attachments))
+			}
+			rows = append(rows, row)
 		}
-		return o.table([]string{"START", "DUR", "ID", "NAME", "REPO", "BRANCH", "HUMAN", "AGENT"}, rows)
+		return o.table(head, rows)
 	})
 	f.register(c, 0)
 	of.register(c)
+	registerHasAttachment(c, &hasAttachment, "sessions")
+	c.Flags().StringVar(&actor, "actor", "", "with --has-attachment: whose event carries the attachment: "+strings.Join(attachmentActors, ", "))
+	c.Flags().StringVar(&projectRef, "project", "", "only this project: name as in stats --by project, else a part of name, path or remote URL")
 	c.Flags().BoolVar(&subagents, "subagents", false, "include subagent sessions")
 	c.Flags().BoolVar(&allSessions, "all-sessions", false, "include sessions without events and start time (e.g. only a title was seen)")
 	return c
@@ -657,6 +699,9 @@ window.`,
 			if atts, err = st.SessionAttachments(cmd.Context(), s.ID); err != nil {
 				return err
 			}
+			for _, l := range atts {
+				s.Attachments += len(l)
+			}
 		}
 		if o.format.IsJSON() {
 			out := ShowJSON{Session: sessionJSON(s, cfg.AccountName), Events: make([]EventJSON, 0, len(evs))}
@@ -745,6 +790,11 @@ type HitJSON struct {
 	// session's project like stats --by project (since v1.4.0).
 	Type    string     `json:"type"`
 	Project NullString `json:"project"`
+	// Attachments are the attachments of the event (those of the kind
+	// asked for with --has-attachment=KIND), like the attachments of the
+	// event in show; AttachmentCount their number (since v1.7.0).
+	Attachments     []AttachmentJSON `json:"attachments"`
+	AttachmentCount int              `json:"attachment_count"`
 }
 
 // SessionHitsJSON is one session of search --by-session in JSON output.
@@ -764,9 +814,9 @@ func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
 	var of outputFlags
 	var raw, bySession bool
-	var actor, session, order, typeList, projectRef string
+	var actor, session, order, typeList, projectRef, hasAttachment string
 	c := &cobra.Command{
-		Use:   "search QUERY",
+		Use:   "search [QUERY]",
 		Short: "Full-text search over events, sessions and project memory, with snippets",
 		Long: `Full-text search. By default every word must occur (words are quoted, so
 special characters are safe). With --raw the query is passed to SQLite FTS5
@@ -785,10 +835,28 @@ part of name, path or remote URL).
 With --by-session the event hits are grouped: one row per session
 (subagents included) with the first and last hit, the hit count and the
 snippet of the first hit, oldest session first (--order hits for most hits
-first).`,
-		Args: usageArgs(cobra.MinimumNArgs(1)),
+first).
+
+--has-attachment[=image|document] keeps the events (types event and
+session) that carry an image or a document, with attachments and
+attachment_count in each hit; with it the query may be left out: the
+newest events with attachments come first (the snippet is the start of
+the text). The kind is given with "=": --has-attachment=image.`,
+		Args: usageArgs(cobra.ArbitraryArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, args []string, o *output) error {
+		attach, err := attachmentFilter(cmd, hasAttachment, "")
+		if err != nil {
+			return err
+		}
+		if len(args) == 0 {
+			switch {
+			case attach == nil:
+				return usagef("search needs a query or --%s", hasAttachmentFlag)
+			case bySession:
+				return usage(errors.New("--by-session needs a query"))
+			}
+		}
 		if order != "" && !bySession {
 			return usage(errors.New("--order needs --by-session"))
 		}
@@ -805,7 +873,7 @@ first).`,
 		if bySession && (len(types) != 1 || types[0] != store.TypeEvent) {
 			return usage(errors.New("--by-session applies to type event only"))
 		}
-		if err := checkSearchFlags(types, searchFlagValues(f, projectRef, session, actor, raw)); err != nil {
+		if err := checkSearchFlags(types, searchFlagValues(f, projectRef, session, actor, raw, attach != nil)); err != nil {
 			return err
 		}
 		cfg, err := e.loadConfig()
@@ -816,6 +884,7 @@ first).`,
 		if err != nil {
 			return err
 		}
+		sf.Attachment = attach
 		st, err := e.openRead(cfg)
 		if err != nil {
 			return err
@@ -872,6 +941,7 @@ first).`,
 	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix); types event and session")
 	c.Flags().BoolVar(&bySession, "by-session", false, "one row per session: first and last hit, hit count, snippet of the first hit (type event)")
 	c.Flags().StringVar(&order, "order", "", "sort order with --by-session: first_hit (default, oldest first) or hits (most first)")
+	registerHasAttachment(c, &hasAttachment, "events and sessions")
 	return c
 }
 
