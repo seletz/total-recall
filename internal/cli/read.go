@@ -287,7 +287,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		for h, t := range s.LastIngest {
 			out.LastIngest[h] = isoTime(t)
 		}
-		bk := store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location())
+		bk := store.ReadBackupStatus(store.BackupProbe{DB: cfg.DB, Dir: cfg.Backup.Dir, Loc: cfg.Location(), Now: now, Home: cfg.Home})
 		bp, bt := bk.Path, bk.At
 		out.LastBackup, out.LastBackupAt, out.LastBackupState = NullString(bp), NullString(isoTime(bt)), string(bk.State)
 		if bk.State == store.BackupUnknown {

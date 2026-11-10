@@ -375,7 +375,7 @@ func runChecks(opts Options, now time.Time) []check {
 	c = check{name: "backups"}
 	if fi, err := os.Stat(cfg.Backup.Dir); err == nil && fi.IsDir() || err != nil && !errors.Is(err, fs.ErrNotExist) {
 		c.ok, c.text = true, tilde(cfg.Backup.Dir)+" exists"
-		switch bk := store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location()); {
+		switch bk := store.ReadBackupStatus(store.BackupProbe{DB: cfg.DB, Dir: cfg.Backup.Dir, Loc: cfg.Location(), Now: now, Home: cfg.Home}); {
 		case bk.State == store.BackupUnknown && bk.Path != "":
 			c.text = tilde(cfg.Backup.Dir) + " cannot be read (" + bk.Reason + "), last backup " + age(now, bk.At) + " by the status file"
 		case bk.State == store.BackupUnknown:

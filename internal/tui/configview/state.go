@@ -97,7 +97,7 @@ func load(opts Options, now time.Time) state {
 	} else {
 		s.errs, s.older = logfile.SplitErrors(errs, now.Add(-errorWindow))
 	}
-	s.backupInfo = store.ReadBackupStatus(cfg.DB, cfg.Backup.Dir, cfg.Location())
+	s.backupInfo = store.ReadBackupStatus(store.BackupProbe{DB: cfg.DB, Dir: cfg.Backup.Dir, Loc: cfg.Location(), Now: now, Home: cfg.Home})
 	s.backup, s.backupAt = s.backupInfo.Path, s.backupInfo.At
 	if _, err := os.Stat(cfg.DB); err != nil {
 		s.noArchive = true
