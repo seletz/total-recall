@@ -133,9 +133,11 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "timeline", Title: "Timeline across sessions", Command: []string{"timeline"}, FixedFlags: []string{"--json"},
-			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts (UTC), ts_local, session_id, session_name, project, repo, input_kind (how a human input arrived: typed, pasted, bash, remote; null when unknown) and a shortened text. " +
+			Description: "What happened in a time window across all sessions, oldest first: by default the human's messages, each with ts_local, session_id, project, input_kind (how a human input arrived: typed, pasted, bash, remote; null when unknown) and a shortened text. " +
 				"The right tool for \"was the evening after 20:00 still work, and on what?\". Lists exactly the events stats counts as human in the same window. Same JSON as `total-recall timeline --json`." + pagingNote,
-			Units: []string{""},
+			Units:        []string{""},
+			Narrow:       "fields (e.g. fields=event_id,ts_local,project,text), a smaller text_width, a narrower window (since/until) or limit",
+			TextDefaults: map[string]string{"fields": mcpTimelineFields},
 			Params: []mcp.Param{
 				pCursor, pSince, pUntil,
 				{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
@@ -143,6 +145,7 @@ func mcpTools() []mcp.Tool {
 				{Name: "actor", Type: "string", Enum: []string{"human", "agent", "peer", "automation", "tool", "all"}, Description: "whose events: human (default, what the user said), agent, peer, automation, tool or all; with all=true and no actor: all"},
 				{Name: "all", Type: "boolean", Description: "include tool calls and results, system and meta events, and every actor unless actor is set (default: messages only)"},
 				{Name: "text_width", Type: "integer", Default: 160, Description: "runes of the text per event, 0 = whole text; text_truncated says when it was cut"},
+				{Name: "fields", Type: "string", Default: mcpTimelineFields, Description: "comma separated keys of every event; fewer keys make smaller pages and so fewer of them. all = every key (event_id, ts, ts_local, session_id, session_name, project, repo, actor, input_kind, kind, text, text_chars, text_truncated). The default leaves out ts (ts_local has the offset), session_name, repo and text_chars"},
 				{Name: "limit", Type: "integer", Description: "keep only the oldest N events; leave out for all (large windows come in pages)"},
 			},
 		},

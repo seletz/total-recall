@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -17,6 +19,79 @@ import (
 // defaultTextWidth is the default of timeline --text-width: runes of the
 // text kept per event.
 const defaultTextWidth = 160
+
+// timelineFieldNames are the keys of a timeline event in output order, the
+// names --fields takes.
+var timelineFieldNames = []string{"event_id", "ts", "ts_local", "session_id", "session_name", "project", "repo",
+	"actor", "input_kind", "kind", "text", "text_chars", "text_truncated"}
+
+// fieldsAll is the --fields value for every field, the default of the CLI.
+const fieldsAll = "all"
+
+// mcpTimelineFields is the --fields default of the MCP tool timeline: what
+// tells when, who and what, without the UTC time (ts_local has the offset),
+// repo, session_name and text_chars, which are about 40 % of the bytes of an
+// event. A page carries about 45 % more events (#259); fields=all brings
+// the rest back.
+const mcpTimelineFields = "event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated"
+
+// parseTimelineFields resolves --fields to the set of keys to keep; nil
+// keeps every key. Names are comma separated, spaces and repeats are
+// ignored, "all" or empty means every key.
+func parseTimelineFields(arg string) (map[string]bool, error) {
+	keep := map[string]bool{}
+	for _, name := range strings.Split(arg, ",") {
+		name = strings.TrimSpace(name)
+		switch {
+		case name == "":
+		case name == fieldsAll:
+			return nil, nil
+		case slices.Contains(timelineFieldNames, name):
+			keep[name] = true
+		default:
+			return nil, usagef("invalid --fields %q (%s, or %s)", name, strings.Join(timelineFieldNames, ", "), fieldsAll)
+		}
+	}
+	if len(keep) == 0 || len(keep) == len(timelineFieldNames) {
+		return nil, nil
+	}
+	return keep, nil
+}
+
+// timelineSubset is a timeline event reduced to some keys, in the order of
+// the whole object.
+type timelineSubset struct {
+	ev   TimelineEventJSON
+	keep map[string]bool
+}
+
+// MarshalJSON writes the kept keys with the values of the whole event.
+func (s timelineSubset) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(s.ev)
+	if err != nil {
+		return nil, err
+	}
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(b, &all); err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	out.WriteByte('{')
+	for _, k := range timelineFieldNames {
+		if !s.keep[k] {
+			continue
+		}
+		if out.Len() > 1 {
+			out.WriteByte(',')
+		}
+		kb, _ := json.Marshal(k)
+		out.Write(kb)
+		out.WriteByte(':')
+		out.Write(all[k])
+	}
+	out.WriteByte('}')
+	return out.Bytes(), nil
+}
 
 // actorAll is the --actor value that takes events of every actor.
 const actorAll = "all"
@@ -80,6 +155,7 @@ func (e *env) timelineCmd() *cobra.Command {
 	var actor, projectRef string
 	var allKinds bool
 	var textWidth int
+	var fields string
 	c := &cobra.Command{
 		Use:   "timeline",
 		Short: "Events of a time window across all sessions, oldest first",
@@ -96,7 +172,8 @@ agent, peer, automation, tool, or all; default human), --all adds tool
 calls and results, system and meta events and, without an explicit
 --actor, takes every actor. The text
 is cut to --text-width runes (0 = whole text); in JSON text_truncated and
-text_chars say so. --limit keeps the oldest events and says so on stderr.`,
+text_chars say so. --fields keeps only the named keys of the JSON events
+(all by default), e.g. --fields event_id,ts_local,project,text. --limit keeps the oldest events and says so on stderr.`,
 		Args: usageArgs(cobra.NoArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
@@ -107,6 +184,10 @@ text_chars say so. --limit keeps the oldest events and says so on stderr.`,
 		// human has no tool calls to add.
 		if allKinds && !cmd.Flags().Changed("actor") {
 			actor = actorAll
+		}
+		keep, err := parseTimelineFields(fields)
+		if err != nil {
+			return err
 		}
 		cfg, err := e.loadConfig()
 		if err != nil {
@@ -161,12 +242,22 @@ text_chars say so. --limit keeps the oldest events and says so on stderr.`,
 			}
 		}
 		if o.format.IsJSON() {
-			out := make([]TimelineEventJSON, 0, len(list))
-			for _, h := range list {
-				out = append(out, timelineJSON(h, cat, loc, textWidth))
+			var werr error
+			if keep == nil {
+				out := make([]TimelineEventJSON, 0, len(list))
+				for _, h := range list {
+					out = append(out, timelineJSON(h, cat, loc, textWidth))
+				}
+				werr = writeList(o, out)
+			} else {
+				out := make([]timelineSubset, 0, len(list))
+				for _, h := range list {
+					out = append(out, timelineSubset{ev: timelineJSON(h, cat, loc, textWidth), keep: keep})
+				}
+				werr = writeList(o, out)
 			}
-			if err := writeList(o, out); err != nil {
-				return err
+			if werr != nil {
+				return werr
 			}
 		} else {
 			rows := make([][]string, 0, len(list))
@@ -193,6 +284,7 @@ text_chars say so. --limit keeps the oldest events and says so on stderr.`,
 	c.Flags().StringVar(&projectRef, "project", "", "only this project: name as in stats --by project, else a part of name, path or remote URL")
 	c.Flags().BoolVar(&allKinds, "all", false, "include tool calls and results, system and meta events, and every actor unless --actor is set (default: messages only)")
 	c.Flags().IntVar(&textWidth, "text-width", defaultTextWidth, "runes of the text per event (0 = whole text)")
+	c.Flags().StringVar(&fields, "fields", fieldsAll, "keys of the JSON events, comma separated: "+strings.Join(timelineFieldNames, ", ")+" (default all)")
 	return c
 }
 
