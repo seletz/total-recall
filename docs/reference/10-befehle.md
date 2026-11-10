@@ -155,6 +155,8 @@ recent errors (last 24h, since 2026-10-31 15:01): 1
 older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Library/Application Support/total-recall/total-recall.log)
 ```
 
+**Letztes Backup.** `last backup` hat drei Zustände. Mit Backup steht der Pfad mit Alter da (`ok`). Ist das Verzeichnis lesbar und leer oder fehlt es, steht `none in <Verzeichnis>` (`none`). Kann `status` das Verzeichnis nicht lesen, etwa weil es unter `~/Documents` liegt und der aufrufenden App die macOS-Freigabe fehlt (`operation not permitted`), ist der Zustand `unknown`, und das sagt **nichts** über die Backups: Die Zeile nennt den Grund, darunter steht ein Hinweis (`hint:`). Die Abhilfe: der App (Terminal) unter Datenschutz & Sicherheit → Dateien und Ordner den Zugriff auf „Dokumente“ geben und **danach das Terminal bzw. die App neu starten**, denn laufende Prozesse behalten die alten Rechte; oder `[backup] dir` außerhalb von `~/Documents` legen. Die Zeit des letzten Backups kennt `status` trotzdem: Jedes Backup schreibt neben die Datenbank die kleine Statusdatei `<db>.backup.json` (Zeit, Datei, Größe), und `status` liest sie, wenn das Verzeichnis nicht lesbar ist (auch ein übersprungener Lauf von `backup --if-older` legt sie an, wenn sie fehlt). Ein lesbares Verzeichnis gilt immer mehr als die Statusdatei. Im JSON stehen dafür `last_backup_state` (`ok`, `none` oder `unknown`), bei `unknown` `last_backup_reason` (`no access: operation not permitted`) und `last_backup_hint`, sonst `null`; `last_backup` und `last_backup_at` bleiben wie bisher (bei `unknown` aus der Statusdatei oder `null`). Der Exit-Code ändert sich nicht.
+
 **Fehler.** Gezeigt werden die `ERROR`-Zeilen des Logs aus den letzten 24 Stunden, mit Zeitstempel in lokaler Zeit und Alter. Das Fenster ist fest, damit die Ausgabe nicht davon abhängt, ob seither ein Hook gelaufen ist. Ältere Fehler erscheinen nur als Anzahl; `--all-errors` listet sie alle (ohne Begrenzung, sofern `--errors` nicht gesetzt ist). Zeilen über Transkripte, die beim Hook noch nicht existierten (`no such file or directory`), zählen nie als Fehler, auch nicht aus älteren Versionen, die den Fall noch als `ERROR` protokolliert haben.
 
 `raw` zeigt die komprimierte Größe der Rohzeilen und die Events ohne; `blobs` die Zahl der gespeicherten Blobs ([Schema](40-schema.md#blobs)) mit ihrer Größe, wie geliefert, und in Klammern, wie sie im Archiv liegen (PDF und Text zstd-komprimiert; JSON `blobs`, `blob_bytes`, `blob_stored_bytes`); gibt es mehr als Bilder und Dokumente, folgt die Aufteilung mit der gespeicherten Größe je Art: `attachments` (Bilder und Dokumente der Events), `JSON values` (System-Prompts und Tool-Definitionen der Meta-Records), `files` (Sicherungskopien bearbeiteter Dateien), im JSON `blob_kinds` mit `attachments`, `json`, `files`, je `count`, `bytes`, `stored_bytes`. `schema` zeigt die Schema-Version der Datenbank und die, die das Programm kennt; ist die Datenbank älter, steht daneben `MIGRATION PENDING` mit der Anleitung (`total-recall backup`, dann [`total-recall migrate`](#migrate)), im JSON ist `migration_pending` dann `true`. Solange schreiben die Hooks nichts. `page size` ist die Seitengröße der Datei in Bytes; ist sie kleiner als 16384, steht daneben der Hinweis auf [`maintenance`](#maintenance), das die Datei mit größeren Seiten kompakter neu aufbaut. `raw` ist die Größe der gespeicherten Rohzeilen (`events.raw`, komprimiert, siehe [Schema](40-schema.md#raw)) und die Zahl der Events, die eine haben; der Faktor dahinter ist das Kompressionsverhältnis, geschätzt aus den Kopfdaten einer Stichprobe von Zeilen (nichts wird dafür entpackt); am Ende die Zahl der Events, deren Zeile wegen `ingest.raw_max_bytes` nicht gespeichert wurde. `meta records` ist die Zahl und komprimierte Größe der [Meta-Records](40-schema.md#session_meta) (`session_meta`). `memory` zählt das archivierte [Projekt-Gedächtnis](#memory): vorhandene Dateien, Projekte, gelöschte Dateien, alle Fassungen, die Größe der verschiedenen Inhalte und in Klammern, wie sie komprimiert im Archiv liegen (JSON `memory_projects`, `memory_files`, `memory_deleted`, `memory_versions`, `memory_bytes`, `memory_stored_bytes`; die Inhalte zählen auch bei `blobs` mit). Die JSON-Ausgabe enthält dieselben Werte (`schema_version`, `binary_schema_version`, `db_size_bytes`, `page_size`, `raw_rows`, `raw_bytes`, `raw_ratio`, `raw_truncated`, `meta_rows`, `meta_bytes`, `last_ingest`, `last_backup`, …). Die Fehler stehen in `recent_errors` als Objekte mit `at` (UTC, `null` ohne Zeitstempel) und `message`, dazu `errors_window` (`"24h"`, mit `--all-errors` `null`), `errors_since` (Beginn des Fensters, UTC), `recent_errors_total` (Anzahl im Fenster, auch über die Begrenzung hinaus) und `older_errors` (Anzahl davor).
@@ -191,7 +193,7 @@ START             DUR    ID        NAME                        REPO             
 | `--subagents` | Subagent-Sessions mit anzeigen |
 | `--all-sessions` | auch leere Sessions (keine Events, keine Startzeit) anzeigen |
 
-Mit `--has-attachment` kommt die Spalte `ATTACHMENTS` dazu, in JSON hat jede Session (auch ohne den Filter) `attachment_count`: die Zahl ihrer Anhänge, mit dem Filter die der Art und des Actors. Der Filter gilt für die Session als Ganzes: `--since`/`--until` wählen die Sessions wie sonst, nicht die Events mit Anhang.
+Mit `--has-attachment` kommt die Spalte `ATTACHMENTS` dazu, in JSON hat jede Session (auch ohne den Filter) `attachment_count`: die Zahl ihrer Anhänge, mit dem Filter die der Art und des Actors. Der Filter gilt für die Session als Ganzes: `--since`/`--until` wählen die Sessions wie sonst, nicht die Events mit Anhang, und `attachment_count` zählt über die **ganze Session**, nicht nur über das Zeitfenster. Es sind die Zeilen von `event_blobs` der Session, ein Paar aus Text- und Bild-Event zählt also nicht doppelt.
 
 Spalten: `ID` ist ein Präfix der nativen Session-ID, das `show` versteht. `NAME` ist der eigene Titel (`/rename`), sonst der von Claude Code erzeugte Titel, sonst der Agent-Name. `REPO` ist `owner/repo` der Remote-URL, sonst der Ordnername. `HUMAN`/`AGENT` zählen Events nach Actor. `DUR` ist Ende minus Start, inklusive Pausen.
 
@@ -430,16 +432,17 @@ total-recall sessions --has-attachment --project kompass   # Sessions mit Anhang
 
 - **Art:** `image` sind die Medientypen `image/…`, `document` ist alles andere (PDF und so weiter), `any` beides. Bild und Dokument ergeben zusammen alle Anhänge.
 - **Ohne Suchanfrage** listet `search --has-attachment` die Events mit Anhang, neueste zuerst (der Textausschnitt ist der Anfang des Textes), mit `--limit` wie sonst; mit `--by-session` ist eine Anfrage nötig. Ohne Anfrage und ohne den Filter ist `search` ein `usage`-Fehler.
-- **JSON:** Jeder Event-Treffer hat `attachments` (die Anhänge des Events wie bei [`show`](#show): `sha256`, `media_type`, `bytes`, `position`; mit `--has-attachment=ART` nur die dieser Art, sonst alle, `[]` ohne) und `attachment_count` (ihre Zahl). Jede Session in `sessions --json` und jeder Session-Treffer hat `attachment_count`. Neue Felder, seit v1.7.0.
+- **Nachricht mit Bildern:** Eine Nachricht mit Bildern oder Dokumenten besteht aus mehreren Events einer Transkriptzeile: dem Text (der die Anhänge nur als `[Image #1]` nennt) und je einem Event je Anhang. Der Filter und `attachments` gehen wie die TUI über dieselbe Zuordnung: Ein Event ohne eigene Anhänge hat die der anderen Events seiner Zeile (gleiche Session, Zeit, Quelle und Position). Wer nach dem Text einer solchen Nachricht sucht und auf Anhänge filtert, findet also den Text, und `attachments` nennt die Anhänge der Nachricht. Die Art gilt für die so zugeordneten Anhänge.
+- **JSON:** Jeder Event-Treffer hat `attachments` (die Anhänge des Events wie bei [`show`](#show): `sha256`, `media_type`, `bytes`, `position`, dazu `event_id`, das Event, an dem der Anhang hängt: beim Text einer Nachricht ein anderes als der Treffer; mit `--has-attachment=ART` nur die dieser Art, sonst alle, `[]` ohne) und `attachment_count` (ihre Zahl). Jede Session in `sessions --json` und jeder Session-Treffer hat `attachment_count`. Neue Felder, seit v1.7.0.
 - **Text:** Unter einem Treffer mit Anhang steht `attachments: image/png 956 B, application/pdf 342 B`.
-- **Die Zahlen stimmen:** Die Treffer mit `--has-attachment` sind genau die Events mit Einträgen in `event_blobs`; die Summe von `attachment_count` über die Treffer, über die Sessions und die Zeilen von `event_blobs` ist dieselbe Zahl, auch je Art und je Tag. Ein Test prüft das gegen das Demo-Archiv an der echten `--json`-Ausgabe.
+- **Die Zahlen stimmen:** Die eindeutigen Anhänge der Treffer (`event_id` und `position`, also die Zeilen von `event_blobs`) sind genau die Zeilen von `event_blobs`, insgesamt, je Art und als Summe über die Tage. Ein Paar aus Text- und Bild-Event zählt damit nicht doppelt, auch wenn beide Treffer sind und der Text die Anhänge der Nachricht zeigt: `attachment_count` pro Treffer zu addieren ergibt dann mehr. Die Summe von `attachment_count` über die Sessions ist dieselbe Zahl wie die Zeilen von `event_blobs`. Ein Test prüft das gegen das Demo-Archiv an der echten `--json`-Ausgabe, ein weiterer mit einer synthetischen Nachricht aus Text und Bildern.
 - **MCP:** `search` und `sessions` haben `has_attachment` (`any`, `image`, `document`), `sessions` zusätzlich `actor` und `project`; `query` darf bei `search` fehlen, wenn `has_attachment` gesetzt ist. Die Seiten sind wie sonst byte-gleich die CLI-Ausgabe.
 
 **Für die TUI.** Die Abfrage liegt im Store, die TUI braucht keine eigene: `SessionFilter.Attachment` (ein `*AttachmentFilter{Kind, Actor}`; `nil` filtert nicht) gilt für `Sessions`, `SearchTyped` (Event- und Session-Treffer) und `SearchBySession`. `SearchTyped` mit leerem `Text` und gesetztem `Attachment` liefert die neuesten Events (Typ `event`) beziehungsweise Sessions (Typ `session`) mit Anhang: genau die „leere Suche mit Filter“. Jeder Event-Treffer trägt `Event.Attachments` (Metadaten, passend zur Art), `SessionInfo.Attachments` zählt die Anhänge einer Session, `SessionFilter.Projects` schränkt Session-Listen auf Projekte ein. `ParseAttachmentKind` und `AttachmentKind.Matches` benennen und prüfen die Art.
 
 ## `stats` { #stats }
 
-Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
+Kennzahlen für einen Zeitraum: insgesamt, je Tag, je Repo und je Wochentag × Stunde; mit [`--period`/`--by`](#stats-period) eine Zeitreihe, mit [`--workday`](#stats-workday) die erste und letzte Aktivität je Tag, mit [`--day`](#stats-day) ein Tag chronologisch mit Blöcken, Projekten und Arbeitszeit, mit [`--worktime`](#stats-worktime) die geschätzte Arbeitszeit je Tag und Kategorie, mit [`--tools`](#stats-tools) die Tool-Aufrufe der Agenten. Gezählt werden Sessions (mit mindestens einem menschlichen oder Agenten-Event im Bereich), menschliche und Agenten-Events. Tage und Stunden in lokaler Zeit.
 
 ```sh
 total-recall stats                                   # aktueller Monat
@@ -672,6 +675,44 @@ Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_sec
 **Einzelne Nachrichten.** Eine einzelne Nachricht nach einer langen Pause ergibt einen Block von 0 Sekunden: für eine Anwesenheitsbuchung Rauschen. Damit der Aufrufer ihn erkennt, ohne Events nachzuzählen, hat jeder Block `events` (die Zahl der gezählten Events darin) und `single` (`true`, wenn es genau eins ist). Die Sekunden bleiben unverändert, es gibt keinen Mindestwert, nichts fällt weg. Zwei Events mit derselben Zeit sind ein Block von 0 Sekunden mit `events: 2`, kein einzelner. Es gilt immer: Pro Tag ergeben die `events` aller Blöcke genau `human` plus `agent` des Tags, und `block_seconds` plus `break_seconds` die Spanne. Alle Sekunden sind ganze Sekunden: Die Blockgrenzen werden nach der ersten Aktivität des Tags auf ganze Sekunden abgerundet, bevor die Dauern gebildet werden, daher ist `block_seconds` exakt die Summe der `seconds` der Blöcke und `block_seconds` plus `break_seconds` exakt `span_seconds` (auch bei Zeitstempeln mit Millisekunden), in `total` genauso. Die Tabelle zeigt einen einzelnen Block nur mit der Uhrzeit und einem `*` (`15:00*`) und erklärt das Zeichen unter der Tabelle.
 
 `--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
+
+### Ein Tag chronologisch: `--day` { #stats-day }
+
+Mit `--day DATUM` (`YYYY-MM-DD`, `today` oder `yesterday`) zeigt `stats` **einen Tag in zeitlicher Reihenfolge**: für Zeitbuchung und Tagesabschluss, und dieselbe Ansicht wie die Tagesansicht der TUI. Es gibt keine zweite Rechnung: Kopf und Blöcke sind die Zahlen von [`--workday --blocks`](#stats-workday), die Zeiten je Projekt die von [`--worktime`](#stats-worktime), für denselben Tag und unter denselben Regeln (`day_start`, `count`, `block_gap`, `[worktime]`, `[[project]]`).
+
+```sh
+total-recall stats --day 2026-10-29
+total-recall stats --day yesterday --json
+total-recall stats --day today --all-events
+```
+
+```text
+Thu 2026-10-29 (Europe/Berlin, day starts 04:00, human events only)
+first 21:30 · last 21:46 · span 16m · work 16m · breaks 0s
+target 8h00m · diff -7h44m
+events 3 human, 0 agent · working time 19m (rounded 30m)
+
+1. 21:30-21:46  16m  3 events (3 human, 0 agent)  kompass 16m
+     21:30-21:41  kompass  Worker koordinieren  (2 human, 0 agent)
+     21:46-21:46  kompass  Lint-Fix im Worker  (1 human, 0 agent)
+
+PROJECT  TIME  ROUNDED  HUMAN  AGENT
+kompass  19m   30m      3      0
+```
+
+Die Textausgabe hat den Kopf (erste und letzte Aktivität, Spanne, `work` als Summe der Blöcke, `breaks` als Summe der Pausen, Soll und Differenz, Events nach Mensch und Agent, Arbeitszeit roh und gerundet), je Block eine Zeile mit Start, Ende, Dauer, Events und den Projekten mit ihrer Zeit, darunter die Sessions des Blocks, zwischen den Blöcken die Pause, und am Ende die Projekte des Tags. Ein einzelnes Event ist ein Block von 0 s und trägt `*` statt eines Endes. `--all-events` zählt wie bei `--workday` auch Agent-Events (Standard: `count` in [`[work]`](20-konfiguration.md#work)); `--day` lässt sich nicht mit `--workday`, `--worktime`, `--blocks`, `--tools`, `--tokens`, `--period`, `--by`, `--top`, `--range`, `--month`, `--since` oder `--until` kombinieren.
+
+**Zeit je Projekt im Block.** Die Sekunden eines Blocks verteilen sich auf die Projekte seiner Events: Das Intervall vor einem Event zählt für das Projekt dieses Events, das erste Event eines Blocks für keines, so wie `--worktime` die Lücke dem Projekt der späteren Nachricht gibt. Die Sekunden der Projekte eines Blocks ergeben deshalb immer genau dessen `seconds`.
+
+**JSON.** Der Kopf hat die Felder eines Tags von `--workday --blocks` (`first`, `last`, `first_local`, `last_local`, `span_seconds`, `target_seconds`, `diff_seconds`, `block_seconds`, `break_seconds`, `weekend`, `holiday`, `sessions`, `human`, `agent`) und `block_gap_seconds`. `blocks` hat je Block `start`, `end`, `start_local`, `end_local`, `seconds`, `events`, `single`, dazu `pause_seconds` (die Lücke davor, 0 beim ersten), `human`, `agent`, `projects` (`project`, `seconds`, `human`, `agent`) und `sessions` (`id`, `title`, `project`, `first_event`, `start`, `end`, `human`, `agent`). `worktime` hat `raw_seconds` und `rounded_seconds` des Tags, `projects` je Projekt `raw_seconds`, `rounded_seconds`, `human` und `agent`, absteigend nach Zeit. Es gilt immer, und ein Test prüft es auf dem Demo-Archiv:
+
+- die Blöcke ergeben `block_seconds`, Blöcke plus Pausen die Spanne (`span_seconds`);
+- die Projekte eines Blocks ergeben seine `seconds`, ihre Events seine `events`;
+- `human` plus `agent` der Blöcke und der Projekte ergeben die Events des Tags;
+- die Projekte ergeben `worktime.raw_seconds`, und das ist die Tageszeit von `--worktime`;
+- alles ist gleich der Ausgabe von `--workday --blocks` und `--worktime` für denselben Tag.
+
+Im [MCP-Tool](#mcp) `stats` heißt der Parameter `day`.
 
 ### Arbeitszeit je Projekt: `--worktime` { #stats-worktime }
 

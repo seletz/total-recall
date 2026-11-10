@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -199,5 +200,109 @@ func TestReclassifySpawned(t *testing.T) {
 	}
 	if a := e.str(t, "SELECT actor FROM events WHERE id = 'claude:p3'"); a != "human" {
 		t.Errorf("the later input is %q, want human", a)
+	}
+}
+
+const (
+	fnCoord = "c0000000-0000-4000-8000-000000000011"
+	fnOne   = "c0000000-0000-4000-8000-000000000012"
+	fnTwo   = "c0000000-0000-4000-8000-000000000013"
+	fnHuman = "c0000000-0000-4000-8000-000000000014"
+)
+
+// writeFunctionTree: a coordinator defines a shell function that starts a
+// worker and hands it a prompt, then calls it twice in one long call (the
+// targets stand behind more than the 1 KiB a tool call keeps in the archive,
+// so only the raw line has them). Two workers start 17 s and 26 s after the
+// call; the person opens a third session without any command.
+func writeFunctionTree(t *testing.T, e *env) {
+	t.Helper()
+	long := strings.Repeat("x", 1300)
+	tf.WriteFile(t, e.projects, "-w-fn/"+fnCoord+".jsonl", tf.Join(
+		tf.User(fnCoord, "f1", "2026-10-07T20:00:00.000Z", "/w/fn", "spawn the workers"),
+		tf.ToolUse(fnCoord, "f2", "2026-10-07T20:00:05.000Z", "/w/fn", "Bash", `spawn(){ herdr agent start w --cwd "$1"; herdr agent prompt w "$(cat $2)"; }`),
+		tf.ToolUse(fnCoord, "f3", "2026-10-07T20:00:50.000Z", "/w/fn", "Bash", `COMMON='`+long+`'; spawn /w/fn-one /tmp/a.md; spawn /w/fn-two /tmp/b.md`),
+	))
+	tf.WriteFile(t, e.projects, "-w-fn-one/"+fnOne+".jsonl", tf.Join(
+		tf.User(fnOne, "g1", "2026-10-07T20:01:07.000Z", "/w/fn-one", "Erster Worker, Auftrag aus der Datei a"),
+	))
+	tf.WriteFile(t, e.projects, "-w-fn-two/"+fnTwo+".jsonl", tf.Join(
+		tf.User(fnTwo, "h1", "2026-10-07T20:01:16.000Z", "/w/fn-two", "Zweiter Worker, Auftrag aus der Datei b"),
+	))
+	tf.WriteFile(t, e.projects, "-w-fn-human/"+fnHuman+".jsonl", tf.Join(
+		tf.User(fnHuman, "i1", "2026-10-07T20:01:10.000Z", "/w/fn-human", "Ich oeffne diese Session selbst"),
+	))
+}
+
+func TestIngestMarksSpawnsThroughFunctions(t *testing.T) {
+	for _, order := range []string{"coordinator first", "workers first"} {
+		t.Run(order, func(t *testing.T) {
+			e := newEnv(t)
+			writeFunctionTree(t, e)
+			files := []string{"-w-fn/" + fnCoord, "-w-fn-one/" + fnOne, "-w-fn-two/" + fnTwo, "-w-fn-human/" + fnHuman}
+			if order == "workers first" {
+				files = []string{files[1], files[2], files[3], files[0]}
+			}
+			for _, f := range files {
+				run(t, e, e.projects+"/"+f+".jsonl")
+			}
+			// The archive keeps 1 KiB of the call: the second target is not in it.
+			if n := e.count(t, "SELECT count(*) FROM events WHERE kind = 'tool_use' AND text LIKE '%/w/fn-two%'"); n != 0 {
+				t.Fatalf("the stored call text holds the second target (%d), the test proves nothing", n)
+			}
+			for id, want := range map[string]string{"g1": "automation", "h1": "automation", "i1": "human", "f1": "human"} {
+				if got := e.str(t, "SELECT actor FROM events WHERE id = 'claude:"+id+"'"); got != want {
+					t.Errorf("%s: actor %q, want %q", id, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestReclassifyFunctionSpawns(t *testing.T) {
+	e := newEnv(t)
+	e.deps.Dispatch = dispatch.Config{Window: -1}
+	writeFunctionTree(t, e)
+	if _, err := All(ctx, e.deps); err != nil {
+		t.Fatal(err)
+	}
+	e.deps.Dispatch = dispatch.Config{}
+	sum, err := Reclassify(ctx, e.deps, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Dispatched != 2 || sum.Changed != 2 {
+		t.Errorf("run: %+v", sum)
+	}
+	if again, err := Reclassify(ctx, e.deps, false); err != nil || again.Changed != 0 {
+		t.Errorf("second run: %+v, %v", again, err)
+	}
+}
+
+// TestIngestFullTextBeyondTheCut: the prompt a coordinator sends stands
+// behind the first 1 KiB of a long call, which is all the archive keeps of
+// the call text; the raw line has it all.
+func TestIngestFullTextBeyondTheCut(t *testing.T) {
+	prompt := "Bitte den Release vorbereiten und die Notizen schreiben, danach pushen"
+	for _, order := range []string{"coordinator first", "worker first"} {
+		t.Run(order, func(t *testing.T) {
+			e := newEnv(t)
+			tf.WriteFile(t, e.projects, "-w-alpha/"+coord+".jsonl", tf.Join(
+				tf.ToolUse(coord, "z1", "2026-10-08T20:00:00.000Z", "/w/alpha", "Bash", `herdr agent prompt w1 "`+strings.Repeat("y", 1200)+` `+prompt+`"`),
+			))
+			tf.WriteFile(t, e.projects, "-w-beta/"+worker+".jsonl", tf.Join(
+				tf.User(worker, "z2", "2026-10-08T20:00:04.000Z", "/w/beta", strings.Repeat("y", 1200)+" "+prompt),
+			))
+			files := []string{"-w-alpha/" + coord, "-w-beta/" + worker}
+			if order == "worker first" {
+				files = []string{files[1], files[0]}
+			}
+			for _, f := range files {
+				run(t, e, e.projects+"/"+f+".jsonl")
+			}
+			if got := e.str(t, "SELECT actor FROM events WHERE id = 'claude:z2'"); got != "automation" {
+				t.Errorf("actor %q, want automation", got)
+			}
+		})
 	}
 }

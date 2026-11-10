@@ -66,6 +66,17 @@ func TestSpawnedPromptsDemo(t *testing.T) {
 	})
 }
 
+// TestSpawnedThroughFunctionDemo is the same for a worker started with a shell
+// function: the start and prompt commands are only in the definition.
+func TestSpawnedThroughFunctionDemo(t *testing.T) {
+	checkDispatchedInvariant(t, dispatchedCase{
+		ids:       "text LIKE 'Schreibe die Doku zum GPX-Format%'",
+		n:         1,
+		day:       "2026-10-18",
+		stayHuman: []string{"text LIKE 'Passt, danke.'"},
+	})
+}
+
 type dispatchedCase struct {
 	ids       string   // SQL condition: the events another session sent, stored as automation
 	n         int      // how many there are

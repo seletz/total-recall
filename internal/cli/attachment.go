@@ -56,7 +56,7 @@ func checkAttachmentActor(actor string, hasFilter bool) error {
 func attachmentJSON(list []store.EventAttachment) []AttachmentJSON {
 	out := make([]AttachmentJSON, 0, len(list))
 	for _, a := range list {
-		out = append(out, AttachmentJSON{SHA256: a.SHA256, MediaType: a.MediaType, Bytes: a.Bytes, Position: a.Position})
+		out = append(out, AttachmentJSON{EventID: a.EventID, SHA256: a.SHA256, MediaType: a.MediaType, Bytes: a.Bytes, Position: a.Position})
 	}
 	return out
 }

@@ -41,28 +41,35 @@ func sqlCount(t *testing.T, e *testEnv, base []string, q string) int {
 
 // TestSearchHasAttachment: without a word the newest events with
 // attachments, with a word the hits that have one; every event hit
-// carries its attachments and their number.
+// carries its attachments and their number. The demo archive has one
+// message with an image and a document: the text event and one event per
+// attachment, all at the same moment. The filter finds the text too, with
+// the attachments of its message, as the viewer does.
 func TestSearchHasAttachment(t *testing.T) {
 	e, base := attachEnv(t)
+	const text, img, doc = "claude:e00558b#0", "claude:e00558b#1", "claude:e00558b#2"
+	all := []string{doc, img, text}
 	for _, tc := range []struct {
 		name  string
 		args  []string
 		want  []string // event ids, in output order
 		count []int
 	}{
-		{"without a word", []string{"search", "--has-attachment"}, []string{"claude:e00558b#2", "claude:e00558b#1"}, []int{1, 1}},
-		{"any", []string{"search", "--has-attachment=any"}, []string{"claude:e00558b#2", "claude:e00558b#1"}, []int{1, 1}},
-		{"image", []string{"search", "--has-attachment=image"}, []string{"claude:e00558b#1"}, []int{1}},
-		{"document", []string{"search", "--has-attachment=document"}, []string{"claude:e00558b#2"}, []int{1}},
-		{"word", []string{"search", "image", "--has-attachment"}, []string{"claude:e00558b#1"}, []int{1}},
-		{"word of another kind", []string{"search", "image", "--has-attachment=document"}, nil, nil},
-		{"human", []string{"search", "--has-attachment", "--actor", "human"}, []string{"claude:e00558b#2", "claude:e00558b#1"}, []int{1, 1}},
+		{"without a word", []string{"search", "--has-attachment"}, all, []int{1, 1, 2}},
+		{"any", []string{"search", "--has-attachment=any"}, all, []int{1, 1, 2}},
+		{"image", []string{"search", "--has-attachment=image"}, []string{img, text}, []int{1, 1}},
+		{"document", []string{"search", "--has-attachment=document"}, []string{doc, text}, []int{1, 1}},
+		{"word of the placeholder", []string{"search", "image", "--has-attachment"}, []string{img}, []int{1}},
+		{"word of the placeholder, other kind", []string{"search", "image", "--has-attachment=document"}, nil, nil},
+		{"word of the text of the message", []string{"search", "screenshot", "--has-attachment"}, []string{text}, []int{2}},
+		{"word of the text, images only", []string{"search", "screenshot", "--has-attachment=image"}, []string{text}, []int{1}},
+		{"human", []string{"search", "--has-attachment", "--actor", "human"}, all, []int{1, 1, 2}},
 		{"tool", []string{"search", "--has-attachment", "--actor", "tool"}, nil, nil},
-		{"project", []string{"search", "--has-attachment", "--project", "kompass"}, []string{"claude:e00558b#2", "claude:e00558b#1"}, []int{1, 1}},
+		{"project", []string{"search", "--has-attachment", "--project", "kompass"}, all, []int{1, 1, 2}},
 		{"other project", []string{"search", "--has-attachment", "--project", "wetterwarte"}, nil, nil},
-		{"window with the events", []string{"search", "--has-attachment", "--since", "2026-10-28", "--until", "2026-10-28"}, []string{"claude:e00558b#2", "claude:e00558b#1"}, []int{1, 1}},
+		{"window with the events", []string{"search", "--has-attachment", "--since", "2026-10-28", "--until", "2026-10-28"}, all, []int{1, 1, 2}},
 		{"window without", []string{"search", "--has-attachment", "--since", "2026-10-29"}, nil, nil},
-		{"limit keeps the newest", []string{"search", "--has-attachment", "--limit", "1"}, []string{"claude:e00558b#2"}, []int{1}},
+		{"limit keeps the newest", []string{"search", "--has-attachment", "--limit", "1"}, []string{doc}, []int{1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			hits := decode[[]HitJSON](t, e.json(t, base, tc.args...))
@@ -181,10 +188,11 @@ func TestSessionsHasAttachment(t *testing.T) {
 }
 
 // TestAttachmentInvariants (real --json output against the tables): the
-// hits with an attachment are the events of event_blobs, and the
-// attachments of the hits, of the sessions and of the table are the same
-// number, in total and per kind, also in a window; without the filter the
-// sessions are unchanged and carry the same total.
+// unique attachments of the hits (the event they are linked to and the
+// position, as in event_blobs) are the rows of event_blobs, in total, per
+// kind and as a sum of days; a pair of text and image event does not
+// count twice. The sessions count the same rows, with and without the
+// filter.
 func TestAttachmentInvariants(t *testing.T) {
 	e, base := attachEnv(t)
 	events := sqlCount(t, e, base, "SELECT count(DISTINCT event_id) FROM event_blobs")
@@ -193,15 +201,24 @@ func TestAttachmentInvariants(t *testing.T) {
 	if events == 0 || rows == 0 || images == 0 || images == rows {
 		t.Fatalf("demo archive: %d events, %d attachments, %d images", events, rows, images)
 	}
-	hitAttachments := func(args ...string) (hits, sum int) {
+	// hitAttachments returns the hits, the unique attachments on them and
+	// the attachments counted per hit.
+	hitAttachments := func(args ...string) (hits, unique, sum int) {
+		seen := map[string]bool{}
 		for _, h := range decode[[]HitJSON](t, e.json(t, base, append([]string{"search", "--has-attachment", "--limit", "0"}, args...)...)) {
 			hits++
 			sum += h.AttachmentCount
 			if h.AttachmentCount != len(h.Attachments) || h.AttachmentCount == 0 {
 				t.Errorf("hit %s: count %d, list %d", h.EventID, h.AttachmentCount, len(h.Attachments))
 			}
+			for _, a := range h.Attachments {
+				if a.EventID == "" {
+					t.Errorf("hit %s: attachment without event_id", h.EventID)
+				}
+				seen[fmt.Sprintf("%s#%d", a.EventID, a.Position)] = true
+			}
 		}
-		return hits, sum
+		return hits, len(seen), sum
 	}
 	sessionAttachments := func(args ...string) (n, sum int) {
 		for _, s := range decode[[]SessionJSON](t, e.json(t, base, append([]string{"sessions", "--subagents"}, args...)...)) {
@@ -210,14 +227,18 @@ func TestAttachmentInvariants(t *testing.T) {
 		}
 		return n, sum
 	}
-	if h, sum := hitAttachments(); h != events || sum != rows {
-		t.Errorf("hits: %d events, %d attachments; table: %d, %d", h, sum, events, rows)
+	h, unique, sum := hitAttachments()
+	if unique != rows {
+		t.Errorf("unique attachments on the hits: %d, rows of event_blobs %d", unique, rows)
 	}
-	if _, sum := hitAttachments("--has-attachment=image"); sum != images {
-		t.Errorf("images: %d, table %d", sum, images)
+	if h < events || sum <= rows {
+		t.Errorf("the demo archive has a message of text and attachment events: %d hits for %d events, %d attachments counted for %d rows", h, events, sum, rows)
 	}
-	if _, sum := hitAttachments("--has-attachment=document"); sum != rows-images {
-		t.Errorf("documents: %d, table %d", sum, rows-images)
+	if _, unique, _ := hitAttachments("--has-attachment=image"); unique != images {
+		t.Errorf("images: %d, table %d", unique, images)
+	}
+	if _, unique, _ := hitAttachments("--has-attachment=document"); unique != rows-images {
+		t.Errorf("documents: %d, table %d", unique, rows-images)
 	}
 	if _, sum := sessionAttachments("--has-attachment"); sum != rows {
 		t.Errorf("sessions with the filter: %d attachments, table %d", sum, rows)
@@ -225,19 +246,19 @@ func TestAttachmentInvariants(t *testing.T) {
 	// The same through the event window, as a sum of days.
 	byDay := 0
 	for _, day := range []string{"2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29"} {
-		_, sum := hitAttachments("--since", day, "--until", day)
-		byDay += sum
+		_, unique, _ := hitAttachments("--since", day, "--until", day)
+		byDay += unique
 	}
 	if byDay != rows {
 		t.Errorf("attachments by day: %d, table %d", byDay, rows)
 	}
 	// Without the filter: every session, the same attachments in total.
-	n, sum := sessionAttachments()
 	all := decode[[]SessionJSON](t, e.json(t, base, "sessions", "--subagents"))
+	n, sum := sessionAttachments()
 	if n != len(all) || sum != rows {
 		t.Errorf("sessions without the filter: %d sessions, %d attachments, table %d", n, sum, rows)
 	}
-	if fmt.Sprint(len(all)) == "1" {
+	if len(all) == 1 {
 		t.Error("the demo archive has only one session")
 	}
 }

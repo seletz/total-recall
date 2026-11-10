@@ -106,6 +106,8 @@ func TestMCPToolsMatchCLI(t *testing.T) {
 		{"show", "show", map[string]any{"session": id, "limit": 3}, []string{"show", id, "--limit=3"}},
 		{"stats", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday"}},
 		{"stats blocks", "stats", map[string]any{"since": "2026-10-01", "until": "2026-10-31", "workday": true, "blocks": true}, []string{"stats", "--since=2026-10-01", "--until=2026-10-31", "--workday", "--blocks"}},
+		{"stats day", "stats", map[string]any{"day": "2026-10-29"}, []string{"stats", "--day=2026-10-29"}},
+		{"stats day all events", "stats", map[string]any{"day": "2026-10-29", "all_events": true}, []string{"stats", "--day=2026-10-29", "--all-events"}},
 		{"memory", "memory", map[string]any{}, []string{"memory"}},
 		{"status", "status", map[string]any{}, []string{"status"}},
 		{"search has_attachment without query", "search", map[string]any{"has_attachment": "any"}, []string{"search", "--has-attachment=any", "--limit=20"}},
