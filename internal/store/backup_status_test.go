@@ -254,7 +254,7 @@ func TestBackupStatusErrors(t *testing.T) {
 		for _, f := range folders {
 			t.Run(e.name+" in "+f.dir, func(t *testing.T) {
 				readDir := func(string) ([]os.DirEntry, error) { return nil, e.err }
-				got := readBackupStatus(BackupProbe{DB: filepath.Join(t.TempDir(), "a.db"), Dir: f.dir, Loc: time.UTC, Home: "/home/u"}, readDir, "darwin")
+				got := readBackupStatus(BackupProbe{DB: filepath.Join(t.TempDir(), "a.db"), Dir: f.dir, Loc: time.UTC, Home: "/home/u"}, readDir, func(string) error { return nil }, "darwin")
 				if !e.unknown {
 					if got.State != BackupNone || got.Reason != "" || got.Hint != "" {
 						t.Errorf("want none: %+v", got)
@@ -273,5 +273,84 @@ func TestBackupStatusErrors(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestBackupStatusExistsButClosed: a directory that exists but cannot be
+// used is unknown even when the listing itself says nothing is wrong (an
+// empty list, or "does not exist" as some file systems report it): the
+// access check of the directory decides. Only a directory that is really
+// missing, or readable and empty, is none.
+func TestBackupStatusExistsButClosed(t *testing.T) {
+	eacces := &fs.PathError{Op: "access", Path: "x", Err: syscall.EACCES}
+	notExist := &fs.PathError{Op: "open", Path: "x", Err: syscall.ENOENT}
+	tests := []struct {
+		name    string
+		listErr error
+		access  error
+		want    BackupState
+	}{
+		{"empty list, access denied", nil, eacces, BackupUnknown},
+		{"does not exist, but access says denied", notExist, eacces, BackupUnknown},
+		{"empty list, access ok", nil, nil, BackupNone},
+		{"does not exist, access ok (really missing)", notExist, nil, BackupNone},
+		{"listing fails, access ok", &fs.PathError{Op: "open", Path: "x", Err: syscall.EPERM}, nil, BackupUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			readDir := func(string) ([]os.DirEntry, error) { return nil, tt.listErr }
+			access := func(string) error { return tt.access }
+			got := readBackupStatus(BackupProbe{DB: filepath.Join(t.TempDir(), "a.db"), Dir: "/home/u/Documents/b", Loc: time.UTC, Home: "/home/u"}, readDir, access, "darwin")
+			if got.State != tt.want {
+				t.Fatalf("state %s, want %s: %+v", got.State, tt.want, got)
+			}
+			if tt.want == BackupUnknown && (got.Reason == "" || got.Hint == "") {
+				t.Errorf("no reason or hint: %+v", got)
+			}
+			if tt.want == BackupNone && (got.Reason != "" || got.Hint != "") {
+				t.Errorf("reason or hint with none: %+v", got)
+			}
+		})
+	}
+}
+
+// TestDirAccessError: the real check on real directories: missing is fine
+// (nil), a readable one is nil, one without the read or the search bit is an
+// error, and so is a path below a closed directory.
+func TestDirAccessError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root passes every access check")
+	}
+	root := t.TempDir()
+	mk := func(name string, mode os.FileMode) string {
+		p := filepath.Join(root, name)
+		if err := os.Mkdir(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(p, mode); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(p, 0o755) })
+		return p
+	}
+	closed := mk("closed", 0)
+	tests := []struct {
+		name    string
+		dir     string
+		wantErr bool
+	}{
+		{"readable", mk("open", 0o755), false},
+		{"missing", filepath.Join(root, "missing"), false},
+		{"mode 000", closed, true},
+		{"no read bit", mk("noread", 0o311), true},
+		{"no search bit", mk("nosearch", 0o444), true},
+		{"below a closed directory", filepath.Join(closed, "sub"), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := dirAccessError(tt.dir); (err != nil) != tt.wantErr {
+				t.Errorf("dirAccessError = %v, want error %v", err, tt.wantErr)
+			}
+		})
 	}
 }
