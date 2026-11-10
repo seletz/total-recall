@@ -251,6 +251,9 @@ func (s session) lines(sid, agentID string) []testfixture.Line {
 	}
 	for _, tr := range s.turns {
 		user := testfixture.User(sid, tr.ids[0], stamp(tr.at), s.cwd, tr.prompt)
+		if len(tr.attached) > 0 {
+			user = testfixture.UserWithAttachments(sid, tr.ids[0], stamp(tr.at), s.cwd, tr.prompt, tr.attached...)
+		}
 		if tr.remote {
 			user["entrypoint"] = "remote"
 		}
