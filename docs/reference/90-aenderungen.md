@@ -8,6 +8,11 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.7.0 (unveröffentlicht)
 
+### Tagesansicht ([#276](https://github.com/seletz/total-recall/issues/276))
+
+- **`stats --day DATUM`:** ein Tag chronologisch, als Text und als JSON: der Kopf wie bei `--workday --blocks` (Spanne, `block_seconds`, `break_seconds`, Soll, Saldo, Events nach Mensch und Agent), die Blöcke mit Start, Ende, Sekunden, Events und `single`, je Block die Projekte mit Sekunden und die Sessions, dazu die Projekte des Tags mit der Zeit von `--worktime`. Es gibt keine zweite Rechnung (neues Paket `internal/dayreport` über `store.Workday`, `store.Timeline` und `worktime.Compute`); die Invarianten prüft ein Test auf dem Demo-Archiv. `--all-events` wie bei `--workday`. Siehe [`--day`](10-befehle.md#stats-day). Neue Option, Minor.
+- **MCP:** das Tool `stats` hat den Parameter `day`; die Seitenliste ist `blocks`.
+
 ### Anhänge in der TUI ([#184](https://github.com/seletz/total-recall/issues/184))
 
 - **Anhang-Viewer:** Bilder und Dokumente, die zu einem Event gehören, lassen sich in der TUI ansehen. `v` öffnet in der Suche (bei einem Treffer mit Anhang) und in der Session (mit Anhängen) eine dritte Ebene, die durch alle Anhänge der Session blättert. Bilder erscheinen als Text (Schattenzeichen in der Farbe des Bildes, auch mit `NO_COLOR` lesbar, an die Fenstergröße angepasst), PDFs mit Seitenzahl und Titel, Texte mit ihrem Anfang; `o` öffnet den Anhang mit dem Programm des Systems, `total-recall blob` bleibt die Rückfallebene. Die Kitty-Grafik für Bilder folgt.
