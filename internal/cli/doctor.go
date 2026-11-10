@@ -40,6 +40,9 @@ stays) names the projects with your own messages in the last --days days
 covers, so a new repository does not go unnoticed until booking time. Each
 check applies only if the table has entries; --days 0 skips the hint.
 
+A second hint names a backup directory that lies in an iCloud / file provider
+domain (macOS: the marker on the directory or a parent), where every backup is
+synced; it is the field "backup_hint" with --json (null otherwise).
 With --json the hint is the field "hints" of every report, apart from the
 findings: project, key, missing ("project" and/or "category") and
 last_active.
@@ -94,6 +97,14 @@ Hints are no findings and never change the exit code.`,
 				writeSetupHints(w, hints, days)
 			}
 		}
+		syncHint := backupSyncHint(cfg.Backup.Dir, e.app.FileProvider)
+		if syncHint != nil {
+			w := o.w
+			if o.format.IsJSON() {
+				w = o.errw
+			}
+			writeBackupSyncHint(w, syncHint)
+		}
 		if note := schemaNote(cfg); note != "" {
 			clean = false
 			w := o.w
@@ -113,7 +124,7 @@ Hints are no findings and never change the exit code.`,
 		if o.format.IsJSON() {
 			out := make([]DoctorReportJSON, len(reports))
 			for i, r := range reports {
-				out[i] = DoctorReportJSON{FormatReport: r, Hints: doctorHintsJSON(hints)}
+				out[i] = DoctorReportJSON{FormatReport: r, Hints: doctorHintsJSON(hints), BackupHint: syncHint}
 			}
 			if err := writeList(o, out); err != nil {
 				return err
@@ -171,6 +182,9 @@ type setupHint struct {
 type DoctorReportJSON struct {
 	harness.FormatReport
 	Hints []DoctorHintJSON `json:"hints"`
+	// BackupHint is set when the backup directory lies in an iCloud / file
+	// provider domain, null otherwise. Like Hints it is no finding.
+	BackupHint *DoctorBackupHintJSON `json:"backup_hint"`
 }
 
 // DoctorHintJSON is a project with recent own messages that the config does

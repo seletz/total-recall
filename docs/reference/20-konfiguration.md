@@ -172,7 +172,7 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 ### `[backup]`
 
 `dir`
-:   Zielordner für Backups (`archive-YYYY-MM-DD.db.zst`, weitere Kopien eines Tages mit Uhrzeit: `archive-YYYY-MM-DD-HHMM.db.zst`). Default: `~/Documents/total-recall`, also iCloud. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
+:   Zielordner für Backups (`archive-YYYY-MM-DD.db.zst`, weitere Kopien eines Tages mit Uhrzeit: `archive-YYYY-MM-DD-HHMM.db.zst`). Default: `~/Documents/total-recall`, also iCloud. **Liegt `~/Documents` in iCloud Drive, wird jedes Backup mitsynchronisiert** (bei einem großen Archiv mehrere hundert MiB pro Tag), das kostet iCloud-Speicher und Bandbreite; ein Verzeichnis außerhalb, etwa `~/Library/Application Support/total-recall/backups`, vermeidet das. [`doctor`](10-befehle.md#doctor) weist darauf hin, wenn das Backup-Verzeichnis in einer iCloud-Domain liegt. Der Default ändert sich nicht. Override: `--backup-dir`, `TOTAL_RECALL_BACKUP_DIR`.
 
 `keep_daily`
 :   Von so vielen Tagen, den neuesten mit einer Kopie, bleiben alle Kopien erhalten. Default: 7. Gezählt werden Tage, nicht Dateien: Mehrere Backups an einem Tag verdrängen keine älteren Tage. Kopien älterer Versionen (`.db.gz`, `.db`) zählen mit.
