@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"github.com/seletz/total-recall/internal/blobref"
 	"sort"
 	"testing"
 
@@ -228,6 +229,133 @@ func TestSessionsProjects(t *testing.T) {
 			}
 			if fmt.Sprint(got) != fmt.Sprint(tc.want) {
 				t.Errorf("sessions %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// pairFixture is one session with messages made of several events of one
+// transcript line (the text, then one event per image or document), like
+// the demo archive: the text event shows the attachments of its message.
+//
+//	line 100: p#0 text with markers, p#1 image, p#2 document
+//	line 200: q#0 a marker without any blob
+//	line 300: r#0 plain text, at the same second as line 400
+//	line 400: r2#0 text, r2#1 image
+func pairFixture(t *testing.T) *Store {
+	t.Helper()
+	s, _ := openTestStore(t)
+	sess := []model.Session{{ID: "claude:s3", Harness: "claude", NativeID: "s3", Cwd: "/w/pair"}}
+	png := model.Attachment{SHA256: blobref.Hash(testPNG), MediaType: "image/png", Data: testPNG}
+	pdf := model.Attachment{SHA256: blobref.Hash(testPDF), MediaType: "application/pdf", Data: testPDF}
+	at := func(id, ts string, offset int64, text string, atts ...model.Attachment) model.Event {
+		e := ev(id, "claude:s3", ts, model.ActorHuman, model.KindMessage, "user", text)
+		e.SourcePath, e.SourceOffset, e.Attachments = "/p/s3.jsonl", offset, atts
+		return e
+	}
+	evs := []model.Event{
+		at("claude:p#0", "2026-10-31T22:00:00Z", 100, "[Image #1] [Image #2] compare the report"),
+		at("claude:p#1", "2026-10-31T22:00:00Z", 100, "[image image/png 32 B]", png),
+		at("claude:p#2", "2026-10-31T22:00:00Z", 100, "[document application/pdf 1.3 KiB]", pdf),
+		at("claude:q#0", "2026-10-31T22:05:00Z", 200, "[Image #3] where is it"),
+		at("claude:r#0", "2026-10-31T22:10:00Z", 300, "plain compare text"),
+		at("claude:r2#0", "2026-10-31T22:10:00Z", 400, "[Image #1]"),
+		at("claude:r2#1", "2026-10-31T22:10:00Z", 400, "[image image/png 32 B]", png),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/p/s3.jsonl", Harness: "claude"}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// TestAttachmentFilterPairing: the filter takes the events by the same
+// pairing as EventsAttachments: the text of a message with images has
+// the attachments of its line, whatever the kind asked for.
+func TestAttachmentFilterPairing(t *testing.T) {
+	s := pairFixture(t)
+	type row struct {
+		id string
+		n  int
+	}
+	has := func(k AttachmentKind, actor string) SessionFilter {
+		return SessionFilter{Attachment: &AttachmentFilter{Kind: k, Actor: actor}}
+	}
+	for _, tc := range []struct {
+		name string
+		q    TypedQuery
+		want []row // newest first for a query without a word
+	}{
+		{"any", TypedQuery{SessionFilter: has(AttachmentAny, "")},
+			[]row{{"claude:r2#1", 1}, {"claude:r2#0", 1}, {"claude:p#2", 1}, {"claude:p#1", 1}, {"claude:p#0", 2}}},
+		{"image", TypedQuery{SessionFilter: has(AttachmentImage, "")},
+			[]row{{"claude:r2#1", 1}, {"claude:r2#0", 1}, {"claude:p#1", 1}, {"claude:p#0", 1}}},
+		{"document", TypedQuery{SessionFilter: has(AttachmentDocument, "")},
+			[]row{{"claude:p#2", 1}, {"claude:p#0", 1}}},
+		{"human", TypedQuery{SessionFilter: has(AttachmentAny, "human")},
+			[]row{{"claude:r2#1", 1}, {"claude:r2#0", 1}, {"claude:p#2", 1}, {"claude:p#1", 1}, {"claude:p#0", 2}}},
+		{"tool", TypedQuery{SessionFilter: has(AttachmentAny, "tool")}, nil},
+		{"the text of the message, the way from the TUI", TypedQuery{Text: "compare", SessionFilter: has(AttachmentAny, "")},
+			[]row{{"claude:p#0", 2}}},
+		{"the text, images only", TypedQuery{Text: "compare", SessionFilter: has(AttachmentImage, "")}, []row{{"claude:p#0", 1}}},
+		{"plain text of another line at the same second", TypedQuery{Text: "plain", SessionFilter: has(AttachmentAny, "")}, nil},
+		{"a marker without a blob", TypedQuery{Text: "where", SessionFilter: has(AttachmentAny, "")}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, err := s.SearchTyped(ctx, tc.q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []row
+			for _, h := range g[0].Hits {
+				got = append(got, row{h.Event.Event.ID, len(h.Event.Attachments)})
+			}
+			if fmt.Sprint(got) != fmt.Sprint(tc.want) {
+				t.Errorf("hits %v, want %v", got, tc.want)
+			}
+			if g[0].Total != len(g[0].Hits) {
+				t.Errorf("total %d for %d hits", g[0].Total, len(g[0].Hits))
+			}
+		})
+	}
+}
+
+// TestAttachmentPairingInvariants: the unique attachments (event and
+// position of event_blobs) of the hits are the rows of event_blobs, so a
+// pair of text and image event does not count twice; the sessions count
+// the rows of the whole session.
+func TestAttachmentPairingInvariants(t *testing.T) {
+	s := pairFixture(t)
+	for _, tc := range []struct {
+		name string
+		k    AttachmentKind
+		q    string
+	}{
+		{"any", AttachmentAny, "SELECT count(*) FROM event_blobs"},
+		{"image", AttachmentImage, "SELECT count(*) FROM event_blobs eb JOIN blobs b ON b.sha256 = eb.sha256 WHERE b.media_type LIKE 'image/%'"},
+		{"document", AttachmentDocument, "SELECT count(*) FROM event_blobs eb JOIN blobs b ON b.sha256 = eb.sha256 WHERE b.media_type NOT LIKE 'image/%'"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			want := countRows(t, s, tc.q)
+			g, err := s.SearchTyped(ctx, TypedQuery{SessionFilter: SessionFilter{Attachment: &AttachmentFilter{Kind: tc.k}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			unique, sum := map[string]bool{}, 0
+			for _, h := range g[0].Hits {
+				for _, a := range h.Event.Attachments {
+					unique[fmt.Sprintf("%s#%d", a.EventID, a.Position)] = true
+					sum++
+				}
+			}
+			if len(unique) != want {
+				t.Errorf("%d unique attachments on the hits, %d rows in event_blobs", len(unique), want)
+			}
+			if sum <= want {
+				t.Errorf("%d attachments in total, %d unique: the pairs should show some twice", sum, want)
+			}
+			list, err := s.Sessions(ctx, SessionFilter{Attachment: &AttachmentFilter{Kind: tc.k}})
+			if err != nil || len(list) != 1 || list[0].Attachments != want {
+				t.Errorf("sessions = %+v, %v, want one with %d attachments", list, err, want)
 			}
 		})
 	}

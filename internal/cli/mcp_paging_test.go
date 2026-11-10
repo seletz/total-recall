@@ -723,17 +723,29 @@ func TestMCPTimelineFewerPages(t *testing.T) {
 }
 
 // TestMCPAttachmentPagesAddUp: the events with attachments of search
-// without a query come in pages that add up to the CLI output; the demo
-// archive has two of them, so a bound of half the output (plus a little for the brackets) gives two pages
-// of one event each.
+// without a query come in pages that add up to the CLI output. The demo
+// archive has three of them (a text and two attachment events of one
+// message); a bound just above the largest one gives a page for each.
 func TestMCPAttachmentPagesAddUp(t *testing.T) {
 	cli := []string{"search", "--has-attachment=any", "--limit=20"}
-	bound := len(newPagedDemo(t, 16<<20).cli(cli...))/2 + 8
+	var largest int
+	var entries []json.RawMessage
+	if err := json.Unmarshal([]byte(newPagedDemo(t, 16<<20).cli(cli...)), &entries); err != nil {
+		t.Fatal(err)
+	}
+	for _, en := range entries {
+		var b bytes.Buffer
+		if err := json.Compact(&b, en); err != nil {
+			t.Fatal(err)
+		}
+		largest = max(largest, b.Len())
+	}
+	bound := largest + 8
 	p := newPagedDemo(t, bound)
 	want := p.cli(cli...)
 	pages, hints := p.crawl("search", map[string]any{"has_attachment": "any"})
-	if len(pages) != 2 {
-		t.Fatalf("%d pages for %d bytes, bound %d", len(pages), len(want), bound)
+	if len(pages) != len(entries) || len(entries) < 3 {
+		t.Fatalf("%d pages for %d hits (%d bytes), bound %d", len(pages), len(entries), len(want), bound)
 	}
 	for i, pg := range pages {
 		if len(pg) > bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Index != i+1 {

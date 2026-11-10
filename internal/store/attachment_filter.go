@@ -53,13 +53,14 @@ func (k AttachmentKind) Matches(mediaType string) bool {
 	return true
 }
 
-// sql is the condition on the blob alias "ay", "" for every kind.
-func (k AttachmentKind) sql() string {
+// sql is the condition on the media type of the blob alias, "" for every
+// kind.
+func (k AttachmentKind) sql(alias string) string {
 	switch k {
 	case AttachmentImage:
-		return "ay.media_type LIKE 'image/%'"
+		return alias + ".media_type LIKE 'image/%'"
 	case AttachmentDocument:
-		return "ay.media_type NOT LIKE 'image/%'"
+		return alias + ".media_type NOT LIKE 'image/%'"
 	}
 	return ""
 }
@@ -77,20 +78,30 @@ type AttachmentFilter struct {
 	Actor string
 }
 
-// blobJoin and kind condition of a filter, for the aliases "ab"
-// (event_blobs) and "ay" (blobs).
-func (a AttachmentFilter) joinAndCond() (join, cond string) {
-	if c := a.Kind.sql(); c != "" {
-		return " JOIN blobs ay ON ay.sha256 = ab.sha256", " AND " + c
+// blobJoin is the join of the link alias lb to its blob ly and the
+// condition on its kind, both empty for every kind.
+func (a AttachmentFilter) blobJoin(lb string) (join, cond string) {
+	if c := a.Kind.sql("ly"); c != "" {
+		return " JOIN blobs ly ON ly.sha256 = " + lb + ".sha256", " AND " + c
 	}
 	return "", ""
 }
 
 // eventCond is the condition on the event alias "e": it has an
-// attachment of the kind (and the actor).
+// attachment of the kind (and the actor), by the pairing of
+// EventsAttachments: its own attachments, and for an event without
+// any those of the other events of its transcript line (a message with
+// images is the text event and one event per image, found by the text).
+// The line is the session, time, source and offset; the lines with an
+// attachment of the kind are collected once, not looked up per event.
 func (a AttachmentFilter) eventCond() (string, []any) {
-	join, cond := a.joinAndCond()
-	c := "EXISTS (SELECT 1 FROM event_blobs ab" + join + " WHERE ab.event_id = e.id" + cond + ")"
+	ownJoin, ownCond := a.blobJoin("ab")
+	lineJoin, lineCond := a.blobJoin("lb")
+	c := "(EXISTS (SELECT 1 FROM event_blobs ab" + ownJoin + " WHERE ab.event_id = e.id" + ownCond + ")" +
+		" OR (NOT EXISTS (SELECT 1 FROM event_blobs ao WHERE ao.event_id = e.id)" +
+		" AND (e.session_id, e.ts, e.source_id, e.source_offset) IN" +
+		" (SELECT l.session_id, l.ts, l.source_id, l.source_offset FROM event_blobs lb JOIN events l ON l.id = lb.event_id" +
+		lineJoin + " WHERE 1" + lineCond + ")))"
 	var args []any
 	if a.Actor != "" {
 		c += " AND e.actor = ?"
@@ -102,7 +113,7 @@ func (a AttachmentFilter) eventCond() (string, []any) {
 // sessionCond is the condition on the session alias "s": one of its
 // events has an attachment of the kind (and the actor).
 func (a AttachmentFilter) sessionCond() (string, []any) {
-	join, cond := a.joinAndCond()
+	join, cond := a.blobJoin("ab")
 	c := "EXISTS (SELECT 1 FROM events ae JOIN event_blobs ab ON ab.event_id = ae.id" + join + " WHERE ae.session_id = s.id" + cond
 	var args []any
 	if a.Actor != "" {
@@ -158,7 +169,7 @@ func (s *Store) sessionsAttachments(ctx context.Context, list []SessionInfo, f *
 	join, cond := "", ""
 	actor := ""
 	if f != nil {
-		join, cond = f.joinAndCond()
+		join, cond = f.blobJoin("ab")
 		actor = f.Actor
 	}
 	counts := map[string]int{}

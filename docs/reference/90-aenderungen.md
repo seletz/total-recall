@@ -12,7 +12,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **`search --has-attachment[=image|document]` und `sessions --has-attachment[=…]`** finden Events und Sessions mit einem Bild oder Dokument, kombinierbar mit `--actor`, `--since`/`--until` und `--project`. `sessions` hat dafür neu `--project` und `--actor` (mit `--has-attachment`). Die Art folgt mit `=`.
 - **Ohne Suchwort:** `search --has-attachment` listet die neuesten Events mit Anhang (Event, Session, Typ, Größe).
-- **JSON:** Event-Treffer haben `attachments` und `attachment_count`, Sessions und Session-Treffer `attachment_count` (nur neue Felder). Die Treffer mit Anhang sind genau die Events von `event_blobs`, die Summen der Anhänge über Treffer, Sessions und Tabelle sind gleich.
+- **JSON:** Event-Treffer haben `attachments` und `attachment_count`, Sessions und Session-Treffer `attachment_count` (nur neue Felder). Der Filter geht wie die TUI über die Transkriptzeile: Der Text einer Nachricht mit Bildern findet sich mit `--has-attachment` und zeigt die Anhänge der Nachricht (jeder Anhang nennt mit `event_id`, an welchem Event er hängt). Die eindeutigen Anhänge der Treffer sind genau die Zeilen von `event_blobs`, ein Paar aus Text- und Bild-Event zählt nicht doppelt; die Summe von `attachment_count` über die Sessions ist die Zahl der Zeilen von `event_blobs`.
 - **MCP:** `search` und `sessions` haben `has_attachment`, `sessions` zusätzlich `actor` und `project`; `query` darf bei `search` mit `has_attachment` fehlen.
 - **Store-API für die TUI:** `SessionFilter.Attachment`, `SessionInfo.Attachments`, `SearchHit.Attachments`, `SessionFilter.Projects` (siehe [Anhänge finden](10-befehle.md#anhaenge-finden)). Die TUI-Filter folgen darauf.
 
