@@ -49,7 +49,7 @@ func Reclassify(ctx context.Context, d Deps, dryRun bool) (ReclassifySummary, er
 				actor = m.Actor // the actor stays; the input kind may still be decidable
 			}
 			// A human input another session sent is automation.
-			if actor == model.ActorHuman && ix.Sent(m.SessionID, m.TS, m.Text) {
+			if actor == model.ActorHuman && sentByAnother(ix, m) {
 				actor = model.ActorAutomation
 				if m.Actor != actor {
 					sum.Dispatched++

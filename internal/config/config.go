@@ -458,6 +458,11 @@ type Actors struct {
 	// send text into another session's terminal. A short input is only
 	// matched with a call that contains one of them (#265).
 	PromptCommands []string `toml:"prompt_commands"`
+	// SpawnCommands are substrings of tool arguments (Bash commands) that
+	// start a worker session and name its directory or branch; with a prompt
+	// command of the same session after it, the worker's first prompt is not
+	// the person's (#269).
+	SpawnCommands []string `toml:"spawn_commands"`
 	// PromptWindow is how long before an input the tool call of another
 	// session may be that sent it; 0 turns the detection off.
 	PromptWindow Duration `toml:"prompt_window"`
@@ -525,6 +530,7 @@ var fields = []struct {
 	{"harness.claude.actors.peer_paste_headers", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PeerPasteHeaders) }},
 	{"harness.claude.actors.automation_prefixes", func(c *Config) string { return formatList(c.Harness.Claude.Actors.AutomationPrefixes) }},
 	{"harness.claude.actors.prompt_commands", func(c *Config) string { return formatList(c.Harness.Claude.Actors.PromptCommands) }},
+	{"harness.claude.actors.spawn_commands", func(c *Config) string { return formatList(c.Harness.Claude.Actors.SpawnCommands) }},
 	{"harness.claude.actors.prompt_window", func(c *Config) string { return c.Harness.Claude.Actors.PromptWindow.String() }},
 	{"git.resolve", func(c *Config) string { return strconv.FormatBool(c.Git.Resolve) }},
 	{"work.hours", func(c *Config) string { return c.Work.Hours }},
@@ -644,7 +650,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		ProjectsDir:     filepath.Join(claudeDir, "projects"),
 		SkipRecordTypes: []string{},
 		Actors: Actors{PeerPrefixes: []string{}, PeerPasteHeaders: []string{}, AutomationPrefixes: []string{"Hourly ", "Weekend watch"},
-			PromptCommands: []string{"herdr agent prompt", "tmux send-keys"}, PromptWindow: Duration{120 * time.Second}},
+			PromptCommands: []string{"herdr agent prompt", "tmux send-keys"}, SpawnCommands: []string{"herdr agent start"}, PromptWindow: Duration{120 * time.Second}},
 	}
 	c.Git.Resolve = true
 	c.Work = Work{

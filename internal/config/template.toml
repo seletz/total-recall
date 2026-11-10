@@ -85,6 +85,10 @@ automation_prefixes = ["Hourly ", "Weekend watch"]
 # without configuration; these commands only let a short text ("ok") match,
 # and the window says how long before the call may be ("0s" turns it off).
 prompt_commands = ["herdr agent prompt", "tmux send-keys"]
+# A worker that such a command started (naming its directory or branch) and
+# that the same session then handed a prompt gets a first message that is
+# "automation" too, even when the text came from a file or a variable.
+spawn_commands = ["herdr agent start"]
 prompt_window = "120s"
 
 [work]

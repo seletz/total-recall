@@ -28,6 +28,15 @@ const (
 // one of them.
 var DefaultCommands = []string{"herdr agent prompt", "tmux send-keys"}
 
+// DefaultSpawnCommands are the commands known to start a worker session.
+var DefaultSpawnCommands = []string{"herdr agent start"}
+
+// minBranch is the shortest branch name that counts as a reference to a
+// session; the default branches never do.
+const minBranch = 4
+
+var defaultBranches = map[string]bool{"main": true, "master": true, "develop": true, "HEAD": true}
+
 // Config tunes the matching. The zero value takes the defaults.
 type Config struct {
 	// Window is the time a call may precede the input; 0 = DefaultWindow,
@@ -36,6 +45,10 @@ type Config struct {
 	// Commands are substrings of tool arguments that send text to another
 	// session; nil = DefaultCommands.
 	Commands []string
+	// SpawnCommands are substrings of tool arguments that start a worker
+	// session (naming its working directory or branch); nil =
+	// DefaultSpawnCommands.
+	SpawnCommands []string
 }
 
 // Call is a tool call of a session with its argument text.
@@ -49,6 +62,7 @@ type entry struct {
 	Call
 	norm   string
 	prompt bool // the argument contains one of the configured commands
+	spawn  bool // the argument contains one of the spawn commands
 }
 
 // Index holds the tool calls of a time range for lookups by time.
@@ -65,18 +79,15 @@ func NewIndex(calls []Call, cfg Config) *Index {
 	if cfg.Commands == nil {
 		cfg.Commands = DefaultCommands
 	}
+	if cfg.SpawnCommands == nil {
+		cfg.SpawnCommands = DefaultSpawnCommands
+	}
 	ix := &Index{cfg: cfg}
 	if cfg.Window < 0 {
 		return ix
 	}
 	for _, c := range calls {
-		e := entry{Call: c, norm: Normalize(c.Text)}
-		for _, cmd := range cfg.Commands {
-			if cmd != "" && strings.Contains(c.Text, cmd) {
-				e.prompt = true
-				break
-			}
-		}
+		e := entry{Call: c, norm: Normalize(c.Text), prompt: containsAny(c.Text, cfg.Commands), spawn: containsAny(c.Text, cfg.SpawnCommands)}
 		ix.calls = append(ix.calls, e)
 	}
 	sort.SliceStable(ix.calls, func(i, j int) bool { return ix.calls[i].TS.Before(ix.calls[j].TS) })
@@ -129,4 +140,54 @@ func Normalize(s string) string {
 		}
 		return r
 	}, s)
+}
+
+func containsAny(text string, subs []string) bool {
+	for _, s := range subs {
+		if s != "" && strings.Contains(text, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// Spawned reports whether the session was started by another session and
+// its first prompt delivered by it, which the text comparison (Sent) cannot
+// see when the prompt came from a file, a variable or a loop: within the
+// window before ts, a tool call of another session ran a spawn or prompt
+// command that names the session's working directory or its branch, and the
+// same session then ran a prompt command (the delivery, at or after the
+// naming call, not after ts). branch and cwd are the session's own; the
+// default branches and very short names are no reference. The caller asks
+// this for the first human input of a session only: a person who types into
+// a worker later stays human.
+func (ix *Index) Spawned(session string, ts time.Time, branch, cwd string) bool {
+	if len(ix.calls) == 0 {
+		return false
+	}
+	var names []string
+	if len(cwd) > 8 {
+		names = append(names, cwd)
+	}
+	if len(branch) >= minBranch && !defaultBranches[branch] {
+		names = append(names, branch)
+	}
+	if len(names) == 0 {
+		return false
+	}
+	from := ts.Add(-ix.cfg.Window)
+	lo := sort.Search(len(ix.calls), func(i int) bool { return !ix.calls[i].TS.Before(from) })
+	hi := sort.Search(len(ix.calls), func(i int) bool { return ix.calls[i].TS.After(ts) })
+	for i := lo; i < hi; i++ {
+		c := ix.calls[i]
+		if c.Session == session || (!c.spawn && !c.prompt) || !containsAny(c.Text, names) {
+			continue
+		}
+		for j := i; j < hi; j++ { // the delivery: a prompt command of the same session, at or after this call
+			if d := ix.calls[j]; d.Session == c.Session && d.prompt {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -64,7 +64,7 @@ func Deps(cfg *config.Config, st *store.Store, log *logfile.Logger) (ingest.Deps
 		d.Redactor = r
 	}
 	d.Adapters = adapters(cfg, d.Logf)
-	d.Dispatch = dispatch.Config{Window: cfg.Harness.Claude.Actors.PromptWindow.Duration, Commands: cfg.Harness.Claude.Actors.PromptCommands}
+	d.Dispatch = dispatch.Config{Window: cfg.Harness.Claude.Actors.PromptWindow.Duration, Commands: cfg.Harness.Claude.Actors.PromptCommands, SpawnCommands: cfg.Harness.Claude.Actors.SpawnCommands}
 	if d.Dispatch.Window == 0 {
 		d.Dispatch.Window = -1 // 0 in the configuration turns the detection off
 	}
