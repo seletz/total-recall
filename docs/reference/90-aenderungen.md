@@ -12,9 +12,17 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 - **`timeline` im MCP braucht weniger Seiten** ([#259](https://github.com/seletz/total-recall/issues/259)): Gemessen an einem Tag des Demo-Archivs mit `all` kam die Seitengröße zu rund 85 % aus den Metadaten je Event (Session-ID und -Name, Repo, beide Zeiten, Zähler) und nur zu rund 14 % aus dem Text. Neu gibt es den Parameter `--fields` (CLI) und `fields` (MCP): die Schlüssel der Events, die man haben will. Im MCP ist der Default kompakt (ohne `ts`, `session_name`, `repo`, `text_chars`), eine Seite trägt damit etwa 45 % mehr Events; `fields=all` bringt alles zurück. Die CLI ohne `--fields` und alle bisherigen Felder bleiben unverändert. Alle Seiten zusammen sind weiter byte-gleich die CLI-Ausgabe mit denselben Parametern; der Hinweis jeder Seite nennt `fields`, `text_width` und das Fenster als Mittel, die Zahl der Seiten zu senken.
 
+### Tool-Nutzung in `stats`
+
+- **`stats --tools --top N` ohne `--by`** ([Befehle](10-befehle.md#stats-tools), #258): kürzt `by_tool` auf die N meistgenutzten Tools, der Rest steht als ein Eintrag `other`; die Einträge ergeben weiter genau `total`. Vorher war `--top` ohne `--by` ein Fehler. Mit `--by` ändert sich nichts. Im MCP-Tool `stats` gilt dasselbe für `top` mit `tools`.
+
 ### Arbeitstage
 
 - **Einzelne Nachrichten in `stats --workday --blocks` erkennbar** ([#256](https://github.com/seletz/total-recall/issues/256)). Jeder Block hat jetzt `events` (Zahl der gezählten Events) und `single` (`true` bei genau einem Event); eine einzelne Nachricht nach einer langen Pause ist so von einem echten Block zu unterscheiden. Die Sekunden bleiben, nichts fällt weg; die Felder sind additiv. Pro Tag ergeben die `events` der Blöcke `human` plus `agent`. Die Tabelle markiert einen einzelnen Block mit `*`, das MCP-Tool `stats` mit `blocks` liefert die Felder auf jeder Seite.
+
+### Behoben
+
+- **`stats --workday --blocks`: die Sekunden stimmen jetzt** ([#256](https://github.com/seletz/total-recall/issues/256), seit v1.6.0). Mit Bruchteilsekunden in den Zeitstempeln (das echte Archiv hat Millisekunden) rundete jeder Block einzeln ab, `block_seconds` aber aus der ungerundeten Summe: Die `seconds` der Blöcke eines Tags ergaben zum Beispiel 28166, `block_seconds` sagte 28169. Jetzt werden die Blockgrenzen auf ganze Sekunden nach der ersten Aktivität des Tags abgerundet, bevor die Dauern gebildet werden. Damit ist `block_seconds` genau die Summe der `blocks[].seconds`, und `block_seconds` plus `break_seconds` ergeben genau `span_seconds`. Im `total` stehen die Summen der Tage: `span_seconds` ist die Summe der `span_seconds` der Tage (es konnte um wenige Sekunden abweichen) und `balance_seconds` ist `span_seconds` minus `target_seconds`.
 
 ## v1.6.0
 

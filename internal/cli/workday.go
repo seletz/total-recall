@@ -171,7 +171,7 @@ func (r workdayReport) json() WorkdayJSON {
 		WorkHours: r.hours, TargetSeconds: int(r.work.Target.Seconds()), HolidayRegion: r.region,
 		Days: make([]WorkdayDayJSON, 0, len(r.days)),
 	}
-	var blockSum, breakSum time.Duration
+	var blockSum, breakSum, spanSum int // whole seconds, sums of the days
 	if r.blockGap > 0 {
 		g := int(r.blockGap.Seconds())
 		out.BlockGapSeconds = &g
@@ -191,25 +191,25 @@ func (r workdayReport) json() WorkdayJSON {
 			for _, b := range d.Blocks {
 				bl = append(bl, WorkdayBlockJSON{
 					Start: isoTime(b.Start), End: isoTime(b.End),
-					StartLocal: d.Clock(b.Start, r.loc), EndLocal: d.Clock(b.End, r.loc), Seconds: int(b.Duration().Seconds()),
+					StartLocal: d.Clock(b.Start, r.loc), EndLocal: d.Clock(b.End, r.loc), Seconds: b.Secs,
 					Events: b.Events, Single: b.Single(),
 				})
 			}
-			bs, ps := int(d.BlockSum().Seconds()), int(d.BreakSum().Seconds())
+			bs, ps := d.BlockSeconds(), d.BreakSeconds()
 			day.Blocks, day.BlockSeconds, day.BreakSeconds = &bl, &bs, &ps
-			blockSum += d.BlockSum()
-			breakSum += d.BreakSum()
+			blockSum += bs
+			breakSum += ps
 		}
+		spanSum += day.SpanSeconds
 		out.Days = append(out.Days, day)
 	}
 	b := r.work.Balance(r.days, r.asOf)
 	out.Total = WorkdayTotalJSON{
-		Days: b.Active, Workdays: b.Workdays, Holidays: b.Holidays, SpanSeconds: int(b.Span.Seconds()),
-		TargetSeconds: int(b.Target.Seconds()), BalanceSeconds: int(b.Balance.Seconds()),
+		Days: b.Active, Workdays: b.Workdays, Holidays: b.Holidays, SpanSeconds: spanSum,
+		TargetSeconds: int(b.Target.Seconds()), BalanceSeconds: spanSum - int(b.Target.Seconds()),
 	}
 	if r.blockGap > 0 {
-		bs, ps := int(blockSum.Seconds()), int(breakSum.Seconds())
-		out.Total.BlockSeconds, out.Total.BreakSeconds = &bs, &ps
+		out.Total.BlockSeconds, out.Total.BreakSeconds = &blockSum, &breakSum
 	}
 	return out
 }

@@ -81,6 +81,7 @@ func TestMCPToolStatsMatchesCLI(t *testing.T) {
 		{"plain", map[string]any{"tools": true, "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--since=2026-10-01", "--until=2026-10-31"}},
 		{"by day with path", map[string]any{"tools": true, "by": "day", "path": "*go*", "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--by=day", "--path=*go*", "--since=2026-10-01", "--until=2026-10-31"}},
 		{"by session top", map[string]any{"tools": true, "by": "session", "top": 2, "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--by=session", "--top=2", "--since=2026-10-01", "--until=2026-10-31"}},
+		{"top without by", map[string]any{"tools": true, "top": 1, "since": "2026-10-01", "until": "2026-10-31"}, []string{"stats", "--tools", "--top=1", "--since=2026-10-01", "--until=2026-10-31"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, _, isErr := p.call("stats", tc.args)
@@ -95,5 +96,28 @@ func TestMCPToolStatsMatchesCLI(t *testing.T) {
 				t.Errorf("tool differs from CLI\n tool: %.300s\n  cli: %.300s", got, want)
 			}
 		})
+	}
+}
+
+// TestMCPToolStatsTopSumsToTotal: over MCP, tools=true with top and without
+// by gives by_tool with "other" that sums to total, like the CLI.
+func TestMCPToolStatsTopSumsToTotal(t *testing.T) {
+	p := newPagedDemo(t, 16<<20)
+	for _, top := range []int{1, 2, 50} {
+		got, _, isErr := p.call("stats", map[string]any{"tools": true, "top": top, "since": "2026-01-01", "until": "2026-12-31"})
+		if isErr {
+			t.Fatalf("top %d: %s", top, got)
+		}
+		var w ToolStatsJSON
+		if err := json.Unmarshal([]byte(got), &w); err != nil {
+			t.Fatal(err)
+		}
+		sum := 0
+		for _, c := range w.ByTool {
+			sum += c.Count
+		}
+		if w.Total == 0 || sum != w.Total || len(w.ByTool) > top+1 || len(w.Groups) != 0 {
+			t.Errorf("top %d: by_tool %v sums to %d, total %d", top, w.ByTool, sum, w.Total)
+		}
 	}
 }

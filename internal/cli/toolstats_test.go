@@ -2,6 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -65,6 +67,10 @@ func TestStatsToolsInvariants(t *testing.T) {
 		{"Project", []string{"--by", "project"}, want},
 		{"ProjectTop2", []string{"--by", "project", "--top", "2"}, want},
 		{"SessionTop3", []string{"--by", "session", "--top", "3"}, want},
+		{"ToolsTop1", []string{"--top", "1"}, want},
+		{"ToolsTop2", []string{"--top", "2"}, want},
+		{"ToolsTopMoreThanTools", []string{"--top", "50"}, want},
+		{"ToolsTopWithPath", []string{"--top", "1", "--path", "*go*"}, -1},
 		{"PathBashAndFiles", []string{"--path", "*.go"}, -1},
 		{"PathByDay", []string{"--path", "*go*", "--by", "day"}, -1},
 	}
@@ -149,7 +155,7 @@ func TestStatsToolsFlags(t *testing.T) {
 		{"WithPeriod", []string{"--tools", "--period", "week"}, "cannot be combined"},
 		{"WithWorkday", []string{"--tools", "--workday"}, "cannot be combined"},
 		{"WithTokens", []string{"--tools", "--tokens"}, "cannot be combined"},
-		{"TopNeedsBy", []string{"--tools", "--top", "2"}, "--top requires --by"},
+		{"NegativeTop", []string{"--tools", "--top", "-1"}, "--top must not be negative"},
 		{"ByDayWithoutToolsKeepsSeriesError", []string{"--by", "day"}, "invalid dimension"},
 	}
 	for _, tt := range tests {
@@ -174,5 +180,31 @@ func TestStatsToolsTable(t *testing.T) {
 	r = runActivity(t, e, db, "--tools", "--by", "day", "--since", "2026-10-01", "--until", "2026-10-31")
 	if r.code != 0 || !strings.Contains(r.stdout, "KEY") || !strings.Contains(r.stdout, "2026-10-") {
 		t.Errorf("grouped table: exit %d\n%s%s", r.code, r.stdout, r.stderr)
+	}
+}
+
+// TestStatsToolsTopWithoutBy: --top N keeps the N most used tools in by_tool
+// and folds the rest into "other"; a larger N changes nothing.
+func TestStatsToolsTopWithoutBy(t *testing.T) {
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	e.home = demo.Home
+	all := demoToolStats(t, e, db)
+	if len(all.ByTool) < 3 {
+		t.Fatalf("demo archive has %d tools", len(all.ByTool))
+	}
+	one := demoToolStats(t, e, db, "--top", "1")
+	if len(one.ByTool) != 2 || one.ByTool[0] != all.ByTool[0] || one.ByTool[1].Tool != "other" ||
+		one.ByTool[1].Count != all.Total-all.ByTool[0].Count || len(one.Groups) != 0 || one.By != "" {
+		t.Errorf("top 1 = %+v (all %+v)", one.ByTool, all.ByTool)
+	}
+	big := demoToolStats(t, e, db, "--top", "50")
+	if fmt.Sprint(big.ByTool) != fmt.Sprint(all.ByTool) {
+		t.Errorf("top 50 = %v, want %v (no other)", big.ByTool, all.ByTool)
+	}
+	exact := demoToolStats(t, e, db, "--top", strconv.Itoa(len(all.ByTool)))
+	if fmt.Sprint(exact.ByTool) != fmt.Sprint(all.ByTool) {
+		t.Errorf("top %d = %v, want no other", len(all.ByTool), exact.ByTool)
 	}
 }
