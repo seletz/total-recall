@@ -114,6 +114,10 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 	if err != nil {
 		return tui.Options{}, err
 	}
+	images, err := tui.ParseGraphics(cfg.TUI.Images)
+	if err != nil {
+		return tui.Options{}, fmt.Errorf("[tui] images: %w", err)
+	}
 	noMouse := !cfg.TUI.Mouse
 	if f.NoMouseSet {
 		noMouse = f.NoMouse
@@ -126,7 +130,7 @@ func tuiOptions(cfg *config.Config, f tuiFlags) (tui.Options, error) {
 		}
 	}
 	return tui.Options{
-		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, NoMouse: noMouse, Reload: reload,
+		Location: cfg.Location(), Start: view, Query: f.Query, Graphics: g, Images: images, NoMouse: noMouse, Reload: reload,
 		DayStart: cfg.DayStartOffset(), Work: work, Holidays: ops.Holidays(cfg), HumanOnly: cfg.Work.HumanOnly(), Home: cfg.Home, Projects: projects,
 		StatsPeriod: cfg.TUI.StatsPeriod, StatsDimension: cfg.TUI.StatsDimension, ActivityWindow: cfg.TUI.ActivityWindow, ActivityProjects: cfg.TUI.ActivityProjects, ActivityNewest: cfg.TUI.ActivityNewest,
 		Keys: km,

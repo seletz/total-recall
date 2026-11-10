@@ -31,6 +31,6 @@
  ▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
 
  total-recall blob 13b72db2ac7d --out FILE
- 2 attachments
+ 2 attachments  ·  image: text
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ←/→ browse • ↑/↓ scroll • o/enter open with the system viewer • esc back • 1 search • 2 stats • 3 activity • ? help …

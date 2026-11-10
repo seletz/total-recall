@@ -179,7 +179,7 @@ func options(s Shot, env *Env) (tui.Options, error) {
 	}
 	opts := tui.Options{
 		Store: env.Store, Location: berlin, Now: func() time.Time { return now },
-		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, NoMouse: true,
+		Start: s.Start, Query: s.Query, Graphics: tui.GraphicsText, Images: tui.GraphicsText, NoMouse: true,
 		DayStart: 4 * time.Hour, Work: workHours, Holidays: holiday.New("Baden-Württemberg"), HumanOnly: true, Home: env.Home,
 		Config: env.Config, ConfigView: cv, Projects: projects,
 		// A shot never waits for a reload tick: the renderer runs commands

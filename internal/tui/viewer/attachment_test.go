@@ -160,3 +160,43 @@ func TestAttachmentLines(t *testing.T) {
 		t.Error("no attachments, no lines")
 	}
 }
+
+func TestImageRows(t *testing.T) {
+	tests := []struct{ total, want int }{{30, 23}, {10, 3}, {7, 1}, {3, 1}, {0, 24}, {-1, 24}}
+	for _, tt := range tests {
+		if got := ImageRows(tt.total); got != tt.want {
+			t.Errorf("ImageRows(%d) = %d, want %d", tt.total, got, tt.want)
+		}
+	}
+}
+
+func TestDecodeImage(t *testing.T) {
+	data := testPNG(t, 6, 4, color.White)
+	img, format, err := DecodeImage(data)
+	if err != nil || format != "png" || img.Bounds().Dx() != 6 || img.Bounds().Dy() != 4 {
+		t.Errorf("DecodeImage = %v, %q, %v", img, format, err)
+	}
+	if _, _, err := DecodeImage([]byte("nope")); err == nil {
+		t.Error("garbage decodes")
+	}
+}
+
+func TestAttachmentPicture(t *testing.T) {
+	// A picture drawn by the terminal replaces the text image: the placeholder
+	// lines come through as they are, under the caption.
+	data := testPNG(t, 40, 20, color.White)
+	pic := []string{"\x1b[38;5;47m\U0010eeee̅̅", "\x1b[38;5;47m\U0010eeee̅̍"}
+	c := Attachment{Info: blob("image/png", len(data)), Data: data, Picture: pic}.Render(Env{Theme: env.Theme, Rows: 20}, 30)
+	body := strings.Join(c.Body, "\n")
+	if !strings.Contains(body, "png 40×20") || !strings.Contains(body, pic[0]) || !strings.Contains(body, pic[1]) {
+		t.Errorf("body = %q", body)
+	}
+	if strings.ContainsAny(body, "░▒▓█") {
+		t.Errorf("text image next to the picture: %q", body)
+	}
+	// Without a data (not stored) the picture is not shown.
+	c = Attachment{Info: blob("image/png", 10), Picture: pic}.Render(Env{Theme: env.Theme}, 30)
+	if strings.Contains(strings.Join(c.Body, "\n"), pic[0]) {
+		t.Error("picture without data")
+	}
+}

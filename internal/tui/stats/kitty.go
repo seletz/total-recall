@@ -119,6 +119,11 @@ func NewKittyChart(opts KittyOptions) *KittyChart {
 	return c
 }
 
+// ReadProbe is the outcome of the picture package's process-wide Kitty
+// probe; the other views that draw images (the attachment view) decide with
+// it too, so a terminal is probed once.
+func ReadProbe() Probe { return readProbe() }
+
 // readProbe maps the picture package's process-wide capability state to a
 // Probe.
 func readProbe() Probe {

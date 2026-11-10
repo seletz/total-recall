@@ -196,6 +196,9 @@ resolve = true
 view = "search"
 # Chart rendering in the stats view: auto, text or kitty (--graphics).
 graphics = "auto"
+# Images in the attachment view: auto (Kitty Graphics where the terminal
+# has it, text otherwise), text or kitty.
+images = "auto"
 # Wheel scrolling and clicks; false leaves the mouse to the terminal
 # (--no-mouse, --no-mouse=false switches it on for one run).
 mouse = true

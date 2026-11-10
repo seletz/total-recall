@@ -197,11 +197,16 @@ func (a *App) setStale(i int, v bool) {
 // show switches to view i, closing the detail, and reloads the view when
 // its data went stale while it was hidden.
 func (a *App) show(i int) tea.Cmd {
+	// An image of the attachment view goes out of the terminal with it.
+	var leave tea.Cmd
+	if a.showAttach {
+		leave = a.attach.Leave()
+	}
 	a.active, a.showDetail, a.showMemory, a.showAttach = i, false, false, false
 	if !a.stale[i] {
-		return nil
+		return leave
 	}
-	return a.reloadCurrent()
+	return tea.Batch(leave, a.reloadCurrent())
 }
 
 // Update handles global keys and forwards the rest: key presses to the active
