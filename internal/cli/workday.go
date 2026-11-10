@@ -130,7 +130,7 @@ func rangeBounds(name string, now time.Time, loc *time.Location, dayStart time.D
 		}
 		from, to = first, first.AddDate(0, 1, 0)
 	default:
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid --range %q (%s)", name, strings.Join(rangeNames, ", "))
+		return time.Time{}, time.Time{}, usagef("invalid --range %q (%s)", name, strings.Join(rangeNames, ", "))
 	}
 	return store.DayBoundary(from, dayStart), store.DayBoundary(to, dayStart), nil
 }

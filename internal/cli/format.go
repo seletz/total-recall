@@ -88,10 +88,11 @@ func shortRepo(repo string) string {
 	return filepath.Base(repo)
 }
 
-// parseTimeArg parses a --since/--until value in loc: "YYYY-MM-DD",
+// parseTimeArg parses the value of the time flag (name without dashes, e.g.
+// "since") in loc: "YYYY-MM-DD",
 // "YYYY-MM-DDTHH:MM", "YYYY-MM-DD HH:MM" or RFC 3339. A date-only --until
 // (endOfDay) means the end of that day, i.e. the start of the next one.
-func parseTimeArg(s string, loc *time.Location, endOfDay bool) (time.Time, error) {
+func parseTimeArg(flag, s string, loc *time.Location, endOfDay bool) (time.Time, error) {
 	if s == "" {
 		return time.Time{}, nil
 	}
@@ -109,7 +110,7 @@ func parseTimeArg(s string, loc *time.Location, endOfDay bool) (time.Time, error
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return t, nil
 	}
-	return time.Time{}, usagef("invalid time %q (use YYYY-MM-DD, YYYY-MM-DDTHH:MM or RFC 3339)", s)
+	return time.Time{}, usagef("--%s: invalid time %q (use YYYY-MM-DD, YYYY-MM-DDTHH:MM or RFC 3339)", flag, s)
 }
 
 // openRead opens the archive read-only and prints a schema warning to stderr.
