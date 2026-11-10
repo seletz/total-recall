@@ -138,12 +138,13 @@ const (
 	ActivitySelDown  = "activity_select_down"
 	ActivityOpen     = "activity_open"
 
-	DayUp    = "day_up"
-	DayDown  = "day_down"
-	DayPrev  = "day_prev"
-	DayNext  = "day_next"
-	DayOpen  = "day_open"
-	DayHuman = "day_human"
+	DayUp     = "day_up"
+	DayDown   = "day_down"
+	DayPrev   = "day_prev"
+	DayNext   = "day_next"
+	DayOpen   = "day_open"
+	DayToggle = "day_toggle"
+	DayHuman  = "day_human"
 
 	ConfigNext    = "config_next"
 	ConfigPrev    = "config_prev"
@@ -255,6 +256,7 @@ var Actions = []Action{
 	{DayPrev, Day, []string{"left", ",", "["}, "previous day"},
 	{DayNext, Day, []string{"right", ".", "]"}, "next day"},
 	{DayOpen, Day, []string{"enter"}, "open session"},
+	{DayToggle, Day, []string{"space"}, "show/hide sessions"},
 	{DayHuman, Day, []string{"h"}, "human/all events"},
 
 	{ConfigNext, Config, []string{"tab", "right"}, "next page"},

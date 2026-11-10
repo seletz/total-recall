@@ -12,6 +12,7 @@ import (
 	"github.com/seletz/total-recall/internal/dayreport"
 	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // DayJSON is the --json output of stats --day: one day chronologically,
@@ -45,9 +46,15 @@ type DayJSON struct {
 	BlockSeconds    int `json:"block_seconds"`
 	BreakSeconds    int `json:"break_seconds"`
 	ActivityJSON
-	Blocks   []DayBlockJSON   `json:"blocks"`
-	Worktime DayWorktimeJSON  `json:"worktime"`
-	Projects []DayProjectJSON `json:"projects"`
+	Blocks   []DayBlockJSON  `json:"blocks"`
+	Worktime DayWorktimeJSON `json:"worktime"`
+	// Categories are the categories of the day as --worktime lists them;
+	// their raw and rounded seconds add up to worktime.raw_seconds and
+	// worktime.rounded_seconds. Projects carry rounded_seconds for each
+	// project alone: with rounding_scope "category" those do not add up to
+	// the day (a category is rounded once, not its projects).
+	Categories []DayCategoryJSON `json:"categories"`
+	Projects   []DayProjectJSON  `json:"projects"`
 }
 
 // DayBlockJSON is one block of the day.
@@ -88,6 +95,19 @@ type DaySessionJSON struct {
 type DayWorktimeJSON struct {
 	RawSeconds     int `json:"raw_seconds"`
 	RoundedSeconds int `json:"rounded_seconds"`
+	// GridSeconds, Rounding and RoundingScope are the rounding of
+	// [worktime] the rounded values were made with.
+	GridSeconds   int    `json:"grid_seconds"`
+	Rounding      string `json:"rounding"`
+	RoundingScope string `json:"rounding_scope"`
+}
+
+// DayCategoryJSON is a category of the day with its time as --worktime
+// gives it.
+type DayCategoryJSON struct {
+	Category       string `json:"category"`
+	RawSeconds     int    `json:"raw_seconds"`
+	RoundedSeconds int    `json:"rounded_seconds"`
 }
 
 // DayProjectJSON is a project of the day with its time (as in --worktime)
@@ -111,6 +131,7 @@ type dayReport struct {
 	humanOnly bool
 	work      store.WorkHours
 	blockGap  time.Duration
+	settings  worktime.Settings
 }
 
 func (r dayReport) json() DayJSON {
@@ -124,8 +145,12 @@ func (r dayReport) json() DayJSON {
 		BlockGapSeconds: int(r.blockGap.Seconds()), BlockSeconds: d.BlockSeconds(), BreakSeconds: d.BreakSeconds(),
 		ActivityJSON: act(d.Activity),
 		Blocks:       make([]DayBlockJSON, 0, len(r.rep.Blocks)),
-		Worktime:     DayWorktimeJSON{RawSeconds: int(r.rep.Worktime.Raw.Seconds()), RoundedSeconds: int(r.rep.Worktime.Rounded.Seconds())},
-		Projects:     make([]DayProjectJSON, 0, len(r.rep.Projects)),
+		Worktime: DayWorktimeJSON{
+			RawSeconds: int(r.rep.Worktime.Raw.Seconds()), RoundedSeconds: int(r.rep.Worktime.Rounded.Seconds()),
+			GridSeconds: int(r.settings.Grid.Seconds()), Rounding: r.settings.Rounding.String(), RoundingScope: r.settings.Scope.String(),
+		},
+		Categories: make([]DayCategoryJSON, 0, len(r.rep.Worktime.Categories)),
+		Projects:   make([]DayProjectJSON, 0, len(r.rep.Projects)),
 	}
 	for _, b := range r.rep.Blocks {
 		jb := DayBlockJSON{
@@ -144,6 +169,9 @@ func (r dayReport) json() DayJSON {
 				Start: isoTime(s.Start), End: isoTime(s.End), Human: s.Human, Agent: s.Agent})
 		}
 		out.Blocks = append(out.Blocks, jb)
+	}
+	for _, c := range r.rep.Worktime.Categories {
+		out.Categories = append(out.Categories, DayCategoryJSON{Category: c.Name, RawSeconds: int(c.Raw.Seconds()), RoundedSeconds: int(c.Rounded.Seconds())})
 	}
 	for _, p := range r.rep.Projects {
 		out.Projects = append(out.Projects, DayProjectJSON{Project: p.Name, RawSeconds: int(p.Raw.Seconds()), RoundedSeconds: int(p.Rounded.Seconds()), Human: p.Human, Agent: p.Agent})
@@ -201,7 +229,22 @@ func (r dayReport) table(w io.Writer) error {
 		rows = append(rows, []string{p.Name, duration(p.Raw), duration(p.Rounded), fmt.Sprint(p.Human), fmt.Sprint(p.Agent)})
 	}
 	_, _ = fmt.Fprintln(w)
-	return table(w, []string{"PROJECT", "TIME", "ROUNDED", "HUMAN", "AGENT"}, rows)
+	if err := table(w, []string{"PROJECT", "TIME", "ROUNDED", "HUMAN", "AGENT"}, rows); err != nil {
+		return err
+	}
+	cats := make([][]string, 0, len(r.rep.Worktime.Categories)+1)
+	for _, c := range r.rep.Worktime.Categories {
+		cats = append(cats, []string{c.Name, duration(c.Raw), duration(c.Rounded)})
+	}
+	cats = append(cats, []string{"total", duration(r.rep.Worktime.Raw), duration(r.rep.Worktime.Rounded)})
+	_, _ = fmt.Fprintln(w)
+	if err := table(w, []string{"CATEGORY", "TIME", "ROUNDED"}, cats); err != nil {
+		return err
+	}
+	if r.settings.Scope == worktime.ScopeCategory {
+		_, _ = fmt.Fprintln(w, "\nrounded is per category (rounding_scope category): the rounded times of the projects do not add up to the day, the categories do")
+	}
+	return nil
 }
 
 // runDay is stats --day: the day chronologically with the numbers of
@@ -238,7 +281,7 @@ func (e *env) runDay(cmd *cobra.Command, cfg *config.Config, o *output, dayArg s
 	if err != nil {
 		return err
 	}
-	r := dayReport{rep: rep, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, hours: cfg.Work.Hours, region: cal.Region(), humanOnly: humanOnly, work: work, blockGap: cfg.Work.BlockGap.Duration}
+	r := dayReport{rep: rep, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, hours: cfg.Work.Hours, region: cal.Region(), humanOnly: humanOnly, work: work, blockGap: cfg.Work.BlockGap.Duration, settings: settings}
 	if o.format.IsJSON() {
 		return o.object(r.json())
 	}

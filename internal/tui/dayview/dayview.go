@@ -5,7 +5,7 @@
 // estimate of stats --worktime; the body lists the activity blocks of the
 // day with a bar in project colours, the projects of each block with their
 // time and the sessions in it, the pauses between the blocks, and then the
-// projects of the day with their time and their events split by human and
+// projects and the categories of the day with their time and their events split by human and
 // agent.
 //
 // The view calculates nothing: package dayreport assembles the day from
@@ -38,6 +38,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/keys"
 	"github.com/seletz/total-recall/internal/tui/theme"
 	"github.com/seletz/total-recall/internal/tui/zone"
+	"github.com/seletz/total-recall/internal/worktime"
 )
 
 // Open asks the app to show the view for a day (any time of it); the
@@ -105,6 +106,7 @@ type Model struct {
 	err       error
 	loaded    bool // a load was started for day
 
+	expanded       map[int]bool // blocks whose sessions are listed
 	cursor, offset int
 	width, height  int
 }
@@ -191,7 +193,7 @@ func (m Model) show(day time.Time) (Model, tea.Cmd) {
 	y, mo, d := day.In(m.loc()).Date()
 	m.day = time.Date(y, mo, d, 0, 0, 0, 0, m.loc())
 	m.rep, m.err, m.loaded = nil, nil, true
-	m.cursor, m.offset = 0, 0
+	m.cursor, m.offset, m.expanded = 0, 0, nil
 	return m.fetch()
 }
 
@@ -248,10 +250,12 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Down):
 		m.move(1)
 	case key.Matches(msg, k.Open):
-		return m.openSelected()
+		return m.activate()
+	case key.Matches(msg, k.Toggle):
+		m.toggle()
 	case key.Matches(msg, k.Human):
 		m.humanOnly = !m.humanOnly
-		m.rep, m.err = nil, nil
+		m.rep, m.err, m.expanded = nil, nil, nil
 		return m.fetch()
 	}
 	return m, nil
@@ -279,6 +283,9 @@ func (m Model) items() []item {
 	var out []item
 	for i, b := range m.rep.Blocks {
 		out = append(out, item{i, -1})
+		if !m.expanded[i] {
+			continue
+		}
 		for j := range b.Sessions {
 			out = append(out, item{i, j})
 		}
@@ -303,6 +310,45 @@ func (m *Model) move(n int) {
 func (m *Model) clamp() {
 	m.cursor = max(0, min(m.cursor, len(m.items())-1))
 	m.scrollTo()
+}
+
+// toggle lists or hides the sessions of the block of the selected row; the
+// cursor stays on the block row.
+func (m *Model) toggle() {
+	its := m.items()
+	if m.rep == nil || m.cursor < 0 || m.cursor >= len(its) {
+		return
+	}
+	b := its[m.cursor].block
+	if len(m.rep.Blocks[b].Sessions) == 0 {
+		return
+	}
+	next := map[int]bool{}
+	for k, v := range m.expanded {
+		next[k] = v
+	}
+	next[b] = !next[b]
+	m.expanded = next
+	for i, it := range m.items() {
+		if it.block == b && it.session < 0 {
+			m.cursor = i
+		}
+	}
+	m.clamp()
+}
+
+// activate is enter on the selected row: a collapsed block with several
+// sessions lists them, anything else opens the session.
+func (m Model) activate() (tea.Model, tea.Cmd) {
+	its := m.items()
+	if m.rep != nil && m.cursor >= 0 && m.cursor < len(its) {
+		it := its[m.cursor]
+		if it.session < 0 && !m.expanded[it.block] && len(m.rep.Blocks[it.block].Sessions) > 1 {
+			m.toggle()
+			return m, nil
+		}
+	}
+	return m.openSelected()
 }
 
 // openSelected opens the session of the selected row: the first one of a
@@ -341,7 +387,7 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	row := msg.Y - l.bodyTop + m.offset
 	if row >= 0 && row < len(l.rows) && l.rows[row].item >= 0 {
 		m.cursor = l.rows[row].item
-		return m.openSelected()
+		return m.activate()
 	}
 	return m, nil
 }
@@ -353,6 +399,7 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 type row struct {
 	text string
 	item int
+	sel  string // the row as shown when selected; empty: text, restyled
 }
 
 type layoutT struct {
@@ -444,80 +491,19 @@ func (m Model) layout() layoutT {
 		l.bodyTop = len(l.head)
 		return l
 	}
-	loc := m.loc()
-	rate := ratingStyle(st, r.Rating)
-	h1 := fmt.Sprintf(" %s %s · %s %s · %s %s · %s %s · %s %s",
-		st.Muted.Render("first"), w.FirstClock(loc), st.Muted.Render("last"), w.LastClock(loc),
-		st.Muted.Render("span"), rate.Render(store.FormatSpan(w.Span())),
-		st.Muted.Render("work"), store.FormatSpan(w.BlockSum()), st.Muted.Render("breaks"), store.FormatSpan(w.BreakSum()))
-	h2 := " "
-	if r.HasDiff {
-		h2 += fmt.Sprintf("%s %s · %s %s · ", st.Muted.Render("target"), store.FormatSpan(r.Target), st.Muted.Render("diff"), rate.Render(store.FormatDiff(r.Diff)))
-	}
-	h2 += fmt.Sprintf("%s %s (%s %s)", st.Muted.Render("working time"), store.FormatSpan(r.Worktime.Raw), st.Muted.Render("rounded"), store.FormatSpan(r.Worktime.Rounded))
-	h3 := fmt.Sprintf(" %s %d (%s %d · %s %d) · %s %d",
-		st.Muted.Render("events"), w.Human+w.Agent, st.Muted.Render("human"), w.Human, st.Muted.Render("agent"), w.Agent, st.Muted.Render("sessions"), w.Sessions)
-	l.head = append(l.head, h1, h2, h3, "")
+	l.head = append(l.head, m.summary(), "")
 	l.bodyTop = len(l.head)
 	l.rows = m.bodyRows(m.projectStyles())
 	return l
 }
 
-func ratingStyle(th theme.Theme, r store.Rating) lipgloss.Style {
-	switch r {
-	case store.RatingUnder:
-		return lipgloss.NewStyle().Foreground(th.Under)
-	case store.RatingOn:
-		return lipgloss.NewStyle().Foreground(th.On)
-	case store.RatingOver:
-		return lipgloss.NewStyle().Foreground(th.Over)
-	}
-	return lipgloss.NewStyle()
-}
-
-// bodyRows renders the blocks with their sessions and pauses, then the
-// projects of the day.
+// bodyRows renders the time strip, the blocks (with their sessions when
+// expanded) and the pauses, then the projects and the categories of the day.
 func (m Model) bodyRows(ps map[string]projectStyle) []row {
-	r, st, loc := m.rep, m.th, m.loc()
+	r, st := m.rep, m.th
 	w := r.Workday
-	wide := m.width >= 90
-	barW := 0
-	if wide {
-		barW = 24
-	}
-	var rows []row
-	idx := 0
-	for i, b := range r.Blocks {
-		if b.Pause > 0 {
-			rows = append(rows, row{text: st.Muted.Render("      ··· pause " + store.FormatSpan(b.Pause)), item: -1})
-		}
-		span := w.Clock(b.Start, loc) + "–" + w.Clock(b.End, loc)
-		if b.Single() {
-			span = w.Clock(b.Start, loc) + "*"
-		}
-		var parts []string
-		for _, p := range b.Projects {
-			parts = append(parts, p.Name+" "+store.FormatSpan(time.Duration(p.Secs)*time.Second))
-		}
-		line := fmt.Sprintf(" %s %2d %-13s %6s  %4d ev (h%d a%d)", " ", i+1, span, store.FormatSpan(time.Duration(b.Secs)*time.Second), b.Events, b.Human, b.Agent)
-		if barW > 0 {
-			line += "  " + blockBar(b, ps, barW)
-		}
-		line += "  " + strings.Join(parts, " · ")
-		rows = append(rows, row{text: line, item: idx})
-		idx++
-		for _, s := range b.Sessions {
-			title := s.Title
-			if title == "" {
-				title = s.SessionID
-			}
-			p := ps[s.Project]
-			line := fmt.Sprintf("       %s–%s  %s %s", w.Clock(s.Start, loc), w.Clock(s.End, loc), p.style.Render(string(p.glyph)), title)
-			line += "  " + st.Muted.Render(fmt.Sprintf("h%d a%d", s.Human, s.Agent))
-			rows = append(rows, row{text: line, item: idx})
-			idx++
-		}
-	}
+	rows := m.strip(ps)
+	rows = append(rows, m.blockRows(ps)...)
 	rows = append(rows, row{item: -1}, row{text: " " + st.Label.Render("projects"), item: -1})
 	nameW := 7
 	for _, p := range r.Projects {
@@ -528,39 +514,27 @@ func (m Model) bodyRows(ps map[string]projectStyle) []row {
 		s := ps[p.Key]
 		rows = append(rows, row{text: fmt.Sprintf("   %s %s  %7s  %7s  %6d  %6d", s.style.Render(string(s.glyph)), pad(p.Name, nameW), store.FormatSpan(p.Raw), store.FormatSpan(p.Rounded), p.Human, p.Agent), item: -1})
 	}
-	rows = append(rows, row{text: fmt.Sprintf("   %s %s  %7s  %7s  %6d  %6d", " ", pad("total", nameW), store.FormatSpan(r.Worktime.Raw), store.FormatSpan(r.Worktime.Rounded), w.Human, w.Agent), item: -1})
+	// With rounding_scope category a category is rounded once, so the
+	// rounded times of its projects do not add up: the total leaves them out.
+	projRounded := store.FormatSpan(r.Worktime.Rounded)
+	if m.opts.Report.Worktime.Scope == worktime.ScopeCategory {
+		projRounded = "-"
+	}
+	rows = append(rows, row{text: fmt.Sprintf("   %s %s  %7s  %7s  %6d  %6d", " ", pad("total", nameW), store.FormatSpan(r.Worktime.Raw), projRounded, w.Human, w.Agent), item: -1})
+	rows = append(rows, row{item: -1}, row{text: " " + st.Label.Render("categories"), item: -1})
+	catW := 8
+	for _, c := range r.Worktime.Categories {
+		catW = max(catW, lipgloss.Width(c.Name))
+	}
+	rows = append(rows, row{text: st.Muted.Render(fmt.Sprintf("     %s  %7s  %7s", pad("", catW), "time", "rounded")), item: -1})
+	for _, c := range r.Worktime.Categories {
+		rows = append(rows, row{text: fmt.Sprintf("     %s  %7s  %7s", pad(c.Name, catW), store.FormatSpan(c.Raw), store.FormatSpan(c.Rounded)), item: -1})
+	}
+	rows = append(rows, row{text: fmt.Sprintf("     %s  %7s  %7s", pad("total", catW), store.FormatSpan(r.Worktime.Raw), store.FormatSpan(r.Worktime.Rounded)), item: -1})
+	if m.opts.Report.Worktime.Scope == worktime.ScopeCategory {
+		rows = append(rows, row{text: st.Muted.Render("     rounded is per category; per project it does not add up"), item: -1})
+	}
 	return rows
-}
-
-// blockBar draws a block as a bar of n cells in the glyphs and colours of
-// its projects, each taking cells by its share of the block's seconds; a
-// block without seconds (a single event) is one cell of its project.
-func blockBar(b dayreport.Block, ps map[string]projectStyle, n int) string {
-	if len(b.Projects) == 0 {
-		return strings.Repeat(" ", n)
-	}
-	total := 0
-	for _, p := range b.Projects {
-		total += p.Secs
-	}
-	var sb strings.Builder
-	used, acc := 0, 0
-	for _, p := range b.Projects {
-		var cells int
-		if total == 0 {
-			if used == 0 {
-				cells = 1
-			}
-		} else {
-			acc += p.Secs
-			cells = acc*n/total - used
-		}
-		cells = max(cells, 0)
-		s := ps[p.Key]
-		sb.WriteString(s.style.Render(strings.Repeat(string(s.glyph), cells)))
-		used += cells
-	}
-	return sb.String() + strings.Repeat(" ", max(n-used, 0))
 }
 
 func pad(s string, n int) string { return s + strings.Repeat(" ", max(n-lipgloss.Width(s), 0)) }
@@ -601,7 +575,12 @@ func (m Model) View() tea.View {
 		}
 		r := l.rows[ri]
 		text := r.text
-		if r.item == m.cursor && r.item >= 0 {
+		if r.item == m.cursor && r.item >= 0 && r.sel != "" {
+			text = r.sel
+			if w := lipgloss.Width(text); w < m.width {
+				text += m.th.Selected.Render(strings.Repeat(" ", m.width-w))
+			}
+		} else if r.item == m.cursor && r.item >= 0 {
 			text = m.th.Selected.Render(pad(ansi.Strip("▸"+strings.TrimPrefix(text, " ")), max(m.width, 0)))
 		}
 		lines = append(lines, ansi.Truncate(text, max(m.width, 1), "…"))

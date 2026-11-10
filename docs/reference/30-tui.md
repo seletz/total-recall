@@ -388,23 +388,28 @@ Der Balken ist immer Text (Blockzeichen), unabhängig vom [Grafikmodus](#grafikm
 
 Ein Klick auf einen Tag der [Aktivität](#aktivitat) oder ++enter++ auf dem gewählten Tag öffnet die **Tagesansicht**: ein Tag in zeitlicher Reihenfolge, mit dem, was `stats` zu diesem Tag sagt. Im Tab steht sie als Ebene (`[3 activity] › day`), ++esc++ führt zurück zur Aktivität, die dann auf dem zuletzt gezeigten Tag steht. Dieselben Zahlen liefert [`stats --day`](10-befehle.md#stats-day) als Text und JSON.
 
-![Tagesansicht: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo; zwei Blöcke mit Balken in Projektfarben, Projekten und Sessions, darunter die Projekte mit Zeit und Events](../assets/screenshots/day.png)
+![Tagesansicht: eine ruhige Kopfzeile, der Tag als Zeitstrahl, die Blöcke als Liste, darunter Projekte und Kategorien](../assets/screenshots/day.png)
 
-*Tagesansicht: Kopf mit Spanne, Arbeit, Pausen, Soll und Saldo; zwei Blöcke mit Balken in Projektfarben, Projekten und Sessions, darunter die Projekte mit Zeit und Events*
+*Tagesansicht: eine ruhige Kopfzeile, der Tag als Zeitstrahl (der gewählte Block in Projektfarben), die Blöcke als Liste mit Projekten, darunter Projekte und Kategorien mit Zeit*
+
+![Tagesansicht mit aufgeklappten Sessions des gewählten Blocks](../assets/screenshots/day-sessions.png)
+
+*Tagesansicht mit aufgeklappten Sessions des gewählten Blocks (Leertaste oder Enter)*
 
 ![Mit `h` über alle Events: die Agent-Events kommen zu den eigenen Nachrichten hinzu, Blöcke und Zeiten ändern sich](../assets/screenshots/day-all.png)
 
 *Mit `h` über alle Events: die Agent-Events kommen zu den eigenen Nachrichten hinzu, Blöcke und Zeiten ändern sich*
 
-![Tagesansicht bei 80×24: ohne Balken, Zeilen werden gekürzt](../assets/screenshots/day-compact.png)
+![Tagesansicht bei 80×24: ohne Zeitstrahl, Zeilen werden gekürzt](../assets/screenshots/day-compact.png)
 
-*Tagesansicht bei 80×24: ohne Balken, Zeilen werden gekürzt*
+*Tagesansicht bei 80×24: ohne Zeitstrahl, Zeilen werden gekürzt*
 
 - **Keine zweite Rechnung.** Die Ansicht rechnet nichts selbst: Kopf, Blöcke und Pausen sind die Zahlen von [`stats --workday --blocks`](10-befehle.md#stats-workday), die Zeit je Projekt die von [`stats --worktime`](10-befehle.md#stats-worktime), die Events die der [Zeitleiste](10-befehle.md#timeline), alles für denselben Tag und unter denselben Regeln (`day_start`, `count` bzw. `h`, `block_gap`, `[worktime]`, `[[project]]`). Zusammengeführt werden sie in `internal/dayreport`, das auch `stats --day` benutzt. Ein Test prüft auf dem Demo-Archiv, dass die gezeigten Zahlen denen von `stats` entsprechen und aufgehen.
-- **Kopf:** Datum und Wochentag mit Pfeilen zum vorigen und nächsten Tag (anklickbar), bei einem Feiertag sein Name, am Wochenende `weekend`; die Zählweise (`human events only` oder `all events`, `h` schaltet um und übernimmt am Anfang die der Aktivität). Darunter erste und letzte Aktivität (nach Mitternacht mit `(+1)`), Spanne (gefärbt nach der Bewertung wie in der Aktivität), `work` (Summe der Blöcke) und `breaks` (Summe der Pausen, zusammen die Spanne), Soll und Differenz, die geschätzte Arbeitszeit roh und gerundet, die Events nach `human` und `agent` und die Zahl der Sessions.
-- **Blöcke:** je Block die Nummer, Start und Ende, die Dauer, die Zahl der Events (`h` eigene, `a` Agent), ein Balken in den Farben seiner Projekte (breit genug ab etwa 90 Spalten) und die Projekte mit ihrer Zeit im Block. Die Sekunden eines Blocks verteilen sich auf die Projekte seiner Events: das Intervall vor einem Event zählt für dessen Projekt, so wie `--worktime` die Lücke der späteren Nachricht gibt. Ein einzelnes Event ist ein Block von 0 s und trägt `*`. Eine Lücke über `block_gap` beendet einen Block; zwischen den Blöcken steht die Pause. Unter jedem Block stehen seine Sessions in der Reihenfolge ihres ersten Events, mit Zeitspanne, Projekt (Zeichen und Farbe wie im Balken) und Titel.
-- **Projekte:** unter den Blöcken je Projekt des Tages die Zeit roh und gerundet (wie `--worktime`), die eigenen Nachrichten und die Agent-Events, absteigend nach Zeit, und eine Summenzeile. Projekte haben dieselbe Farbe und Zuordnung wie in Statistik und Aktivität; ohne Farben (`NO_COLOR`) unterscheiden sie sich durch ihr Zeichen (`█ ▓ ▒ ▞ ▚ ▌`, danach `▪`).
-- **Navigation:** ++up++/`k` und ++down++/`j` (und das Mausrad) wählen Blöcke und Sessions; am Ende scrollen sie weiter zu den Projekten. ++enter++ oder ein Klick öffnet die **Session**, bei einem Block die erste, jeweils am ersten Event des Blocks bzw. Abschnitts; ++esc++ in der Session führt zurück in den Tag. ++left++/`[` und ++right++/`]` wechseln zum vorigen und nächsten Tag, nicht über heute hinaus. Ein Tag ohne Aktivität zeigt nur den Kopf und `no activity on this day`.
+- **Kopf:** Datum und Wochentag mit Pfeilen zum vorigen und nächsten Tag (anklickbar), bei einem Feiertag sein Name, am Wochenende `weekend`; die Zählweise (`human events only` oder `all events`, `h` schaltet um und übernimmt am Anfang die der Aktivität). Darunter eine gedämpfte Zeile: erste und letzte Aktivität (nach Mitternacht mit `(+1)`), Spanne, `work` (Summe der Blöcke) und `breaks` (Summe der Pausen, zusammen die Spanne), die Differenz zum Soll, die geschätzte Arbeitszeit (`booked`, roh und gerundet) und die Zahl der Events. Die Aufteilung der Events nach Mensch und Agent steht in der Summenzeile der Projekte.
+- **Zeitstrahl:** der Tag von der ersten bis zur letzten Aktivität als zwei Zeilen voller Blöcke, die Uhrzeiten an den Enden darunter. Jeder Block ist grau, der gewählte in den Zeichen und Farben seiner Projekte (Anteile nach Sekunden); die Pausen sind blasse Punkte. Unter etwa 24 Spalten entfällt er.
+- **Blöcke:** je Block eine Zeile mit der Nummer, Start und Ende, der Dauer, der Zahl der Events und der Zahl der Sessions; rechts die Projekte mit ihrer Zeit im Block. Die Sekunden eines Blocks verteilen sich auf die Projekte seiner Events: das Intervall vor einem Event zählt für dessen Projekt, so wie `--worktime` die Lücke der späteren Nachricht gibt. Ein einzelnes Event ist ein Block von 0 s und trägt `*`. Eine Lücke über `block_gap` beendet einen Block; zwischen den Blöcken steht die Pause als blasse Zeile. Die Sessions eines Blocks sind zugeklappt; aufgeklappt stehen sie in der Reihenfolge ihres ersten Events darunter, mit Zeitspanne, Titel, Projekt und Events (`h` eigene, `a` Agent).
+- **Projekte:** unter den Blöcken je Projekt des Tages die Zeit roh und gerundet (wie `--worktime`), die eigenen Nachrichten und die Agent-Events, absteigend nach Zeit, und eine Summenzeile. Darunter stehen die **Kategorien** des Tages (die Regeln `[[worktime.category]]`, ohne Regel heißt die Kategorie wie das Projekt) mit Zeit roh und gerundet wie in `--worktime`: **sie ergeben die gerundete Tageszeit.** Bei `rounding_scope = "category"` (Standard) wird eine Kategorie einmal gerundet, die gerundeten Zeiten ihrer Projekte ergeben deshalb mehr und sind nicht summierbar; die Summenzeile der Projekte lässt sie aus (`-`). Die Titel `projects` und `categories` stehen in der Akzentfarbe des Themes. Projekte haben dieselbe Farbe und Zuordnung wie in Statistik und Aktivität; ohne Farben (`NO_COLOR`) unterscheiden sie sich durch ihr Zeichen (`█ ▓ ▒ ▞ ▚ ▌`, danach `▪`).
+- **Navigation:** ++up++/`k` und ++down++/`j` (und das Mausrad) wählen Blöcke (und die Sessions aufgeklappter Blöcke); am Ende scrollen sie weiter zu den Projekten. ++space++ klappt die Sessions des gewählten Blocks auf oder zu. ++enter++ (oder ein Klick) klappt einen zugeklappten Block mit mehreren Sessions auf, sonst öffnet es die **Session**, bei einem Block die erste, jeweils am ersten Event des Blocks bzw. Abschnitts; ++esc++ in der Session führt zurück in den Tag. ++left++/`[` und ++right++/`]` wechseln zum vorigen und nächsten Tag, nicht über heute hinaus. Ein Tag ohne Aktivität zeigt nur den Kopf und `no activity on this day`.
 - **Ohne gültige Einstellungen:** Fehlt der Ansicht ein gültiges `block_gap` oder `[worktime]`, zeigt sie einen Hinweis statt der Zahlen; `config show` und `doctor` nennen den Fehler.
 
 ## Config { #config }
@@ -617,7 +622,8 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | Taste | Aktion | Wirkung |
 |---|---|---|
 | ++up++ / `k`, ++down++ / `j` | `day_up`, `day_down` | Block oder Session wählen, am Ende zu den Projekten scrollen |
-| ++enter++ | `day_open` | die Session des gewählten Blocks oder Abschnitts öffnen |
+| ++space++ | `day_toggle` | die Sessions des gewählten Blocks auf- oder zuklappen |
+| ++enter++ | `day_open` | zugeklappten Block mit mehreren Sessions aufklappen, sonst die Session des gewählten Blocks oder Abschnitts öffnen |
 | ++left++ / ++right++, `,` / `.`, `[` / `]` | `day_prev`, `day_next` | voriger / nächster Tag (nicht über heute hinaus) |
 | `h` | `day_human` | Zählweise: nur eigene Nachrichten ↔ alle Events |
 | ++esc++ | `global_back` | zurück zur Aktivität (aus der Session zurück in den Tag) |
