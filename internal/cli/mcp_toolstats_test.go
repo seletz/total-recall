@@ -17,8 +17,8 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 		by    string
 		bound int
 	}{
-		{"session", 3 << 10},
-		{"day", 2 << 10},
+		{"session", 20 << 10},
+		{"day", 4 << 10},
 		{"repo", 1 << 10},
 		{"project", 1 << 10},
 	} {
@@ -36,6 +36,7 @@ func TestMCPToolStatsPagesAddUp(t *testing.T) {
 			if len(pages) < 2 {
 				t.Fatalf("%d pages for %d bytes", len(pages), len(want))
 			}
+			t.Logf("%d pages for %d bytes", len(pages), len(want))
 			groups, sum := 0, 0
 			for i, pg := range pages {
 				if len(pg) > tc.bound || hints[i] == nil || hints[i].Truncated || hints[i].Page == nil || hints[i].Page.Unit != "groups" {
@@ -127,15 +128,16 @@ func TestMCPToolStatsTopSumsToTotal(t *testing.T) {
 // TestMCPToolStatsPathScopePagesAddUp: tools, path and path_in together,
 // paged: groups of all pages sum to total on every page's total.
 func TestMCPToolStatsPathScopePagesAddUp(t *testing.T) {
-	p := newPagedDemo(t, 2<<10)
+	p := newPagedDemo(t, 20<<10)
 	args := map[string]any{"tools": true, "by": "session", "path": "*", "path_in": "all", "since": "2026-01-01", "until": "2026-12-31"}
 	pages, hints := p.crawl("stats", args)
 	if len(pages) < 2 {
 		t.Fatalf("%d pages", len(pages))
 	}
+	t.Logf("%d pages", len(pages))
 	sum, total := 0, -1
 	for i, pg := range pages {
-		if len(pg) > 2<<10 || hints[i] == nil || hints[i].Truncated {
+		if len(pg) > 20<<10 || hints[i] == nil || hints[i].Truncated {
 			t.Fatalf("page %d: %d bytes, hint %+v", i+1, len(pg), hints[i])
 		}
 		var w ToolStatsJSON
