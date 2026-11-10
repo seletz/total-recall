@@ -3,9 +3,11 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/seletz/total-recall/internal/dispatch"
+	"github.com/seletz/total-recall/internal/harness"
 	"github.com/seletz/total-recall/internal/model"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -22,7 +24,7 @@ func dispatchIndex(ctx context.Context, d Deps, from, to time.Time) (*dispatch.I
 	}
 	in := make([]dispatch.Call, len(calls))
 	for i, c := range calls {
-		in[i] = dispatch.Call{Session: c.SessionID, TS: c.TS, Text: c.Text}
+		in[i] = dispatch.Call{Session: c.SessionID, TS: c.TS, Text: fullToolInput(d, c)}
 	}
 	return dispatch.NewIndex(in, d.Dispatch), nil
 }
@@ -38,6 +40,25 @@ func sentByAnother(ix *dispatch.Index, m store.UserMessage) bool {
 	return !m.EarlierPrompt && ix.Spawned(m.SessionID, m.TS, m.GitBranch, m.Cwd)
 }
 
+// fullToolInput returns the argument text of a tool call: the stored text,
+// or, where that was cut, the whole input from the raw line (the adapter of
+// the call's harness knows where it is). A call whose raw line is missing
+// keeps the cut text.
+func fullToolInput(d Deps, c store.ToolCall) string {
+	if c.Raw == "" {
+		return c.Text
+	}
+	name, _, _ := strings.Cut(c.ID, ":")
+	for _, a := range d.Adapters {
+		if ti, ok := a.(harness.ToolInputer); ok && a.Name() == name {
+			if full, ok := ti.ToolInput(model.Event{ID: c.ID, Raw: c.Raw}); ok {
+				return full
+			}
+		}
+	}
+	return c.Text
+}
+
 // markDispatched sets the actor automation (and no input kind) on the human
 // inputs, within the time range this run wrote and the window after it, that
 // another session sent. It looks both ways: a new input may match an old
@@ -51,7 +72,7 @@ func (r *runner) markDispatched(ctx context.Context) {
 	if w == 0 {
 		w = dispatch.DefaultWindow
 	}
-	ix, err := dispatchIndex(ctx, d, r.lo.Add(-w), r.hi.Add(w))
+	ix, err := dispatchIndex(ctx, d, r.lo.Add(-w-dispatch.FunctionLookback), r.hi.Add(w))
 	if err != nil {
 		r.fail("dispatch", err)
 		return
