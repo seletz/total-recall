@@ -328,3 +328,30 @@ func TestCheckFormatWorkflowJournalLaunched(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckFormatForkContextRef: a forked subagent transcript starts with a
+// fork-context-ref record (#292). It is known to doctor and kept as a meta
+// record. The fixture is synthetic.
+func TestCheckFormatForkContextRef(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+	}{
+		{"fork context ref", `{"type":"fork-context-ref","agentId":"agent-0001","parentSessionId":"00000000-0000-4000-8000-000000000001","parentLastUuid":"00000000-0000-4000-8000-000000000002","contextLength":123}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !slices.Contains(MetaRecordTypes(), "fork-context-ref") {
+				t.Error("fork-context-ref is not in metaTypes")
+			}
+			dir := writeTree(t, map[string]string{"-w/s/subagents/agent-0001.jsonl": tt.line + "\n"})
+			r, err := New(dir).CheckFormat(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !r.Clean() {
+				t.Errorf("fork-context-ref reported as drift: %+v", r)
+			}
+		})
+	}
+}

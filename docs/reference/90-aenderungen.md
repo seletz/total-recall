@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.7.1 (unveröffentlicht)
+
+### Behoben
+
+- **`doctor` meldet den Record-Typ `fork-context-ref` nicht mehr als unbekannt** (#292). Claude Code 2.1.322 schreibt ihn als erste Zeile in die Transkripte geforkter Subagenten; er nennt die Eltern-Session, deren letzte Nachricht und die Länge des übernommenen Kontexts. Er bleibt als Meta-Record im Archiv, die Verknüpfung zur Eltern-Session geht damit nicht verloren.
+
 ## v1.7.0
 
 ### Tagesansicht ([#276](https://github.com/seletz/total-recall/issues/276))
