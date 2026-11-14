@@ -170,8 +170,18 @@ func FromNames(names map[string]string) []Entry {
 // <dir>/.claude.json (oauthAccount.accountUuid and organizationUuid). The
 // key of the registry is the name, sorted. Logins without a readable
 // directory or IDs are skipped with a warning (which names the entry, not
-// the path). Files are only read. expand resolves "~" in dir; nil keeps it.
-func LoadRegistry(path string, expand func(string) string) (entries []Entry, warnings []string, err error) {
+// the path). Two entries with the same login (account and organization)
+// are reported and the first by name wins; the same account in different
+// organizations is the normal case and no collision. The organization name
+// of the .claude.json (oauthAccount.organizationName) names the
+// organization (an entry of its own, so every name of a config goes first).
+//
+// The harness keeps the login in <dir>/.claude.json, except for its default
+// directory <home>/.claude (no CLAUDE_CONFIG_DIR): there it is
+// <home>/.claude.json, and a file inside the directory may be stale. home
+// is that home directory; "" has no default directory. Files are only read.
+// expand resolves "~" in dir; nil keeps it.
+func LoadRegistry(path, home string, expand func(string) string) (entries []Entry, warnings []string, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("account registry: %w", err)
@@ -190,6 +200,9 @@ func LoadRegistry(path string, expand func(string) string) (entries []Entry, war
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	seen := map[string]string{} // account/organization -> entry name
+	orgNamed := map[string]bool{}
+	var orgEntries []Entry
 	for _, name := range names {
 		a := doc.Accounts[name]
 		if a.Dir == "" {
@@ -200,30 +213,44 @@ func LoadRegistry(path string, expand func(string) string) (entries []Entry, war
 		if expand != nil {
 			dir = expand(dir)
 		}
-		acc, org, err := readLogin(filepath.Join(dir, ".claude.json"))
+		file := filepath.Join(dir, ".claude.json")
+		if home != "" && filepath.Clean(dir) == filepath.Join(home, ".claude") {
+			file = filepath.Join(home, ".claude.json")
+		}
+		acc, org, orgName, err := readLogin(file)
 		if err != nil || (acc == "" && org == "") {
 			warnings = append(warnings, fmt.Sprintf("account registry: no login IDs for %s, skipped", name))
 			continue
 		}
+		if first, dup := seen[Key(acc, org)]; dup {
+			warnings = append(warnings, fmt.Sprintf("account registry: %s has the same login as %s, skipped (the first by name wins)", name, first))
+			continue
+		}
+		seen[Key(acc, org)] = name
 		entries = append(entries, Entry{ID: acc, Organization: org, Name: name, Group: a.Group})
+		if orgName != "" && org != "" && !orgNamed[org] {
+			orgNamed[org] = true
+			orgEntries = append(orgEntries, Entry{Organization: org, Name: orgName})
+		}
 	}
-	return entries, warnings, nil
+	return append(entries, orgEntries...), warnings, nil
 }
 
 // readLogin reads the IDs of the logged-in account from a .claude.json.
-func readLogin(path string) (account, org string, err error) {
+func readLogin(path string) (account, org, orgName string, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	var doc struct {
 		OAuth struct {
 			Account string `json:"accountUuid"`
 			Org     string `json:"organizationUuid"`
+			OrgName string `json:"organizationName"`
 		} `json:"oauthAccount"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return doc.OAuth.Account, doc.OAuth.Org, nil
+	return doc.OAuth.Account, doc.OAuth.Org, doc.OAuth.OrgName, nil
 }

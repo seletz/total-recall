@@ -212,3 +212,70 @@ func sameSet(a, b []string) bool {
 	}
 	return true
 }
+
+// TestOwnerInheritanceBoundaries pins what the inheritance does and does
+// not do: a subagent takes its parent's login, one level up; a subagent of
+// a parent without a login stays "unknown" (and is found by the empty
+// owner, so nothing is lost from the sums); a subagent's own login wins; a
+// subagent of a subagent has no login (the parent is no main session).
+func TestOwnerInheritanceBoundaries(t *testing.T) {
+	s, _ := openTestStore(t)
+	sessions := []model.Session{
+		{ID: "claude:m", Harness: "claude", NativeID: "m", Cwd: "/w", AccountID: "acc-1", OrganizationID: "org-1", StartedAt: ts("2026-10-01T10:00:00Z")},
+		{ID: "claude:old", Harness: "claude", NativeID: "old", Cwd: "/w", StartedAt: ts("2026-10-01T11:00:00Z")},
+		{ID: "claude:m-sub", Harness: "claude", NativeID: "m-sub", ParentID: "claude:m", Cwd: "/w", StartedAt: ts("2026-10-01T10:05:00Z")},
+		{ID: "claude:old-sub", Harness: "claude", NativeID: "old-sub", ParentID: "claude:old", Cwd: "/w", StartedAt: ts("2026-10-01T11:05:00Z")},
+		{ID: "claude:own-sub", Harness: "claude", NativeID: "own-sub", ParentID: "claude:m", Cwd: "/w", AccountID: "acc-2", OrganizationID: "org-2", StartedAt: ts("2026-10-01T10:06:00Z")},
+		{ID: "claude:m-subsub", Harness: "claude", NativeID: "m-subsub", ParentID: "claude:m-sub", Cwd: "/w", StartedAt: ts("2026-10-01T10:07:00Z")},
+		{ID: "claude:orphan", Harness: "claude", NativeID: "orphan", ParentID: "claude:gone", Cwd: "/w", StartedAt: ts("2026-10-01T12:00:00Z")},
+	}
+	var evs []model.Event
+	for _, ss := range sessions {
+		evs = append(evs, ev(ss.ID+"-1", ss.ID, "2026-10-01T10:30:00Z", model.ActorAgent, model.KindMessage, "assistant", "x"))
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/i.jsonl", Harness: "claude", Offset: 10}, sessions, evs); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]Owner{
+		"claude:m": {"acc-1", "org-1"}, "claude:m-sub": {"acc-1", "org-1"}, "claude:own-sub": {"acc-2", "org-2"},
+		"claude:old": {}, "claude:old-sub": {}, "claude:m-subsub": {}, "claude:orphan": {},
+	}
+	for id, w := range want {
+		si, err := s.Session(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := si.Owner(); got != w {
+			t.Errorf("%s: Owner = %v, want %v", id, got, w)
+		}
+	}
+	// the filter, the series and Owners agree with Owner(): the sessions of
+	// every owner add up to all sessions
+	owners, err := s.Owners(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, o := range owners {
+		list, err := s.Sessions(ctx, SessionFilter{Owners: &OwnerSet{[]Owner{o}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, si := range list {
+			if si.Owner() != o {
+				t.Errorf("%s listed for %v, Owner() is %v", si.ID, o, si.Owner())
+			}
+		}
+		total += len(list)
+	}
+	if total != len(sessions) {
+		t.Errorf("owners cover %d sessions, want %d", total, len(sessions))
+	}
+	as, err := s.ActivitySeries(ctx, ActivityFilter{Period: PeriodMonth, Dimension: DimAccount, Location: berlin(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cells(as.Buckets[0]); !sameSet(got, []string{"acc-1/org-1:2/0/2", "acc-2/org-2:1/0/1", "unknown:4/0/4"}) {
+		t.Errorf("cells = %v", got)
+	}
+}

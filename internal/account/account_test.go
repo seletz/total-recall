@@ -115,7 +115,7 @@ func TestLoadRegistry(t *testing.T) {
 	  "broken":{"group":"x","dir":"@/broken"},
 	  "nodir":{"group":"x"}}}`)
 	expand := func(s string) string { return strings.Replace(s, "@", dir, 1) }
-	got, warns, err := LoadRegistry(reg, expand)
+	got, warns, err := LoadRegistry(reg, "", expand)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,8 +142,84 @@ func TestLoadRegistryErrors(t *testing.T) {
 	bad := filepath.Join(dir, "bad.json")
 	writeJSON(t, bad, `{"accounts": [1]}`)
 	for _, path := range []string{filepath.Join(dir, "none.json"), bad} {
-		if _, _, err := LoadRegistry(path, func(s string) string { return s }); err == nil {
+		if _, _, err := LoadRegistry(path, "", func(s string) string { return s }); err == nil {
 			t.Errorf("LoadRegistry(%s): no error", path)
 		}
+	}
+}
+
+// TestLoadRegistryDefaultDir: without CLAUDE_CONFIG_DIR the harness keeps
+// the login in $HOME/.claude.json, not in $HOME/.claude/.claude.json (where a
+// stale file may lie); other directories hold their own .claude.json.
+func TestLoadRegistryDefaultDir(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	writeJSON(t, filepath.Join(home, ".claude.json"), `{"oauthAccount":{"accountUuid":"a1","organizationUuid":"o-real"}}`)
+	writeJSON(t, filepath.Join(home, ".claude", ".claude.json"), `{"oauthAccount":{"accountUuid":"a1","organizationUuid":"o-stale"}}`)
+	writeJSON(t, filepath.Join(home, "other", ".claude.json"), `{"oauthAccount":{"accountUuid":"a2","organizationUuid":"o2"}}`)
+	for name, dir := range map[string]string{"plain": "~/.claude", "slash": "~/.claude/", "dots": "~/x/../.claude"} {
+		reg := filepath.Join(home, name+".json")
+		writeJSON(t, reg, `{"accounts":{"default":{"group":"g","dir":"`+dir+`"}}}`)
+		expand := func(s string) string { return strings.Replace(s, "~", home, 1) }
+		got, _, err := LoadRegistry(reg, home, expand)
+		if err != nil || len(got) != 1 || got[0].Organization != "o-real" {
+			t.Errorf("%s: entries %+v, err %v; want the login of $HOME/.claude.json", name, got, err)
+		}
+	}
+	reg := filepath.Join(home, "o.json")
+	writeJSON(t, reg, `{"accounts":{"other":{"dir":"`+filepath.Join(home, "other")+`"}}}`)
+	got, _, err := LoadRegistry(reg, home, nil)
+	if err != nil || len(got) != 1 || got[0].Organization != "o2" {
+		t.Errorf("other dir: %+v, %v", got, err)
+	}
+}
+
+// TestLoadRegistryCollision: two entries with the same login are reported
+// and the first by name wins; the same account in different organizations is
+// no collision.
+func TestLoadRegistryCollision(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for name, org := range map[string]string{"a": "o1", "b": "o1", "c": "o2"} {
+		writeJSON(t, filepath.Join(dir, name, ".claude.json"), `{"oauthAccount":{"accountUuid":"acc","organizationUuid":"`+org+`"}}`)
+	}
+	reg := filepath.Join(dir, "r.json")
+	writeJSON(t, reg, `{"accounts":{"zeta":{"dir":"`+filepath.Join(dir, "b")+`"},"alpha":{"dir":"`+filepath.Join(dir, "a")+`"},"mid":{"dir":"`+filepath.Join(dir, "c")+`"}}}`)
+	got, warns, err := LoadRegistry(reg, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range got {
+		names = append(names, e.Name)
+	}
+	if strings.Join(names, ",") != "alpha,mid" {
+		t.Errorf("entries = %v, want alpha and mid (zeta collides with alpha)", names)
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0], "alpha") || !strings.Contains(warns[0], "zeta") || strings.Contains(warns[0], dir) {
+		t.Errorf("warnings = %v", warns)
+	}
+}
+
+// TestLoadRegistryOrganizationName: organizationName of the .claude.json
+// names the organization, below every other name.
+func TestLoadRegistryOrganizationName(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "t", ".claude.json"), `{"oauthAccount":{"accountUuid":"a1","organizationUuid":"o1","organizationName":"Kompass GmbH"}}`)
+	reg := filepath.Join(dir, "r.json")
+	writeJSON(t, reg, `{"accounts":{"kompass-team":{"group":"firma","dir":"`+filepath.Join(dir, "t")+`"}}}`)
+	got, _, err := LoadRegistry(reg, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := New([]Entry{{Organization: "o9", Name: "fremd"}}, got)
+	if id := r.Resolve("a1", "o1"); id.Name != "kompass-team" || id.OrganizationName != "Kompass GmbH" || id.Group != "firma" {
+		t.Errorf("Resolve = %+v", id)
+	}
+	// a configured organization name wins
+	r = New([]Entry{{Organization: "o1", Name: "kompass-org"}}, got)
+	if id := r.Resolve("a1", "o1"); id.OrganizationName != "kompass-org" || id.Name != "kompass-org" {
+		t.Errorf("configured: %+v", id)
 	}
 }

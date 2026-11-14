@@ -739,7 +739,7 @@ func (c *Config) AccountResolver() (*account.Resolver, []string, error) {
 	if c.AccountRegistry != "" {
 		var err error
 		expand := func(p string) string { return ExpandPath(p, c.opts.Home, c.opts.Getenv) }
-		if reg, warns, err = account.LoadRegistry(expand(c.AccountRegistry), expand); err != nil {
+		if reg, warns, err = account.LoadRegistry(expand(c.AccountRegistry), c.opts.Home, expand); err != nil {
 			return nil, nil, fmt.Errorf("config: account_registry: %w", err)
 		}
 	}
