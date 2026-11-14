@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -398,5 +399,68 @@ func TestMCPAccountGroup(t *testing.T) {
 	out, isErr = s.call("search", map[string]any{"query": "fix", "account_group": "firma", "limit": 5})
 	if isErr || len(out) == 0 {
 		t.Fatalf("search: err=%v %v", isErr, out)
+	}
+}
+
+// TestAccountRegistryDefaultDir: a registry entry for the default directory
+// (~/.claude) takes the login from $HOME/.claude.json, not from a stale
+// $HOME/.claude/.claude.json; the organization name comes from the same
+// file; show names the organization; entries with the same login warn.
+func TestAccountRegistryDefaultDir(t *testing.T) {
+	t.Parallel()
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	home := t.TempDir()
+	e.home = home
+	write := func(path, body string) {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(home, ".claude.json"), `{"oauthAccount":{"accountUuid":"`+demo.AccountTeam+`","organizationUuid":"`+demo.OrganizationSolo+`","organizationName":"Wetterwarte Einzel"}}`)
+	write(filepath.Join(home, ".claude", ".claude.json"), `{"oauthAccount":{"accountUuid":"`+demo.AccountTeam+`","organizationUuid":"`+demo.OrganizationTeam+`"}}`)
+	write(filepath.Join(home, "dup", ".claude.json"), `{"oauthAccount":{"accountUuid":"`+demo.AccountTeam+`","organizationUuid":"`+demo.OrganizationSolo+`"}}`)
+	reg := filepath.Join(home, "registry.json")
+	write(reg, `{"accounts":{"default":{"group":"firma","dir":"~/.claude"},"zweit":{"group":"x","dir":"~/dup"}}}`)
+	cfg, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(e.configPath, append([]byte("account_registry = "+quote(reg)+"\n"), cfg...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := e.run(t, "", append([]string{"--db", db, "stats", "--json", "--by", "account"}, accRange...)...)
+	if r.code != 0 {
+		t.Fatalf("exit %d: %s", r.code, r.stderr)
+	}
+	s := decode[accSeries](t, r.stdout)
+	if !contains(s.Keys, "default") || contains(s.Keys, demo.AccountTeam+"/"+demo.OrganizationSolo) {
+		t.Errorf("keys = %v, want the solo login named default", s.Keys)
+	}
+	if contains(s.Keys, "zweit") || !strings.Contains(r.stderr, "zweit") || !strings.Contains(r.stderr, "default") {
+		t.Errorf("collision: keys %v, stderr %q", s.Keys, r.stderr)
+	}
+	list := decode[[]accSession](t, e.mustRun(t, "--db", db, "sessions", "--json", "--limit", "0", "--account", "default"))
+	if len(list) == 0 {
+		t.Fatal("no session of the default login")
+	}
+	for _, x := range list {
+		if str(x.OrganizationID) != demo.OrganizationSolo {
+			t.Errorf("session %s on organization %s", x.ID, str(x.OrganizationID))
+		}
+	}
+	out := e.mustRun(t, "--db", db, "show", list[0].ID, "--limit", "1")
+	if !strings.Contains(out, "Wetterwarte Einzel ("+demo.OrganizationSolo+")") {
+		t.Errorf("show header lacks the organization name:\n%.500s", out)
+	}
+	// without any name the header shows the ID, not null
+	e2, db2 := accountsEnv(t)
+	plain := decode[[]accSession](t, e2.mustRun(t, "--db", db2, "sessions", "--json", "--limit", "1", "--account", demo.AccountPersonal[:8]))
+	if out := e2.mustRun(t, "--db", db2, "show", plain[0].ID, "--limit", "1"); !regexp.MustCompile(`organization\s+` + demo.OrganizationPersonal).MatchString(out) {
+		t.Errorf("organization line without a name:\n%.500s", out)
 	}
 }

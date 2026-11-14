@@ -20,6 +20,13 @@ Ein Account kann zu mehreren Organisationen gehören: Ein Einzel- und ein Team-A
 - **Summe = Teile:** Die Schlüssel von `stats --by account` und `--by account-group` ergeben zusammen Sessions, human- und agent-Events von `stats` ohne `--by`; ein Test prüft das an der echten `--json`-Ausgabe des Demo-Archivs, das dafür eine zweite Organisation und Gruppen hat.
 - Keine Schemaänderung.
 
+### Behoben
+
+- **Registry: der Standardordner liest `~/.claude.json`** ([#295](https://github.com/seletz/total-recall/issues/295)). Für einen Eintrag mit `dir = "~/.claude"` (ohne `CLAUDE_CONFIG_DIR`) las total-recall `~/.claude/.claude.json`, Claude Code hält die Login-Daten dort aber in `~/.claude.json`; eine veraltete Datei im Ordner benannte ein fremdes Paar. Jetzt gilt dieselbe Regel wie bei Claude Code.
+- **Registry: Kollisionen werden gemeldet.** Zeigen zwei Einträge auf dasselbe Paar aus Account und Organisation, warnt total-recall auf stderr; der erste nach Name gewinnt.
+- **Registry: Organisationsname.** `oauthAccount.organizationName` der `.claude.json` benennt die Organisation, wenn die Konfiguration keinen Namen vergibt. Die Organisations-ID erscheint im Kopf von `show` wie bisher, wenn es keinen Namen gibt; das JSON-Feld `organization` bleibt `null` (es nennt nur Namen, die ID steht in `organization_id`).
+- **Vererbung an Subagenten abgesichert.** Ein Test hält fest: Subagenten übernehmen das Login der Eltern-Session eine Ebene hoch; ist es dort leer (Sessions vor Claude Code 2.1.317), bleibt der Subagent `unknown`, und die Summen über alle Logins ergeben alle Sessions.
+
 ### Geändert
 
 - **Der Schlüssel von `stats --by account` ist das Login**, nicht mehr die Account-ID allein: `<account_id>/<organization_id>` (ohne Organisation die Account-ID), sofern kein Name konfiguriert ist. Wer die Account-ID schon in `[accounts]` benannt hat, sieht denselben Namen, jetzt je Organisation getrennt, wenn ein `[[account]]` oder ein Paar-Schlüssel sie unterscheidet; ohne Namen erscheinen die Schlüssel mit angehängter Organisation. Das ist ein Minor, weil Skripte, die rohe Account-IDs als Schlüssel lesen, das anpassen müssen.
