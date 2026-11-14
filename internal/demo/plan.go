@@ -26,30 +26,59 @@ type session struct {
 	continuedIn string
 }
 
-// The accounts of the fictional developer: the team account of the
-// organization her projects belong to, and a personal one for the rest.
-// Claude Code writes the session-owner record since 2.1.317, so sessions
+// The logins of the fictional developer: the team subscription of the
+// organization her projects belong to, a single subscription of the same
+// account (same account ID, other organization) for the weather project,
+// and a personal account for the rest. Claude Code writes the session-owner record since 2.1.317, so sessions
 // before OwnerSince carry no account.
 const (
 	AccountTeam          = "aaaaaaaa-0000-4000-8000-00000000000a"
 	AccountPersonal      = "bbbbbbbb-0000-4000-8000-00000000000b"
 	OrganizationTeam     = "cccccccc-0000-4000-8000-00000000000c"
 	OrganizationPersonal = "dddddddd-0000-4000-8000-00000000000d"
+	OrganizationSolo     = "eeeeeeee-0000-4000-8000-00000000000e"
 )
+
+// AccountsTOML names and groups the demo logins the way a user's config
+// does: the two company logins share the group "firma", the personal
+// account is "privat".
+const AccountsTOML = `
+[[account]]
+id = "` + AccountTeam + `"
+organization = "` + OrganizationTeam + `"
+name = "kompass-team"
+group = "firma"
+
+[[account]]
+id = "` + AccountTeam + `"
+organization = "` + OrganizationSolo + `"
+name = "kompass-solo"
+group = "firma"
+
+[accounts]
+"` + AccountPersonal + `" = "privat"
+
+[[account]]
+id = "` + AccountPersonal + `"
+group = "privat"
+`
 
 // OwnerSince is the first day whose sessions carry an account.
 var OwnerSince = time.Date(2026, 9, 1, 0, 0, 0, 0, Location)
 
 // owner returns the account and organization a session of pr started at
 // t carries: none before OwnerSince, the team account for the projects of
-// the organization, the personal account for the rest.
+// the organization (the single subscription for wetterwarte), the
+// personal account for the rest.
 func owner(pr *project, t time.Time) (account, organization string) {
 	if t.Before(OwnerSince) {
 		return "", ""
 	}
 	switch pr {
-	case kompass, kompassWorktree, wetterwarte:
+	case kompass, kompassWorktree:
 		return AccountTeam, OrganizationTeam
+	case wetterwarte:
+		return AccountTeam, OrganizationSolo
 	}
 	return AccountPersonal, OrganizationPersonal
 }

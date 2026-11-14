@@ -6,6 +6,24 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.8.0 (unveröffentlicht)
+
+### Accounts nach Organisation unterscheiden und gruppieren ([#295](https://github.com/seletz/total-recall/issues/295))
+
+Ein Account kann zu mehreren Organisationen gehören: Ein Einzel- und ein Team-Abo derselben Person haben dieselbe `account_id` und unterscheiden sich nur in der `organization_id`. Ein **Login** ist jetzt das Paar aus beiden.
+
+- **Namen für Paare:** [`[accounts]`](20-konfiguration.md#accounts) nimmt auch Schlüssel `"<account_id>/<organization_id>"`; neu ist [`[[account]]`](20-konfiguration.md#account) mit `id`, `organization`, `name` und `group`. Bestehende `[accounts]`-Einträge (nur `account_id`) gelten unverändert. Das genauere Paar gewinnt vor dem Account vor der Organisation, `[[account]]` vor `[accounts]`.
+- **Gruppen:** `sessions`, `search` und `stats` haben `--account-group GRUPPE`; `stats --by account-group` fasst die Logins einer Gruppe zusammen (`ungrouped` ohne Gruppe, `unknown` ohne Login). Im MCP heißt der Parameter `account_group` (Tools `sessions`, `search`, `stats`; `search` hat dazu `account`), `by` kennt `account-group`.
+- **Anzeige:** `sessions` (Spalte `ACCOUNT`, sobald ein Login einen Namen hat), der Kopf von `show` (`account`, `organization`, `account group`), `stats --by account` und die JSON-Ausgabe (`account`, neu `organization` und `account_group`) zeigen die Namen.
+- **Externe Registry:** [`account_registry`](20-konfiguration.md#account-registry) nennt eine JSON-Registry der Logins; die IDs liest total-recall aus `<dir>/.claude.json` (`oauthAccount.accountUuid`, `organizationUuid`), nur lesend. Einträge aus `config.toml` gehen vor.
+- **Subagent-Sessions** übernehmen für Anzeige, Filter und Statistik das Login ihrer Eltern-Session (sie haben kein `session-owner`-Record), damit eine Gruppe ihre Subagenten nicht verliert und die Summen stimmen. `--account` filtert damit auch deren Subagenten. `account_id` und `organization_id` bleiben bei ihnen `null`.
+- **Summe = Teile:** Die Schlüssel von `stats --by account` und `--by account-group` ergeben zusammen Sessions, human- und agent-Events von `stats` ohne `--by`; ein Test prüft das an der echten `--json`-Ausgabe des Demo-Archivs, das dafür eine zweite Organisation und Gruppen hat.
+- Keine Schemaänderung.
+
+### Geändert
+
+- **Der Schlüssel von `stats --by account` ist das Login**, nicht mehr die Account-ID allein: `<account_id>/<organization_id>` (ohne Organisation die Account-ID), sofern kein Name konfiguriert ist. Wer die Account-ID schon in `[accounts]` benannt hat, sieht denselben Namen, jetzt je Organisation getrennt, wenn ein `[[account]]` oder ein Paar-Schlüssel sie unterscheidet; ohne Namen erscheinen die Schlüssel mit angehängter Organisation. Das ist ein Minor, weil Skripte, die rohe Account-IDs als Schlüssel lesen, das anpassen müssen.
+
 ## v1.7.1
 
 ### Behoben

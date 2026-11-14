@@ -55,10 +55,12 @@ const (
 	FilterHarness = "harness"
 	FilterName    = "name"
 	FilterAccount = "account"
-	FilterProject = "project"
-	FilterSession = "session"
-	FilterActor   = "actor"
-	FilterRaw     = "raw"
+	// FilterAccountGroup is SessionFilter.Owners (CLI --account-group).
+	FilterAccountGroup = "account-group"
+	FilterProject      = "project"
+	FilterSession      = "session"
+	FilterActor        = "actor"
+	FilterRaw          = "raw"
 	// FilterAttachment is SessionFilter.Attachment (CLI --has-attachment).
 	FilterAttachment = "has-attachment"
 )
@@ -73,9 +75,9 @@ type typeDef struct {
 // typeDefs lists every type in display order; a nil search marks a
 // reserved type.
 var typeDefs = []typeDef{
-	{TypeEvent, (*Store).searchEventHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount,
+	{TypeEvent, (*Store).searchEventHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount, FilterAccountGroup,
 		FilterProject, FilterSession, FilterActor, FilterRaw, FilterAttachment}},
-	{TypeSession, (*Store).searchSessionHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount,
+	{TypeSession, (*Store).searchSessionHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount, FilterAccountGroup,
 		FilterProject, FilterSession, FilterAttachment}},
 	{TypeMemory, (*Store).searchMemoryHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterProject, FilterRaw}},
 	{TypeAttachment, nil, nil},
@@ -248,7 +250,7 @@ func (q TypedQuery) filters() []string {
 	add(q.Repo != "", FilterRepo)
 	add(q.Harness != "", FilterHarness)
 	add(q.Name != "", FilterName)
-	add(q.Account != "", FilterAccount)
+	add(q.Account != "" || q.Owners != nil, FilterAccount)
 	add(q.Project != nil, FilterProject)
 	add(q.SessionID != "", FilterSession)
 	add(q.Actor != "", FilterActor)

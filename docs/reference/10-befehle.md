@@ -169,7 +169,8 @@ Listet Sessions, neueste zuerst. Subagent-Sessions sind ausgeblendet, außer mit
 total-recall sessions --since 2026-10-01 --until 2026-10-31
 total-recall sessions --repo seletz/total-recall
 total-recall sessions --name release --json
-total-recall sessions --account work                  # Name aus [accounts], ID oder ID-Präfix
+total-recall sessions --account kompass-solo          # Name aus [[account]], [accounts] oder Registry, ID oder ID-Präfix
+total-recall sessions --account-group firma           # alle Logins einer Gruppe
 total-recall sessions --limit 10
 ```
 
@@ -185,7 +186,8 @@ START             DUR    ID        NAME                        REPO             
 | `--repo TEXT` | Teilstring von Remote-URL, Git-Root oder Arbeitsverzeichnis |
 | `--harness NAME` | z.B. `claude` |
 | `--name TEXT` | Teilstring des Namens (eigener Titel, KI-Titel oder Agent-Name) |
-| `--account A` | Sessions dieses Accounts: ein Name aus [`[accounts]`](20-konfiguration.md#accounts), die Account-ID oder ein Präfix davon |
+| `--account A` | Sessions dieses Logins (Account in einer Organisation): ein Name aus [`[[account]]`](20-konfiguration.md#account), [`[accounts]`](20-konfiguration.md#accounts) oder der [Registry](20-konfiguration.md#account-registry), `<account_id>/<organization_id>`, die Account-ID oder ein Präfix davon. Ein Name gilt für alle Logins, die er benennt (ein Account-Name für alle Organisationen des Accounts) |
+| `--account-group G` | Sessions aller Logins dieser Gruppe ([`group`](20-konfiguration.md#account) in `[[account]]` oder der Registry). Eine Gruppe, die nirgends konfiguriert ist, ist ein `usage`-Fehler mit den bekannten Gruppen; mit `--account` müssen beide Filter passen |
 | `--project P` | nur dieses Projekt: der Name wie bei [`stats --by project`](#stats-period), sonst ein Teil von Name, Pfad oder Remote-URL |
 | `--has-attachment[=ART]` | nur Sessions mit einem Anhang (Bild oder Dokument, [Anhänge](#anhaenge-finden)); `ART` ist `any` (Default), `image` oder `document` und folgt mit `=`: `--has-attachment=image` |
 | `--actor A` | mit `--has-attachment`: wessen Event den Anhang trägt (`human` für das, was der Mensch eingefügt hat, `tool` für Screenshots aus Tool-Ergebnissen); ohne `--has-attachment` ein `usage`-Fehler |
@@ -197,7 +199,7 @@ Mit `--has-attachment` kommt die Spalte `ATTACHMENTS` dazu, in JSON hat jede Ses
 
 Spalten: `ID` ist ein Präfix der nativen Session-ID, das `show` versteht. `NAME` ist der eigene Titel (`/rename`), sonst der von Claude Code erzeugte Titel, sonst der Agent-Name. `REPO` ist `owner/repo` der Remote-URL, sonst der Ordnername. `HUMAN`/`AGENT` zählen Events nach Actor. `DUR` ist Ende minus Start, inklusive Pausen.
 
-Die JSON-Ausgabe hat zusätzlich je Session `continued_in` (die Session, in der diese fortgesetzt wurde, volle ID; sie muss nicht archiviert sein), `continued_from` (die Session, die in dieser fortgesetzt wurde), `account_id` und `organization_id` (Account und Organisation, auf denen die Session lief; Claude Code schreibt sie seit 2.1.317) sowie `account` (der Name aus `[accounts]`). Alle fünf sind `null`, wenn nichts bekannt ist. Eine fortgesetzte Session ist eine neue Session mit eigener ID; der Verlauf einer Arbeit über mehrere Sessions folgt der Kette `continued_in`.
+Die JSON-Ausgabe hat zusätzlich je Session `continued_in` (die Session, in der diese fortgesetzt wurde, volle ID; sie muss nicht archiviert sein), `continued_from` (die Session, die in dieser fortgesetzt wurde), `account_id` und `organization_id` (Account und Organisation, auf denen die Session lief; Claude Code schreibt sie seit 2.1.317) sowie `account` (der Name des Logins aus der Konfiguration: das Paar, sonst der Account, sonst die Organisation), `organization` (der Name der Organisation allein) und `account_group` (die Gruppe des Logins). Alle acht sind `null`, wenn nichts bekannt ist. Subagent-Sessions haben kein `session-owner`-Record: `account_id` und `organization_id` sind bei ihnen `null`, `account`, `organization` und `account_group` kommen von der Eltern-Session (seit v1.8.0), ebenso die Filter `--account` und `--account-group`. Die Textliste zeigt die Spalte `ACCOUNT`, sobald ein Login der Liste einen Namen hat. Eine fortgesetzte Session ist eine neue Session mit eigener ID; der Verlauf einer Arbeit über mehrere Sessions folgt der Kette `continued_in`.
 
 ## `show` { #show }
 
@@ -247,7 +249,7 @@ Bei menschlichen Eingaben steht hinter `human` in Klammern, wie sie ankamen: `ty
 
 Die Session kann über die volle ID (`claude:<uuid>`), die native ID oder ein eindeutiges Präfix davon angegeben werden. Ohne `--all` zeigt `show` nur Nachrichten von Mensch, Agent und anderen Agenten (`peer`).
 
-Der Kopf nennt, was bekannt ist: bei Subagent-Sessions `parent`, bei Fortsetzungen `continued from` (die Session, die hier fortgesetzt wurde) und `continued in` (die Session, in der es weiterging), dazu `account` und `organization` mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sofern einer konfiguriert ist. Die JSON-Ausgabe hat dieselben Felder wie `sessions --json`.
+Der Kopf nennt, was bekannt ist: bei Subagent-Sessions `parent`, bei Fortsetzungen `continued from` (die Session, die hier fortgesetzt wurde) und `continued in` (die Session, in der es weiterging), dazu `account`, `organization` und `account group` mit den Namen aus der [Konfiguration](20-konfiguration.md#accounts), sofern welche konfiguriert sind (`account` nennt den Namen des Logins, also des Paars aus Account und Organisation). Bei einer Subagent-Session steht hinter dem Account der Hinweis `(from the parent session)`: sie hat kein eigenes `session-owner`-Record und übernimmt das Login der Eltern-Session. Die JSON-Ausgabe hat dieselben Felder wie `sessions --json`.
 
 Bilder und Dokumente, die in der Session eingefügt oder von Tools geliefert wurden, erscheinen als Event mit Platzhalter (`[image image/png 84.3 KiB]`) und darunter je Anhang eine Zeile `attachment` mit Hash, Medientyp und Größe; [`blob HASH --out DATEI`](#blob) schreibt die Datei. Im JSON hat jedes Event `attachments` (immer vorhanden, `[]` ohne) mit `sha256`, `media_type`, `bytes` und `position`. Anhänge in Tool-Ergebnissen sind nur mit `--all` zu sehen.
 
@@ -406,7 +408,7 @@ LOCAL                UTC        SESSION   NAME                   PROJECT  TEXT
 |---|---|
 | `--since`, `--until` | Zeitfenster, lokale Zeit: `YYYY-MM-DD` oder `YYYY-MM-DDTHH:MM`. `--since` ist inklusiv, `--until` exklusiv; ein Datum als `--until` schließt den ganzen Tag ein. `--since` muss vor `--until` liegen, sonst ist es ein `usage`-Fehler (auch im MCP-Tool) |
 | `--project P` | nur dieses Projekt: der Name wie bei [`stats --by project`](#stats-period), sonst ein Teil von Name, Pfad oder Remote-URL; Subagenten gehören zum Projekt ihrer Eltern-Session |
-| `--repo R`, `--harness H`, `--name N`, `--account A` | Filter wie bei [`sessions`](#sessions) |
+| `--repo R`, `--harness H`, `--name N`, `--account A`, `--account-group G` | Filter wie bei [`sessions`](#sessions); `--account` und `--account-group` gelten für die Typen `event` und `session`, bei `--type memory` sind sie ein `usage`-Fehler |
 | `--actor A` | wessen Events: `human` (Default), `agent`, `peer`, `automation`, `tool` oder `all`; ein anderer Wert ist ein `usage`-Fehler mit den erlaubten Werten |
 | `--all` | auch Tool-Aufrufe und -Ergebnisse, System- und Meta-Events; Default nur Nachrichten. Ohne ausdrückliches `--actor` gilt dann `--actor all` (der Default `human` hätte keine Tool-Aufrufe); ein gesetztes `--actor`, auch `human`, gewinnt |
 | `--text-width N` | Zeichen des Textes je Event (Default 160, 0 = ganzer Text) |
@@ -500,20 +502,23 @@ Die JSON-Ausgabe ist die Grundlage für `monthly_stats.py` im Vault:
 
 ### Zeitreihe: `--period`, `--by`, `--top` { #stats-period }
 
-Mit `--period` oder `--by` liefert `stats` statt der drei Tabellen eine Zeitreihe: eine Zeile je Periode und, mit `--by`, je Projekt, Agent-Typ, Arbeitsverzeichnis oder Account. Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`; Periodengrenzen liegen in lokaler Zeit, Wochen sind ISO-Wochen ab Montag. Das ersetzt `monthly_stats.py` im Vault.
+Mit `--period` oder `--by` liefert `stats` statt der drei Tabellen eine Zeitreihe: eine Zeile je Periode und, mit `--by`, je Projekt, Agent-Typ, Arbeitsverzeichnis, Login oder Account-Gruppe. Der Zeitraum kommt wie oben aus `--month` oder `--since`/`--until`; Periodengrenzen liegen in lokaler Zeit, Wochen sind ISO-Wochen ab Montag. Das ersetzt `monthly_stats.py` im Vault.
 
 ```sh
 total-recall stats --period week --by project --since 2026-08-01 --until 2026-10-31
 total-recall stats --period month --by agent --top 6 --json
 total-recall stats --month 2026-10 --period day --by directory
 total-recall stats --period month --by account --since 2026-09-01
+total-recall stats --period month --by account-group --since 2026-09-01   # firma / privat
+total-recall stats --account-group firma --month 2026-10                 # die Tabellen nur für eine Gruppe
 total-recall stats --period month --since 2026-01-01          # nur je Monat, ohne Aufschlüsselung
 ```
 
 | Option | Bedeutung |
 |---|---|
 | `--period day\|week\|month` | Breite der Perioden. Ohne `--by` eine Zeile je Periode mit Sessions, human- und agent-Events, leere Perioden mit 0, zuletzt eine Zeile `total` für den ganzen Zeitraum |
-| `--by project\|agent\|directory\|account` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname, zuerst aus den Definitionen [`[[project]]`](20-konfiguration.md#project) (die erste passende gewinnt; mehrere Repositories mit derselben Definition sind ein Schlüssel, auch für `--top`), sonst der Basisname des Git-Roots (bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. `account`: der Account, auf dem die Session lief, mit dem Namen aus [`[accounts]`](20-konfiguration.md#accounts), sonst die ID; Sessions ohne Account (vor Claude Code 2.1.317 bzw. vor einem `ingest --reread`) stehen unter `unknown`. Subagent-Sessions zählen bei `project`, `directory` und `account` zu ihrer Eltern-Session |
+| `--by project\|agent\|directory\|account\|account-group` | zusätzlich je Periode nach Schlüssel aufschlüsseln; ohne `--period` gilt `day`. `project`: Projektname, zuerst aus den Definitionen [`[[project]]`](20-konfiguration.md#project) (die erste passende gewinnt; mehrere Repositories mit derselben Definition sind ein Schlüssel, auch für `--top`), sonst der Basisname des Git-Roots (bei gleichen Namen so viele übergeordnete Verzeichnisse wie nötig), Worktrees zählen zum Hauptrepository. Verzeichnisse ohne Repository erscheinen als Pfad, im Text mit `~` für das Home-Verzeichnis (`~/notes`), in JSON als voller Pfad (`/Users/me/notes`), damit Skripte nicht vom Home des Aufrufers abhängen. `agent`: `claude main` oder `claude subagent`. `directory`: Arbeitsverzeichnis. `account`: das Login, auf dem die Session lief, also der Account **in einer Organisation** (ein Einzel- und ein Team-Abo derselben Person haben dieselbe Account-ID und sind zwei Schlüssel), mit dem Namen aus der [Konfiguration](20-konfiguration.md#accounts), sonst `<account_id>/<organization_id>`; Sessions ohne Login (vor Claude Code 2.1.317 bzw. vor einem `ingest --reread`) stehen unter `unknown`. `account-group`: die Gruppe des Logins; Logins ohne Gruppe stehen unter `ungrouped`, Sessions ohne Login unter `unknown`. Jede Session hat genau einen Schlüssel, die Schlüssel ergeben also zusammen den Gesamtwert ohne `--by`. Subagent-Sessions zählen bei `project`, `directory`, `account` und `account-group` zu ihrer Eltern-Session |
+| `--account-group G` | nur die Logins dieser Gruppe, in den drei Tabellen wie in der Zeitreihe (auch `--tokens`); nicht mit `--tools`, `--workday`, `--worktime` oder `--day` |
 | `--top N` | nur mit `--by`: die N größten Schlüssel über den ganzen Zeitraum, der Rest je Periode als `other` (immer zuletzt). Default 0 = alle |
 
 Die Textausgabe ist ein Langformat ohne Kopfzeilen über der Tabelle, damit sie sich mit `sort`, `awk` oder `column` weiterverarbeiten lässt. Mit `--by` erscheint je Periode nur, was Aktivität hat; Schlüssel sind nach Gesamtvolumen sortiert, `other` zuletzt. Den Schluss bilden Zeilen mit der Periode `total`: ohne `--by` eine für den Zeitraum, mit `--by` eine je Schlüssel und eine über alle Schlüssel (KEY `*`).

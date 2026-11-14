@@ -309,6 +309,12 @@ func TestAccountsAndContinuations(t *testing.T) {
 			t.Errorf("%d sessions on account %s, want at least 5", n, acc)
 		}
 	}
+	// The team account has two organizations: the team and a single subscription.
+	for _, org := range []string{demo.OrganizationTeam, demo.OrganizationSolo} {
+		if n := count(t, db, "SELECT count(*) FROM sessions WHERE account_id = ? AND organization_id = ? AND parent_id IS NULL", demo.AccountTeam, org); n < 5 {
+			t.Errorf("%d sessions on %s / %s, want at least 5", n, demo.AccountTeam, org)
+		}
+	}
 	if n := count(t, db, "SELECT count(*) FROM sessions WHERE account_id IS NOT NULL AND started_at < ?", since); n != 0 {
 		t.Errorf("%d sessions with an account before %s", n, since)
 	}
@@ -334,7 +340,7 @@ func TestAccountsAndContinuations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(series.Keys, " "); !strings.Contains(got, demo.AccountTeam) || !strings.Contains(got, demo.AccountPersonal) || !strings.Contains(got, store.UnknownAccountKey) {
+	if got := strings.Join(series.Keys, " "); !strings.Contains(got, demo.AccountTeam+"/"+demo.OrganizationTeam) || !strings.Contains(got, demo.AccountTeam+"/"+demo.OrganizationSolo) || !strings.Contains(got, demo.AccountPersonal) || !strings.Contains(got, store.UnknownAccountKey) {
 		t.Errorf("account keys = %v", series.Keys)
 	}
 }

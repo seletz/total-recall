@@ -444,7 +444,7 @@ Geschrieben wird nur, was die Prüfung besteht: Der neue Wert muss zum Typ passe
 
 Hat eine Tabelle nach einer Änderung im Editor (`E`) einen Fehler, den erst die Prüfung meldet (etwa ein Tastenkonflikt oder Kernzeiten vor `day_start`), behält die TUI die bisherigen Werte; der Status nennt das Problem.
 
-Nicht auf dieser Seite änderbar: Werte, die eine Umgebungsvariable oder ein Flag setzt (die Datei wäre wirkungslos; die Meldung nennt die Quelle) und die Tabellen `[accounts]` und `[[worktime.category]]` (die Zeile zeigt je Kategorie Name, Muster und Farbe); dafür öffnet `E` (`config_editor`) die Datei in `$EDITOR`, nach dem Schließen liest die TUI die Konfiguration neu. Die Liste `[[project]]` steht hier ebenfalls als eine Zeile und wird auf der Seite [Projects](#projects) gepflegt.
+Nicht auf dieser Seite änderbar: Werte, die eine Umgebungsvariable oder ein Flag setzt (die Datei wäre wirkungslos; die Meldung nennt die Quelle) und die Tabellen `[accounts]`, `[[account]]` und `[[worktime.category]]` (die Zeile zeigt je Kategorie Name, Muster und Farbe); dafür öffnet `E` (`config_editor`) die Datei in `$EDITOR`, nach dem Schließen liest die TUI die Konfiguration neu. Die Liste `[[project]]` steht hier ebenfalls als eine Zeile und wird auf der Seite [Projects](#projects) gepflegt.
 
 ### Projects
 

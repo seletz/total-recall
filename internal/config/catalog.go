@@ -118,7 +118,9 @@ var Catalog = []Key{
 	{"chart.scale_blue", KindList, nil, "Blue scale from light to dark (working days within the core hours)"},
 	{"chart.palette", KindList, nil, "Categorical palette of projects and categories without a colour of their own"},
 	{"chart.lang", KindEnum, ChartLangs, "Language of the labels of a figure: en or de"},
-	{"accounts", KindTable, nil, "Names for account and organization IDs; edit them in the file"},
+	{"accounts", KindTable, nil, "Names for account and organization IDs (or \"account/organization\" for one login); edit them in the file"},
+	{"account", KindTable, nil, "Names and groups of logins [[account]]: id, organization, name, group; edit them in the file"},
+	{"account_registry", KindString, nil, "JSON login registry whose names and groups complete [[account]] and [accounts] (read only)"},
 	{"project", KindTable, nil, "Project definitions [[project]]: name, colour, patterns; see the projects page, edit them in the file"},
 }
 

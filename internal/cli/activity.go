@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/seletz/total-recall/internal/account"
 	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 )
@@ -18,7 +19,7 @@ type ActivitySeriesJSON struct {
 	Until    NullString `json:"until"`
 	Timezone string     `json:"timezone"`
 	Period   string     `json:"period"` // day, week or month
-	By       NullString `json:"by"`     // project, agent, directory, account or null
+	By       NullString `json:"by"`     // project, agent, directory, account, account-group or null
 	// Keys are the dimension values in the order of the cells, by volume
 	// descending; "other" (--top) is last. For --by project these are the
 	// project names (base name of the git root, full path of a directory
@@ -175,7 +176,7 @@ func writeSeriesTable(w io.Writer, s ActivitySeriesJSON) error {
 // their path; home is abbreviated to "~" in it, an empty home keeps the full
 // path (the JSON output, which is meant for scripts and should not depend
 // on who runs it).
-func keyNames(s store.ActivitySeries, o seriesOptions, home string, accounts map[string]string, projects project.Resolver) map[string]string {
+func keyNames(s store.ActivitySeries, o seriesOptions, home string, accounts *account.Resolver, projects project.Resolver) map[string]string {
 	switch {
 	case o.byName == "":
 		return nil
@@ -184,7 +185,7 @@ func keyNames(s store.ActivitySeries, o seriesOptions, home string, accounts map
 	case o.by == store.DimAccount:
 		names := map[string]string{}
 		for _, k := range s.Keys {
-			if n := accounts[k]; n != "" {
+			if n := accounts.Resolve(account.SplitKey(k)).Name; n != "" {
 				names[k] = n
 			}
 		}

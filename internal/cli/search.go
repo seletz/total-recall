@@ -65,14 +65,14 @@ func loadProjectCatalog(ctx context.Context, st *store.Store, cfg *config.Config
 func searchFlagValues(f filterFlags, project, session, actor string, raw, attachment bool) map[string]bool {
 	return map[string]bool{
 		store.FilterSince: f.since != "", store.FilterUntil: f.until != "", store.FilterRepo: f.repo != "",
-		store.FilterHarness: f.harness != "", store.FilterName: f.name != "", store.FilterAccount: f.account != "",
+		store.FilterHarness: f.harness != "", store.FilterName: f.name != "", store.FilterAccount: f.account != "", store.FilterAccountGroup: f.accountGroup != "",
 		store.FilterProject: project != "", store.FilterSession: session != "", store.FilterActor: actor != "", store.FilterRaw: raw, store.FilterAttachment: attachment,
 	}
 }
 
 // checkSearchFlags rejects a set flag that a selected type does not apply.
 func checkSearchFlags(types []store.HitType, set map[string]bool) error {
-	order := []string{store.FilterSince, store.FilterUntil, store.FilterRepo, store.FilterHarness, store.FilterName, store.FilterAccount,
+	order := []string{store.FilterSince, store.FilterUntil, store.FilterRepo, store.FilterHarness, store.FilterName, store.FilterAccount, store.FilterAccountGroup,
 		store.FilterProject, store.FilterSession, store.FilterActor, store.FilterRaw, store.FilterAttachment}
 	for _, t := range types {
 		for _, f := range order {

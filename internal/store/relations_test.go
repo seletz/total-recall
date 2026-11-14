@@ -109,9 +109,9 @@ func TestSessionsAccountFilter(t *testing.T) {
 		f    SessionFilter
 		want string
 	}{
-		{"exact", SessionFilter{Account: "acc-1"}, "claude:b,claude:a"},
+		{"exact, with the subagent of b", SessionFilter{Account: "acc-1"}, "claude:bsub,claude:b,claude:a"},
 		{"prefix", SessionFilter{Account: "acc-2"}, "claude:d"},
-		{"prefix of several", SessionFilter{Account: "acc"}, "claude:d,claude:b,claude:a"},
+		{"prefix of several", SessionFilter{Account: "acc"}, "claude:d,claude:bsub,claude:b,claude:a"},
 		{"unknown", SessionFilter{Account: "nope"}, ""},
 		{"escapes like", SessionFilter{Account: "acc_"}, ""},
 	}
@@ -137,13 +137,13 @@ func TestActivitySeriesByAccount(t *testing.T) {
 	}
 	// acc-1: a, b and the subagent of b (3 events), acc-2: d (2 events),
 	// e has no account and counts under UnknownAccountKey.
-	if want := []string{"acc-1", "acc-2", UnknownAccountKey}; !equalStrings(as.Keys, want) {
+	if want := []string{"acc-1/org-1", "acc-2/org-2", UnknownAccountKey}; !equalStrings(as.Keys, want) {
 		t.Errorf("keys = %v, want %v", as.Keys, want)
 	}
 	if len(as.Buckets) != 1 {
 		t.Fatalf("buckets = %d, want 1", len(as.Buckets))
 	}
-	if got, want := cells(as.Buckets[0]), []string{"acc-1:3/2/1", "acc-2:1/1/1", "unknown:1/1/0"}; !equalStrings(got, want) {
+	if got, want := cells(as.Buckets[0]), []string{"acc-1/org-1:3/2/1", "acc-2/org-2:1/1/1", "unknown:1/1/0"}; !equalStrings(got, want) {
 		t.Errorf("cells = %v, want %v", got, want)
 	}
 	if len(as.Dirs) != 0 {

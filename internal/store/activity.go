@@ -56,14 +56,20 @@ const (
 	// DimDirectory groups by cwd. Subagent sessions take the cwd of their
 	// parent session.
 	DimDirectory
-	// DimAccount groups by the account ID of the session (sessions.account_id).
-	// Subagent sessions without an account take their parent's; sessions
-	// without any account fall under UnknownAccountKey. The mapping to a
-	// name is left to the caller.
+	// DimAccount groups by the login of the session: the key is
+	// "<account_id>/<organization_id>" (the account ID alone for a session
+	// without an organization), see account.Key. Subagent sessions without
+	// an owner take their parent's; sessions without any owner fall under
+	// UnknownAccountKey. The mapping to a name is left to the caller.
 	DimAccount
+	// DimAccountGroup groups by the group of the login (ActivityFilter.Group
+	// maps the account and organization ID to it). Logins without a group
+	// fall under UngroupedKey, sessions without any owner under
+	// UnknownAccountKey.
+	DimAccountGroup
 )
 
-// String returns project, agent, directory or account.
+// String returns project, agent, directory, account or account-group.
 func (d Dimension) String() string {
 	switch d {
 	case DimProject:
@@ -74,19 +80,21 @@ func (d Dimension) String() string {
 		return "directory"
 	case DimAccount:
 		return "account"
+	case DimAccountGroup:
+		return "account-group"
 	}
 	return fmt.Sprintf("Dimension(%d)", int(d))
 }
 
 // ParseDimension returns the Dimension named by s: project, agent,
-// directory or account.
+// directory, account or account-group.
 func ParseDimension(s string) (Dimension, error) {
-	for _, d := range []Dimension{DimProject, DimAgent, DimDirectory, DimAccount} {
+	for _, d := range []Dimension{DimProject, DimAgent, DimDirectory, DimAccount, DimAccountGroup} {
 		if d.String() == s {
 			return d, nil
 		}
 	}
-	return 0, fmt.Errorf("invalid dimension %q (project, agent, directory, account)", s)
+	return 0, fmt.Errorf("invalid dimension %q (project, agent, directory, account, account-group)", s)
 }
 
 // OtherKey is the key under which ActivitySeries folds the dimension values
@@ -97,6 +105,9 @@ const OtherKey = "other"
 // account (transcripts older than the session-owner record, other
 // harnesses).
 const UnknownAccountKey = "unknown"
+
+// UngroupedKey is the key of DimAccountGroup for logins without a group.
+const UngroupedKey = "ungrouped"
 
 // ActivityFilter selects the range, resolution and grouping of ActivitySeries.
 type ActivityFilter struct {
@@ -119,6 +130,12 @@ type ActivityFilter struct {
 	// repositories (project.Resolver.Key); a key it renames is no longer a
 	// directory. nil keeps the raw keys. Ignored for the other dimensions.
 	Project func(key string, dir bool, remote string) string
+	// Group maps the account and organization ID of a session to the key
+	// of DimAccountGroup ("" = ungrouped). nil puts every login under
+	// UngroupedKey. Ignored for the other dimensions.
+	Group func(account, organization string) string
+	// Owners restricts to the sessions of these owners; nil does not filter.
+	Owners *OwnerSet
 }
 
 // ActivityCell is the activity of one dimension value in one period.
@@ -194,21 +211,26 @@ func periodLabel(start time.Time, p Period) string {
 // activityKey derives the dimension value of a session. Parent columns are
 // empty when the session has no parent or the parent is unknown. dir is
 // true when the key of DimProject is a working directory, not a git root.
-func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parentGitRoot, account, parentAccount string) (key string, dir bool) {
+func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parentGitRoot string, owner Owner, group func(account, organization string) string) (key string, dir bool) {
 	switch d {
 	case DimAgent:
 		if parentID != "" {
 			return harness + " subagent", false
 		}
 		return harness + " main", false
-	case DimAccount:
-		switch {
-		case account != "":
-			return account, false
-		case parentAccount != "":
-			return parentAccount, false
+	case DimAccount, DimAccountGroup:
+		if owner == (Owner{}) {
+			return UnknownAccountKey, false
 		}
-		return UnknownAccountKey, false
+		if d == DimAccountGroup {
+			if group != nil {
+				if g := group(owner.Account, owner.Organization); g != "" {
+					return g, false
+				}
+			}
+			return UngroupedKey, false
+		}
+		return ownerKey(owner), false
 	case DimDirectory:
 		if parentCwd != "" {
 			return parentCwd, false
@@ -222,6 +244,15 @@ func activityKey(d Dimension, harness, parentID, cwd, gitRoot, parentCwd, parent
 		return gitRoot, false
 	}
 	return cwd, true
+}
+
+// ownerKey is the key of DimAccount: "account/organization", the account
+// alone without an organization (see account.Key).
+func ownerKey(o Owner) string {
+	if o.Organization == "" {
+		return o.Account
+	}
+	return o.Account + "/" + o.Organization
 }
 
 // mapProject applies the project mapper of a filter to a key of DimProject.
@@ -264,7 +295,7 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		return ActivitySeries{}, fmt.Errorf("store: activity: invalid period %s", f.Period)
 	}
 	switch f.Dimension {
-	case DimProject, DimAgent, DimDirectory, DimAccount:
+	case DimProject, DimAgent, DimDirectory, DimAccount, DimAccountGroup:
 	default:
 		return ActivitySeries{}, fmt.Errorf("store: activity: invalid dimension %s", f.Dimension)
 	}
@@ -282,9 +313,13 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
+	if f.Owners != nil {
+		c, a := f.Owners.cond("p")
+		cond, args = append(cond, c), append(args, a...)
+	}
 	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id,
 			s.harness, COALESCE(s.parent_id, ''), COALESCE(s.cwd, ''), COALESCE(s.git_root, ''),
-			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(s.account_id, ''), COALESCE(p.account_id, ''),
+			COALESCE(p.cwd, ''), COALESCE(p.git_root, ''), COALESCE(s.account_id, ''), COALESCE(s.organization_id, ''), COALESCE(p.account_id, ''), COALESCE(p.organization_id, ''),
 			COALESCE(s.git_remote_url, ''), COALESCE(p.git_remote_url, '')
 		FROM events e
 		JOIN sessions s ON s.id = e.session_id
@@ -301,8 +336,8 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 	var first, last time.Time
 	for rows.Next() {
 		var tsv sql.NullString
-		var actor, session, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount, remote, premote string
-		if err := rows.Scan(&tsv, &actor, &session, &harness, &parentID, &cwd, &gitRoot, &pcwd, &pgitRoot, &account, &paccount, &remote, &premote); err != nil {
+		var actor, session, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, org, paccount, porg, remote, premote string
+		if err := rows.Scan(&tsv, &actor, &session, &harness, &parentID, &cwd, &gitRoot, &pcwd, &pgitRoot, &account, &org, &paccount, &porg, &remote, &premote); err != nil {
 			return ActivitySeries{}, fmt.Errorf("store: activity: %w", err)
 		}
 		t := parseTime(tsv)
@@ -310,7 +345,11 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 			continue
 		}
 		start := periodStart(t.In(loc), f.Period)
-		key, dir := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, account, paccount)
+		owner := Owner{account, org}
+		if owner == (Owner{}) {
+			owner = Owner{paccount, porg}
+		}
+		key, dir := activityKey(f.Dimension, harness, parentID, cwd, gitRoot, pcwd, pgitRoot, owner, f.Group)
 		if f.Dimension == DimProject && f.Project != nil {
 			key, dir = mapProject(f.Project, key, dir, remote, premote, pcwd, pgitRoot)
 		}
