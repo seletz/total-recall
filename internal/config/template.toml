@@ -25,6 +25,12 @@ day_start = "04:00"
 # Log file for hook errors. Empty = total-recall.log next to the database.
 log = ""
 
+# JSON registry of the logins (read only): {"accounts": {"<name>": {"group":
+# "firma", "dir": "~/.logins/<name>"}}}. The IDs are read from
+# <dir>/.claude.json (oauthAccount.accountUuid, organizationUuid); entries of
+# [[account]] and [accounts] win. See [[account]] below.
+# account_registry = "~/.logins/registry.json"
+
 [backup]
 # Target directory for `total-recall backup` (zstd-compressed archive-YYYY-MM-DD.db.zst).
 # Override: --backup-dir, TOTAL_RECALL_BACKUP_DIR.
@@ -188,6 +194,17 @@ resolve = true
 # [accounts]
 # "aaaaaaaa-0000-4000-8000-000000000001" = "work"
 # "bbbbbbbb-0000-4000-8000-000000000002" = "private"
+# "aaaaaaaa-0000-4000-8000-000000000001/cccccccc-0000-4000-8000-00000000000c" = "kompass-team"   # one login: account/organization
+
+# Name and group of a login (an account in one organization; one account can
+# belong to several). `--account-group firma` filters sessions, search and
+# stats, `stats --by account-group` sums the group. id alone covers every
+# organization of the account, organization alone every account in it.
+# [[account]]
+# id = "aaaaaaaa-0000-4000-8000-000000000001"
+# organization = "cccccccc-0000-4000-8000-00000000000c"
+# name = "kompass-team"
+# group = "firma"
 
 [tui]
 # Start-up defaults of `total-recall tui`; flags and the view argument

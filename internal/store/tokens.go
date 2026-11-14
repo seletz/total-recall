@@ -77,8 +77,14 @@ func (s *Store) TokenStats(ctx context.Context, f StatsFilter) (TokenStats, erro
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
+	from := "events e"
+	if f.Owners != nil {
+		c, a := f.Owners.cond("p")
+		cond, args = append(cond, c), append(args, a...)
+		from += " JOIN sessions s ON s.id = e.session_id LEFT JOIN sessions p ON p.id = s.parent_id"
+	}
 	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.model, e.tokens_in, e.tokens_out, e.tokens_cache_read, e.tokens_cache_write
-		FROM events e WHERE `+strings.Join(cond, " AND "), args...)
+		FROM `+from+` WHERE `+strings.Join(cond, " AND "), args...)
 	if err != nil {
 		return TokenStats{}, fmt.Errorf("store: token stats: %w", err)
 	}

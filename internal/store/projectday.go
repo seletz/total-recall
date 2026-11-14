@@ -98,7 +98,7 @@ func (s *Store) ProjectDays(ctx context.Context, f WorkdayFilter) ([]ProjectDay,
 		if t.IsZero() {
 			continue
 		}
-		key, dir := activityKey(DimProject, "", "", cwd, gitRoot, pcwd, pgitRoot, "", "")
+		key, dir := activityKey(DimProject, "", "", cwd, gitRoot, pcwd, pgitRoot, Owner{}, nil)
 		if f.Project != nil {
 			key, dir = mapProject(f.Project, key, dir, remote, premote, pcwd, pgitRoot)
 		}

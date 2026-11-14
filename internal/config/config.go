@@ -31,6 +31,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/seletz/total-recall/internal/account"
 	"github.com/seletz/total-recall/internal/canvas"
 	"github.com/seletz/total-recall/internal/figure"
 	"github.com/seletz/total-recall/internal/project"
@@ -113,7 +114,17 @@ type Config struct {
 	// (sessions.account_id, sessions.organization_id): ID → name. Display
 	// code shows the name where it has one; `sessions --account` and
 	// `stats --by account` accept the names.
+	// A key is an account or organization ID, or "<account_id>/<organization_id>"
+	// for one login (one account in one organization).
 	Accounts map[string]string `toml:"accounts"`
+	// AccountEntries ([[account]]) name and group logins: id and/or
+	// organization select the login, name and group are what it gets.
+	// They win over Accounts.
+	AccountEntries []AccountEntry `toml:"account"`
+	// AccountRegistry is the path of a JSON login registry whose names and
+	// groups complete AccountEntries and Accounts (read only); see
+	// account.LoadRegistry. "" reads none.
+	AccountRegistry string `toml:"account_registry"`
 	// Projects are the configured projects ([[project]]) in file order:
 	// name, description, colour and the patterns that assign sessions to
 	// them. ProjectResolver validates and compiles them.
@@ -214,6 +225,17 @@ type Project struct {
 	Description string     `toml:"description"`
 	Color       string     `toml:"color"`
 	Match       StringList `toml:"match"`
+}
+
+// AccountEntry is one [[account]] table: it gives the login selected by ID
+// (account ID) and/or Organization (organization ID) a name and a group.
+// An entry with only ID applies to every organization of the account, one
+// with only Organization to every account in it.
+type AccountEntry struct {
+	ID           string `toml:"id"`
+	Organization string `toml:"organization"`
+	Name         string `toml:"name"`
+	Group        string `toml:"group"`
 }
 
 // Built-in working time per project: gaps up to 20 minutes count in full,
@@ -577,6 +599,8 @@ var fields = []struct {
 	{"chart.palette", func(c *Config) string { return formatList(c.Chart.Palette) }},
 	{"chart.lang", func(c *Config) string { return c.Chart.Lang }},
 	{"accounts", func(c *Config) string { return formatAccounts(c.Accounts) }},
+	{"account", func(c *Config) string { return formatAccountEntries(c.AccountEntries) }},
+	{"account_registry", func(c *Config) string { return c.AccountRegistry }},
 	{"project", func(c *Config) string { return formatProjects(c.Projects) }},
 }
 
@@ -606,6 +630,23 @@ func formatAccounts(m map[string]string) string {
 	parts := make([]string, len(ids))
 	for i, id := range ids {
 		parts[i] = strconv.Quote(id) + " = " + strconv.Quote(m[id])
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// formatAccountEntries formats the [[account]] tables as `[name (group) =
+// id/organization, …]`.
+func formatAccountEntries(es []AccountEntry) string {
+	parts := make([]string, len(es))
+	for i, e := range es {
+		name := e.Name
+		if name == "" {
+			name = "-"
+		}
+		if e.Group != "" {
+			name += " (" + e.Group + ")"
+		}
+		parts[i] = name + " = " + strconv.Quote(account.Key(e.ID, e.Organization))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -674,6 +715,7 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 		ScaleOrange: slices.Clone(figure.DefaultOrange), ScaleBlue: slices.Clone(figure.DefaultBlue), Palette: slices.Clone(figure.DefaultPalette)}
 	c.Keys = map[string]KeyList{}
 	c.Accounts = map[string]string{}
+	c.AccountEntries = []AccountEntry{}
 	c.Projects = []Project{}
 	return c
 }
@@ -682,20 +724,26 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 // ID, or "" if none is configured.
 func (c *Config) AccountName(id string) string { return c.Accounts[id] }
 
-// ResolveAccount returns the ID a configured account name stands for; any
-// other reference (an ID or a prefix of one) is returned unchanged.
-func (c *Config) ResolveAccount(ref string) string {
-	ids := make([]string, 0, len(c.Accounts))
-	for id, name := range c.Accounts {
-		if name == ref {
-			ids = append(ids, id)
+// AccountResolver builds the resolver of account names and groups from
+// [[account]], [accounts] and the registry named by account_registry (read
+// now, read only). The warnings name registry entries that were skipped;
+// an unreadable registry is an error.
+func (c *Config) AccountResolver() (*account.Resolver, []string, error) {
+	entries := make([]account.Entry, 0, len(c.AccountEntries)+len(c.Accounts))
+	for _, e := range c.AccountEntries {
+		entries = append(entries, account.Entry{ID: e.ID, Organization: e.Organization, Name: e.Name, Group: e.Group})
+	}
+	entries = append(entries, account.FromNames(c.Accounts)...)
+	var reg []account.Entry
+	var warns []string
+	if c.AccountRegistry != "" {
+		var err error
+		expand := func(p string) string { return ExpandPath(p, c.opts.Home, c.opts.Getenv) }
+		if reg, warns, err = account.LoadRegistry(expand(c.AccountRegistry), expand); err != nil {
+			return nil, nil, fmt.Errorf("config: account_registry: %w", err)
 		}
 	}
-	if len(ids) == 0 {
-		return ref
-	}
-	sort.Strings(ids)
-	return ids[0]
+	return account.New(entries, reg), warns, nil
 }
 
 // DefaultPath returns the default config file location.
@@ -818,7 +866,7 @@ func (c *Config) readFile(expand func(string) string, text []byte) error {
 	for id := range c.Accounts {
 		c.fileKeys["accounts."+id] = struct{}{}
 	}
-	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Harness.Claude.ProjectsDir} {
+	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Harness.Claude.ProjectsDir, &c.AccountRegistry} {
 		*p = expand(*p)
 	}
 	return nil
@@ -846,6 +894,14 @@ func (c *Config) validate() error {
 	}
 	if c.Ingest.RawMaxBytes < 0 {
 		return fmt.Errorf("config: ingest.raw_max_bytes must be >= 0")
+	}
+	for i, a := range c.AccountEntries {
+		switch {
+		case a.ID == "" && a.Organization == "":
+			return fmt.Errorf("config: account #%d: needs id or organization", i+1)
+		case a.Name == "" && a.Group == "":
+			return fmt.Errorf("config: account #%d: needs name or group", i+1)
+		}
 	}
 	for _, l := range []struct {
 		key  string

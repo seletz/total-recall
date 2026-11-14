@@ -252,7 +252,7 @@ func (s *Store) ToolStats(ctx context.Context, f ToolFilter) (ToolStats, error) 
 			key = repo
 		case ToolByProject:
 			var dir bool
-			key, dir = activityKey(DimProject, "", parentID, cwd, gitRoot, pcwd, pgitRoot, "", "")
+			key, dir = activityKey(DimProject, "", parentID, cwd, gitRoot, pcwd, pgitRoot, Owner{}, nil)
 			if f.Project != nil {
 				key, dir = mapProject(f.Project, key, dir, remote, premote, pcwd, pgitRoot)
 			}

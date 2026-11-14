@@ -22,8 +22,14 @@ type SessionFilter struct {
 	Harness string
 	// Name is a case-insensitive substring of name, AI title or agent name.
 	Name string
-	// Account is the account ID of the session or a prefix of it.
+	// Account is the account ID of the session or a prefix of it. A
+	// session without an owner of its own (a subagent session) counts
+	// with its parent's.
 	Account string
+	// Owners restricts to the sessions of these owners (accounts and
+	// organizations resolved to a name or a group by the caller); nil does
+	// not filter. Combined with Account both must match.
+	Owners *OwnerSet
 	// TopLevel excludes subagent sessions (parent_id set).
 	TopLevel bool
 	// HideEmpty excludes sessions without events and without a start time
@@ -50,9 +56,13 @@ type SessionInfo struct {
 	// one whose ContinuedIn names this session); empty if none is known.
 	// If several claim it, the one that started last.
 	ContinuedFrom string
-	HumanEvents   int
-	AgentEvents   int
-	Events        int
+	// ParentAccountID and ParentOrganizationID are the parent session's
+	// IDs ("" without a parent); Owner uses them for subagent sessions.
+	ParentAccountID      string
+	ParentOrganizationID string
+	HumanEvents          int
+	AgentEvents          int
+	Events               int
 	// Attachments is the number of attachments of the session: those of
 	// the kind and actor of the filter of Sessions and of the session
 	// search, all of them without a filter. 0 where it is not loaded.
@@ -120,8 +130,13 @@ func (f SessionFilter) where(eventTime bool) ([]string, []any) {
 		args = append(args, a, a, a)
 	}
 	if f.Account != "" {
-		cond = append(cond, `s.account_id LIKE ? ESCAPE '\'`)
+		acc, _ := ownerExprs("")
+		cond = append(cond, "("+acc+` LIKE ? ESCAPE '\')`)
 		args = append(args, strings.TrimSuffix(strings.TrimPrefix(likeArg(f.Account), "%"), "%")+"%")
+	}
+	if f.Owners != nil {
+		c, a := f.Owners.cond("")
+		cond, args = append(cond, c), append(args, a...)
 	}
 	if len(f.Projects) > 0 && !eventTime {
 		c, a := inCond(projectKeyExpr, f.Projects)
@@ -152,7 +167,9 @@ func prefixed(cols, alias string) string {
 const countCols = `(SELECT count(*) FROM events c WHERE c.session_id = s.id AND c.actor = 'human'),
 	(SELECT count(*) FROM events c WHERE c.session_id = s.id AND c.actor = 'agent'),
 	(SELECT count(*) FROM events c WHERE c.session_id = s.id),
-	(SELECT f.id FROM sessions f WHERE f.continued_in = s.id ORDER BY f.started_at DESC, f.id LIMIT 1)`
+	(SELECT f.id FROM sessions f WHERE f.continued_in = s.id ORDER BY f.started_at DESC, f.id LIMIT 1),
+	(SELECT p.account_id FROM sessions p WHERE p.id = s.parent_id),
+	(SELECT p.organization_id FROM sessions p WHERE p.id = s.parent_id)`
 
 func (s *Store) querySessions(ctx context.Context, cond []string, args []any, limit int) ([]SessionInfo, error) {
 	q := "SELECT " + prefixed(sessionCols, "s") + ", " + countCols + " FROM sessions s"
@@ -171,12 +188,13 @@ func (s *Store) querySessions(ctx context.Context, cond []string, args []any, li
 	var out []SessionInfo
 	for rows.Next() {
 		var si SessionInfo
-		var from sql.NullString
-		m, err := scanSession(rows, &si.HumanEvents, &si.AgentEvents, &si.Events, &from)
+		var from, pAccount, pOrg sql.NullString
+		m, err := scanSession(rows, &si.HumanEvents, &si.AgentEvents, &si.Events, &from, &pAccount, &pOrg)
 		if err != nil {
 			return nil, fmt.Errorf("store: sessions: %w", err)
 		}
 		si.Session, si.ContinuedFrom = m, from.String
+		si.ParentAccountID, si.ParentOrganizationID = pAccount.String, pOrg.String
 		out = append(out, si)
 	}
 	return out, rows.Err()
@@ -545,6 +563,8 @@ func (s *Store) SearchBySession(ctx context.Context, query string, f SearchFilte
 type StatsFilter struct {
 	Since, Until time.Time      // event time range [Since, Until); zero = open
 	Location     *time.Location // time zone for days and hours; default UTC
+	// Owners restricts to the sessions of these owners; nil does not filter.
+	Owners *OwnerSet
 }
 
 // Activity counts sessions (distinct, with at least one human or agent
@@ -615,8 +635,13 @@ func (s *Store) Stats(ctx context.Context, f StatsFilter) (Stats, error) {
 		cond = append(cond, "e.ts < ?")
 		args = append(args, formatTime(f.Until))
 	}
+	if f.Owners != nil {
+		c, a := f.Owners.cond("p")
+		cond, args = append(cond, c), append(args, a...)
+	}
 	rows, err := s.db().QueryContext(ctx, `SELECT e.ts, e.actor, e.session_id, `+repoExpr+`
 		FROM events e JOIN sessions s ON s.id = e.session_id
+		LEFT JOIN sessions p ON p.id = s.parent_id
 		WHERE `+strings.Join(cond, " AND "), args...)
 	if err != nil {
 		return Stats{}, fmt.Errorf("store: stats: %w", err)

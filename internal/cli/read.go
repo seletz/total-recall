@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/seletz/total-recall/internal/account"
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/logfile"
 	"github.com/seletz/total-recall/internal/model"
@@ -394,8 +395,8 @@ Lines about transcripts that did not exist yet never count as errors.`,
 
 // filterFlags are the session filters shared by sessions and search.
 type filterFlags struct {
-	since, until, repo, harness, name, account string
-	limit                                      int
+	since, until, repo, harness, name, account, accountGroup string
+	limit                                                    int
 }
 
 func (f *filterFlags) register(c *cobra.Command, defaultLimit int) {
@@ -405,11 +406,13 @@ func (f *filterFlags) register(c *cobra.Command, defaultLimit int) {
 	fl.StringVar(&f.repo, "repo", "", "repo substring (remote URL, git root or cwd)")
 	fl.StringVar(&f.harness, "harness", "", "harness name, e.g. claude")
 	fl.StringVar(&f.name, "name", "", "session name substring")
-	fl.StringVar(&f.account, "account", "", "account: a name from [accounts], an account ID or a prefix of it")
+	fl.StringVar(&f.account, "account", "", "login: a name from [accounts], [[account]] or the registry, \"account/organization\", an account ID or a prefix of it")
+	fl.StringVar(&f.accountGroup, "account-group", "", "logins of this group ([[account]] group or the registry)")
 	fl.IntVar(&f.limit, "limit", defaultLimit, "maximum number of results (0 = no limit)")
 }
 
-// filter builds the store filter; cfg resolves an account name.
+// filter builds the store filter; applyOwners adds the account filters once
+// the archive is open.
 func (f *filterFlags) filter(cfg *config.Config) (store.SessionFilter, error) {
 	loc := cfg.Location()
 	since, err := parseTimeArg("since", f.since, loc, false)
@@ -421,7 +424,7 @@ func (f *filterFlags) filter(cfg *config.Config) (store.SessionFilter, error) {
 		return store.SessionFilter{}, err
 	}
 	return store.SessionFilter{Since: since, Until: until, Repo: f.repo, Harness: f.harness, Name: f.name,
-		Account: cfg.ResolveAccount(f.account), Limit: f.limit}, nil
+		Limit: f.limit}, nil
 }
 
 // SessionJSON is a session in JSON output. Every key is always present;
@@ -457,16 +460,24 @@ type SessionJSON struct {
 	// target of ContinuedIn may not be archived).
 	ContinuedIn   NullString `json:"continued_in"`
 	ContinuedFrom NullString `json:"continued_from"`
-	// AccountID and OrganizationID are the IDs the harness reported;
-	// Account is the name [accounts] gives the account ID, null without one.
+	// AccountID and OrganizationID are the IDs the harness reported (null
+	// for a subagent session, which has no session-owner record).
+	// Account is the name the config or the registry gives the login of
+	// the session (the pair, else the account, else the organization),
+	// Organization the name of the organization alone and AccountGroup
+	// the group of the login; all three are null without one. A subagent
+	// session takes them from its parent session (since v1.8.0).
 	AccountID      NullString `json:"account_id"`
 	OrganizationID NullString `json:"organization_id"`
 	Account        NullString `json:"account"`
+	Organization   NullString `json:"organization"`
+	AccountGroup   NullString `json:"account_group"`
 }
 
-// sessionJSON converts a session; accountName maps an account ID to its
-// configured name ("" without one).
-func sessionJSON(s store.SessionInfo, accountName func(string) string) SessionJSON {
+// sessionJSON converts a session; accounts names and groups its login.
+func sessionJSON(s store.SessionInfo, accounts *account.Resolver) SessionJSON {
+	own := s.Owner()
+	id := accounts.Resolve(own.Account, own.Organization)
 	return SessionJSON{ID: s.ID, Harness: s.Harness, NativeID: s.NativeID, ParentID: NullString(s.ParentID),
 		DisplayName: NullString(s.DisplayName()), Name: NullString(s.Name), AITitle: NullString(s.AITitle), AgentName: NullString(s.AgentName),
 		Cwd: NullString(s.Cwd), GitRoot: NullString(s.GitRoot), GitRemoteURL: NullString(s.GitRemoteURL), Repo: NullString(s.Repo()),
@@ -475,16 +486,8 @@ func sessionJSON(s store.SessionInfo, accountName func(string) string) SessionJS
 		DurationSeconds: int64(s.EndedAt.Sub(s.StartedAt).Seconds()),
 		HumanEvents:     s.HumanEvents, AgentEvents: s.AgentEvents, Events: s.Events, AttachmentCount: s.Attachments,
 		ContinuedIn: NullString(s.ContinuedIn), ContinuedFrom: NullString(s.ContinuedFrom),
-		AccountID: NullString(s.AccountID), OrganizationID: NullString(s.OrganizationID), Account: NullString(accountName(s.AccountID))}
-}
-
-// accountLabel formats an account or organization ID for text output: the
-// configured name with the ID in parentheses, else the ID.
-func accountLabel(id string, accountName func(string) string) string {
-	if n := accountName(id); n != "" {
-		return n + " (" + id + ")"
-	}
-	return id
+		AccountID: NullString(s.AccountID), OrganizationID: NullString(s.OrganizationID), Account: NullString(id.Name),
+		Organization: NullString(id.OrganizationName), AccountGroup: NullString(id.Group)}
 }
 
 // shortID is a reference accepted by show (unique prefix of the native ID).
@@ -532,11 +535,18 @@ path or remote URL).`,
 		if err := checkAttachmentActor(actor, sf.Attachment != nil); err != nil {
 			return err
 		}
+		accounts, err := e.accountResolver(cfg)
+		if err != nil {
+			return err
+		}
 		st, err := e.openRead(cfg)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = st.Close() }()
+		if err := applyOwners(cmd.Context(), st, accounts, f.account, f.accountGroup, &sf); err != nil {
+			return err
+		}
 		noMatch := false
 		if projectRef != "" {
 			cat, err := loadProjectCatalog(cmd.Context(), st, cfg)
@@ -558,12 +568,21 @@ path or remote URL).`,
 		if o.format.IsJSON() {
 			out := make([]SessionJSON, 0, len(list))
 			for _, s := range list {
-				out = append(out, sessionJSON(s, cfg.AccountName))
+				out = append(out, sessionJSON(s, accounts))
 			}
 			return writeList(o, out)
 		}
 		loc := cfg.Location()
 		head := []string{"START", "DUR", "ID", "NAME", "REPO", "BRANCH", "HUMAN", "AGENT"}
+		// The ACCOUNT column appears when a login of the list has a name.
+		named := false
+		for _, s := range list {
+			own := s.Owner()
+			named = named || accounts.Resolve(own.Account, own.Organization).Name != ""
+		}
+		if named {
+			head = append(head, "ACCOUNT")
+		}
 		if sf.Attachment != nil {
 			head = append(head, "ATTACHMENTS")
 		}
@@ -572,6 +591,10 @@ path or remote URL).`,
 			row := []string{localTime(s.StartedAt, loc), duration(s.EndedAt.Sub(s.StartedAt)),
 				shortID(s.Session), s.DisplayName(), shortRepo(s.Repo()), s.GitBranch,
 				strconv.Itoa(s.HumanEvents), strconv.Itoa(s.AgentEvents)}
+			if named {
+				own := s.Owner()
+				row = append(row, accounts.Resolve(own.Account, own.Organization).Name)
+			}
 			if sf.Attachment != nil {
 				row = append(row, strconv.Itoa(s.Attachments))
 			}
@@ -694,6 +717,10 @@ window.`,
 		if offset < 0 {
 			return usagef("--offset must not be negative")
 		}
+		accounts, err := e.accountResolver(cfg)
+		if err != nil {
+			return err
+		}
 		st, err := e.openRead(cfg)
 		if err != nil {
 			return err
@@ -726,7 +753,7 @@ window.`,
 			}
 		}
 		if o.format.IsJSON() {
-			out := ShowJSON{Session: sessionJSON(s, cfg.AccountName), Events: make([]EventJSON, 0, len(evs))}
+			out := ShowJSON{Session: sessionJSON(s, accounts), Events: make([]EventJSON, 0, len(evs))}
 			for _, ev := range evs {
 				out.Events = append(out.Events, eventJSON(ev, atts[ev.ID]))
 			}
@@ -756,11 +783,20 @@ window.`,
 		if s.ContinuedIn != "" {
 			hdr = append(hdr, []string{"continued in", s.ContinuedIn})
 		}
-		if s.AccountID != "" {
-			hdr = append(hdr, []string{"account", accountLabel(s.AccountID, cfg.AccountName)})
+		own := s.Owner()
+		ident := accounts.Resolve(own.Account, own.Organization)
+		note := ""
+		if own != (store.Owner{}) && s.AccountID == "" && s.OrganizationID == "" {
+			note = " (from the parent session)"
 		}
-		if s.OrganizationID != "" {
-			hdr = append(hdr, []string{"organization", accountLabel(s.OrganizationID, cfg.AccountName)})
+		if own.Account != "" {
+			hdr = append(hdr, []string{"account", ownerLabel(own.Account, ident.Name) + note})
+		}
+		if own.Organization != "" {
+			hdr = append(hdr, []string{"organization", ownerLabel(own.Organization, ident.OrganizationName)})
+		}
+		if ident.Group != "" {
+			hdr = append(hdr, []string{"account group", ident.Group})
 		}
 		if err := table(w, nil, hdr); err != nil {
 			return err
@@ -907,12 +943,19 @@ the text). The kind is given with "=": --has-attachment=image.`,
 			return err
 		}
 		sf.Attachment = attach
+		accounts, err := e.accountResolver(cfg)
+		if err != nil {
+			return err
+		}
 		st, err := e.openRead(cfg)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = st.Close() }()
 		ctx := cmd.Context()
+		if err := applyOwners(ctx, st, accounts, f.account, f.accountGroup, &sf); err != nil {
+			return err
+		}
 		var sessionID string
 		if session != "" {
 			s, err := findSession(ctx, st, session)
@@ -1134,7 +1177,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var top int
 	var of outputFlags
 	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks bool
-	var toolPath, toolPathIn, dayArg string
+	var toolPath, toolPathIn, dayArg, accountGroup string
 	c := &cobra.Command{
 		Use:   "stats",
 		Short: "Activity per day, per repo and per weekday×hour, per period × project/agent/directory, first/last activity per day, or working time per project",
@@ -1143,8 +1186,11 @@ repository and per weekday × hour. Default range: the current month.
 
 With --period or --by the output is a time series instead: one row per
 period (day, week or month, local time) and, with --by, per project, agent
-type (main or subagent), working directory or account (named by [accounts]).
---top N keeps the N largest keys over the whole range and folds the rest
+type (main or subagent), working directory, login or account group. A
+login is an account in one organization, named by [[account]], [accounts] or
+the registry (account_registry); --by account-group sums the logins of a
+group. --account-group GROUP keeps the logins of one group, in every table.
+Subagent sessions count with the login of their parent. --top N keeps the N largest keys over the whole range and folds the rest
 into "other".
 
 With --tokens the day/repo/hour tables are followed by the token counts of
@@ -1219,6 +1265,9 @@ messages: the values are a lower bound.`,
 			return err
 		}
 		loc := cfg.Location()
+		if accountGroup != "" && (tools || workday || worktime || dayArg != "") {
+			return usagef("--account-group cannot be combined with --tools, --workday, --worktime or --day")
+		}
 		series := !tools && (period != "" || by != "" || cmd.Flags().Changed("top"))
 		if tools && (workday || worktime || tokens || period != "") {
 			return usagef("--tools cannot be combined with --workday, --worktime, --tokens or --period")
@@ -1307,6 +1356,18 @@ messages: the values are a lower bound.`,
 			return err
 		}
 		defer func() { _ = st.Close() }()
+		accounts, err := e.accountResolver(cfg)
+		if err != nil {
+			return err
+		}
+		var owners *store.OwnerSet
+		if accountGroup != "" {
+			var sf store.SessionFilter
+			if err := applyOwners(cmd.Context(), st, accounts, "", accountGroup, &sf); err != nil {
+				return err
+			}
+			owners = sf.Owners
+		}
 		if series {
 			var projects project.Resolver
 			if opts.byName != "" && opts.by == store.DimProject {
@@ -1317,20 +1378,21 @@ messages: the values are a lower bound.`,
 			as, err := st.ActivitySeries(cmd.Context(), store.ActivityFilter{
 				Since: since, Until: until, Location: loc,
 				Period: opts.period, Dimension: opts.by, TopN: opts.top, Project: projects.Key,
+				Group: ownerGroupFunc(accounts), Owners: owners,
 			})
 			if err != nil {
 				return err
 			}
 			if o.format.IsJSON() {
-				return o.object(seriesJSON(as, opts, keyNames(as, opts, "", cfg.Accounts, projects), since, until, cfg.Timezone))
+				return o.object(seriesJSON(as, opts, keyNames(as, opts, "", accounts, projects), since, until, cfg.Timezone))
 			}
-			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home, cfg.Accounts, projects), since, until, cfg.Timezone))
+			return writeSeriesTable(o.w, seriesJSON(as, opts, keyNames(as, opts, cfg.Home, accounts, projects), since, until, cfg.Timezone))
 		}
-		s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
+		s, err := st.Stats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc, Owners: owners})
 		if err != nil {
 			return err
 		}
-		tk, err := st.TokenStats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc})
+		tk, err := st.TokenStats(cmd.Context(), store.StatsFilter{Since: since, Until: until, Location: loc, Owners: owners})
 		if err != nil {
 			return err
 		}
@@ -1349,7 +1411,8 @@ messages: the values are a lower bound.`,
 	c.Flags().StringVar(&sinceArg, "since", "", "from this time (instead of --month)")
 	c.Flags().StringVar(&untilArg, "until", "", "until this time; a date includes the whole day")
 	c.Flags().StringVar(&period, "period", "", "time series per day, week or month (instead of the day/repo/hour tables)")
-	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory or account (implies --period day)")
+	c.Flags().StringVar(&by, "by", "", "break the series down by project, agent, directory, account or account-group (implies --period day)")
+	c.Flags().StringVar(&accountGroup, "account-group", "", "only the logins of this group ([[account]] group or the registry); not with --tools, --workday, --worktime or --day")
 	c.Flags().IntVar(&top, "top", 0, "with --by: keep the N largest keys, fold the rest into \"other\"; with --tools and no --by: the N most used tools (0 = all)")
 	c.Flags().BoolVar(&tools, "tools", false, "count tool_use events per tool; --by day, session, repo or project groups them, --path GLOB filters on the arguments")
 	c.Flags().StringVar(&toolPathIn, "path-in", "", "with --path: paths (default: only calls of tools whose argument is a path, a path pattern or a command) or all (every call, also messages, prompts and URLs)")

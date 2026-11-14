@@ -117,8 +117,16 @@ resolve = true
 # color = "blue"                 # optional: blue, orange, green, red, purple, teal oder "#rrggbb"
 # match = ["https://github.com/mara/kompass*", "~/src/kompass-*"]   # Glob oder Liste auf Git-Root (auch mit ~), Remote-URL, abgeleiteten Namen
 
-# [accounts]                     # Namen für Account-IDs (sessions --account, stats --by account, show)
+# account_registry = "~/.logins/registry.json"   # optional: Namen und Gruppen aus einer JSON-Registry der Logins (nur lesen)
+
+# [accounts]                     # Namen für Account- oder Organisations-IDs, oder "<account_id>/<organization_id>" für ein Login
 # "aaaaaaaa-0000-4000-8000-000000000001" = "work"
+
+# [[account]]                    # Name und Gruppe eines Logins (sessions, show, stats --by account/account-group, --account-group)
+# id = "aaaaaaaa-0000-4000-8000-000000000001"             # Account-ID (alle Organisationen), mit organization nur dieses Paar
+# organization = "cccccccc-0000-4000-8000-00000000000c"   # Organisations-ID (alle Accounts), allein oder mit id
+# name = "kompass-team"
+# group = "firma"
 
 [tui]
 view = "search"                  # Ansicht beim Start: search, stats, activity, config
@@ -264,9 +272,49 @@ Namen für die Account- und Organisations-IDs, die Claude Code seit 2.1.317 in j
 [accounts]
 "aaaaaaaa-0000-4000-8000-000000000001" = "work"
 "bbbbbbbb-0000-4000-8000-000000000002" = "privat"
+"aaaaaaaa-0000-4000-8000-000000000001/cccccccc-0000-4000-8000-00000000000c" = "kompass-team"
 ```
 
-Die Namen nutzen [`sessions --account`](10-befehle.md#sessions) und [`search --account`](10-befehle.md#search) als Filter, [`stats --by account`](10-befehle.md#stats-period) als Schlüssel, `show` im Kopf und `sessions --json` im Feld `account`. IDs ohne Eintrag erscheinen unverändert. Der Abschnitt ist optional und wird wie die Kerneinstellungen beim Laden geprüft (nur Strings).
+Ein Account kann zu mehreren Organisationen gehören: Ein Einzel-Abo und ein Team-Abo derselben Person haben **dieselbe Account-ID** und unterscheiden sich nur in der Organisations-ID. Ein **Login** ist deshalb das Paar aus beiden. Ein Schlüssel `"<account_id>/<organization_id>"` benennt genau ein Paar; eine einzelne ID gilt für den Account (alle seine Organisationen) oder, wenn sie eine Organisations-ID ist, für die Organisation (alle ihre Accounts). Mehrere Einträge für dasselbe Login: das Paar gewinnt vor dem Account, der Account vor der Organisation.
+
+Die Namen nutzen [`sessions --account`](10-befehle.md#sessions) und [`search --account`](10-befehle.md#search) als Filter, [`stats --by account`](10-befehle.md#stats-period) als Schlüssel, `show` im Kopf und `sessions --json` im Feld `account` (die Organisation allein im Feld `organization`). IDs ohne Eintrag erscheinen unverändert. Der Abschnitt ist optional und wird wie die Kerneinstellungen beim Laden geprüft (nur Strings).
+
+### `[[account]]` { #account }
+
+Name **und Gruppe** eines Logins; der Weg, wenn Logins zu Gruppen zusammengefasst werden sollen (Firma, Privat). Jede Tabelle wählt mit `id` (Account-ID) und/oder `organization` (Organisations-ID) die Logins aus, die sie meint, und gibt ihnen `name` und/oder `group`.
+
+```toml
+[[account]]
+id = "aaaaaaaa-0000-4000-8000-000000000001"
+organization = "cccccccc-0000-4000-8000-00000000000c"
+name = "kompass-team"
+group = "firma"
+
+[[account]]
+id = "aaaaaaaa-0000-4000-8000-000000000001"
+organization = "eeeeeeee-0000-4000-8000-00000000000e"
+name = "kompass-solo"
+group = "firma"
+
+[[account]]
+id = "bbbbbbbb-0000-4000-8000-000000000002"
+name = "privat"
+group = "privat"
+```
+
+Ein Eintrag braucht `id` oder `organization` und `name` oder `group`, sonst bricht das Laden ab. Zwei Sessions mit derselben Account-ID und verschiedenen Organisationen erscheinen mit den Namen `kompass-team` und `kompass-solo`; `--account-group firma` ([`sessions`](10-befehle.md#sessions), [`search`](10-befehle.md#search), [`stats`](10-befehle.md#stats-period)) findet beide, `stats --by account-group` fasst sie zusammen. Name und Gruppe werden unabhängig aufgelöst: Das genauere Paar gewinnt vor dem Account vor der Organisation, `[[account]]` vor `[accounts]` vor der Registry; ein Eintrag mit nur `group` ergänzt den Namen aus einem anderen.
+
+**Entscheidung: Subagent-Sessions** haben kein `session-owner`-Record. Sie übernehmen für Anzeige (`account`, `organization`, `account_group`), Filter (`--account`, `--account-group`) und Statistik das Login ihrer Eltern-Session, damit die Summen stimmen und eine Gruppe die Subagenten ihrer Sessions nicht verliert. Die Spalten `account_id` und `organization_id` bleiben unverändert (bei Subagenten leer).
+
+### `account_registry` { #account-registry }
+
+Statt Namen und Gruppen doppelt zu pflegen, kann `account_registry` den Pfad einer JSON-Registry der Logins nennen (leer: keine, `~` und Umgebungsvariablen werden aufgelöst). Das Format:
+
+```json
+{"accounts": {"kompass-team": {"group": "firma", "label": "Kompass Team", "short": "kt", "dir": "~/.logins/kompass-team"}}}
+```
+
+Der Schlüssel ist der Name des Logins, `group` seine Gruppe. Die IDs stehen in der Registry nicht; total-recall liest sie aus `<dir>/.claude.json` unter `oauthAccount.accountUuid` und `oauthAccount.organizationUuid`. `label` und `short` sind für total-recall ohne Bedeutung. Die Registry und diese Dateien werden **nur gelesen**, nie geschrieben. Einträge aus `config.toml` (`[[account]]`, `[accounts]`) gehen vor; die Registry ergänzt, was dort fehlt. Ein Eintrag ohne lesbares `dir` oder ohne IDs wird mit einer Warnung auf stderr übersprungen (sie nennt den Eintrag, nicht den Pfad); eine fehlende oder ungültige Registry ist ein Konfigurationsfehler.
 
 ### `[work]` { #work }
 

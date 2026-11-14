@@ -134,11 +134,6 @@ peer_paste_headers = ["# Task:", "Auftrag:"]
 	if c.PathOrigin != OriginFlag {
 		t.Errorf("PathOrigin = %v", c.PathOrigin)
 	}
-	for ref, want := range map[string]string{"work": "acc-1", "private": "acc-2", "acc-1": "acc-1", "acc": "acc", "nope": "nope"} {
-		if got := c.ResolveAccount(ref); got != want {
-			t.Errorf("ResolveAccount(%q) = %q, want %q", ref, got, want)
-		}
-	}
 	if got := c.AccountName("acc-2"); got != "private" {
 		t.Errorf("AccountName(acc-2) = %q", got)
 	}
@@ -1057,5 +1052,75 @@ func TestWorkBlockGap(t *testing.T) {
 				t.Errorf("block_gap = %s, want %s", c.Work.BlockGap, tt.want)
 			}
 		})
+	}
+}
+
+func TestAccountEntriesAndRegistry(t *testing.T) {
+	dir := t.TempDir()
+	login := filepath.Join(dir, "logins", "kompass-team")
+	if err := os.MkdirAll(login, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, login, ".claude.json", `{"oauthAccount":{"accountUuid":"acc-1","organizationUuid":"org-2"}}`)
+	reg := writeFile(t, dir, "registry.json", `{"accounts":{"kompass-team":{"group":"firma","dir":"~/logins/kompass-team"}}}`)
+	// the registry dir is below the home directory
+	p := writeFile(t, dir, "c.toml", `
+account_registry = "`+reg+`"
+[accounts]
+"acc-1" = "kompass-solo"
+[[account]]
+id = "acc-1"
+organization = "org-1"
+name = "kompass-alt"
+group = "firma"
+[[account]]
+id = "acc-9"
+group = "privat"
+`)
+	c, err := Load(Options{GOOS: "linux", Home: dir, Getenv: env(nil), ConfigFile: p})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	r, warns, err := c.AccountResolver()
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("AccountResolver: %v %v", err, warns)
+	}
+	tests := []struct {
+		acc, org, name, group string
+	}{
+		{"acc-1", "org-1", "kompass-alt", "firma"},
+		{"acc-1", "org-7", "kompass-solo", ""},
+		{"acc-1", "org-2", "kompass-solo", "firma"}, // the config name wins, the group comes from the registry
+		{"acc-9", "", "", "privat"},
+	}
+	for _, tt := range tests {
+		if id := r.Resolve(tt.acc, tt.org); id.Name != tt.name || id.Group != tt.group {
+			t.Errorf("Resolve(%s, %s) = %+v, want %s/%s", tt.acc, tt.org, id, tt.name, tt.group)
+		}
+	}
+	if got := c.Origin("account_registry"); got != OriginFile {
+		t.Errorf("origin account_registry = %v", got)
+	}
+}
+
+func TestAccountEntryValidation(t *testing.T) {
+	for name, body := range map[string]string{
+		"no selector": "[[account]]\nname = \"x\"\n",
+		"no name":     "[[account]]\nid = \"a\"\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := writeFile(t, t.TempDir(), "c.toml", body)
+			if _, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p}); err == nil {
+				t.Error("no error")
+			}
+		})
+	}
+	p := writeFile(t, t.TempDir(), "c.toml", "account_registry = \"/nonexistent/registry.json\"\n")
+	c, err := Load(Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), ConfigFile: p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := c.AccountResolver(); err == nil {
+		t.Error("a missing registry is no error")
 	}
 }

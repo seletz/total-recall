@@ -23,9 +23,10 @@ const mcpInstructions = `Read-only access to the local archive of past coding-ag
 	`all pages together are the full result. Nothing is cut silently.`
 
 var (
-	pSince = mcp.Param{Name: "since", Type: "string", Description: "from this time, local: YYYY-MM-DD, YYYY-MM-DDTHH:MM or RFC 3339"}
-	pUntil = mcp.Param{Name: "until", Type: "string", Description: "until this time; a date alone includes the whole day"}
-	pRepo  = mcp.Param{Name: "repo", Type: "string", Description: "repo substring (remote URL, git root or cwd)"}
+	pSince        = mcp.Param{Name: "since", Type: "string", Description: "from this time, local: YYYY-MM-DD, YYYY-MM-DDTHH:MM or RFC 3339"}
+	pUntil        = mcp.Param{Name: "until", Type: "string", Description: "until this time; a date alone includes the whole day"}
+	pRepo         = mcp.Param{Name: "repo", Type: "string", Description: "repo substring (remote URL, git root or cwd)"}
+	pAccountGroup = mcp.Param{Name: "account_group", Type: "string", Description: "only the logins (account + organization) of this group, as configured in [[account]] or the login registry"}
 )
 
 // pagingNote ends the description of every tool with pages: where the
@@ -60,6 +61,8 @@ func mcpTools() []mcp.Tool {
 				mcp.Param{Name: "session", Type: "string", Description: "only this session (full id, native id or unique prefix)"},
 				pSince, pUntil, pRepo,
 				mcp.Param{Name: "harness", Type: "string", Description: "harness name, e.g. claude"},
+				mcp.Param{Name: "account", Type: "string", Description: "only this login (events and sessions): a configured name, account/organization, an account id or a prefix of it"},
+				pAccountGroup,
 				mcp.Param{Name: "by_session", Type: "boolean", Description: "one row per session instead of one row per hit"},
 				mcp.Param{Name: "order", Type: "string", Enum: []string{"first_hit", "hits"}, Description: "with by_session: first_hit (oldest first, default) or hits (most hits first)"},
 				mcp.Param{Name: "raw", Type: "boolean", Description: "pass query to FTS5 unchanged"},
@@ -73,7 +76,8 @@ func mcpTools() []mcp.Tool {
 			Params: withLimit(50, 500, pCursor, pSince, pUntil, pRepo,
 				mcp.Param{Name: "harness", Type: "string", Description: "harness name, e.g. claude"},
 				mcp.Param{Name: "name", Type: "string", Description: "session name substring"},
-				mcp.Param{Name: "account", Type: "string", Description: "account name, id or prefix"},
+				mcp.Param{Name: "account", Type: "string", Description: "login: a configured name (of an account, an organization or both), account/organization, an account id or a prefix of it"},
+				pAccountGroup,
 				mcp.Param{Name: "subagents", Type: "boolean", Description: "include subagent sessions"},
 				mcp.Param{Name: "project", Type: "string", Description: "only this project: name as in stats --by project, else a part of name, path or remote URL"},
 				pHasAttachment("sessions", "attachment_count then counts those attachments over the whole session, not only the since/until window"),
@@ -103,7 +107,8 @@ func mcpTools() []mcp.Tool {
 				{Name: "month", Type: "string", Description: "month YYYY-MM (default: current month)"},
 				pSince, pUntil,
 				{Name: "period", Type: "string", Enum: []string{"day", "week", "month"}, Description: "time series per day, week or month"},
-				{Name: "by", Type: "string", Enum: []string{"project", "agent", "directory", "account", "day", "session", "repo"}, Description: "break the series down by this key; with tools: day, session, repo or project"},
+				{Name: "by", Type: "string", Enum: []string{"project", "agent", "directory", "account", "account-group", "day", "session", "repo"}, Description: "break the series down by this key; with tools: day, session, repo or project"},
+				pAccountGroup,
 				{Name: "top", Type: "integer", Description: "with by: keep the N largest keys, fold the rest into other; with tools and without by: keep the N most used tools in by_tool, the rest is one entry other"},
 				{Name: "tools", Type: "boolean", Description: "count tool calls (tool_use events) per tool instead of activity; by groups them, groups always sum to total"},
 				{Name: "path", Type: "string", Description: "with tools: only calls whose arguments match this glob (file tools: the whole path, e.g. */src/*; Bash: anywhere in the command; arguments are cut at 1 KiB); by default only calls of tools whose argument is a path or a command are checked, see path_in"},
