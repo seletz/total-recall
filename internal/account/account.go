@@ -170,8 +170,10 @@ func FromNames(names map[string]string) []Entry {
 // <dir>/.claude.json (oauthAccount.accountUuid and organizationUuid). The
 // key of the registry is the name, sorted. Logins without a readable
 // directory or IDs are skipped with a warning (which names the entry, not
-// the path). Two entries with the same login (account and organization)
-// are reported and the first by name wins; the same account in different
+// the path). Two entries with the same login (account and organization): an
+// entry with "pick": false is an alias (not selectable in the login picker)
+// and loses against one without it, silently; among equals the first by
+// name wins and a warning says so. The same account in different
 // organizations is the normal case and no collision. The organization name
 // of the .claude.json (oauthAccount.organizationName) names the
 // organization (an entry of its own, so every name of a config goes first).
@@ -190,6 +192,7 @@ func LoadRegistry(path, home string, expand func(string) string) (entries []Entr
 		Accounts map[string]struct {
 			Group string `json:"group"`
 			Dir   string `json:"dir"`
+			Pick  *bool  `json:"pick"`
 		} `json:"accounts"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
@@ -200,9 +203,13 @@ func LoadRegistry(path, home string, expand func(string) string) (entries []Entr
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	seen := map[string]string{} // account/organization -> entry name
-	orgNamed := map[string]bool{}
-	var orgEntries []Entry
+	type cand struct {
+		name, group, orgName string
+		acc, org             string
+		alias                bool
+	}
+	byLogin := map[string][]cand{} // account/organization -> entries, by name
+	var order []string             // logins in the order of their first entry
 	for _, name := range names {
 		a := doc.Accounts[name]
 		if a.Dir == "" {
@@ -222,15 +229,49 @@ func LoadRegistry(path, home string, expand func(string) string) (entries []Entr
 			warnings = append(warnings, fmt.Sprintf("account registry: no login IDs for %s, skipped", name))
 			continue
 		}
-		if first, dup := seen[Key(acc, org)]; dup {
-			warnings = append(warnings, fmt.Sprintf("account registry: %s has the same login as %s, skipped (the first by name wins)", name, first))
-			continue
+		k := Key(acc, org)
+		if _, ok := byLogin[k]; !ok {
+			order = append(order, k)
 		}
-		seen[Key(acc, org)] = name
-		entries = append(entries, Entry{ID: acc, Organization: org, Name: name, Group: a.Group})
-		if orgName != "" && org != "" && !orgNamed[org] {
-			orgNamed[org] = true
-			orgEntries = append(orgEntries, Entry{Organization: org, Name: orgName})
+		byLogin[k] = append(byLogin[k], cand{name, a.Group, orgName, acc, org, a.Pick != nil && !*a.Pick})
+	}
+	// One entry per login: an alias ("pick": false) loses against an entry
+	// without it; among equals the first by name wins, with a warning.
+	orgNamed := map[string]bool{}
+	var orgEntries []Entry
+	won := map[string]cand{}
+	for _, k := range order {
+		cs := byLogin[k]
+		var pickable []cand
+		for _, c := range cs {
+			if !c.alias {
+				pickable = append(pickable, c)
+			}
+		}
+		pool := pickable
+		if len(pool) == 0 {
+			pool = cs
+		}
+		w := pool[0]
+		if len(pool) > 1 {
+			names := make([]string, len(pool)-1)
+			for i, c := range pool[1:] {
+				names[i] = c.name
+			}
+			warnings = append(warnings, fmt.Sprintf("account registry: %s and %s have the same login; %s wins (the first by name)", w.name, strings.Join(names, ", "), w.name))
+		}
+		won[k] = w
+	}
+	// the entries in the order of the names
+	sort.Slice(order, func(i, j int) bool { return won[order[i]].name < won[order[j]].name })
+	for _, k := range order {
+		w := won[k]
+		entries = append(entries, Entry{ID: w.acc, Organization: w.org, Name: w.name, Group: w.group})
+		for _, c := range byLogin[k] {
+			if c.orgName != "" && c.org != "" && !orgNamed[c.org] {
+				orgNamed[c.org] = true
+				orgEntries = append(orgEntries, Entry{Organization: c.org, Name: c.orgName})
+			}
 		}
 	}
 	return append(entries, orgEntries...), warnings, nil

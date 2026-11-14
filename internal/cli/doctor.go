@@ -97,6 +97,18 @@ Hints are no findings and never change the exit code.`,
 				writeSetupHints(w, hints, days)
 			}
 		}
+		accountHints := cfg.AccountWarnings()
+		if len(accountHints) > 0 {
+			w := o.w
+			if o.format.IsJSON() {
+				w = o.errw
+			}
+			_, _ = fmt.Fprintln(w, "account registry (hint, no finding):")
+			for _, h := range accountHints {
+				_, _ = fmt.Fprintf(w, "  %s\n", strings.TrimPrefix(h, "account registry: "))
+			}
+			_, _ = fmt.Fprintln(w)
+		}
 		syncHint := backupSyncHint(cfg.Backup.Dir, e.app.FileProvider)
 		if syncHint != nil {
 			w := o.w
@@ -124,7 +136,7 @@ Hints are no findings and never change the exit code.`,
 		if o.format.IsJSON() {
 			out := make([]DoctorReportJSON, len(reports))
 			for i, r := range reports {
-				out[i] = DoctorReportJSON{FormatReport: r, Hints: doctorHintsJSON(hints), BackupHint: syncHint}
+				out[i] = DoctorReportJSON{FormatReport: r, Hints: doctorHintsJSON(hints), BackupHint: syncHint, AccountHints: nonNil(accountHints)}
 			}
 			if err := writeList(o, out); err != nil {
 				return err
@@ -185,6 +197,17 @@ type DoctorReportJSON struct {
 	// BackupHint is set when the backup directory lies in an iCloud / file
 	// provider domain, null otherwise. Like Hints it is no finding.
 	BackupHint *DoctorBackupHintJSON `json:"backup_hint"`
+	// AccountHints are the entries of the login registry that were skipped
+	// or collide without the pick rule deciding (see account_registry); []
+	// without any. No finding either.
+	AccountHints []string `json:"account_hints"`
+}
+
+func nonNil(l []string) []string {
+	if l == nil {
+		return []string{}
+	}
+	return l
 }
 
 // DoctorHintJSON is a project with recent own messages that the config does

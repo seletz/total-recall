@@ -356,8 +356,17 @@ func TestAccountRegistry(t *testing.T) {
 		}
 	}
 	r := e.run(t, "", append([]string{"--db", db, "stats", "--json", "--by", "account"}, accRange...)...)
-	if r.code != 0 || !strings.Contains(r.stderr, "gone") || strings.Contains(r.stderr, dir) {
-		t.Errorf("stats: exit %d, stderr should warn about the entry gone without the path: %q", r.code, r.stderr)
+	if r.code != 0 || r.stderr != "" {
+		t.Errorf("stats: exit %d, stderr %q: registry warnings belong to doctor, not to every command", r.code, r.stderr)
+	}
+	if d := e.run(t, "", "--db", db, "doctor", "--days", "0"); !strings.Contains(d.stdout, "no login IDs for gone") || strings.Contains(d.stdout+d.stderr, dir) {
+		t.Errorf("doctor: exit %d, want a hint about the entry gone without the path:\n%s%s", d.code, d.stdout, d.stderr)
+	}
+	rep := decode[[]struct {
+		AccountHints []string `json:"account_hints"`
+	}](t, e.run(t, "", "--db", db, "doctor", "--days", "0", "--json").stdout)
+	if len(rep) == 0 || len(rep[0].AccountHints) != 1 {
+		t.Errorf("doctor --json account_hints = %+v", rep)
 	}
 	for _, want := range []string{"kompass-team", "kompass-solo", "privat"} {
 		if !strings.Contains(r.stdout, `"`+want+`"`) {
@@ -441,8 +450,11 @@ func TestAccountRegistryDefaultDir(t *testing.T) {
 	if !contains(s.Keys, "default") || contains(s.Keys, demo.AccountTeam+"/"+demo.OrganizationSolo) {
 		t.Errorf("keys = %v, want the solo login named default", s.Keys)
 	}
-	if contains(s.Keys, "zweit") || !strings.Contains(r.stderr, "zweit") || !strings.Contains(r.stderr, "default") {
+	if contains(s.Keys, "zweit") || r.stderr != "" {
 		t.Errorf("collision: keys %v, stderr %q", s.Keys, r.stderr)
+	}
+	if d := e.run(t, "", "--db", db, "doctor", "--days", "0"); !strings.Contains(d.stdout, "default") || !strings.Contains(d.stdout, "zweit") {
+		t.Errorf("doctor does not report the collision:\n%s", d.stdout)
 	}
 	list := decode[[]accSession](t, e.mustRun(t, "--db", db, "sessions", "--json", "--limit", "0", "--account", "default"))
 	if len(list) == 0 {
@@ -462,5 +474,41 @@ func TestAccountRegistryDefaultDir(t *testing.T) {
 	plain := decode[[]accSession](t, e2.mustRun(t, "--db", db2, "sessions", "--json", "--limit", "1", "--account", demo.AccountPersonal[:8]))
 	if out := e2.mustRun(t, "--db", db2, "show", plain[0].ID, "--limit", "1"); !regexp.MustCompile(`organization\s+` + demo.OrganizationPersonal).MatchString(out) {
 		t.Errorf("organization line without a name:\n%.500s", out)
+	}
+}
+
+// TestAccountRegistryPick: an alias ("pick": false) on the same login as a
+// pickable entry loses, and nothing is reported.
+func TestAccountRegistryPick(t *testing.T) {
+	t.Parallel()
+	_, db := fixturedb.Demo(t)
+	e := newTestEnv(t)
+	e.now = demo.Now
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "l"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	login := `{"oauthAccount":{"accountUuid":"` + demo.AccountPersonal + `","organizationUuid":"` + demo.OrganizationPersonal + `"}}`
+	if err := os.WriteFile(filepath.Join(dir, "l", ".claude.json"), []byte(login), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg := filepath.Join(dir, "registry.json")
+	body := `{"accounts":{"default":{"group":"alias","dir":"` + filepath.Join(dir, "l") + `","pick":false},"teams":{"group":"privat","dir":"` + filepath.Join(dir, "l") + `"}}}`
+	if err := os.WriteFile(reg, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := os.ReadFile(e.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(e.configPath, append([]byte("account_registry = "+quote(reg)+"\n"), cfg...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := decode[accSeries](t, e.mustRun(t, append([]string{"--db", db, "stats", "--json", "--by", "account"}, accRange...)...))
+	if !contains(s.Keys, "teams") || contains(s.Keys, "default") {
+		t.Errorf("keys = %v, want the login named teams", s.Keys)
+	}
+	if d := e.run(t, "", "--db", db, "doctor", "--days", "0"); strings.Contains(d.stdout+d.stderr, "account registry") {
+		t.Errorf("doctor reports a resolved case:\n%s%s", d.stdout, d.stderr)
 	}
 }
