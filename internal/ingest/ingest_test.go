@@ -1172,3 +1172,34 @@ func TestSummaryMatchesTables(t *testing.T) {
 		})
 	}
 }
+
+// TestSessionOwnerLastWins: a transcript can hold several session-owner
+// records (Claude Code writes one per start or resume of the session under
+// a login). The login of the session is that of the last record in file
+// order, also when the later records arrive in a later ingest; the first
+// login is not kept anywhere.
+func TestSessionOwnerLastWins(t *testing.T) {
+	e := newEnv(t)
+	s := "55555555-5555-4555-8555-555555555555"
+	p := tf.WriteFile(t, e.projects, "-w-eps/"+s+".jsonl", tf.Join(
+		tf.SessionOwnerOf(s, "acc-a", "org-a"),
+		tf.User(s, "e1", "2026-10-08T10:00:00.000Z", "/w/eps", "hello"),
+		tf.SessionOwnerOf(s, "acc-b", "org-b"),
+		tf.Assistant(s, "e2", "2026-10-08T10:00:05.000Z", "/w/eps", "hi"),
+	))
+	run(t, e, p)
+	q := func(acc, org string) int {
+		return e.count(t, `SELECT count(*) FROM sessions WHERE id = 'claude:`+s+`' AND account_id = '`+acc+`' AND organization_id = '`+org+`'`)
+	}
+	if q("acc-b", "org-b") != 1 {
+		t.Errorf("after one ingest: want the last login (b)")
+	}
+	tf.AppendFile(t, p, tf.Join(
+		tf.SessionOwnerOf(s, "acc-a", "org-a"),
+		tf.User(s, "e3", "2026-10-08T11:00:00.000Z", "/w/eps", "again"),
+	))
+	run(t, e, p)
+	if q("acc-a", "org-a") != 1 {
+		t.Errorf("after the append: want the last login (a)")
+	}
+}

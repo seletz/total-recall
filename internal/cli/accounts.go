@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/seletz/total-recall/internal/account"
@@ -11,15 +10,13 @@ import (
 )
 
 // accountResolver builds the resolver of login names and groups (config
-// tables and the registry); registry entries that had to be skipped are
-// reported on stderr. A broken registry is a config error.
+// tables and the registry). A broken registry is a config error; single
+// entries that had to be skipped are only reported by doctor
+// (Config.AccountWarnings), not by every command.
 func (e *env) accountResolver(cfg *config.Config) (*account.Resolver, error) {
-	r, warns, err := cfg.AccountResolver()
+	r, _, err := cfg.AccountResolver()
 	if err != nil {
 		return nil, errKind(ErrKindConfig, err)
-	}
-	for _, w := range warns {
-		_, _ = fmt.Fprintln(e.app.Stderr, "warning:", w)
 	}
 	return r, nil
 }

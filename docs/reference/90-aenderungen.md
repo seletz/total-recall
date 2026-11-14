@@ -27,6 +27,13 @@ Ein Account kann zu mehreren Organisationen gehören: Ein Einzel- und ein Team-A
 - **Registry: Organisationsname.** `oauthAccount.organizationName` der `.claude.json` benennt die Organisation, wenn die Konfiguration keinen Namen vergibt. Die Organisations-ID erscheint im Kopf von `show` wie bisher, wenn es keinen Namen gibt; das JSON-Feld `organization` bleibt `null` (es nennt nur Namen, die ID steht in `organization_id`).
 - **Vererbung an Subagenten abgesichert.** Ein Test hält fest: Subagenten übernehmen das Login der Eltern-Session eine Ebene hoch; ist es dort leer (Sessions vor Claude Code 2.1.317), bleibt der Subagent `unknown`, und die Summen über alle Logins ergeben alle Sessions.
 
+### Registry und Herkunft der Logins ([#295](https://github.com/seletz/total-recall/issues/295))
+
+- **`"pick": false` in der Registry:** Ein Eintrag mit `pick: false` ist ein Alias (im Auswahlwerkzeug nicht wählbar). Zeigen zwei Einträge auf dasselbe Login, gewinnt der ohne `pick: false`, ohne Warnung (`default` mit `pick: false` und `teams` ergibt `teams`); erst bei Gleichstand entscheidet der Name alphabetisch, mit Warnung.
+- **Warnungen nur in `doctor`:** Übersprungene und kollidierende Registry-Einträge meldet nur noch `doctor` (Text und JSON-Feld `account_hints`), nicht mehr jeder Befehl auf stderr. Eine fehlende oder ungültige Registry ist ein Konfigurationsproblem (`doctor`, `config show`, TUI).
+- **Welches Login zählt:** Enthält ein Transkript mehrere `session-owner`-Records, gewinnt der zuletzt gelesene; das ist jetzt in [Schema](40-schema.md) dokumentiert und durch einen Test festgehalten. Das Login der ersten Records geht verloren.
+- **`unknown`:** Die Prüfung am Live-Archiv ergab keine Subagenten von Subagenten (Vererbung bleibt eine Ebene); alle `unknown`-Sessions sind Sessions ohne `session-owner`-Record (Claude Code 2.1.316) und deren Subagenten.
+
 ### Geändert
 
 - **Der Schlüssel von `stats --by account` ist das Login**, nicht mehr die Account-ID allein: `<account_id>/<organization_id>` (ohne Organisation die Account-ID), sofern kein Name konfiguriert ist. Wer die Account-ID schon in `[accounts]` benannt hat, sieht denselben Namen, jetzt je Organisation getrennt, wenn ein `[[account]]` oder ein Paar-Schlüssel sie unterscheidet; ohne Namen erscheinen die Schlüssel mit angehängter Organisation. Das ist ein Minor, weil Skripte, die rohe Account-IDs als Schlüssel lesen, das anpassen müssen.

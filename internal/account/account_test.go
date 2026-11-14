@@ -223,3 +223,44 @@ func TestLoadRegistryOrganizationName(t *testing.T) {
 		t.Errorf("configured: %+v", id)
 	}
 }
+
+// TestLoadRegistryPick: an entry with "pick": false is an alias (not
+// selectable in the login picker); on the same login the entry without it
+// wins whatever the names are, and that is no warning. Only a tie warns and
+// is decided alphabetically.
+func TestLoadRegistryPick(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		accounts string // registry entries by name: dir letter and pick
+		want     string
+		warns    int
+	}{
+		{"alias loses without warning", `"default":{"dir":"@a","pick":false},"teams":{"dir":"@b"}`, "teams", 0},
+		{"order of names does not matter", `"aaa":{"dir":"@a","pick":false},"zzz":{"dir":"@b"}`, "zzz", 0},
+		{"explicit pick true is a normal entry", `"aaa":{"dir":"@a","pick":true},"zzz":{"dir":"@b"}`, "aaa", 1},
+		{"tie of pickable entries warns", `"b":{"dir":"@a"},"a":{"dir":"@b"}`, "a", 1},
+		{"tie of aliases warns", `"b":{"dir":"@a","pick":false},"a":{"dir":"@b","pick":false}`, "a", 1},
+		{"one alone, alias or not", `"only":{"dir":"@a","pick":false}`, "only", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, d := range []string{"a", "b"} {
+				writeJSON(t, filepath.Join(dir, d, ".claude.json"), `{"oauthAccount":{"accountUuid":"acc","organizationUuid":"org"}}`)
+			}
+			reg := filepath.Join(dir, "r.json")
+			writeJSON(t, reg, `{"accounts":{`+strings.ReplaceAll(tt.accounts, "@", dir+"/")+`}}`)
+			got, warns, err := LoadRegistry(reg, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || got[0].Name != tt.want {
+				t.Errorf("entries = %+v, want %s", got, tt.want)
+			}
+			if len(warns) != tt.warns {
+				t.Errorf("warnings = %v, want %d", warns, tt.warns)
+			}
+		})
+	}
+}

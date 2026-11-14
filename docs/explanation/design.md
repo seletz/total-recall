@@ -233,7 +233,7 @@ Ist eine Datei kleiner als `offset` (ersetzt/gekürzt), wird ab 0 neu gelesen; E
 | `started_at` | TEXT | min(ts) |
 | `ended_at` | TEXT | max(ts) |
 | `continued_in` | TEXT NULL | Session, in der diese fortgesetzt wurde (Claude: `continued-in`), volle ID mit Präfix; Index, kein Fremdschlüssel, weil die Zielsession später oder nie eingelesen wird (Migration 4) |
-| `account_id` | TEXT NULL | Account, auf dem die Session lief (Claude: `session-owner.accountUuid`); Index (Migration 4) |
+| `account_id` | TEXT NULL | Account, auf dem die Session lief (Claude: `session-owner.accountUuid`); Index (Migration 4). Mehrere `session-owner`-Records je Transkript: der zuletzt gelesene gewinnt (Reihenfolge der Datei, auch über Ingest-Läufe) |
 | `organization_id` | TEXT NULL | Organisation dieses Accounts (Claude: `session-owner.organizationUuid`) (Migration 4) |
 
 Upsert-Regel: `started_at` = Minimum, `ended_at` = Maximum, leere Werte überschreiben nie gesetzte, „zuletzt gesehen“-Felder nehmen den Wert des jüngsten Events; `continued_in`, `account_id`, `organization_id`: der letzte nicht-leere Wert gewinnt. Die Gegenrichtung der Fortsetzung (`continued_from`) ist keine Spalte, sondern eine Abfrage über `continued_in` (`store.SessionInfo.ContinuedFrom`, `sessions --json`); bei mehreren Kandidaten die zuletzt gestartete Session. Beide Records erzeugen kein Event, deshalb lassen sich die Felder nicht aus `events.raw` nachfüllen: ein Archiv aus der Zeit vor Migration 4 bekommt sie durch `ingest --all --reread`, das jede Quelle ab Offset 0 liest (Events idempotent, Sessions gemerged).

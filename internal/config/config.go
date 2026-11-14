@@ -724,6 +724,18 @@ func defaults(goos, home string, getenv func(string) string) *Config {
 // ID, or "" if none is configured.
 func (c *Config) AccountName(id string) string { return c.Accounts[id] }
 
+// AccountWarnings returns what is wrong with single entries of the login
+// registry (an entry skipped for lack of a directory or IDs, two entries
+// for one login that the pick rule does not decide). Commands do not print
+// them; doctor does. An unreadable registry is a Problem, not a warning.
+func (c *Config) AccountWarnings() []string {
+	if c.AccountRegistry == "" {
+		return nil
+	}
+	_, warns, _ := c.AccountResolver()
+	return warns
+}
+
 // AccountResolver builds the resolver of account names and groups from
 // [[account]], [accounts] and the registry named by account_registry (read
 // now, read only). The warnings name registry entries that were skipped;
@@ -1173,6 +1185,11 @@ func (c *Config) Problems() []error {
 	}
 	if _, err := c.ProjectResolver(); err != nil {
 		out = append(out, err)
+	}
+	if c.AccountRegistry != "" {
+		if _, _, err := c.AccountResolver(); err != nil {
+			out = append(out, err)
+		}
 	}
 	return out
 }

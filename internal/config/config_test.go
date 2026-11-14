@@ -1123,4 +1123,7 @@ func TestAccountEntryValidation(t *testing.T) {
 	if _, _, err := c.AccountResolver(); err == nil {
 		t.Error("a missing registry is no error")
 	}
+	if p := c.Problems(); len(p) != 1 || !strings.Contains(p[0].Error(), "account_registry") {
+		t.Errorf("Problems = %v, want the registry", p)
+	}
 }
