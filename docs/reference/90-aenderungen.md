@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.8.0 (unveröffentlicht)
+## v1.8.0
 
 ### Accounts nach Organisation unterscheiden und gruppieren ([#295](https://github.com/seletz/total-recall/issues/295))
 
@@ -23,7 +23,7 @@ Ein Account kann zu mehreren Organisationen gehören: Ein Einzel- und ein Team-A
 ### Behoben
 
 - **Registry: der Standardordner liest `~/.claude.json`** ([#295](https://github.com/seletz/total-recall/issues/295)). Für einen Eintrag mit `dir = "~/.claude"` (ohne `CLAUDE_CONFIG_DIR`) las total-recall `~/.claude/.claude.json`, Claude Code hält die Login-Daten dort aber in `~/.claude.json`; eine veraltete Datei im Ordner benannte ein fremdes Paar. Jetzt gilt dieselbe Regel wie bei Claude Code.
-- **Registry: Kollisionen werden gemeldet.** Zeigen zwei Einträge auf dasselbe Paar aus Account und Organisation, warnt total-recall auf stderr; der erste nach Name gewinnt.
+- **Registry: Kollisionen werden gemeldet.** Zeigen zwei Einträge auf dasselbe Paar aus Account und Organisation, meldet total-recall das (nur in `doctor`, siehe unten).
 - **Registry: Organisationsname.** `oauthAccount.organizationName` der `.claude.json` benennt die Organisation, wenn die Konfiguration keinen Namen vergibt. Die Organisations-ID erscheint im Kopf von `show` wie bisher, wenn es keinen Namen gibt; das JSON-Feld `organization` bleibt `null` (es nennt nur Namen, die ID steht in `organization_id`).
 - **Vererbung an Subagenten abgesichert.** Ein Test hält fest: Subagenten übernehmen das Login der Eltern-Session eine Ebene hoch; ist es dort leer (Sessions vor Claude Code 2.1.317), bleibt der Subagent `unknown`, und die Summen über alle Logins ergeben alle Sessions.
 
