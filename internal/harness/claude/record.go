@@ -58,6 +58,7 @@ var (
 		"artifact-autoreact-ledger", // per artifact: baseline flags, high-water stamp, turn timestamps and comment threads; the threads are not safely in the events
 		"fork-context-ref",          // first line of a forked subagent transcript (2.1.322+): parent session, its last message and the context length; no timestamp, no text
 		"frame-link",                // artifact frame of the session (URL, title, artifact count); the URL and title are not repeated elsewhere
+		"isolation-latch",           // side (connectors or web) and session of an isolation latch (2.1.325+); no timestamp, no text
 	}
 	// skippedTypes carry nothing the archive needs: the API request cache
 	// (hashes of prompt blocks and the message content behind them, which
