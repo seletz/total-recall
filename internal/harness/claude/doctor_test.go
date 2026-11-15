@@ -355,3 +355,31 @@ func TestCheckFormatForkContextRef(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckFormatIsolationLatch: Claude Code 2.1.325 writes isolation-latch
+// records with no timestamp and no text (#301). They are known to doctor and
+// kept as meta records, for both observed sides. The fixtures are synthetic.
+func TestCheckFormatIsolationLatch(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+	}{
+		{"connectors", `{"type":"isolation-latch","side":"connectors","sessionId":"00000000-0000-4000-8000-000000000001"}`},
+		{"web", `{"type":"isolation-latch","side":"web","sessionId":"00000000-0000-4000-8000-000000000001"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !slices.Contains(MetaRecordTypes(), "isolation-latch") {
+				t.Error("isolation-latch is not in metaTypes")
+			}
+			dir := writeTree(t, map[string]string{"-w/s/abc.jsonl": tt.line + "\n"})
+			r, err := New(dir).CheckFormat(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !r.Clean() {
+				t.Errorf("isolation-latch reported as drift: %+v", r)
+			}
+		})
+	}
+}

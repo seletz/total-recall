@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.8.1 (unveröffentlicht)
+
+### Behoben
+
+- **`doctor` meldet den Record-Typ `isolation-latch` nicht mehr als unbekannt** ([#301](https://github.com/seletz/total-recall/issues/301)). Claude Code 2.1.325 schreibt ihn mit `side` (`connectors` oder `web`) und der Session; er hat weder Zeitstempel noch Text. `doctor` endete deshalb mit Exit-Code 2. Er bleibt als Meta-Record im Archiv.
+
 ## v1.8.0
 
 ### Accounts nach Organisation unterscheiden und gruppieren ([#295](https://github.com/seletz/total-recall/issues/295))
