@@ -1,0 +1,249 @@
+{
+  "day": "2026-06-02",
+  "weekday": "Tue",
+  "timezone": "Europe/Berlin",
+  "day_start": "04:00",
+  "human_only": false,
+  "work_hours": "09:00-17:00",
+  "holiday_region": "Baden-Württemberg",
+  "weekend": false,
+  "holiday": null,
+  "first": "2026-06-02T07:10:00.000Z",
+  "last": "2026-06-02T22:47:00.000Z",
+  "first_local": "09:10",
+  "last_local": "00:47 (+1)",
+  "span_seconds": 56220,
+  "target_seconds": 28800,
+  "diff_seconds": 27420,
+  "block_gap_seconds": 1800,
+  "block_seconds": 44820,
+  "break_seconds": 11400,
+  "sessions": 12,
+  "human": 37,
+  "agent": 140,
+  "blocks": [
+    {
+      "start": "2026-06-02T07:10:00.000Z",
+      "end": "2026-06-02T16:30:00.000Z",
+      "start_local": "09:10",
+      "end_local": "18:30",
+      "seconds": 33600,
+      "events": 148,
+      "single": false,
+      "pause_seconds": 0,
+      "human": 28,
+      "agent": 120,
+      "projects": [
+        {
+          "project": "fahrtenbuch",
+          "seconds": 16260,
+          "human": 14,
+          "agent": 40
+        },
+        {
+          "project": "wetterwarte",
+          "seconds": 8760,
+          "human": 8,
+          "agent": 25
+        },
+        {
+          "project": "kompass",
+          "seconds": 8580,
+          "human": 6,
+          "agent": 55
+        }
+      ],
+      "sessions": [
+        {
+          "id": "claude:7d1e007b-007b-4000-8000-00000000007b",
+          "title": "PDF-Export",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000e7b",
+          "start": "2026-06-02T07:10:00.000Z",
+          "end": "2026-06-02T08:42:00.000Z",
+          "human": 5,
+          "agent": 12
+        },
+        {
+          "id": "claude:7d1e007c-007c-4000-8000-00000000007c",
+          "title": "Monatsübersicht",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000e93",
+          "start": "2026-06-02T08:53:00.000Z",
+          "end": "2026-06-02T09:57:00.000Z",
+          "human": 4,
+          "agent": 8
+        },
+        {
+          "id": "claude:agent-0a0021",
+          "title": "tests",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000ea4#0",
+          "start": "2026-06-02T09:32:00.000Z",
+          "end": "2026-06-02T09:35:40.000Z",
+          "human": 0,
+          "agent": 3
+        },
+        {
+          "id": "claude:agent-0a0022",
+          "title": "reviewer",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000eaa#0",
+          "start": "2026-06-02T09:54:00.000Z",
+          "end": "2026-06-02T09:57:40.000Z",
+          "human": 0,
+          "agent": 3
+        },
+        {
+          "id": "claude:7d1e007d-007d-4000-8000-00000000007d",
+          "title": "Fahrten zusammenfassen",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000eaf",
+          "start": "2026-06-02T10:20:00.000Z",
+          "end": "2026-06-02T11:41:00.000Z",
+          "human": 5,
+          "agent": 14
+        },
+        {
+          "id": "claude:7d1e007e-007e-4000-8000-00000000007e",
+          "title": "Dashboard-Layout",
+          "project": "wetterwarte",
+          "first_event": "claude:e000ecb",
+          "start": "2026-06-02T11:54:00.000Z",
+          "end": "2026-06-02T13:12:00.000Z",
+          "human": 5,
+          "agent": 14
+        },
+        {
+          "id": "claude:7d1e007f-007f-4000-8000-00000000007f",
+          "title": "MQTT reconnect",
+          "project": "wetterwarte",
+          "first_event": "claude:e000ee7",
+          "start": "2026-06-02T13:33:00.000Z",
+          "end": "2026-06-02T14:07:00.000Z",
+          "human": 3,
+          "agent": 11
+        },
+        {
+          "id": "claude:7d1e0080-0080-4000-8000-000000000080",
+          "title": "GPX-Export",
+          "project": "kompass",
+          "first_event": "claude:e000efd",
+          "start": "2026-06-02T14:17:00.000Z",
+          "end": "2026-06-02T16:30:00.000Z",
+          "human": 6,
+          "agent": 47
+        },
+        {
+          "id": "claude:agent-0a0023",
+          "title": "tests",
+          "project": "kompass",
+          "first_event": "claude:e000f5c#0",
+          "start": "2026-06-02T15:08:12.000Z",
+          "end": "2026-06-02T15:12:52.000Z",
+          "human": 0,
+          "agent": 4
+        },
+        {
+          "id": "claude:agent-0a0024",
+          "title": "docs",
+          "project": "kompass",
+          "first_event": "claude:e000f64#0",
+          "start": "2026-06-02T16:21:00.000Z",
+          "end": "2026-06-02T16:25:40.000Z",
+          "human": 0,
+          "agent": 4
+        }
+      ]
+    },
+    {
+      "start": "2026-06-02T19:40:00.000Z",
+      "end": "2026-06-02T22:47:00.000Z",
+      "start_local": "21:40",
+      "end_local": "00:47 (+1)",
+      "seconds": 11220,
+      "events": 29,
+      "single": false,
+      "pause_seconds": 11400,
+      "human": 9,
+      "agent": 20,
+      "projects": [
+        {
+          "project": "fahrtenbuch",
+          "seconds": 11220,
+          "human": 9,
+          "agent": 20
+        }
+      ],
+      "sessions": [
+        {
+          "id": "claude:7d1e0081-0081-4000-8000-000000000081",
+          "title": "Adressen vervollständigen",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000f6b",
+          "start": "2026-06-02T19:40:00.000Z",
+          "end": "2026-06-02T21:22:00.000Z",
+          "human": 5,
+          "agent": 12
+        },
+        {
+          "id": "claude:7d1e0082-0082-4000-8000-000000000082",
+          "title": "Datenbank-Migration",
+          "project": "fahrtenbuch",
+          "first_event": "claude:e000f83",
+          "start": "2026-06-02T21:33:00.000Z",
+          "end": "2026-06-02T22:47:00.000Z",
+          "human": 4,
+          "agent": 8
+        }
+      ]
+    }
+  ],
+  "worktime": {
+    "raw_seconds": 19956,
+    "rounded_seconds": 21600,
+    "grid_seconds": 900,
+    "rounding": "up",
+    "rounding_scope": "category"
+  },
+  "categories": [
+    {
+      "category": "fahrtenbuch",
+      "raw_seconds": 10740,
+      "rounded_seconds": 10800
+    },
+    {
+      "category": "kompass",
+      "raw_seconds": 2856,
+      "rounded_seconds": 3600
+    },
+    {
+      "category": "wetterwarte",
+      "raw_seconds": 6360,
+      "rounded_seconds": 7200
+    }
+  ],
+  "projects": [
+    {
+      "project": "fahrtenbuch",
+      "raw_seconds": 10740,
+      "rounded_seconds": 10800,
+      "human": 23,
+      "agent": 60
+    },
+    {
+      "project": "wetterwarte",
+      "raw_seconds": 6360,
+      "rounded_seconds": 7200,
+      "human": 8,
+      "agent": 25
+    },
+    {
+      "project": "kompass",
+      "raw_seconds": 2856,
+      "rounded_seconds": 3600,
+      "human": 6,
+      "agent": 55
+    }
+  ]
+}

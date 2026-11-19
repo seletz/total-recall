@@ -1,0 +1,7 @@
+search
+goreleaser cask
+--type
+memory
+--limit
+50
+--json

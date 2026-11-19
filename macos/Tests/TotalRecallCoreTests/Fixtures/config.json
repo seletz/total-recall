@@ -1,0 +1,868 @@
+{
+  "file": "/Users/mara/.config/total-recall/config.toml",
+  "file_origin": "default",
+  "loaded": true,
+  "values": [
+    {
+      "key": "db",
+      "value": "/Users/mara/Library/Application Support/total-recall/archive.db",
+      "origin": "default"
+    },
+    {
+      "key": "timezone",
+      "value": "Europe/Berlin",
+      "origin": "file"
+    },
+    {
+      "key": "day_start",
+      "value": "04:00",
+      "origin": "file"
+    },
+    {
+      "key": "log",
+      "value": null,
+      "origin": "file"
+    },
+    {
+      "key": "backup.dir",
+      "value": "/Users/mara/Documents/total-recall",
+      "origin": "file"
+    },
+    {
+      "key": "backup.keep_daily",
+      "value": "7",
+      "origin": "file"
+    },
+    {
+      "key": "backup.keep_monthly",
+      "value": "0",
+      "origin": "file"
+    },
+    {
+      "key": "backup.min_interval",
+      "value": "24h0m0s",
+      "origin": "file"
+    },
+    {
+      "key": "redact.enabled",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "redact.extra_patterns",
+      "value": "[]",
+      "origin": "file"
+    },
+    {
+      "key": "redact.allow",
+      "value": "[]",
+      "origin": "file"
+    },
+    {
+      "key": "ingest.tool_result_max_bytes",
+      "value": "4096",
+      "origin": "file"
+    },
+    {
+      "key": "ingest.raw_max_bytes",
+      "value": "0",
+      "origin": "file"
+    },
+    {
+      "key": "ingest.store_raw",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "ingest.store_blobs",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "ingest.store_memory",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "ingest.store_file_history",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.enabled",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.projects_dir",
+      "value": "/Users/mara/.claude/projects",
+      "origin": "default"
+    },
+    {
+      "key": "harness.claude.skip_record_types",
+      "value": "[]",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.actors.peer_prefixes",
+      "value": "[]",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.actors.peer_paste_headers",
+      "value": "[]",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.actors.automation_prefixes",
+      "value": "[\"Hourly \", \"Weekend watch\"]",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.actors.prompt_commands",
+      "value": "[\"herdr agent prompt\", \"tmux send-keys\"]",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.actors.spawn_commands",
+      "value": "[\"herdr agent start\"]",
+      "origin": "file"
+    },
+    {
+      "key": "harness.claude.actors.prompt_window",
+      "value": "2m0s",
+      "origin": "file"
+    },
+    {
+      "key": "git.resolve",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "work.hours",
+      "value": "09:00-17:00",
+      "origin": "file"
+    },
+    {
+      "key": "work.target",
+      "value": "8h0m0s",
+      "origin": "file"
+    },
+    {
+      "key": "work.daily_low",
+      "value": "6h0m0s",
+      "origin": "file"
+    },
+    {
+      "key": "work.daily_high",
+      "value": "9h0m0s",
+      "origin": "file"
+    },
+    {
+      "key": "work.weekly_low",
+      "value": "32h0m0s",
+      "origin": "file"
+    },
+    {
+      "key": "work.weekly_high",
+      "value": "48h0m0s",
+      "origin": "file"
+    },
+    {
+      "key": "work.bundesland",
+      "value": "Baden-Württemberg",
+      "origin": "file"
+    },
+    {
+      "key": "work.count",
+      "value": "human",
+      "origin": "file"
+    },
+    {
+      "key": "work.block_gap",
+      "value": "30m0s",
+      "origin": "default"
+    },
+    {
+      "key": "worktime.max_gap",
+      "value": "20m0s",
+      "origin": "file"
+    },
+    {
+      "key": "worktime.min_credit",
+      "value": "3m0s",
+      "origin": "file"
+    },
+    {
+      "key": "worktime.grid",
+      "value": "15m0s",
+      "origin": "file"
+    },
+    {
+      "key": "worktime.rounding",
+      "value": "up",
+      "origin": "file"
+    },
+    {
+      "key": "worktime.scope",
+      "value": "category",
+      "origin": "file"
+    },
+    {
+      "key": "worktime.summary_max_chars",
+      "value": "200",
+      "origin": "file"
+    },
+    {
+      "key": "worktime.category",
+      "value": "[]",
+      "origin": "default"
+    },
+    {
+      "key": "tui.view",
+      "value": "search",
+      "origin": "file"
+    },
+    {
+      "key": "tui.graphics",
+      "value": "auto",
+      "origin": "file"
+    },
+    {
+      "key": "tui.images",
+      "value": "auto",
+      "origin": "file"
+    },
+    {
+      "key": "tui.mouse",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "tui.stats_period",
+      "value": "day",
+      "origin": "file"
+    },
+    {
+      "key": "tui.stats_dimension",
+      "value": "project",
+      "origin": "file"
+    },
+    {
+      "key": "tui.activity_window",
+      "value": "week",
+      "origin": "file"
+    },
+    {
+      "key": "tui.activity_projects",
+      "value": "false",
+      "origin": "file"
+    },
+    {
+      "key": "tui.activity_newest",
+      "value": "bottom",
+      "origin": "default"
+    },
+    {
+      "key": "tui.reload",
+      "value": "5s",
+      "origin": "file"
+    },
+    {
+      "key": "chart.format",
+      "value": "svg",
+      "origin": "file"
+    },
+    {
+      "key": "chart.scale",
+      "value": "1",
+      "origin": "file"
+    },
+    {
+      "key": "chart.title",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "chart.legend",
+      "value": "true",
+      "origin": "file"
+    },
+    {
+      "key": "chart.background",
+      "value": "transparent",
+      "origin": "file"
+    },
+    {
+      "key": "chart.transparent",
+      "value": "false",
+      "origin": "file"
+    },
+    {
+      "key": "chart.text",
+      "value": "#8b8b8b",
+      "origin": "file"
+    },
+    {
+      "key": "chart.top",
+      "value": "12",
+      "origin": "file"
+    },
+    {
+      "key": "chart.heatmap",
+      "value": "[]",
+      "origin": "file"
+    },
+    {
+      "key": "chart.scale_orange",
+      "value": "[\"#f6c9a8\", \"#ee9a5f\", \"#d9733a\", \"#a84f1c\"]",
+      "origin": "file"
+    },
+    {
+      "key": "chart.scale_blue",
+      "value": "[\"#b3cde3\", \"#6a9fcf\", \"#3b73b0\", \"#1f4e85\"]",
+      "origin": "file"
+    },
+    {
+      "key": "chart.palette",
+      "value": "[\"#4e79a7\", \"#f28e2b\", \"#59a14f\", \"#e15759\", \"#b07aa1\", \"#76b7b2\", \"#edc948\", \"#9c755f\", \"#bab0ac\"]",
+      "origin": "file"
+    },
+    {
+      "key": "chart.lang",
+      "value": "en",
+      "origin": "file"
+    },
+    {
+      "key": "accounts",
+      "value": "[]",
+      "origin": "default"
+    },
+    {
+      "key": "account",
+      "value": "[]",
+      "origin": "default"
+    },
+    {
+      "key": "account_registry",
+      "value": null,
+      "origin": "default"
+    },
+    {
+      "key": "project",
+      "value": "[kompass (#4e79a7) = [\"https://git.invalid/mara/kompass*\", \"~/src/kompass*\"], wetterwarte (#b07aa1) = [\"https://git.invalid/mara/wetterwarte\"], fahrtenbuch (#76b7b2) = [\"https://git.invalid/mara/fahrtenbuch\"]]",
+      "origin": "file"
+    },
+    {
+      "key": "keys.global_search",
+      "value": "[\"1\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_stats",
+      "value": "[\"2\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_activity",
+      "value": "[\"3\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_help",
+      "value": "[\"?\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_back",
+      "value": "[\"esc\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_quit",
+      "value": "[\"q\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_reload",
+      "value": "[\"R\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.global_config",
+      "value": "[\"4\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_focus",
+      "value": "[\"tab\", \"shift+tab\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_open",
+      "value": "[\"enter\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_actor",
+      "value": "[\"a\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_time",
+      "value": "[\"t\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_repo",
+      "value": "[\"r\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_raw",
+      "value": "[\"ctrl+r\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_type_event",
+      "value": "[\"e\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_type_session",
+      "value": "[\"s\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_type_memory",
+      "value": "[\"m\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_pin",
+      "value": "[\"p\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_project",
+      "value": "[\"P\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_attach",
+      "value": "[\"v\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.search_has_attachment",
+      "value": "[\"i\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_page_up",
+      "value": "[\"b\", \"pgup\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_page_down",
+      "value": "[\"f\", \"pgdown\", \"space\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_half_up",
+      "value": "[\"u\", \"ctrl+u\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_half_down",
+      "value": "[\"d\", \"ctrl+d\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_top",
+      "value": "[\"g\", \"home\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_bottom",
+      "value": "[\"G\", \"end\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_next",
+      "value": "[\"n\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_prev",
+      "value": "[\"N\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_tools",
+      "value": "[\"T\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_copy",
+      "value": "[\"y\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.session_attach",
+      "value": "[\"v\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_open",
+      "value": "[\"enter\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_page_up",
+      "value": "[\"b\", \"pgup\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_page_down",
+      "value": "[\"f\", \"pgdown\", \"space\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_diff",
+      "value": "[\"d\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_base",
+      "value": "[\"c\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.memory_timeline",
+      "value": "[\"t\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_prev",
+      "value": "[\"left\", \"p\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_next",
+      "value": "[\"right\", \"n\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_page_up",
+      "value": "[\"b\", \"pgup\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_page_down",
+      "value": "[\"f\", \"pgdown\", \"space\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.attach_open",
+      "value": "[\"o\", \"enter\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_days",
+      "value": "[\"d\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_weeks",
+      "value": "[\"w\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_months",
+      "value": "[\"m\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_project",
+      "value": "[\"p\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_agent",
+      "value": "[\"a\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_directory",
+      "value": "[\"v\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_earlier",
+      "value": "[\"left\", \",\", \"[\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_later",
+      "value": "[\"right\", \".\", \"]\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_zoom_out",
+      "value": "[\"-\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_zoom_in",
+      "value": "[\"+\", \"=\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_metric",
+      "value": "[\"e\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_heatmap",
+      "value": "[\"h\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.stats_graphics",
+      "value": "[\"g\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_day",
+      "value": "[\"d\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_week",
+      "value": "[\"w\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_month",
+      "value": "[\"m\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_earlier",
+      "value": "[\"left\", \",\", \"[\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_later",
+      "value": "[\"right\", \".\", \"]\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_current",
+      "value": "[\"c\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_last",
+      "value": "[\"l\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_human",
+      "value": "[\"h\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_figures",
+      "value": "[\"s\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_projects",
+      "value": "[\"p\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_order",
+      "value": "[\"o\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_select_up",
+      "value": "[\"K\", \"shift+up\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_select_down",
+      "value": "[\"J\", \"shift+down\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.activity_open",
+      "value": "[\"enter\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_prev",
+      "value": "[\"left\", \",\", \"[\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_next",
+      "value": "[\"right\", \".\", \"]\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_open",
+      "value": "[\"enter\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_toggle",
+      "value": "[\"space\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.day_human",
+      "value": "[\"h\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_next",
+      "value": "[\"tab\", \"right\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_prev",
+      "value": "[\"shift+tab\", \"left\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_up",
+      "value": "[\"up\", \"k\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_down",
+      "value": "[\"down\", \"j\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_select",
+      "value": "[\"enter\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_default",
+      "value": "[\"d\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_confirm",
+      "value": "[\"y\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_copy",
+      "value": "[\"c\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_editor",
+      "value": "[\"E\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_add",
+      "value": "[\"a\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_remove",
+      "value": "[\"x\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_move_up",
+      "value": "[\"K\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_move_down",
+      "value": "[\"J\"]",
+      "origin": "default"
+    },
+    {
+      "key": "keys.config_pattern",
+      "value": "[\"m\"]",
+      "origin": "default"
+    },
+    {
+      "key": "log (effective)",
+      "value": "/Users/mara/Library/Application Support/total-recall/total-recall.log",
+      "origin": "file"
+    }
+  ],
+  "problems": []
+}
