@@ -301,3 +301,29 @@ func TestFormatDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestIsInvalid(t *testing.T) {
+	tests := []struct {
+		name string
+		do   func(c *Config) error
+		want bool
+	}{
+		{"unknown key", func(c *Config) error { _, err := c.SetValue("nope", "x"); return err }, true},
+		{"table key", func(c *Config) error { _, err := c.SetValue("project", "x"); return err }, true},
+		{"bad value", func(c *Config) error { _, err := c.SetValue("tui.mouse", "maybe"); return err }, true},
+		{"bad enum", func(c *Config) error { _, err := c.SetValue("tui.view", "nope"); return err }, true},
+		{"cross-key problem", func(c *Config) error { _, err := c.SetValue("work.hours", "25:00-26:00"); return err }, true},
+		{"reset unknown key", func(c *Config) error { _, err := c.Reset("nope"); return err }, true},
+		{"project index", func(c *Config) error { _, err := c.RemoveProject(5); return err }, true},
+		{"ok", func(c *Config) error { _, err := c.SetValue("tui.mouse", "false"); return err }, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := editEnv(t, "", nil)
+			err := tt.do(c)
+			if got := IsInvalid(err); got != tt.want {
+				t.Errorf("IsInvalid(%v) = %v, want %v", err, got, tt.want)
+			}
+		})
+	}
+}

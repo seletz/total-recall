@@ -80,13 +80,14 @@ type ErrorBody struct {
 
 // The error kinds. They are stable; scripts may switch on them.
 const (
-	ErrKindUsage     = "usage"     // flags, arguments, their combinations
-	ErrKindConfig    = "config"    // the configuration could not be loaded
-	ErrKindDB        = "db"        // the archive could not be opened
-	ErrKindSQL       = "sql"       // SQLite rejected the query (sql, search --raw)
-	ErrKindNotFound  = "not_found" // the referenced session does not exist
-	ErrKindAmbiguous = "ambiguous" // the reference matches more than one session
-	ErrKindInternal  = "internal"  // everything else
+	ErrKindUsage      = "usage"      // flags, arguments, their combinations
+	ErrKindConfig     = "config"     // the configuration could not be loaded
+	ErrKindValidation = "validation" // a config edit was refused: unknown key, wrong value, invalid result
+	ErrKindDB         = "db"         // the archive could not be opened
+	ErrKindSQL        = "sql"        // SQLite rejected the query (sql, search --raw)
+	ErrKindNotFound   = "not_found"  // the referenced session does not exist
+	ErrKindAmbiguous  = "ambiguous"  // the reference matches more than one session
+	ErrKindInternal   = "internal"   // everything else
 )
 
 // kindError carries the error kind of the JSON error object.
