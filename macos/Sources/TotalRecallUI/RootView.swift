@@ -117,9 +117,13 @@ struct HelpOverlay: View {
                     ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                         GridRow {
                             ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                                HStack(spacing: 6) {
-                                    KeyCap(key: cell.0)
-                                    Text(cell.1)
+                                if cell.0.isEmpty {
+                                    Color.clear.frame(width: 1, height: 1)
+                                } else {
+                                    HStack(spacing: 6) {
+                                        KeyCap(key: cell.0)
+                                        Text(cell.1)
+                                    }
                                 }
                             }
                         }

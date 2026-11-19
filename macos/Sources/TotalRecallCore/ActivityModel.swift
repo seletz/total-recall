@@ -33,6 +33,8 @@ public final class ActivityModel {
     /// Dominant project per day and quarter hour slot (0..<96 from day start).
     public private(set) var slots: [String: [Int: String]] = [:]
     public private(set) var projectCells: [(project: String, cells: Int)] = []
+    /// Every project of the shown rows, most cells first (colour order).
+    public private(set) var shownProjects: [String] = []
     public private(set) var error: String?
     public private(set) var tookMs = 0
 
@@ -171,6 +173,7 @@ public final class ActivityModel {
         // slot before it, so a bar is coloured from first to last event.
         var out: [String: [Int: String]] = [:]
         var cells: [String: Int] = [:]
+        var all: [String: Int] = [:]
         let window = Set(windowDays.map(\.day))
         for (d, bySlot) in counts {
             var m: [Int: String] = [:]
@@ -187,10 +190,12 @@ public final class ActivityModel {
                 }
             }
             out[d] = m
+            for p in m.values { all[p, default: 0] += 1 }
             if window.contains(d) { for p in m.values { cells[p, default: 0] += 1 } }
         }
         slots = out
         projectCells = cells.sorted { $0.value > $1.value }.map { ($0.key, $0.value) }
+        shownProjects = projectCells.map(\.project) + all.sorted { $0.value > $1.value }.map(\.key).filter { cells[$0] == nil }
     }
 
     // MARK: - derived
@@ -278,7 +283,7 @@ public final class ActivityModel {
     }
 
     public var projectColors: [String: String] {
-        Palette.assign(projectCells.map(\.project), pinned: pinnedColors)
+        Palette.assign(shownProjects, pinned: pinnedColors)
     }
 }
 

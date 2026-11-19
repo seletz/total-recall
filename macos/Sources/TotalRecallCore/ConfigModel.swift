@@ -216,7 +216,7 @@ public final class ConfigModel {
         if let s = readFile(claudeJSON), let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
            let servers = obj["mcpServers"] as? [String: Any], let tr = servers["total-recall"] as? [String: Any] {
             mcp = "total-recall " + ((tr["args"] as? [String]) ?? []).joined(separator: " ")
-            if let d = try? JSONSerialization.data(withJSONObject: ["mcpServers": ["total-recall": tr]], options: [.prettyPrinted, .sortedKeys]) {
+            if let d = try? JSONSerialization.data(withJSONObject: ["mcpServers": ["total-recall": tr]], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
                 mcpBlock = String(decoding: d, as: UTF8.self)
             }
         }

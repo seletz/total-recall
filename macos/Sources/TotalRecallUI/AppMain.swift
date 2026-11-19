@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await app.start() }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { options.shots == nil }
 
     static func runner(_ o: LaunchOptions) -> CommandRunner? {
         let url = o.cli.map { URL(fileURLWithPath: $0) } ?? ProcessRunner.locate()

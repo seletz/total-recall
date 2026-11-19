@@ -98,3 +98,36 @@ run = "scripts/charts-check.sh -db build/demo.db"
 description = "Build documentation site (strict)"
 depends = ["uv:sync"]
 run = "uv run --locked zensical build --clean --strict"
+
+# The native macOS app of spike #317 (macos/, Swift package). macOS only,
+# not part of the Linux CI.
+[tasks."macos:build"]
+description = "macOS only: build the spike app (debug and release) and assemble macos/.build/bundle/TotalRecall.app (ad-hoc signed)"
+# renovate: datasource=github-releases depName=swiftlang/swift extractVersion=^swift-(?<version>.+)-RELEASE$
+tools = { "swift" = "6.4.2" }
+run = "bash macos/scripts/build.sh"
+
+[tasks."macos:test"]
+description = "macOS only: run the headless tests of the spike app's core (swift test against fixtures from the demo archive)"
+# renovate: datasource=github-releases depName=swiftlang/swift extractVersion=^swift-(?<version>.+)-RELEASE$
+tools = { "swift" = "6.4.2" }
+run = ["bash macos/scripts/check.sh", "cd macos && swift test"]
+
+[tasks."macos:fixtures"]
+description = "macOS only: record the JSON fixtures of the core tests from the demo archive (macos/Tests/TotalRecallCoreTests/Fixtures)"
+depends = ["demo:db", "build"]
+run = "bash macos/scripts/fixtures.sh"
+
+[tasks."macos:shots"]
+description = "macOS only: render the screenshots of the spike app against the demo archive into macos/screenshots"
+depends = ["demo:db", "build"]
+# renovate: datasource=github-releases depName=swiftlang/swift extractVersion=^swift-(?<version>.+)-RELEASE$
+tools = { "swift" = "6.4.2" }
+run = "bash macos/scripts/shots.sh"
+
+[tasks."macos:run:demo"]
+description = "macOS only: start the spike app against the synthetic demo archive (extra arguments go to the app)"
+depends = ["demo:db", "build"]
+# renovate: datasource=github-releases depName=swiftlang/swift extractVersion=^swift-(?<version>.+)-RELEASE$
+tools = { "swift" = "6.4.2" }
+run = "bash macos/scripts/run-demo.sh"
