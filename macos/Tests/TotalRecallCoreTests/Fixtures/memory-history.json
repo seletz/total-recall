@@ -1,0 +1,46 @@
+[
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "path": "MEMORY.md",
+    "ts": "2026-10-12T19:50:00.000Z",
+    "observed_at": "2026-10-12T20:00:00.000Z",
+    "sha256": "14d4af6cd6e4fb0ab88e145ed4de590ea20d363e5e228c703a2ec9d64f72b30f",
+    "bytes": 68,
+    "deleted": false
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "path": "MEMORY.md",
+    "ts": "2026-10-15T15:58:00.000Z",
+    "observed_at": "2026-10-15T16:00:00.000Z",
+    "sha256": "41a759c47d983f3a18238f631e27efa0026d80b7806747b9dde1f4eec2389107",
+    "bytes": 140,
+    "deleted": false
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "path": "MEMORY.md",
+    "ts": "2026-10-28T08:35:00.000Z",
+    "observed_at": "2026-10-28T09:00:00.000Z",
+    "sha256": "25659949b5206149b962e4a77c3bee0ebbc7a63c415c94aeef8d49d272b7972c",
+    "bytes": 130,
+    "deleted": false
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "path": "MEMORY.md",
+    "ts": "2026-10-31T21:40:00.000Z",
+    "observed_at": "2026-11-02T09:00:00.000Z",
+    "sha256": "91a028d70accd5197f1f4bfccf1796f5270dfd57fa9ca26efc6dd4b427031f86",
+    "bytes": 177,
+    "deleted": false
+  }
+]

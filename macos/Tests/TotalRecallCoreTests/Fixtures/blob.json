@@ -1,0 +1,18 @@
+{
+  "sha256": "91a028d70accd5197f1f4bfccf1796f5270dfd57fa9ca26efc6dd4b427031f86",
+  "media_type": "text/markdown",
+  "bytes": 177,
+  "stored_bytes": 139,
+  "events": [],
+  "meta_records": [],
+  "memory": [
+    {
+      "project": "kompass",
+      "project_key": "-home-mara-src-kompass",
+      "harness": "claude",
+      "path": "MEMORY.md",
+      "ts": "2026-10-31T21:40:00.000Z"
+    }
+  ],
+  "out": null
+}

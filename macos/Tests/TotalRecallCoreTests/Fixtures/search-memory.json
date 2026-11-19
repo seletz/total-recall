@@ -1,0 +1,15 @@
+[
+  {
+    "session_id": null,
+    "session_name": null,
+    "repo": "https://git.invalid/mara/kompass",
+    "ts": "2026-10-31T21:35:00.000Z",
+    "snippet": "…[goreleaser]**, which builds the binaries for darwin/arm64 and\nlinux/amd64 and publishes the Homebrew [cask]…",
+    "rank": -2.2853540203468357,
+    "type": "memory",
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "path": "release-process.md",
+    "sha256": "cf9cf3c02f503e2f38420098c028e9fccc22c7b4757c3b2e5a75b4009fb24480"
+  }
+]

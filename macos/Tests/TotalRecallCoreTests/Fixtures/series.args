@@ -1,0 +1,10 @@
+stats
+--since
+2026-10-05
+--until
+2026-11-01
+--period
+day
+--by
+project
+--json

@@ -1,0 +1,5 @@
+search
+goreleaser cask
+--limit
+50
+--json

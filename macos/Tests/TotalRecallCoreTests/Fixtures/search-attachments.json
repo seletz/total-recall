@@ -1,0 +1,95 @@
+[
+  {
+    "session_id": "claude:7d1e4c20-0010-4000-8000-000000000010",
+    "session_name": "Höhenprofil prüfen",
+    "repo": "https://git.invalid/mara/kompass",
+    "event_id": "claude:e00558b#2",
+    "ts": "2026-10-28T08:06:00.000Z",
+    "actor": "human",
+    "input_kind": "pasted",
+    "kind": "message",
+    "snippet": "[document application/pdf 342 B]",
+    "rank": 0,
+    "type": "event",
+    "project": "kompass",
+    "attachments": [
+      {
+        "event_id": "claude:e00558b#2",
+        "sha256": "b3d545a496b39fa7cb593c21df9046091d757a11417d71c4917ca2e4078dd8c9",
+        "media_type": "application/pdf",
+        "bytes": 342,
+        "position": 0
+      }
+    ],
+    "attachment_count": 1
+  },
+  {
+    "session_id": "claude:7d1e4c20-0010-4000-8000-000000000010",
+    "session_name": "Höhenprofil prüfen",
+    "repo": "https://git.invalid/mara/kompass",
+    "event_id": "claude:e00558b#1",
+    "ts": "2026-10-28T08:06:00.000Z",
+    "actor": "human",
+    "input_kind": "pasted",
+    "kind": "message",
+    "snippet": "[image image/png 956 B]",
+    "rank": 0,
+    "type": "event",
+    "project": "kompass",
+    "attachments": [
+      {
+        "event_id": "claude:e00558b#1",
+        "sha256": "13b72db2ac7d2b6e5644156cedc048f997098c23aa38ee6512201ace491ccc77",
+        "media_type": "image/png",
+        "bytes": 956,
+        "position": 0
+      }
+    ],
+    "attachment_count": 1
+  },
+  {
+    "session_id": "claude:7d1e4c20-0010-4000-8000-000000000010",
+    "session_name": "Höhenprofil prüfen",
+    "repo": "https://git.invalid/mara/kompass",
+    "event_id": "claude:e00558b#0",
+    "ts": "2026-10-28T08:06:00.000Z",
+    "actor": "human",
+    "input_kind": "typed",
+    "kind": "message",
+    "snippet": "Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.",
+    "rank": 0,
+    "type": "event",
+    "project": "kompass",
+    "attachments": [
+      {
+        "event_id": "claude:e00558b#1",
+        "sha256": "13b72db2ac7d2b6e5644156cedc048f997098c23aa38ee6512201ace491ccc77",
+        "media_type": "image/png",
+        "bytes": 956,
+        "position": 0
+      },
+      {
+        "event_id": "claude:e00558b#2",
+        "sha256": "b3d545a496b39fa7cb593c21df9046091d757a11417d71c4917ca2e4078dd8c9",
+        "media_type": "application/pdf",
+        "bytes": 342,
+        "position": 0
+      }
+    ],
+    "attachment_count": 2
+  },
+  {
+    "session_id": "claude:7d1e4c20-0010-4000-8000-000000000010",
+    "session_name": "Höhenprofil prüfen",
+    "repo": "https://git.invalid/mara/kompass",
+    "ts": "2026-10-28T08:06:00.000Z",
+    "snippet": "Höhenprofil prüfen",
+    "rank": 0,
+    "type": "session",
+    "project": "kompass",
+    "harness": "claude",
+    "ended_at": "2026-10-28T08:10:00.000Z",
+    "events": 4,
+    "attachment_count": 2
+  }
+]
