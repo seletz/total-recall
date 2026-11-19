@@ -632,6 +632,7 @@ total: 5 days with activity, 41h40m · target 40h00m (5 workdays × 8h00m) · ba
 | `--all-events` | eigene Nachrichten und Agent-Events zählen wie die Aktivitätsstatistik. Standard sind nur eigene Nachrichten (`human events only`): Agent-Events laufen nachts weiter und dehnen die Spanne. Den Standard setzt `count` in [`[work]`](20-konfiguration.md#work) |
 | `--human-only` | veraltet, da Standard; wird noch angenommen (mit Hinweis auf stderr) und setzt auch bei `count = "all"` auf eigene Nachrichten |
 | `--blocks` | je Tag die **Aktivitätsblöcke** statt nur erster und letzter Aktivität, siehe unten. Nur mit `--workday` |
+| `--projects` | je Tag und im Zeitraum die gezählten Events **je Projekt**, siehe unten. Nur mit `--workday` |
 
 **Tagesgrenze.** Ein Tag beginnt um `day_start` aus der [Konfiguration](20-konfiguration.md#day_start), Standard 04:00 Ortszeit. Aktivität davor zählt zum Vortag und steht als `01:30 (+1)` in der Spalte; deshalb beginnt auch der Zeitraum um 04:00. `today` kurz nach Mitternacht ist noch der Vortag. Die Spanne ist die verstrichene Zeit, auch über eine Zeitumstellung hinweg. Alle Tage des Zeitraums erscheinen, Tage ohne Aktivität mit `-`.
 
@@ -676,6 +677,17 @@ JSON hat je Tag die Zeiten in UTC (`first`, `last`) und als Ortszeit (`first_loc
 ```
 
 Im JSON hat jeder Tag mit `--blocks` `blocks` (leer ohne Aktivität), `block_seconds` und `break_seconds`; oben steht `block_gap_seconds`, in `total` die Summen `block_seconds` und `break_seconds` über alle Tage. Ohne `--blocks` fehlen diese Felder. Im [MCP-Tool](#mcp) `stats` heißt der Parameter `blocks`.
+
+**Projekte.** `--projects` ergänzt je Tag, wie viel von welchem Projekt gearbeitet wurde: dieselben Zahlen wie die Projektfarben und die Legende der [Aktivitätsansicht](30-tui.md#aktivitat) der TUI (`store.ProjectDays`), unter denselben Regeln (`day_start`, `count`, `--all-events`, `[[project]]`). Die Einheit sind **gezählte Events** (Mensch, mit `--all-events` auch Agent), dazu `minutes`, die Minuten mit mindestens einem davon. Wer sie selbst aus `timeline` zählt, kommt auf andere Zahlen (Viertelstunden oder Zeichenzellen statt Events).
+
+```json
+"projects": [
+  {"key": "kompass", "name": "kompass", "dir": false, "color": "#4c78d0", "events": 42, "minutes": 31},
+  {"key": "/home/mara/notizen", "name": "~/notizen", "dir": true, "color": null, "events": 6, "minutes": 5}
+]
+```
+
+Jeder Tag hat `projects` (leer ohne Aktivität), oben steht `projects` für den ganzen Zeitraum; beide nach `events` absteigend, dann nach `key`. `key` ist der Projektschlüssel (der Name aus `[[project]]`, sonst Git-Root oder Verzeichnis), `name` der Anzeigename, `color` die konfigurierte Farbe als `#rrggbb` (`null` für die automatische) und `dir` wahr für ein Verzeichnis ohne Repository. **Summe = Teile:** Die `events` der Projekte eines Tags ergeben `human` + `agent` des Tags, die Summen im Zeitraum die der Tage; ein Test prüft das an der echten `--json`-Ausgabe des Demo-Archivs, mit und ohne `--all-events`. Die Textausgabe bekommt die Spalte `PROJECTS` (`kompass 42 · wetterwarte 7`). Ohne `--projects` fehlen die Felder.
 
 **Einzelne Nachrichten.** Eine einzelne Nachricht nach einer langen Pause ergibt einen Block von 0 Sekunden: für eine Anwesenheitsbuchung Rauschen. Damit der Aufrufer ihn erkennt, ohne Events nachzuzählen, hat jeder Block `events` (die Zahl der gezählten Events darin) und `single` (`true`, wenn es genau eins ist). Die Sekunden bleiben unverändert, es gibt keinen Mindestwert, nichts fällt weg. Zwei Events mit derselben Zeit sind ein Block von 0 Sekunden mit `events: 2`, kein einzelner. Es gilt immer: Pro Tag ergeben die `events` aller Blöcke genau `human` plus `agent` des Tags, und `block_seconds` plus `break_seconds` die Spanne. Alle Sekunden sind ganze Sekunden: Die Blockgrenzen werden nach der ersten Aktivität des Tags auf ganze Sekunden abgerundet, bevor die Dauern gebildet werden, daher ist `block_seconds` exakt die Summe der `seconds` der Blöcke und `block_seconds` plus `break_seconds` exakt `span_seconds` (auch bei Zeitstempeln mit Millisekunden), in `total` genauso. Die Tabelle zeigt einen einzelnen Block nur mit der Uhrzeit und einem `*` (`15:00*`) und erklärt das Zeichen unter der Tabelle.
 

@@ -239,6 +239,7 @@ func TestSkillJSONFields(t *testing.T) {
 	workday := []string{"stats", "--json", "--workday", "--since", "2026-10-05", "--until", "2026-10-07"}
 	worktime := []string{"stats", "--json", "--worktime", "--since", "2026-10-05", "--until", "2026-10-07"}
 	blocks := append(slices.Clone(workday), "--blocks")
+	both := append(slices.Clone(blocks), "--projects")
 	tests := []struct {
 		key  string
 		args []string
@@ -263,8 +264,8 @@ func TestSkillJSONFields(t *testing.T) {
 		{"memory --grep --json", []string{"memory", "--json", "--grep", "sbom"}, "[]", reflect.TypeOf(MemoryHitJSON{}), "", nil},
 		{"stats --json", []string{"stats", "--json", "--month", "2026-10"}, "", reflect.TypeOf(StatsJSON{}), "", nil},
 		{"stats --json --period", []string{"stats", "--json", "--period", "week", "--by", "project", "--month", "2026-10"}, "", reflect.TypeOf(ActivitySeriesJSON{}), "", nil},
-		{"stats --json --workday", workday, "", reflect.TypeOf(WorkdayJSON{}), "stats --json --workday --blocks", blocks},
-		{"stats --json --workday days[]", workday, "days[]", reflect.TypeOf(WorkdayDayJSON{}), "stats --json --workday --blocks days[]", blocks},
+		{"stats --json --workday", workday, "", reflect.TypeOf(WorkdayJSON{}), "stats --json --workday --blocks|stats --json --workday --projects", both},
+		{"stats --json --workday days[]", workday, "days[]", reflect.TypeOf(WorkdayDayJSON{}), "stats --json --workday --blocks days[]|stats --json --workday --projects days[]", both},
 		{"stats --json --workday total", workday, "total", reflect.TypeOf(WorkdayTotalJSON{}), "stats --json --workday --blocks total", blocks},
 		{"stats --json --worktime", worktime, "", reflect.TypeOf(WorktimeJSON{}), "", nil},
 		{"stats --json --worktime days[]", worktime, "days[]", reflect.TypeOf(WorktimeDayJSON{}), "", nil},
@@ -303,12 +304,15 @@ func TestSkillJSONFields(t *testing.T) {
 			}
 			check(tt.args, documented)
 			if tt.extra != "" {
-				extra, ok := sections[tt.extra]
-				if !ok {
-					t.Fatalf("SKILL.md has no section %q", tt.extra)
+				documented = slices.Clone(documented)
+				for _, name := range strings.Split(tt.extra, "|") {
+					extra, ok := sections[name]
+					if !ok {
+						t.Fatalf("SKILL.md has no section %q", name)
+					}
+					delete(sections, name)
+					documented = append(documented, extra...)
 				}
-				delete(sections, tt.extra)
-				documented = append(slices.Clone(documented), extra...)
 				check(tt.extraArgs, documented)
 			}
 			if tt.typ != nil {
