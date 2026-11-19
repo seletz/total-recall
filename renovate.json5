@@ -48,6 +48,23 @@
       groupName: "charm modules",
     },
     {
+      // The go directive decides which Go toolchain CI and the release build
+      // use (setup-go reads go.mod). "bump" moves it to every new Go release,
+      // so security patches reach releases instead of waiting for a dependency.
+      description: "Follow new Go releases in the go directive",
+      matchManagers: ["gomod"],
+      matchDepTypes: ["golang"],
+      rangeStrategy: "bump",
+    },
+    {
+      // mise.toml pins the same Go as go.mod; one PR bumps both files so they
+      // never drift apart.
+      description: "Group the Go toolchain: go.mod and mise.toml in one PR",
+      matchManagers: ["mise", "gomod"],
+      matchDepNames: ["go"],
+      groupName: "go",
+    },
+    {
       // Major updates are breaking; they wait until someone ticks them in the
       // Dependency Dashboard issue.
       description: "Majors need approval in the dependency dashboard",

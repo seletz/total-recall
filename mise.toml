@@ -1,5 +1,7 @@
 [tools]
-go = "latest"
+# Same version as the go directive of go.mod; Renovate bumps both together
+# (group "go" in renovate.json5), so the local toolchain matches CI.
+go = "1.27.4"
 # The release tool. Pinned: the workflows install the same version
 # (scripts/tool-versions-check.sh finds drift).
 goreleaser = "2.19.0"
