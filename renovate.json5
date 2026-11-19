@@ -38,7 +38,39 @@
   },
   osvVulnerabilityAlerts: true,
 
+  customManagers: [
+    {
+      // The workflows install cyclonedx-gomod with `go install ...@vX`, which
+      // no built-in manager reads. Renovate tracks those pins under the same
+      // depName as the mise pin, so one group bumps both.
+      description: "cyclonedx-gomod pinned by go install in the workflows",
+      customType: "regex",
+      fileMatch: ["^\\.github/workflows/[^/]+\\.ya?ml$"],
+      matchStrings: [
+        "go install github\\.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@(?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+      ],
+      depNameTemplate: "github:CycloneDX/cyclonedx-gomod",
+      packageNameTemplate: "CycloneDX/cyclonedx-gomod",
+      datasourceTemplate: "github-releases",
+    },
+  ],
+
   packageRules: [
+    {
+      // scripts/tool-versions-check.sh fails unless mise.toml and the
+      // goreleaser-action `version:` inputs of the workflows name the same
+      // release, so both move in one PR.
+      description: "Group goreleaser: mise.toml and the goreleaser-action steps",
+      matchDepNames: ["goreleaser", "goreleaser/goreleaser"],
+      groupName: "goreleaser",
+    },
+    {
+      // Same check for cyclonedx-gomod: mise.toml and the go install lines of
+      // the workflows must name the same tag.
+      description: "Group cyclonedx-gomod: mise.toml and the workflow go install lines",
+      matchDepNames: ["github:CycloneDX/cyclonedx-gomod"],
+      groupName: "cyclonedx-gomod",
+    },
     {
       // One PR for the Charm TUI stack: the modules are released together and
       // break when their versions drift apart.
@@ -46,6 +78,23 @@
       matchManagers: ["gomod"],
       matchPackageNames: ["charm.land/**", "github.com/charmbracelet/**"],
       groupName: "charm modules",
+    },
+    {
+      // The go directive decides which Go toolchain CI and the release build
+      // use (setup-go reads go.mod). "bump" moves it to every new Go release,
+      // so security patches reach releases instead of waiting for a dependency.
+      description: "Follow new Go releases in the go directive",
+      matchManagers: ["gomod"],
+      matchDepTypes: ["golang"],
+      rangeStrategy: "bump",
+    },
+    {
+      // mise.toml pins the same Go as go.mod; one PR bumps both files so they
+      // never drift apart.
+      description: "Group the Go toolchain: go.mod and mise.toml in one PR",
+      matchManagers: ["mise", "gomod"],
+      matchDepNames: ["go"],
+      groupName: "go",
     },
     {
       // Major updates are breaking; they wait until someone ticks them in the

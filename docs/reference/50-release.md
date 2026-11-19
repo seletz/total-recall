@@ -203,6 +203,8 @@ Lokal installiert mise goreleaser über seine aqua-Registry in derselben Version
 
 [Renovate](https://docs.renovatebot.com/) hält Go-Module, GitHub Actions und die Werkzeuge in `mise.toml` aktuell und öffnet dafür Pull Requests gegen `develop`. Er läuft selbst gehostet im Workflow `renovate.yml`; die Regeln stehen in `renovate.json5`.
 
+Die Zeile `go` in `go.mod` bestimmt die Go-Version, mit der Release und CI bauen (`setup-go` liest sie). Renovate hebt sie mit jedem neuen Go-Release an, damit Sicherheitsfixes ins Release kommen; `mise.toml` führt dieselbe Version und kommt im selben PR (Gruppe *go*).
+
 - **Takt:** alle 8 Stunden (cron `17 */8 * * *`), dazu von Hand über *Actions → Renovate → Run workflow*. Zwei Läufe überschneiden sich nie (`concurrency: renovate`). Es gibt keine Zeitfenster; Sicherheits-Updates (GitHub-Advisories und OSV) warten nie und zählen nicht gegen die Limits.
 - **Regeln:** höchstens 2 neue PRs pro Stunde und 5 offene gleichzeitig. Die Charm-Module (`charm.land/*`, `github.com/charmbracelet/*`) kommen in einem gemeinsamen PR. Major-Updates öffnet Renovate erst, wenn sie im Dependency-Dashboard (einem Issue im Repository) angehakt sind. Commits heißen `chore(deps): …`, die PRs tragen das Label `dependencies`.
 - **Trockenlauf:** Beim manuellen Start `dry_run` setzen (und bei Bedarf `log_level` auf `debug`). Renovate protokolliert dann, was er täte, und legt keine Branches oder PRs an.
