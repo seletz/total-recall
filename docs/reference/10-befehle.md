@@ -1203,7 +1203,14 @@ log (effective)  /Users/me/Library/Application Support/total-recall/total-recall
 
 ```sh
 $ total-recall config set tui.view stats --json
-{"file":"/Users/me/.config/total-recall/config.toml","key":"tui.view","value":"stats","origin":"file","default":"search","changed":true}
+{
+  "file": "/Users/me/.config/total-recall/config.toml",
+  "key": "tui.view",
+  "value": "stats",
+  "origin": "file",
+  "default": "search",
+  "changed": true
+}
 ```
 
 Alle Schlüssel sind immer vorhanden; `value` und `default` sind `null`, wenn leer. `changed` ist `false`, wenn die Datei den Wert schon hatte (`set`) bzw. den Schlüssel nicht setzte (`unset`). Ein Wert, den Umgebung oder Flag überschreibt, wird trotzdem geschrieben; `origin` zeigt dann den Überschreiber. Unbekannter Schlüssel, falscher Wert oder ein Ergebnis mit Problem sind Fehler der Art `validation`, die Datei bleibt unberührt.
