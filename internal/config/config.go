@@ -1038,6 +1038,66 @@ func (c *Config) ProjectResolver() (project.Resolver, error) {
 	return r, nil
 }
 
+// compileProjects builds the definitions of the raw entries, leaving out
+// the ones that do not compile; the error of the first bad entry is
+// returned with them.
+func compileProjects(ps []Project) ([]project.Definition, error) {
+	var defs []project.Definition
+	var first error
+	for i, p := range ps {
+		d, err := project.NewDefinition(p.Name, p.Description, p.Color, p.Match)
+		if err != nil {
+			if first == nil {
+				first = fmt.Errorf("project[%d]: %w", i, err)
+			}
+			continue
+		}
+		defs = append(defs, d)
+	}
+	return defs, first
+}
+
+// PageResolver is the resolver for showing what the definitions match: the
+// configuration's when the list is fine, else the valid entries alone (so
+// what they match can still be shown), else none. The error names the
+// problem of the list.
+func (c *Config) PageResolver() (project.Resolver, error) {
+	if r, err := c.ProjectResolver(); err == nil {
+		return r, nil
+	}
+	defs, err := compileProjects(c.Projects)
+	r, rerr := project.NewResolver(defs, c.Home)
+	if rerr != nil {
+		return project.Resolver{}, rerr
+	}
+	return r, err
+}
+
+// DraftResolver is the resolver with the draft in place of the index-th
+// entry (appended for an index outside the list, such as -1), without
+// saving anything. The draft must compile; other entries that do not are
+// left out.
+func (c *Config) DraftResolver(index int, draft Project) (project.Resolver, error) {
+	d, err := project.NewDefinition(draft.Name, draft.Description, draft.Color, draft.Match)
+	if err != nil {
+		return project.Resolver{}, err
+	}
+	var defs []project.Definition
+	for i, p := range c.Projects {
+		if i == index {
+			defs = append(defs, d)
+			continue
+		}
+		if o, err := project.NewDefinition(p.Name, p.Description, p.Color, p.Match); err == nil {
+			defs = append(defs, o)
+		}
+	}
+	if index < 0 || index >= len(c.Projects) {
+		defs = append(defs, d)
+	}
+	return project.NewResolver(defs, c.Home)
+}
+
 // ValidateTUI checks the values of the [tui] table.
 func (c *Config) ValidateTUI() error {
 	for _, v := range []struct {
