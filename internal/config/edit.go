@@ -26,14 +26,14 @@ import (
 func (c *Config) SetValue(key, text string) (*Config, error) {
 	k, ok := Lookup(key)
 	if !ok {
-		return nil, fmt.Errorf("config: unknown key %q", key)
+		return nil, invalidf("config: unknown key %q", key)
 	}
 	if k.Kind == KindTable {
-		return nil, fmt.Errorf("config: %s is a table; edit it in the file", key)
+		return nil, invalidf("config: %s is a table; edit it in the file", key)
 	}
 	v, err := parseValue(k, text)
 	if err != nil {
-		return nil, fmt.Errorf("config: %s: %w", key, err)
+		return nil, invalidf("config: %s: %w", key, err)
 	}
 	return c.edit(key, func(d *tomledit.Document) error { return d.Set(key, v) })
 }
@@ -44,15 +44,34 @@ func (c *Config) SetValue(key, text string) (*Config, error) {
 func (c *Config) Reset(key string) (*Config, error) {
 	k, ok := Lookup(key)
 	if !ok {
-		return nil, fmt.Errorf("config: unknown key %q", key)
+		return nil, invalidf("config: unknown key %q", key)
 	}
 	if k.Kind == KindTable {
-		return nil, fmt.Errorf("config: %s is a table; edit it in the file", key)
+		return nil, invalidf("config: %s is a table; edit it in the file", key)
 	}
 	if c.Origin(key) != OriginFile && !c.fileSets(key) {
 		return c, nil
 	}
 	return c.edit(key, func(d *tomledit.Document) error { return d.Unset(key) })
+}
+
+// invalidError marks an edit that was refused because of what was asked
+// (an unknown key, a value of the wrong kind, a result that does not
+// validate), as opposed to a file that cannot be read or written.
+type invalidError struct{ err error }
+
+func (e *invalidError) Error() string { return e.err.Error() }
+func (e *invalidError) Unwrap() error { return e.err }
+
+// invalidf formats an invalidError.
+func invalidf(format string, a ...any) error { return &invalidError{fmt.Errorf(format, a...)} }
+
+// IsInvalid reports whether err is a refused edit (SetValue, Reset and the
+// project edits): the request was wrong, nothing was written. Other
+// errors are file errors.
+func IsInvalid(err error) bool {
+	var e *invalidError
+	return errors.As(err, &e)
 }
 
 // fileSets reports whether the file sets key, whatever overrides it.
@@ -72,7 +91,7 @@ func (c *Config) edit(key string, fn func(*tomledit.Document) error) (*Config, e
 	}
 	d := tomledit.Parse(string(old))
 	if err := fn(d); err != nil {
-		return nil, fmt.Errorf("config: %w", err)
+		return nil, invalidf("config: %w", err)
 	}
 	text := d.String()
 	diff, err := tomledit.Diff(string(old), text)
@@ -82,14 +101,14 @@ func (c *Config) edit(key string, fn func(*tomledit.Document) error) (*Config, e
 	// Nothing but key may differ; nothing at all is fine (the value was
 	// already there, perhaps spelled differently).
 	if len(diff) > 1 || len(diff) == 1 && diff[0] != key {
-		return nil, fmt.Errorf("config: edit of %s would change %v; the file was not written", key, diff)
+		return nil, invalidf("config: edit of %s would change %v; the file was not written", key, diff)
 	}
 	n, err := load(c.opts, []byte(text))
 	if err != nil {
-		return nil, err
+		return nil, &invalidError{err}
 	}
 	if p := newProblems(c.Problems(), n.Problems()); len(p) > 0 {
-		return nil, p[0]
+		return nil, &invalidError{p[0]}
 	}
 	if err := tomledit.Save(c.Path, text); err != nil {
 		return nil, fmt.Errorf("config: %w", err)

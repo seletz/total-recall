@@ -255,7 +255,7 @@ func (e *env) configCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.AddCommand(show, initCmd)
+	c.AddCommand(show, initCmd, e.configSetCmd(), e.configUnsetCmd())
 	return c
 }
 

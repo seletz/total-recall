@@ -35,7 +35,7 @@ $ total-recall sql --json "select nosuchcol from sessions"
 {"error":{"kind":"sql","message":"SQL logic error: no such column: nosuchcol (1)"}}
 ```
 
-`kind` ist stabil: `usage` (Flags, Argumente, ihre Kombinationen), `config` (Konfiguration nicht ladbar), `db` (Archiv nicht zu öffnen), `sql` (SQLite lehnt die Abfrage ab, auch bei `search --raw`), `not_found` (Session oder Event unbekannt), `ambiguous` (Präfix passt auf mehrere Sessions), `internal` (alles andere).
+`kind` ist stabil: `usage` (Flags, Argumente, ihre Kombinationen), `config` (Konfiguration nicht ladbar), `validation` (`config set`/`unset`/`project`: Schlüssel, Wert oder Ergebnis abgelehnt, nichts geschrieben), `db` (Archiv nicht zu öffnen), `sql` (SQLite lehnt die Abfrage ab, auch bei `search --raw`), `not_found` (Session oder Event unbekannt), `ambiguous` (Präfix passt auf mehrere Sessions), `internal` (alles andere).
 
 **Schlüssel.** Jeder dokumentierte Schlüssel ist in der JSON-Ausgabe immer vorhanden. Ein String ohne Wert ist `null`, zum Beispiel `parent_id` einer Haupt-Session oder `holiday` an einem gewöhnlichen Tag; Zahlen sind nie `null` (0), Listen nie `null` (`[]`).
 
@@ -1176,12 +1176,14 @@ Gibt die eingebettete Anleitung für Agenten aus (`SKILL.md`). Siehe [Agenten an
 total-recall llm --skill
 ```
 
-## `config show` / `config init` { #config }
+## `config show` / `config init` / `config set` / `config unset` { #config }
 
 ```sh
 total-recall config show          # wirksame Konfiguration mit Herkunft je Wert
 total-recall config show --json
 total-recall config init          # kommentierte Vorlage schreiben (überschreibt nie)
+total-recall config set tui.view stats   # einen Schlüssel in die Datei schreiben
+total-recall config unset tui.view       # zurück auf den Default
 ```
 
 ```text
@@ -1196,6 +1198,15 @@ log (effective)  /Users/me/Library/Application Support/total-recall/total-recall
 ```
 
 `ORIGIN` ist `default`, `file`, `env` oder `flag`. `config init` schreibt an den Ort, den `--config` bzw. `TOTAL_RECALL_CONFIG` nennt, sonst nach `~/.config/total-recall/config.toml`. Siehe [Konfiguration](20-konfiguration.md).
+
+**`config set SCHLÜSSEL WERT` und `config unset SCHLÜSSEL`** ändern dieselbe Datei wie die Einstellungsseite der TUI und rufen dieselben Funktionen auf: Der Wert wird nach der Art des Schlüssels geprüft (Bool, Zahl, Dauer wie `20m`, Liste, erlaubte Werte), Kommentare und Reihenfolge bleiben, eine fehlende Datei entsteht aus der Vorlage, die alte Fassung bleibt als `<Datei>.bak`. Das Ergebnis muss ohne neues Problem laden. `unset` kommentiert die Zeile aus, sodass wieder Default, Umgebung oder Flag gelten. Beide schreiben nur `config.toml`, nie das Archiv, und öffnen es nicht. Tabellen (`project`, `account`, `worktime.category`, `accounts`) lassen sich so nicht setzen; für `[[project]]` siehe `config project`.
+
+```sh
+$ total-recall config set tui.view stats --json
+{"file":"/Users/me/.config/total-recall/config.toml","key":"tui.view","value":"stats","origin":"file","default":"search","changed":true}
+```
+
+Alle Schlüssel sind immer vorhanden; `value` und `default` sind `null`, wenn leer. `changed` ist `false`, wenn die Datei den Wert schon hatte (`set`) bzw. den Schlüssel nicht setzte (`unset`). Ein Wert, den Umgebung oder Flag überschreibt, wird trotzdem geschrieben; `origin` zeigt dann den Überschreiber. Unbekannter Schlüssel, falscher Wert oder ein Ergebnis mit Problem sind Fehler der Art `validation`, die Datei bleibt unberührt.
 
 ## `version` { #version }
 
