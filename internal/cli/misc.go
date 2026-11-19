@@ -166,9 +166,27 @@ type ConfigJSON struct {
 	FileOrigin string        `json:"file_origin"`
 	Loaded     bool          `json:"loaded"`
 	Values     []ConfigValue `json:"values"`
+	// Catalog describes every settable key (kind, allowed values, default,
+	// help), the key bindings "keys.<action>" included.
+	Catalog []ConfigKeyJSON `json:"catalog"`
+	// Projects are the [[project]] definitions in file order.
+	Projects []ProjectJSON `json:"projects"`
 	// Problems are the errors of the tables that are checked when used
 	// ([work], [tui], [keys]); the command exits non-zero when there are any.
 	Problems []string `json:"problems"`
+}
+
+// ConfigKeyJSON describes one key of the configuration for a settings
+// editor: Kind is string, path, clock, bool, int, float, duration, enum,
+// list or table (a table is edited as a whole, see config project); Enum
+// lists the allowed values of an enum and is [] otherwise; Default is the
+// built-in value as config show prints it, null for a table or when empty.
+type ConfigKeyJSON struct {
+	Key     string     `json:"key"`
+	Kind    string     `json:"kind"`
+	Enum    []string   `json:"enum"`
+	Default NullString `json:"default"`
+	Help    string     `json:"help"`
 }
 
 // ConfigValue is one effective value; Value is null when empty.
@@ -192,7 +210,7 @@ func (e *env) configCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		out := ConfigJSON{File: cfg.Path, FileOrigin: string(cfg.PathOrigin), Loaded: cfg.Loaded, Values: []ConfigValue{}, Problems: []string{}}
+		out := ConfigJSON{File: cfg.Path, FileOrigin: string(cfg.PathOrigin), Loaded: cfg.Loaded, Values: []ConfigValue{}, Catalog: configCatalog(cfg), Projects: projectsJSON(cfg), Problems: []string{}}
 		for _, en := range cfg.Entries() {
 			out.Values = append(out.Values, ConfigValue{Key: en.Key, Value: NullString(en.Value), Origin: string(en.Origin)})
 		}

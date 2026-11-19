@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/tui/keys"
 )
 
 // ConfigChangeJSON is the JSON output of config set and config unset: the
@@ -100,4 +101,27 @@ variable) applies again. A key the file does not set is left alone.`,
 	})
 	of.register(c)
 	return c
+}
+
+// configCatalog lists the keys of config.Catalog and then every key
+// binding, as the settings page of the TUI offers them.
+func configCatalog(cfg *config.Config) []ConfigKeyJSON {
+	out := make([]ConfigKeyJSON, 0, len(config.Catalog))
+	add := func(k config.Key) {
+		enum := append([]string{}, k.Enum...)
+		def := cfg.Default(k.Name)
+		if k.Kind == config.KindTable {
+			def = ""
+		}
+		out = append(out, ConfigKeyJSON{Key: k.Name, Kind: string(k.Kind), Enum: enum, Default: NullString(def), Help: k.Help})
+	}
+	for _, k := range config.Catalog {
+		add(k)
+	}
+	for _, a := range keys.Actions {
+		if k, ok := config.Lookup("keys." + a.Name); ok {
+			add(k)
+		}
+	}
+	return out
 }

@@ -1199,6 +1199,11 @@ log (effective)  /Users/me/Library/Application Support/total-recall/total-recall
 
 `ORIGIN` ist `default`, `file`, `env` oder `flag`. `config init` schreibt an den Ort, den `--config` bzw. `TOTAL_RECALL_CONFIG` nennt, sonst nach `~/.config/total-recall/config.toml`. Siehe [Konfiguration](20-konfiguration.md).
 
+**`config show --json`** enthält neben `values` und `problems` zwei Listen für eine Oberfläche, die Einstellungen bearbeitet (immer vorhanden):
+
+- `catalog`: je Schlüssel `key`, `kind` (`string`, `path`, `clock`, `bool`, `int`, `float`, `duration`, `enum`, `list`, `table`), `enum` (die erlaubten Werte, sonst `[]`), `default` (der eingebaute Wert, `null` bei einer Tabelle oder wenn leer) und `help` (eine Zeile). Es ist derselbe Katalog, den die Einstellungsseite der TUI und `config set` verwenden, mit den Tastenbelegungen `keys.<aktion>`.
+- `projects`: die `[[project]]`-Definitionen strukturiert in Dateireihenfolge, je `position` (ab 1), `name`, `description`, `color` (beide `null`, wenn leer) und `match` (Liste); dasselbe Objekt wie in der Ausgabe von [`config project`](#config-project). In `values` bleibt `project` ein Text.
+
 **`config set SCHLÜSSEL WERT` und `config unset SCHLÜSSEL`** ändern dieselbe Datei wie die Einstellungsseite der TUI und rufen dieselben Funktionen auf: Der Wert wird nach der Art des Schlüssels geprüft (Bool, Zahl, Dauer wie `20m`, Liste, erlaubte Werte), Kommentare und Reihenfolge bleiben, eine fehlende Datei entsteht aus der Vorlage, die alte Fassung bleibt als `<Datei>.bak`. Das Ergebnis muss ohne neues Problem laden. `unset` kommentiert die Zeile aus, sodass wieder Default, Umgebung oder Flag gelten. Beide schreiben nur `config.toml`, nie das Archiv, und öffnen es nicht. Tabellen (`project`, `account`, `worktime.category`, `accounts`) lassen sich so nicht setzen; für `[[project]]` siehe `config project`.
 
 ```sh
