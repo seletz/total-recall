@@ -95,7 +95,7 @@ func TestConfigSetKeepsCommentsAndUnsetRestoresDefault(t *testing.T) {
 	if !r.Changed || r.Origin != "default" || string(r.Value) != string(r.Default) || r.Default == "" {
 		t.Errorf("unset = %+v", r)
 	}
-	if strings.Contains(e.readConfig(t), "\nview = \"stats\"") ||!strings.Contains(e.readConfig(t), "# my notes") {
+	if strings.Contains(e.readConfig(t), "\nview = \"stats\"") || !strings.Contains(e.readConfig(t), "# my notes") {
 		t.Errorf("file after unset:\n%s", e.readConfig(t))
 	}
 	// Unsetting what the file does not set changes nothing.
