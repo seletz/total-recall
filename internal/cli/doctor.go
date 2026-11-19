@@ -25,6 +25,7 @@ const doctorFindings = exitCode(2)
 func (e *env) doctorCmd() *cobra.Command {
 	var name string
 	var days int
+	var setup bool
 	var of outputFlags
 	c := &cobra.Command{
 		Use:   "doctor",
@@ -48,13 +49,25 @@ findings: project, key, missing ("project" and/or "category") and
 last_active.
 
 Exit code 0: nothing unknown. 2: findings (run it after a harness update).
-Hints are no findings and never change the exit code.`,
+Hints are no findings and never change the exit code.
+
+--setup runs instead the checks of the setup page of the TUI (config file,
+hooks in the Claude Code settings, MCP entry, binary on PATH, backup
+directory, transcripts, archive), with the same texts, and only reads. With
+--json: {"ok", "checks":[{"name","ok","warn","text","fix"}]}; fix names what
+the TUI would offer. The exit code is 0, whatever the checks say.`,
 		Args: usageArgs(cobra.NoArgs),
 	}
 	c.RunE = e.readRun(&of, func(cmd *cobra.Command, _ []string, o *output) error {
+		if setup && (cmd.Flags().Changed("harness") || cmd.Flags().Changed("days")) {
+			return usagef("doctor: --setup does not take --harness or --days")
+		}
 		cfg, err := e.loadConfig()
 		if err != nil {
 			return err
+		}
+		if setup {
+			return e.doctorSetup(cfg, o)
 		}
 		var checkers []harness.FormatChecker
 		for _, a := range ops.Adapters(cfg) {
@@ -151,6 +164,7 @@ Hints are no findings and never change the exit code.`,
 		}
 		return nil
 	})
+	c.Flags().BoolVar(&setup, "setup", false, "run the setup checks of the TUI (hooks, MCP entry, binary, directories) instead of the format check")
 	c.Flags().StringVar(&name, "harness", "claude", "harness to check")
 	c.Flags().IntVar(&days, "days", 30, "hint at projects with activity in the last N days that have no [[project]] or no category (0 = off)")
 	of.register(c)

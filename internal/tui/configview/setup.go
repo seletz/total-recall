@@ -2,20 +2,13 @@ package configview
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/ops"
-	"github.com/seletz/total-recall/internal/store"
 )
 
 // Signs of the checks: ok, ok with a hint, failed. Glyphs of the WGL4
@@ -26,21 +19,8 @@ const (
 	signFail = "×"
 )
 
-// check is one line of the setup page.
-type check struct {
-	name string
-	// ok is a tick, warn a hint on an ok line; neither is a cross.
-	ok, warn bool
-	text     string
-	// fix, when set, is offered on select and run by fixFn after a
-	// confirmation; reloadConfig says the configuration changed by it.
-	// mcp marks the line whose block (the MCP entry) is shown and copied
-	// instead of the hook block while it is marked.
-	mcp          bool
-	fix          string
-	fixFn        func() error
-	reloadConfig bool
-}
+// check is one line of the setup page: the shared setup check.
+type check = ops.Check
 
 // checksMsg carries the result of the setup checks.
 type checksMsg struct {
@@ -89,7 +69,7 @@ func (p setupPage) reload(m *Model) (page, tea.Cmd) {
 	p.loading = true
 	seq, opts, now := p.seq, m.opts, m.opts.Now()
 	return p, func() tea.Msg {
-		return checksMsg{seq: seq, checks: runChecks(opts, now)}
+		return checksMsg{seq: seq, checks: ops.SetupChecks(opts.setupEnv(), now)}
 	}
 }
 
@@ -174,11 +154,11 @@ func (p setupPage) selectRow(m *Model) (page, tea.Cmd) {
 		return p, nil
 	}
 	c := p.checks[p.row]
-	if c.fix == "" {
-		if c.ok {
-			p.notice, p.bad = c.name+": nothing to do", false
+	if c.Fix == "" {
+		if c.OK {
+			p.notice, p.bad = c.Name+": nothing to do", false
 		} else {
-			p.notice, p.bad = c.name+": no fix from here, see the text", true
+			p.notice, p.bad = c.Name+": no fix from here, see the text", true
 		}
 		return p, nil
 	}
@@ -191,19 +171,19 @@ func (p setupPage) fix(m *Model) (page, tea.Cmd) {
 	c := p.checks[p.row]
 	cfg := m.opts.Config
 	return p, func() tea.Msg {
-		if err := c.fixFn(); err != nil {
-			return fixedMsg{name: c.name, err: err}
+		if err := c.FixFn(); err != nil {
+			return fixedMsg{name: c.Name, err: err}
 		}
-		if !c.reloadConfig || cfg == nil {
-			return fixedMsg{name: c.name}
+		if !c.ReloadConfig || cfg == nil {
+			return fixedMsg{name: c.Name}
 		}
 		n, err := cfg.Reload()
-		return fixedMsg{name: c.name, err: err, cfg: n}
+		return fixedMsg{name: c.Name, err: err, cfg: n}
 	}
 }
 
 // onMCP says whether the marked line is the MCP check.
-func (p setupPage) onMCP() bool { return p.row < len(p.checks) && p.checks[p.row].mcp }
+func (p setupPage) onMCP() bool { return p.row < len(p.checks) && p.checks[p.row].MCP }
 
 // mcpBlock is the command and the JSON entry of the MCP server.
 func mcpBlock() string {
@@ -241,22 +221,22 @@ func (p setupPage) view(m *Model, width, height int) string {
 		st := newRowStyle(m.th, i == p.row)
 		sign := st.on(m.th.Warn).Render(signFail)
 		switch {
-		case c.ok && c.warn:
+		case c.OK && c.Warn:
 			sign = st.on(m.th.Warn).Render(signWarn)
-		case c.ok:
+		case c.OK:
 			sign = st.on(m.th.Accent).Render(signOK)
 		}
-		text := st.text.Render(c.text)
-		if c.fix != "" {
-			text += st.text.Render("  ") + st.on(m.th.Accent).Render("enter: "+c.fix)
+		text := st.text.Render(c.Text)
+		if c.Fix != "" {
+			text += st.text.Render("  ") + st.on(m.th.Accent).Render("enter: "+c.Fix)
 		}
-		line := st.text.Render(pad(c.name, 11)+" ") + sign + st.text.Render(" ") + text
+		line := st.text.Render(pad(c.Name, 11)+" ") + sign + st.text.Render(" ") + text
 		lines = append(lines, m.line(mark+" "+st.fill(m.line(line, width-2), width-2), width))
 	}
 	lines = append(lines, m.th.Rule.Render(strings.Repeat("─", width)))
 	switch {
 	case p.confirm && p.row < len(p.checks):
-		lines = append(lines, m.line(" "+m.th.Strong.Render(p.checks[p.row].name+":")+" "+p.checks[p.row].fix+"? "+m.th.AccentText.Render("y confirms, esc cancels"), width))
+		lines = append(lines, m.line(" "+m.th.Strong.Render(p.checks[p.row].Name+":")+" "+p.checks[p.row].Fix+"? "+m.th.AccentText.Render("y confirms, esc cancels"), width))
 	case p.notice != "" && p.bad:
 		lines = append(lines, m.line(" "+m.th.Error.Render(p.notice), width))
 	case p.notice != "":
@@ -281,228 +261,13 @@ func (p setupPage) view(m *Model, width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-// runChecks examines the installation.
-func runChecks(opts Options, now time.Time) []check {
-	cfg := opts.Config
-	if cfg == nil {
-		return nil
-	}
-	tilde := func(p string) string { return Model{opts: opts}.tilde(p) }
-	var out []check
-
-	// config file
-	c := check{name: "config"}
-	switch {
-	case cfg.Loaded:
-		c.ok, c.text = true, tilde(cfg.Path)+" loaded"
-		if n := len(cfg.Problems()); n > 0 {
-			c.warn, c.text = true, c.text+fmt.Sprintf(", %s (see status)", plural(n, "problem"))
-		}
-	default:
-		c.text = tilde(cfg.Path) + " missing (defaults apply)"
-		c.fix, c.reloadConfig = "write template", true
-		path := cfg.Path
-		c.fixFn = func() error { return config.WriteTemplate(path) }
-	}
-	out = append(out, c)
-
-	// hooks
-	c = check{name: "hooks"}
-	present, err := hooksIn(opts.SettingsFile)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		c.text = tilde(opts.SettingsFile) + " not found; add the hook block (c copies it)"
-	case err != nil:
-		c.text = tilde(opts.SettingsFile) + ": " + err.Error()
-	default:
-		var missing []string
-		for _, ev := range ops.HookEvents {
-			if !present[ev] {
-				missing = append(missing, ev)
-			}
-		}
-		if len(missing) == 0 {
-			c.ok, c.text = true, tilde(opts.SettingsFile)+": "+strings.Join(ops.HookEvents, ", ")
-		} else {
-			c.text = tilde(opts.SettingsFile) + " lacks " + strings.Join(missing, ", ") + "; add the hook block (c copies it)"
-		}
-	}
-	out = append(out, c)
-
-	// MCP server
-	c = check{name: "mcp", mcp: true}
-	files := []string{opts.ClaudeJSON}
-	if opts.ProjectDir != "" {
-		files = append(files, filepath.Join(opts.ProjectDir, ".mcp.json"))
-	}
-	if where, state := mcpIn(files, opts); where != "" {
-		c.ok, c.text = true, tilde(where)+": total-recall mcp"
-		if state != "" {
-			c.warn, c.text = true, c.text+", "+state
-		}
-	} else {
-		c.text = "not registered with Claude Code (optional); c copies the claude mcp add command"
-	}
-	out = append(out, c)
-
-	// binary
-	c = check{name: "binary"}
-	path, err := opts.LookPath("total-recall")
-	switch {
-	case err != nil:
-		c.text = "total-recall is not on PATH; put it there or use an absolute path in the hooks"
-	default:
-		c.ok, c.text = true, tilde(path)+" on PATH"
-		exe, eerr := opts.Executable()
-		switch {
-		case eerr == nil && sameFile(exe, path):
-			c.text += ", this version (" + opts.Version + ")"
-		default:
-			v, verr := opts.VersionOf(path)
-			switch {
-			case verr != nil:
-				c.warn, c.text = true, c.text+", version unknown: "+verr.Error()
-			case v != opts.Version:
-				c.warn, c.text = true, c.text+fmt.Sprintf(" is %s, this is %s", v, opts.Version)
-			default:
-				c.text += ", this version (" + v + ")"
-			}
-		}
-	}
-	out = append(out, c)
-
-	// backup directory
-	c = check{name: "backups"}
-	if fi, err := os.Stat(cfg.Backup.Dir); err == nil && fi.IsDir() || err != nil && !errors.Is(err, fs.ErrNotExist) {
-		c.ok, c.text = true, tilde(cfg.Backup.Dir)+" exists"
-		switch bk := store.ReadBackupStatus(store.BackupProbe{DB: cfg.DB, Dir: cfg.Backup.Dir, Loc: cfg.Location(), Now: now, Home: cfg.Home}); {
-		case bk.State == store.BackupUnknown && bk.Path != "":
-			c.text = tilde(cfg.Backup.Dir) + " cannot be read (" + bk.Reason + "), last backup " + age(now, bk.At) + " by the status file"
-		case bk.State == store.BackupUnknown:
-			c.text = tilde(cfg.Backup.Dir) + " cannot be read (" + bk.Reason + "), last backup unknown"
-		case bk.State == store.BackupOK:
-			c.text += ", last backup " + age(now, bk.At)
-		default:
-			c.warn, c.text = true, c.text+", no backup yet (actions: backup)"
-		}
-	} else {
-		c.text = tilde(cfg.Backup.Dir) + " does not exist"
-		c.fix = "create the directory"
-		dir := cfg.Backup.Dir
-		c.fixFn = func() error { return os.MkdirAll(dir, 0o755) }
-	}
-	out = append(out, c)
-
-	// transcripts
-	c = check{name: "transcripts"}
-	switch {
-	case !cfg.Harness.Claude.Enabled:
-		c.ok, c.warn, c.text = true, true, "harness claude is disabled"
-	default:
-		if fi, err := os.Stat(cfg.Harness.Claude.ProjectsDir); err == nil && fi.IsDir() {
-			c.ok, c.text = true, tilde(cfg.Harness.Claude.ProjectsDir)
-		} else {
-			c.text = tilde(cfg.Harness.Claude.ProjectsDir) + " not found; is Claude Code installed?"
-		}
-	}
-	out = append(out, c)
-
-	// archive
-	c = check{name: "archive"}
-	if _, err := os.Stat(cfg.DB); err == nil {
-		c.ok, c.text = true, tilde(cfg.DB)
-	} else {
-		c.text = tilde(cfg.DB) + " missing; run ingest all (actions) or wait for the first hook"
-	}
-	out = append(out, c)
-	return out
-}
-
-// hooksIn reads the Claude Code settings file and reports which events
-// run total-recall: ingest on every event, the backup too on SessionEnd.
-func hooksIn(path string) (map[string]bool, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var s struct {
-		Hooks map[string][]struct {
-			Hooks []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if err := json.Unmarshal(b, &s); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %w", err)
-	}
-	out := map[string]bool{}
-	for ev, matchers := range s.Hooks {
-		ingest, backup := false, false
-		for _, mt := range matchers {
-			for _, h := range mt.Hooks {
-				if strings.Contains(h.Command, "total-recall") && strings.Contains(h.Command, "ingest --hook") {
-					ingest = true
-				}
-				if strings.Contains(h.Command, "total-recall") && strings.Contains(h.Command, "backup") {
-					backup = true
-				}
-			}
-		}
-		out[ev] = ingest && (ev != "SessionEnd" || backup)
-	}
-	return out, nil
-}
-
-// mcpIn looks for the total-recall entry in the "mcpServers" object of the
-// files, reading nothing else from them. It returns the file that has it and
-// a hint when the entry points to another binary than the one on PATH, or
-// "" for none.
-func mcpIn(files []string, opts Options) (where, hint string) {
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			continue
-		}
-		var doc struct {
-			MCPServers map[string]struct {
-				Command string   `json:"command"`
-				Args    []string `json:"args"`
-			} `json:"mcpServers"`
-		}
-		if json.Unmarshal(b, &doc) != nil {
-			continue
-		}
-		for _, e := range doc.MCPServers {
-			if len(e.Args) == 0 || e.Args[0] != "mcp" || filepath.Base(e.Command) != "total-recall" {
-				continue
-			}
-			// A bare command resolves through PATH.
-			cmd := e.Command
-			if !strings.ContainsRune(cmd, filepath.Separator) {
-				if cmd, err = opts.LookPath(cmd); err != nil {
-					return f, "command not found on PATH"
-				}
-			}
-			if _, err := os.Stat(cmd); err != nil {
-				return f, "command " + Model{opts: opts}.tilde(cmd) + " does not exist"
-			}
-			return f, ""
-		}
-	}
-	return "", ""
-}
-
-// sameFile reports whether two paths name the same file.
-func sameFile(a, b string) bool {
-	fa, err := os.Stat(a)
-	if err != nil {
-		return false
-	}
-	fb, err := os.Stat(b)
-	if err != nil {
-		return false
-	}
-	return os.SameFile(fa, fb)
-}
-
 func (setupPage) cursor(int) *tea.Cursor { return nil }
+
+// setupEnv is what the shared setup checks look at.
+func (o Options) setupEnv() ops.SetupEnv {
+	return ops.SetupEnv{
+		Config: o.Config, Home: o.Home, Version: o.Version, Getenv: o.Getenv,
+		SettingsFile: o.SettingsFile, ClaudeJSON: o.ClaudeJSON, ProjectDir: o.ProjectDir,
+		LookPath: o.LookPath, Executable: o.Executable, VersionOf: o.VersionOf,
+	}
+}
