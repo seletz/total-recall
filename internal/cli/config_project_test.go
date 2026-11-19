@@ -142,3 +142,70 @@ func TestConfigProjectTable(t *testing.T) {
 		t.Errorf("table = %q", out)
 	}
 }
+
+// TestConfigShowCatalogAndProjects checks that config show --json carries
+// the catalog of the keys (kind, allowed values, default, help) and the
+// [[project]] definitions as structured data, including the description.
+func TestConfigShowCatalogAndProjects(t *testing.T) {
+	t.Parallel()
+	e := newTestEnv(t)
+	e.mustRun(t, "config", "project", "add", "kompass", "--match", "~/src/kompass*", "--match", "https://git.invalid/mara/kompass", "--description", "Wanderkarten", "--color", "blue")
+	e.mustRun(t, "config", "project", "add", "wetterwarte", "--match", "~/src/wetter")
+	e.mustRun(t, "config", "set", "tui.view", "stats")
+
+	raw := decode[map[string]any](t, e.mustRun(t, "config", "show", "--json"))
+	for _, k := range []string{"catalog", "projects"} {
+		if _, ok := raw[k].([]any); !ok {
+			t.Fatalf("%q is no list: %#v", k, raw[k])
+		}
+	}
+	c := decode[ConfigJSON](t, e.mustRun(t, "config", "show", "--json"))
+
+	if len(c.Projects) != 2 || c.Projects[0].Name != "kompass" || c.Projects[0].Description != "Wanderkarten" || c.Projects[0].Color != "blue" || len(c.Projects[0].Match) != 2 || c.Projects[1].Position != 2 || c.Projects[1].Description != "" {
+		t.Errorf("projects = %+v", c.Projects)
+	}
+
+	byKey := map[string]ConfigKeyJSON{}
+	for _, k := range c.Catalog {
+		byKey[k.Key] = k
+	}
+	values := map[string]ConfigValue{}
+	for _, v := range c.Values {
+		values[v.Key] = v
+	}
+	// Every key of the catalog is listed once, with its kind, and the
+	// catalog and the values agree: a key with a value has a catalog entry
+	// and the other way round (tables are shown as one text).
+	if len(byKey) != len(c.Catalog) {
+		t.Errorf("catalog has duplicate keys")
+	}
+	for _, k := range c.Catalog {
+		if k.Kind == "" || k.Help == "" || k.Enum == nil {
+			t.Errorf("catalog entry incomplete: %+v", k)
+		}
+		if _, ok := values[k.Key]; !ok && k.Kind != "table" {
+			t.Errorf("catalog key %q has no value", k.Key)
+		}
+	}
+	for key := range values {
+		if _, ok := byKey[key]; !ok && key != "log (effective)" {
+			t.Errorf("value %q has no catalog entry", key)
+		}
+	}
+	view := byKey["tui.view"]
+	if view.Kind != "enum" || len(view.Enum) < 3 || view.Default != "search" || view.Help == "" {
+		t.Errorf("tui.view = %+v", view)
+	}
+	if k := byKey["tui.mouse"]; k.Kind != "bool" || len(k.Enum) != 0 || k.Default != "true" {
+		t.Errorf("tui.mouse = %+v", k)
+	}
+	if k := byKey["project"]; k.Kind != "table" || k.Default != "" {
+		t.Errorf("project = %+v", k)
+	}
+	if k, ok := byKey["keys.global_quit"]; !ok || k.Kind != "list" || k.Default == "" {
+		t.Errorf("keys.global_quit = %+v (%v)", k, ok)
+	}
+	if values["tui.view"].Origin != "file" || values["tui.view"].Value != "stats" {
+		t.Errorf("value = %+v", values["tui.view"])
+	}
+}

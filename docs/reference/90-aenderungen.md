@@ -14,6 +14,7 @@ Epic [#320](https://github.com/seletz/total-recall/issues/320): Was die TUI übe
 
 - **`config set` und `config unset`** ([#321](https://github.com/seletz/total-recall/issues/321)): schreiben einen Schlüssel in `config.toml` bzw. setzen ihn auf den Default zurück, mit derselben Prüfung wie die Einstellungsseite der TUI, Kommentare und Reihenfolge bleiben. `--json` liefert `file`, `key`, `value`, `origin`, `default`, `changed`; neue Fehlerart `validation`. Das Archiv bleibt unberührt.
 - **`config project add|set|rm|move`** ([#322](https://github.com/seletz/total-recall/issues/322)): pflegen die `[[project]]`-Definitionen in `config.toml` mit denselben Funktionen und derselben Prüfung wie die Seite Projects der TUI, je Name, mit `--json`. Kommentare und Reihenfolge bleiben, das Archiv bleibt unberührt.
+- **`config show --json` mit Katalog und strukturierten Projekten** ([#323](https://github.com/seletz/total-recall/issues/323)): neue Listen `catalog` (je Schlüssel Art, erlaubte Werte, Default, Hilfetext, auch die Tastenbelegungen) und `projects` (die `[[project]]`-Definitionen mit `description`, `color` und `match`). Bestehende Schlüssel unverändert.
 
 ## v1.8.1
 

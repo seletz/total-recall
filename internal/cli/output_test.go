@@ -149,7 +149,7 @@ func TestJSONKeys(t *testing.T) {
 		{"stats series", []string{"stats", "--period", "week", "--since", "2026-10-01", "--until", "2026-10-31", "--json"}, obj,
 			[]string{"since", "until", "timezone", "period", "by", "keys", "total", "by_key", "buckets"}, []string{"by"}},
 		{"config show", []string{"config", "show", "--json"}, obj,
-			[]string{"file", "file_origin", "loaded", "values", "problems"}, nil},
+			[]string{"file", "file_origin", "loaded", "values", "catalog", "projects", "problems"}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
