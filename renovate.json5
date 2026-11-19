@@ -1,0 +1,58 @@
+// Renovate configuration. Run by .github/workflows/renovate.yml every 8 hours.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Default rules; the Go modules, GitHub Actions and mise managers are
+  // enabled by it and stay enabled.
+  extends: ["config:recommended"],
+
+  // Development happens on develop; PRs go there, not to the default branch.
+  // (Renovate 44 renamed baseBranches to baseBranchPatterns.)
+  baseBranchPatterns: ["develop"],
+
+  labels: ["dependencies"],
+
+  // Semantic commits in the repo style: "chore(deps): update module x to v1.2".
+  semanticCommits: "enabled",
+  semanticCommitType: "chore",
+  semanticCommitScope: "deps",
+
+  // Run `go mod tidy` after every Go update so go.mod/go.sum stay consistent.
+  postUpdateOptions: ["gomodTidy"],
+
+  // No "schedule": the workflow itself runs every 8 hours, and security
+  // updates must never wait for a time window.
+
+  // Throttle regular PRs.
+  prHourlyLimit: 2,
+  prConcurrentLimit: 5,
+
+  // Security fixes: open PRs for GitHub advisories and OSV data. These ignore
+  // the limits above and any approval gate.
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["dependencies", "security"],
+    prHourlyLimit: 0,
+    prConcurrentLimit: 0,
+    dependencyDashboardApproval: false,
+  },
+  osvVulnerabilityAlerts: true,
+
+  packageRules: [
+    {
+      // One PR for the Charm TUI stack: the modules are released together and
+      // break when their versions drift apart.
+      description: "Group the Charm modules",
+      matchManagers: ["gomod"],
+      matchPackageNames: ["charm.land/**", "github.com/charmbracelet/**"],
+      groupName: "charm modules",
+    },
+    {
+      // Major updates are breaking; they wait until someone ticks them in the
+      // Dependency Dashboard issue.
+      description: "Majors need approval in the dependency dashboard",
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+    },
+  ],
+}
