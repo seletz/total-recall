@@ -198,3 +198,13 @@ Lokal installiert mise goreleaser über seine aqua-Registry in derselben Version
 2. `mise run sbom:check` lokal: baut den Snapshot und prüft die SBOMs so, wie es die CI tut; `mise run tools:check` prüft die [Werkzeug-Pins](#werkzeuge-des-release-laufs).
 3. `mise run release`: wählt die Versionsnummer nach den Regeln der [Versionierung](60-versionierung.md) (ein Bruch an der stabilen Schnittstelle ist Major, ein neues Schema Minor), taggt und pusht den Tag; der Workflow baut, signiert, notarisiert, erzeugt SBOMs und Prüfsummen, legt das GitHub-Release an und aktualisiert den Cask.
 4. Nach dem Lauf: das darwin-Archiv laden und die [Signatur prüfen](#signatur-prufen); `brew upgrade --cask total-recall` auf einem Mac und `total-recall --version`, ohne Gatekeeper-Dialog.
+
+## Abhängigkeiten aktualisieren (Renovate)
+
+[Renovate](https://docs.renovatebot.com/) hält Go-Module, GitHub Actions und die Werkzeuge in `mise.toml` aktuell und öffnet dafür Pull Requests gegen `develop`. Er läuft selbst gehostet im Workflow `renovate.yml`; die Regeln stehen in `renovate.json5`.
+
+- **Takt:** alle 8 Stunden (cron `17 */8 * * *`), dazu von Hand über *Actions → Renovate → Run workflow*. Zwei Läufe überschneiden sich nie (`concurrency: renovate`). Es gibt keine Zeitfenster; Sicherheits-Updates (GitHub-Advisories und OSV) warten nie und zählen nicht gegen die Limits.
+- **Regeln:** höchstens 2 neue PRs pro Stunde und 5 offene gleichzeitig. Die Charm-Module (`charm.land/*`, `github.com/charmbracelet/*`) kommen in einem gemeinsamen PR. Major-Updates öffnet Renovate erst, wenn sie im Dependency-Dashboard (einem Issue im Repository) angehakt sind. Commits heißen `chore(deps): …`, die PRs tragen das Label `dependencies`.
+- **Trockenlauf:** Beim manuellen Start `dry_run` setzen (und bei Bedarf `log_level` auf `debug`). Renovate protokolliert dann, was er täte, und legt keine Branches oder PRs an.
+- **Secret `RENOVATE_TOKEN`:** ein fein granulares Personal Access Token, das als Repository-Secret `RENOVATE_TOKEN` gespeichert ist, mit Lese- und Schreibrecht auf *Contents*, *Pull requests*, *Issues* und *Workflows*. Mit dem `GITHUB_TOKEN` ginge es nicht: PRs, die damit entstehen, lösen keine weiteren Workflows aus (die CI würde auf den Update-PRs nie laufen), und er darf keine Dateien unter `.github/workflows` ändern. Läuft das Token ab, schlägt der Workflow fehl; dann ein neues Token anlegen und das Secret ersetzen.
+- **Lokal prüfen:** `mise x npm:renovate@44.239.1 -- renovate-config-validator renovate.json5` prüft die Konfiguration.
