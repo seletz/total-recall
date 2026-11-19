@@ -115,3 +115,30 @@ func TestProjectsEditRejects(t *testing.T) {
 		})
 	}
 }
+
+func TestPageAndDraftResolver(t *testing.T) {
+	c := &Config{Home: "/h", Projects: []Project{
+		{Name: "kompass", Match: StringList{"~/k"}},
+		{Name: "kaputt", Color: "puce", Match: StringList{"~/x"}},
+		{Name: "wetter", Match: StringList{"~/w"}},
+	}}
+	if _, err := c.ProjectResolver(); err == nil {
+		t.Fatal("the list with a bad colour validates")
+	}
+	r, err := c.PageResolver()
+	if err == nil || len(r.Definitions()) != 2 {
+		t.Errorf("PageResolver = %d definitions, err %v; want the 2 valid ones and the error", len(r.Definitions()), err)
+	}
+	// A draft replaces the entry at the index, or is appended for -1.
+	r, err = c.DraftResolver(0, Project{Name: "karte", Match: StringList{"~/k"}})
+	if err != nil || len(r.Definitions()) != 2 || r.Definitions()[0].Name != "karte" /* kaputt is left out */ {
+		t.Errorf("DraftResolver(0) = %v, %v", r.Definitions(), err)
+	}
+	r, err = c.DraftResolver(-1, Project{Name: "neu", Match: StringList{"~/n"}})
+	if err != nil || len(r.Definitions()) != 3 || r.Definitions()[2].Name != "neu" {
+		t.Errorf("DraftResolver(-1) = %v, %v", r.Definitions(), err)
+	}
+	if _, err := c.DraftResolver(-1, Project{Name: "", Match: StringList{"x"}}); err == nil {
+		t.Error("a draft without a name is accepted")
+	}
+}

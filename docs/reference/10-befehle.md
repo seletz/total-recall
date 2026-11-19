@@ -1246,6 +1246,33 @@ Jeder Aufruf mit `--json` liefert:
 
 `project` ist die Definition nach der Änderung (bei `rm` die gelöschte), `position` ihre Stelle in der Datei ab 1; `description` und `color` sind `null`, wenn leer; `changed` ist `false`, wenn nichts zu tun war (`move` an die Stelle, an der sie steht). Eine Definition, die nicht besteht (ohne Muster, unbekannte Farbe, Name doppelt, Position außerhalb), ist ein Fehler der Art `validation`; ein unbekannter Name ein `not_found`; die Datei bleibt dann unberührt.
 
+### `config projects` { #config-projects }
+
+```sh
+total-recall config projects                 # Definitionen, Pfade des Archivs, Zuordnung
+total-recall config projects --json
+total-recall config projects --preview --name notizen --match '~/notizen' --json   # Entwurf prüfen, nichts wird gespeichert
+```
+
+Zeigt, was die Seite Projects der TUI zeigt, mit denselben Funktionen (`store.ProjectKeys`, Resolver, Vorschau): die `[[project]]`-Definitionen mit Pfaden und Sessions, die Projektschlüssel des Archivs (Git-Root, sonst Arbeitsverzeichnis) mit dem Projekt, zu dem sie gehören, und die Schlüssel ohne Definition. Gezählt werden Haupt-Sessions mit Arbeitsverzeichnis; Subagent-Sessions gehören zu ihrer Eltern-Session. Das Archiv wird nur gelesen.
+
+**Summe = Teile.** Die `sessions` aller `definitions` plus `unassigned.sessions` ergeben `totals.sessions`, ebenso die `sessions` aller `keys`; für `paths` gilt dasselbe. Ein Test prüft das an der echten `--json`-Ausgabe des Demo-Archivs gegen eine SQL-Zählung.
+
+```json
+{
+  "definitions": [{"position": 1, "name": "kompass", "description": "Wanderkarten", "color": "blue", "match": ["~/src/kompass*"], "paths": 1, "sessions": 326}],
+  "keys": [{"key": "/home/mara/src/kompass", "name": "kompass", "dir": false, "remote": "https://git.invalid/mara/kompass", "sessions": 326, "last": "2026-10-31T16:42:00.000Z", "project": "kompass"}],
+  "unassigned": {"paths": 2, "sessions": 109},
+  "totals": {"paths": 5, "sessions": 741},
+  "problem": null,
+  "preview": null
+}
+```
+
+`keys` sind nach Sessions absteigend sortiert; `name` ist der Name ohne Definition, `project` die zugehörige Definition (`null`: kein Projekt), `remote` und `last` sind `null`, wenn unbekannt. `problem` nennt den ersten Fehler der Definitionsliste (sonst `null`); Definitionen, die nicht bestehen, bleiben bei der Zuordnung draußen. Alle Schlüssel sind immer vorhanden.
+
+**`--preview`** prüft einen Entwurf, ohne zu speichern (`--match` wiederholbar und Pflicht, `--name`, `--description`, `--color` wie bei [`config project add`](#config-project)). Trägt der Entwurf den Namen einer vorhandenen Definition, ersetzt er sie (`replaces`), sonst kommt er ans Ende; die erste passende Definition gewinnt, deshalb nimmt eine frühere ihm Pfade weg. `preview` enthält `definition`, `paths` und `sessions` (was der Entwurf bekäme), `matched_sessions` (alles, was seine Muster treffen), `matches` (je Treffer `key`, `name`, `sessions`, `taken_by` oder `null`) und `text`, die Zeile der TUI („matches 1 path · 326 sessions: kompass“). Auch hier gilt Summe = Teile: Die `sessions` der Treffer ohne `taken_by` sind `sessions`, mit `taken_by` dazu `matched_sessions`. Ohne `--preview` sind die Entwurfs-Flags ein Fehler (`usage`), ein leeres Muster oder eine falsche Farbe `validation`.
+
 ## `version` { #version }
 
 Gibt die Version aus, eine Zeile, sonst nichts. `total-recall --version` (kurz `-v`) tut dasselbe.

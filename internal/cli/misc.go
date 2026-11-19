@@ -198,7 +198,7 @@ type ConfigValue struct {
 
 func (e *env) configCmd() *cobra.Command {
 	c := &cobra.Command{Use: "config", Short: "Show, initialize or edit the configuration"}
-	c.AddCommand(e.configProjectCmd())
+	c.AddCommand(e.configProjectCmd(), e.configProjectsCmd())
 	var of outputFlags
 	show := &cobra.Command{
 		Use:   "show",

@@ -169,8 +169,8 @@ func (p projectsPage) build(m *Model) projectsPage {
 		rows = append(rows, prow{kind: rowDef, index: i})
 	}
 	if p.ar.loaded {
-		r, _ := pageResolver(cfg)
-		if un := assign(r, p.ar).unmatched; len(un) > 0 {
+		r, _ := cfg.PageResolver()
+		if un := p.ar.Assign(r).Unmatched; len(un) > 0 {
 			rows = append(rows, prow{kind: rowHeader}, prow{kind: rowHeader, label: "UNMATCHED"})
 			for _, i := range un {
 				rows = append(rows, prow{kind: rowKey, index: i})
@@ -309,7 +309,7 @@ func (p projectsPage) open(m *Model) projectsPage {
 	case rowDef:
 		return p.edit(r.index, m.opts.Config.Projects[r.index])
 	case rowKey:
-		return p.edit(-1, suggest(p.ar.keys[r.index], p.ar, m.opts.Home))
+		return p.edit(-1, suggest(p.ar.Keys[r.index], p.ar, m.opts.Home))
 	}
 	return p
 }
@@ -361,7 +361,7 @@ func (p projectsPage) startPick(m *Model) projectsPage {
 		p.notice, p.bad = "no definition to add the pattern to; "+m.keys.Add.Help().Key+" creates one", true
 		return p
 	}
-	p.pending = suggestPattern(p.ar.keys[r.index], m.opts.Home)
+	p.pending = suggestPattern(p.ar.Keys[r.index], m.opts.Home)
 	p.mode = modePick
 	p.row = p.next(-1, 1)
 	p.notice, p.bad = "", false
@@ -754,16 +754,16 @@ func (p projectsPage) view(m *Model, width, height int) string {
 		p.offset = p.row - avail + 1
 	}
 	p.offset = max(0, min(p.offset, max(len(p.rows)-avail, 0)))
-	r, rerr := pageResolver(cfg)
-	as := assign(r, p.ar)
+	r, rerr := cfg.PageResolver()
+	as := p.ar.Assign(r)
 	p.pinColors(m)
 	nameW, descW := 4, 11
 	for _, d := range cfg.Projects {
 		nameW = max(nameW, lipgloss.Width(d.Name))
 		descW = max(descW, lipgloss.Width(d.Description))
 	}
-	for _, i := range as.unmatched {
-		nameW = max(nameW, lipgloss.Width(p.ar.name(i)))
+	for _, i := range as.Unmatched {
+		nameW = max(nameW, lipgloss.Width(p.ar.Name(i)))
 	}
 	nameW, descW = min(nameW, 24), min(descW, 40)
 	const sessW, lastW = 8, 11
@@ -792,7 +792,7 @@ func (p projectsPage) view(m *Model, width, height int) string {
 			continue
 		case rowDef:
 			d := cfg.Projects[row.index]
-			paths, sessions := p.ar.tally(as.byName[d.Name])
+			paths, sessions := p.ar.Tally(as.ByName[d.Name])
 			count := pad("", sessW)
 			if paths > 0 {
 				count = fmt.Sprintf("%*d", sessW, sessions)
@@ -801,8 +801,8 @@ func (p projectsPage) view(m *Model, width, height int) string {
 			line = st.swatch(d.Color, c) + st.text.Render(" ") + st.name(c).Render(pad(m.line(d.Name, nameW), nameW)) +
 				st.text.Render("  "+pad(m.line(d.Description, descW), descW)+"  "+count+"  "+strings.Join(d.Match, ", "))
 		case rowKey:
-			k := p.ar.keys[row.index]
-			line = st.name(m.opts.Colors.Color(k.Key)).Render(pad(m.line(p.ar.name(row.index), nameW), nameW)) +
+			k := p.ar.Keys[row.index]
+			line = st.name(m.opts.Colors.Color(k.Key)).Render(pad(m.line(p.ar.Name(row.index), nameW), nameW)) +
 				st.text.Render("  "+fmt.Sprintf("%*d", sessW, k.Sessions)+"  "+pad(last(m, k.Last), lastW)+"  "+m.tilde(k.Key))
 			if k.Remote != "" {
 				line += st.text.Render("  ") + st.muted.Render(k.Remote)
@@ -885,7 +885,7 @@ func (p projectsPage) draftColor(m *Model) color.Color {
 // detail describes the marked row: a definition with its colour, what it
 // gets of the archive and what earlier definitions take from it; a path
 // with its sessions and the keys that make something of it.
-func (p projectsPage) detail(m *Model, r project.Resolver, as assignment) string {
+func (p projectsPage) detail(m *Model, r project.Resolver, as project.Assignment) string {
 	cfg := m.opts.Config
 	row := p.current()
 	switch row.kind {
@@ -899,20 +899,20 @@ func (p projectsPage) detail(m *Model, r project.Resolver, as assignment) string
 		}
 		what := ""
 		if p.ar.loaded {
-			hs, err := hits(r, d.Name, d.Match, p.ar, cfg.Home)
+			hs, err := p.ar.Hits(r, d.Name, d.Match, cfg.Home)
 			if err != nil {
 				what = err.Error()
 			} else {
-				what = p.ar.describe(hs)
+				what = p.ar.Describe(hs)
 			}
 		}
 		return m.th.Label.Foreground(m.th.Tone(p.color(m, d))).Render(d.Name) + "  " + m.th.Muted.Render(colour) + "  " + what
 	case rowKey:
-		k := p.ar.keys[row.index]
+		k := p.ar.Keys[row.index]
 		k2 := m.keys
-		return m.th.Label.Foreground(m.th.Tone(m.opts.Colors.Color(k.Key))).Render(p.ar.name(row.index)) + "  " + m.th.Muted.Render(fmt.Sprintf("%s, last %s · %s makes it a project, %s adds it to one", plural(k.Sessions, "session"), last(m, k.Last), k2.Add.Help().Key, k2.Pattern.Help().Key))
+		return m.th.Label.Foreground(m.th.Tone(m.opts.Colors.Color(k.Key))).Render(p.ar.Name(row.index)) + "  " + m.th.Muted.Render(fmt.Sprintf("%s, last %s · %s makes it a project, %s adds it to one", plural(k.Sessions, "session"), last(m, k.Last), k2.Add.Help().Key, k2.Pattern.Help().Key))
 	}
-	if len(cfg.Projects) == 0 && len(as.unmatched) == 0 && p.ar.loaded {
+	if len(cfg.Projects) == 0 && len(as.Unmatched) == 0 && p.ar.loaded {
 		return m.th.Muted.Render("[[project]] gives a project its name, colour and patterns; " + m.keys.Add.Help().Key + " adds one")
 	}
 	return ""
@@ -1035,7 +1035,7 @@ func (p projectsPage) preview(m *Model) string {
 		return m.th.Muted.Render("preview: a pattern is required, e.g. the remote URL or ~/src/name")
 	}
 	draft.Match = patterns
-	r, err := draftResolver(cfg, f.index, draft)
+	r, err := cfg.DraftResolver(f.index, draft)
 	if err != nil {
 		return m.th.Error.Render("preview: " + err.Error())
 	}
@@ -1049,11 +1049,11 @@ func (p projectsPage) preview(m *Model) string {
 			label, subject = "pattern "+pt, []string{pt}
 		}
 	}
-	hs, err := hits(r, draft.Name, subject, p.ar, cfg.Home)
+	hs, err := p.ar.Hits(r, draft.Name, subject, cfg.Home)
 	if err != nil {
 		return m.th.Error.Render("preview: " + err.Error())
 	}
-	return m.th.Label.Render(label) + "  " + p.ar.describe(hs)
+	return m.th.Label.Render(label) + "  " + p.ar.Describe(hs)
 }
 
 // picker renders the colour choices in one row, the marked one in
