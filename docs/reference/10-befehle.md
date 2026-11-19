@@ -1215,6 +1215,32 @@ $ total-recall config set tui.view stats --json
 
 Alle Schlüssel sind immer vorhanden; `value` und `default` sind `null`, wenn leer. `changed` ist `false`, wenn die Datei den Wert schon hatte (`set`) bzw. den Schlüssel nicht setzte (`unset`). Ein Wert, den Umgebung oder Flag überschreibt, wird trotzdem geschrieben; `origin` zeigt dann den Überschreiber. Unbekannter Schlüssel, falscher Wert oder ein Ergebnis mit Problem sind Fehler der Art `validation`, die Datei bleibt unberührt.
 
+### `config project` { #config-project }
+
+```sh
+total-recall config project add kompass --match '~/src/kompass*' --match 'https://git.invalid/mara/kompass' --description Wanderkarten --color blue
+total-recall config project set kompass --description "Karten und Routen"   # nur die genannten Felder
+total-recall config project set kompass --name kompass-app --color ""       # umbenennen, Farbe entfernen
+total-recall config project move kompass --to 1                              # an den Anfang: die erste passende Definition gewinnt
+total-recall config project rm kompass
+```
+
+Pflegt die `[[project]]`-Definitionen wie die Seite Projects der TUI (`AddProject`, `SetProject`, `RemoveProject`, `MoveProject`): Kommentare und Reihenfolge der Datei bleiben, die alte Fassung bleibt als `<Datei>.bak`, nur `config.toml` ändert sich, nie das Archiv. Definitionen werden über den **Namen** angesprochen. `add` braucht mindestens ein `--match` (wiederholbar); `set` ändert nur die Felder mit Flag, `--match` ersetzt dabei alle Muster, ein leeres `--description` oder `--color` entfernt den Wert; `move --to POSITION` zählt ab 1.
+
+Jeder Aufruf mit `--json` liefert:
+
+```json
+{
+  "file": "/Users/me/.config/total-recall/config.toml",
+  "action": "add",
+  "changed": true,
+  "project": {"position": 1, "name": "kompass", "description": "Wanderkarten", "color": "blue", "match": ["~/src/kompass*"]},
+  "projects": [ … alle Definitionen in Dateireihenfolge … ]
+}
+```
+
+`project` ist die Definition nach der Änderung (bei `rm` die gelöschte), `position` ihre Stelle in der Datei ab 1; `description` und `color` sind `null`, wenn leer; `changed` ist `false`, wenn nichts zu tun war (`move` an die Stelle, an der sie steht). Eine Definition, die nicht besteht (ohne Muster, unbekannte Farbe, Name doppelt, Position außerhalb), ist ein Fehler der Art `validation`; ein unbekannter Name ein `not_found`; die Datei bleibt dann unberührt.
+
 ## `version` { #version }
 
 Gibt die Version aus, eine Zeile, sonst nichts. `total-recall --version` (kurz `-v`) tut dasselbe.

@@ -411,7 +411,7 @@ match = "~/notes"
 `description`
 :   Optionaler Freitext; die Seite [Projects](30-tui.md#projects) der TUI zeigt ihn neben dem Namen.
 
-Die Seite [Projects](30-tui.md#projects) der TUI legt Definitionen an, ändert, löscht und sortiert sie in dieser Datei, bietet die Pfade des Archivs ohne Definition an und zeigt, was ein Muster trifft; Rezept mit Beispielen zu Worktrees und Überschneidungen: [Projekte definieren](../how-to/67-projekte-definieren.md).
+Auf der Kommandozeile tun das [`config project add|set|rm|move`](10-befehle.md#config-project) (Anlegen, Ändern einzelner Felder, Löschen, Verschieben; je Name, mit `--json`), mit denselben Funktionen und derselben Prüfung. Die Seite [Projects](30-tui.md#projects) der TUI legt Definitionen an, ändert, löscht und sortiert sie in dieser Datei, bietet die Pfade des Archivs ohne Definition an und zeigt, was ein Muster trifft; Rezept mit Beispielen zu Worktrees und Überschneidungen: [Projekte definieren](../how-to/67-projekte-definieren.md).
 
 `color`
 :   Optional: ein Name aus der Palette der Charts (`blue`, `orange`, `green`, `red`, `purple`, `teal`) oder ein Wert `#rrggbb`. Statistik und Legende zeigen das Projekt in dieser Farbe; die automatisch vergebenen Farben der übrigen Projekte lassen sie aus, solange eine andere frei ist. Ohne Angabe bekommt das Projekt wie bisher die nächste freie Farbe der Palette.
