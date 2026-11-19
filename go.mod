@@ -18,7 +18,7 @@ require (
 	github.com/go-analyze/charts v0.6.4
 	github.com/klauspost/compress v1.20.2
 	github.com/spf13/cobra v1.10.2
-	github.com/wlbr/feiertage v1.17.0
+	github.com/wlbr/feiertage v1.20.1
 	golang.org/x/image v0.48.0
 	golang.org/x/sys v0.50.0
 	modernc.org/sqlite v1.61.1
