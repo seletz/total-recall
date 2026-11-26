@@ -1127,9 +1127,31 @@ Jede Prüfung gilt nur, wenn die Tabelle Einträge hat: ohne `[[project]]` gibt 
 |---|---|
 | `--harness NAME` | zu prüfende Harness, Default `claude` |
 | `--days N` | Zeitfenster des Hinweises auf nicht eingerichtete Projekte, Default 30; 0 schaltet ihn ab |
+| `--setup` | statt des Format-Checks die [Setup-Prüfungen](#doctor-setup) der TUI, nur lesend |
 | `--json` | Liste von Berichten (`unknown_record_types`, `unknown_block_types`, `missing_fields`, `malformed`, `versions`, dazu `hints`); Konfigurationsprobleme gehen dann auf stderr |
 
 Exit-Code 0: nichts Unbekanntes (Hinweise zählen nicht). Exit-Code 2: Befunde. Siehe [Nach einem Claude-Code-Update](../how-to/20-hooks-einrichten.md#nach-einem-claude-code-update).
+
+### `doctor --setup` { #doctor-setup }
+
+```sh
+total-recall doctor --setup
+total-recall doctor --setup --json
+```
+
+Statt des Format-Checks laufen die Prüfungen der Seite **Setup** der [TUI](30-tui.md#config), mit denselben Funktionen und denselben Texten: `config` (Datei geladen, Probleme), `hooks` (die vier Hook-Events in den Claude-Code-Einstellungen, `SessionEnd` auch mit dem Backup), `mcp` (Eintrag in `.claude.json` oder `.mcp.json`, optional), `binary` (auf PATH, Version), `backups` (Verzeichnis, letztes Backup), `transcripts` und `archive`. Nur lesend: Weder Einstellungen noch Verzeichnisse noch das Archiv werden angelegt oder geändert. Der Exit-Code ist 0, was die Prüfungen auch sagen; wer es braucht, liest `ok`.
+
+```json
+{
+  "ok": false,
+  "checks": [
+    {"name": "hooks", "ok": false, "warn": false, "text": "~/.claude/settings.json lacks SubagentStop, SessionEnd; add the hook block (c copies it)", "fix": null},
+    {"name": "backups", "ok": false, "warn": false, "text": "~/Documents/total-recall does not exist", "fix": "create the directory"}
+  ]
+}
+```
+
+Je Prüfung `name`, `ok` (Haken), `warn` (Hinweis an einer bestandenen Prüfung; weder `ok` noch `warn` ist ein Fehler), `text` (die Zeile der Setup-Seite, das Home-Verzeichnis als `~`) und `fix`: `null` oder was die TUI an dieser Stelle zu tun anbietet (`write template`, `create the directory`); die CLI führt es nicht aus. `ok` oben ist wahr, wenn alle Prüfungen bestehen. `--setup` verträgt sich nicht mit `--harness` und `--days` (`usage`).
 
 ## `hooks print` { #hooks-print }
 

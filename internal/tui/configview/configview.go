@@ -22,7 +22,6 @@
 package configview
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -36,6 +35,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/config"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/tui/chart"
 	"github.com/seletz/total-recall/internal/tui/keys"
@@ -109,7 +109,7 @@ func (o *Options) defaults() {
 		o.Executable = os.Executable
 	}
 	if o.VersionOf == nil {
-		o.VersionOf = versionOf
+		o.VersionOf = ops.VersionOf
 	}
 	if o.Wait == 0 {
 		o.Wait = time.Minute
@@ -134,18 +134,6 @@ func (o *Options) defaults() {
 	if o.ProjectDir == "" {
 		o.ProjectDir, _ = os.Getwd()
 	}
-}
-
-// versionOf runs "<path> --version" and returns the first line.
-func versionOf(path string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, path, "--version").Output()
-	if err != nil {
-		return "", err
-	}
-	v, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
-	return v, nil
 }
 
 // Changed says the configuration file was written: Config is the new
@@ -444,20 +432,7 @@ func mib(n int64) string { return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20)) }
 
 // age formats how long ago t was: "45s ago", "12m ago", "3h05m ago",
 // "2d04h ago".
-func age(now, t time.Time) string {
-	d := now.Sub(t)
-	switch {
-	case d < 0:
-		return "in the future"
-	case d < time.Minute:
-		return fmt.Sprintf("%ds ago", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh%02dm ago", int(d.Hours()), int(d.Minutes())%60)
-	}
-	return fmt.Sprintf("%dd%02dh ago", int(d.Hours())/24, int(d.Hours())%24)
-}
+func age(now, t time.Time) string { return ops.Age(now, t) }
 
 // pad fills s with spaces to n cells.
 func pad(s string, n int) string { return s + strings.Repeat(" ", max(n-lipgloss.Width(s), 0)) }
