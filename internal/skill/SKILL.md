@@ -654,6 +654,22 @@ One object per memory file whose current content matches, best first.
 | `target_seconds` | target x workdays |
 | `balance_seconds` | span minus target |
 
+#### `stats --json --workday --projects`
+
+Added to the object above, only with `--projects`.
+
+| field | meaning |
+|---|---|
+| `projects` | counted activity per project over the range, by `events` descending: `key` (configured name, else git root or directory), `name`, `dir` (true for the directory of sessions without a repository), `color` (`#rrggbb` or `null`), `events`, `minutes` (with at least one counted event); the events add up to `human` + `agent` of all `days` |
+
+#### `stats --json --workday --projects` days[]
+
+Added to every day, only with `--projects`.
+
+| field | meaning |
+|---|---|
+| `projects` | the projects of the day, same fields as above; their events add up to `human` + `agent` of the day |
+
 #### `stats --json --workday --blocks`
 
 Added to the object above, only with `--blocks`.

@@ -3,10 +3,12 @@ package cli
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/seletz/total-recall/internal/project"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -23,6 +25,13 @@ type workdayReport struct {
 	region       string        // holiday region in use
 	asOf         time.Time     // today as a local midnight; later days are no workdays yet
 	blockGap     time.Duration // > 0: the days carry blocks (--blocks)
+	// projects is set with --projects: the counted events per project and
+	// day (store.ProjectDays, the data of the project colours of the
+	// activity view), named and coloured by res and home.
+	projects []store.ProjectDay
+	withProj bool
+	res      project.Resolver
+	home     string
 }
 
 // Range names of stats --workday --range.
@@ -49,6 +58,27 @@ type WorkdayJSON struct {
 	// empty times and zero counts.
 	Days  []WorkdayDayJSON `json:"days"`
 	Total WorkdayTotalJSON `json:"total"`
+	// Projects are, with --projects, the projects of the whole range by
+	// counted events, descending, then by key; their events add up to the
+	// events of all days.
+	Projects *[]WorkdayProjectJSON `json:"projects,omitempty"`
+}
+
+// WorkdayProjectJSON is the counted activity of one project, on one day or
+// in the range (--projects). Events is the unit of the legend of the
+// activity view: the counted events (human, or human and agent with
+// --all-events), Minutes the minutes with at least one of them. Key is the
+// project key (a configured name, else the git root or directory), Name
+// what the views call it, Color the configured colour as #rrggbb, null for
+// the automatic one; Dir is true for the working directory of sessions
+// without a repository.
+type WorkdayProjectJSON struct {
+	Key     string     `json:"key"`
+	Name    string     `json:"name"`
+	Dir     bool       `json:"dir"`
+	Color   NullString `json:"color"`
+	Events  int        `json:"events"`
+	Minutes int        `json:"minutes"`
 }
 
 // WorkdayDayJSON is one day.
@@ -75,6 +105,9 @@ type WorkdayDayJSON struct {
 	Blocks       *[]WorkdayBlockJSON `json:"blocks,omitempty"`
 	BlockSeconds *int                `json:"block_seconds,omitempty"`
 	BreakSeconds *int                `json:"break_seconds,omitempty"`
+	// With --projects: the projects of the day by counted events; their
+	// events add up to human + agent of the day.
+	Projects *[]WorkdayProjectJSON `json:"projects,omitempty"`
 	ActivityJSON
 }
 
@@ -203,6 +236,9 @@ func (r workdayReport) json() WorkdayJSON {
 		spanSum += day.SpanSeconds
 		out.Days = append(out.Days, day)
 	}
+	if r.withProj {
+		r.addProjects(&out)
+	}
 	b := r.work.Balance(r.days, r.asOf)
 	out.Total = WorkdayTotalJSON{
 		Days: b.Active, Workdays: b.Workdays, Holidays: b.Holidays, SpanSeconds: spanSum,
@@ -212,6 +248,63 @@ func (r workdayReport) json() WorkdayJSON {
 		out.Total.BlockSeconds, out.Total.BreakSeconds = &blockSum, &breakSum
 	}
 	return out
+}
+
+// projectNames names the keys of the project days like the activity view:
+// a configured project by its name, the rest by its derived name.
+func (r workdayReport) projectNames() map[string]string {
+	seen := map[string]bool{}
+	var keys, dirs []string
+	for _, d := range r.projects {
+		for _, p := range d.Projects {
+			if !seen[p.Key] {
+				seen[p.Key] = true
+				keys = append(keys, p.Key)
+			}
+			if p.Dir {
+				dirs = append(dirs, p.Key)
+			}
+		}
+	}
+	return r.res.Names(keys, dirs, r.home)
+}
+
+// addProjects fills the projects of the days and of the range.
+func (r workdayReport) addProjects(out *WorkdayJSON) {
+	names := r.projectNames()
+	conv := func(p store.DayProject) WorkdayProjectJSON {
+		return WorkdayProjectJSON{Key: p.Key, Name: names[p.Key], Dir: p.Dir, Color: NullString(r.res.Color(p.Key)), Events: p.Events, Minutes: len(p.Slots)}
+	}
+	byDay := map[string]store.ProjectDay{}
+	for _, d := range r.projects {
+		byDay[d.Label] = d
+	}
+	total := map[string]*WorkdayProjectJSON{}
+	for i := range out.Days {
+		list := []WorkdayProjectJSON{}
+		for _, p := range byDay[out.Days[i].Day].Projects {
+			j := conv(p)
+			list = append(list, j)
+			if t := total[p.Key]; t != nil {
+				t.Events += j.Events
+				t.Minutes += j.Minutes
+			} else {
+				total[p.Key] = &j
+			}
+		}
+		out.Days[i].Projects = &list
+	}
+	all := make([]WorkdayProjectJSON, 0, len(total))
+	for _, t := range total {
+		all = append(all, *t)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Events != all[j].Events {
+			return all[i].Events > all[j].Events
+		}
+		return all[i].Key < all[j].Key
+	})
+	out.Projects = &all
 }
 
 // table writes the range, one row per day (DATE DAY FIRST LAST SPAN DIFF
@@ -237,6 +330,13 @@ func (r workdayReport) table(w io.Writer) error {
 	}
 	_, _ = fmt.Fprintln(w)
 	singles := false
+	dayProjects := map[string][]WorkdayProjectJSON{}
+	if r.withProj {
+		j := r.json()
+		for _, d := range j.Days {
+			dayProjects[d.Day] = *d.Projects
+		}
+	}
 	rows := make([][]string, 0, len(r.days))
 	for _, d := range r.days {
 		row := []string{d.Label, d.Day.Format("Mon"), "-", "-", "-", "-", "-"}
@@ -264,11 +364,24 @@ func (r workdayReport) table(w io.Writer) error {
 				row[7], row[8], row[9] = strings.Join(parts, " "), duration(d.BlockSum()), duration(d.BreakSum())
 			}
 		}
+		if r.withProj {
+			row = append(row, "-")
+			var parts []string
+			for _, p := range dayProjects[d.Label] {
+				parts = append(parts, fmt.Sprintf("%s %d", p.Name, p.Events))
+			}
+			if len(parts) > 0 {
+				row[len(row)-1] = strings.Join(parts, " · ")
+			}
+		}
 		rows = append(rows, row)
 	}
 	header := []string{"DATE", "DAY", "FIRST", "LAST", "SPAN", "DIFF", "HOLIDAY"}
 	if r.blockGap > 0 {
 		header = append(header, "BLOCKS", "WORK", "BREAKS")
+	}
+	if r.withProj {
+		header = append(header, "PROJECTS")
 	}
 	if err := table(w, header, rows); err != nil {
 		return err

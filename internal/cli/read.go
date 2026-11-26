@@ -1176,7 +1176,7 @@ func (e *env) statsCmd() *cobra.Command {
 	var month, sinceArg, untilArg, period, by, rng string
 	var top int
 	var of outputFlags
-	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks bool
+	var workday, humanOnly, allEvents, worktime, sessions, summary, tokens, tools, blocks, projects bool
 	var toolPath, toolPathIn, dayArg, accountGroup string
 	c := &cobra.Command{
 		Use:   "stats",
@@ -1294,6 +1294,9 @@ messages: the values are a lower bound.`,
 		if blocks && !workday {
 			return usagef("--blocks requires --workday")
 		}
+		if projects && !workday {
+			return usagef("--projects requires --workday")
+		}
 		if tokens && (workday || worktime || series) {
 			return usagef("--tokens belongs to the plain stats tables: it cannot be combined with --workday, --worktime, --period, --by or --top")
 		}
@@ -1329,7 +1332,21 @@ messages: the values are a lower bound.`,
 			if err != nil {
 				return err
 			}
+			var res project.Resolver
+			var projectDays []store.ProjectDay
+			if projects {
+				if res, err = cfg.ProjectResolver(); err != nil {
+					return errKind(ErrKindConfig, err)
+				}
+				projectDays, err = st.ProjectDays(cmd.Context(), store.WorkdayFilter{
+					Since: since, Until: until, Location: loc, DayStart: cfg.DayStartOffset(), HumanOnly: humanOnly, Holidays: cal, Project: res.Key,
+				})
+				if err != nil {
+					return err
+				}
+			}
 			r := workdayReport{
+				projects: projectDays, withProj: projects, res: res, home: cfg.Home,
 				days: days, since: since, until: until, loc: loc, tz: cfg.Timezone, dayStart: cfg.DayStart, humanOnly: humanOnly,
 				work: work, hours: cfg.Work.Hours, region: cal.Region(), asOf: store.DayOf(e.app.Now(), loc, cfg.DayStartOffset()), blockGap: blockGap,
 			}
@@ -1425,6 +1442,7 @@ messages: the values are a lower bound.`,
 	c.Flags().BoolVar(&tokens, "tokens", false, "append the token counts (fresh input, cache writes, cache reads, output) per day and model to the day/repo/hour tables (JSON always has them)")
 	c.Flags().StringVar(&rng, "range", "", "with --workday or --worktime: "+strings.Join(rangeNames, ", ")+" (instead of --since/--until)")
 	c.Flags().BoolVar(&blocks, "blocks", false, "with --workday: the blocks of activity per day, split at gaps above [work] block_gap (default 30m), with sums and pauses")
+	c.Flags().BoolVar(&projects, "projects", false, "with --workday: the counted events per project and day (the data of the project colours of the activity view); they add up to the events of the day")
 	c.Flags().BoolVar(&allEvents, "all-events", false, "with --workday or --day: count human and agent events (default: human messages only)")
 	c.Flags().BoolVar(&humanOnly, "human-only", false, "with --workday: count human messages only (the default; deprecated)")
 	_ = c.Flags().MarkHidden("human-only")
