@@ -1,0 +1,7 @@
+search
+--has-attachment
+--type
+event,session
+--limit
+50
+--json

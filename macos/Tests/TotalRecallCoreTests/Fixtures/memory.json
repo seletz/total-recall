@@ -1,0 +1,93 @@
+[
+  {
+    "project": "fahrtenbuch",
+    "project_key": "-home-mara-src-fahrtenbuch",
+    "harness": "claude",
+    "cwd": "/home/mara/src/fahrtenbuch",
+    "git_root": "/home/mara/src/fahrtenbuch",
+    "path": "MEMORY.md",
+    "sha256": "6e242a266a1d986980d7612bf54edd66547b211cf4228e9daebc91947c3dbdd3",
+    "bytes": 101,
+    "deleted": false,
+    "changed": "2026-09-09T18:15:00.000Z",
+    "versions": 1
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "cwd": "/home/mara/src/kompass",
+    "git_root": "/home/mara/src/kompass",
+    "path": "MEMORY.md",
+    "sha256": "91a028d70accd5197f1f4bfccf1796f5270dfd57fa9ca26efc6dd4b427031f86",
+    "bytes": 177,
+    "deleted": false,
+    "changed": "2026-10-31T21:40:00.000Z",
+    "versions": 4
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "cwd": "/home/mara/src/kompass",
+    "git_root": "/home/mara/src/kompass",
+    "path": "conventions.md",
+    "sha256": "806b4d3948f66aa3d14f0248b321f23f37ad608de807ce62538d9ab230cdd1bd",
+    "bytes": 308,
+    "deleted": false,
+    "changed": "2026-10-28T08:30:00.000Z",
+    "versions": 1
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "cwd": "/home/mara/src/kompass",
+    "git_root": "/home/mara/src/kompass",
+    "path": "old-notes.md",
+    "sha256": null,
+    "bytes": 0,
+    "deleted": true,
+    "changed": "2026-10-28T09:00:00.000Z",
+    "versions": 2
+  },
+  {
+    "project": "kompass",
+    "project_key": "-home-mara-src-kompass",
+    "harness": "claude",
+    "cwd": "/home/mara/src/kompass",
+    "git_root": "/home/mara/src/kompass",
+    "path": "release-process.md",
+    "sha256": "cf9cf3c02f503e2f38420098c028e9fccc22c7b4757c3b2e5a75b4009fb24480",
+    "bytes": 695,
+    "deleted": false,
+    "changed": "2026-10-31T21:35:00.000Z",
+    "versions": 3
+  },
+  {
+    "project": "wetterwarte",
+    "project_key": "-home-mara-src-wetterwarte",
+    "harness": "claude",
+    "cwd": "/home/mara/src/wetterwarte",
+    "git_root": "/home/mara/src/wetterwarte",
+    "path": "MEMORY.md",
+    "sha256": "f829aea0ab49a46d55390177ab8c64e1d0e467bc0ef141b2e318eaf1578f917c",
+    "bytes": 91,
+    "deleted": false,
+    "changed": "2026-10-14T16:05:00.000Z",
+    "versions": 1
+  },
+  {
+    "project": "wetterwarte",
+    "project_key": "-home-mara-src-wetterwarte",
+    "harness": "claude",
+    "cwd": "/home/mara/src/wetterwarte",
+    "git_root": "/home/mara/src/wetterwarte",
+    "path": "sensors.md",
+    "sha256": "4b1c14aac40e3cab9b866786f3c4a325ce14e3db9d3da9622322f7d706b297d9",
+    "bytes": 323,
+    "deleted": false,
+    "changed": "2026-10-14T16:00:00.000Z",
+    "versions": 1
+  }
+]

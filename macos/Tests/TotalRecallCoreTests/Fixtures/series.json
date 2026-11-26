@@ -1,0 +1,625 @@
+{
+  "since": "2026-10-04T22:00:00.000Z",
+  "until": "2026-11-01T23:00:00.000Z",
+  "timezone": "Europe/Berlin",
+  "period": "day",
+  "by": "project",
+  "keys": [
+    "kompass",
+    "wetterwarte",
+    "fahrtenbuch",
+    "/home/mara/notizen",
+    "dotfiles"
+  ],
+  "total": {
+    "sessions": 161,
+    "human": 525,
+    "agent": 1849
+  },
+  "by_key": [
+    {
+      "key": "kompass",
+      "sessions": 93,
+      "human": 301,
+      "agent": 1026
+    },
+    {
+      "key": "wetterwarte",
+      "sessions": 48,
+      "human": 150,
+      "agent": 573
+    },
+    {
+      "key": "fahrtenbuch",
+      "sessions": 12,
+      "human": 42,
+      "agent": 167
+    },
+    {
+      "key": "/home/mara/notizen",
+      "sessions": 5,
+      "human": 22,
+      "agent": 60
+    },
+    {
+      "key": "dotfiles",
+      "sessions": 3,
+      "human": 10,
+      "agent": 23
+    }
+  ],
+  "buckets": [
+    {
+      "start": "2026-10-04T22:00:00.000Z",
+      "label": "2026-10-05",
+      "sessions": 12,
+      "human": 29,
+      "agent": 130,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 9,
+          "human": 21,
+          "agent": 90
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 3,
+          "human": 8,
+          "agent": 40
+        }
+      ]
+    },
+    {
+      "start": "2026-10-05T22:00:00.000Z",
+      "label": "2026-10-06",
+      "sessions": 5,
+      "human": 26,
+      "agent": 66,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 3,
+          "human": 14,
+          "agent": 37
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 2,
+          "human": 12,
+          "agent": 29
+        }
+      ]
+    },
+    {
+      "start": "2026-10-06T22:00:00.000Z",
+      "label": "2026-10-07",
+      "sessions": 6,
+      "human": 26,
+      "agent": 93,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 4,
+          "human": 18,
+          "agent": 48
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 1,
+          "human": 3,
+          "agent": 7
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 1,
+          "human": 5,
+          "agent": 38
+        }
+      ]
+    },
+    {
+      "start": "2026-10-07T22:00:00.000Z",
+      "label": "2026-10-08",
+      "sessions": 6,
+      "human": 24,
+      "agent": 52,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 2,
+          "human": 8,
+          "agent": 12
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 1,
+          "human": 3,
+          "agent": 6
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 1,
+          "human": 5,
+          "agent": 12
+        },
+        {
+          "key": "/home/mara/notizen",
+          "sessions": 2,
+          "human": 8,
+          "agent": 22
+        }
+      ]
+    },
+    {
+      "start": "2026-10-08T22:00:00.000Z",
+      "label": "2026-10-09",
+      "sessions": 6,
+      "human": 25,
+      "agent": 72,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 3,
+          "human": 12,
+          "agent": 30
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 2,
+          "human": 9,
+          "agent": 28
+        },
+        {
+          "key": "dotfiles",
+          "sessions": 1,
+          "human": 4,
+          "agent": 14
+        }
+      ]
+    },
+    {
+      "start": "2026-10-09T22:00:00.000Z",
+      "label": "2026-10-10",
+      "sessions": 0,
+      "human": 0,
+      "agent": 0,
+      "cells": []
+    },
+    {
+      "start": "2026-10-10T22:00:00.000Z",
+      "label": "2026-10-11",
+      "sessions": 0,
+      "human": 0,
+      "agent": 0,
+      "cells": []
+    },
+    {
+      "start": "2026-10-11T22:00:00.000Z",
+      "label": "2026-10-12",
+      "sessions": 11,
+      "human": 27,
+      "agent": 160,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 1,
+          "human": 1,
+          "agent": 1
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 10,
+          "human": 26,
+          "agent": 159
+        }
+      ]
+    },
+    {
+      "start": "2026-10-12T22:00:00.000Z",
+      "label": "2026-10-13",
+      "sessions": 11,
+      "human": 30,
+      "agent": 121,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 1,
+          "human": 3,
+          "agent": 7
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 9,
+          "human": 24,
+          "agent": 110
+        },
+        {
+          "key": "dotfiles",
+          "sessions": 1,
+          "human": 3,
+          "agent": 4
+        }
+      ]
+    },
+    {
+      "start": "2026-10-13T22:00:00.000Z",
+      "label": "2026-10-14",
+      "sessions": 7,
+      "human": 25,
+      "agent": 73,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 2,
+          "human": 9,
+          "agent": 26
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 4,
+          "human": 11,
+          "agent": 33
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 1,
+          "human": 5,
+          "agent": 14
+        }
+      ]
+    },
+    {
+      "start": "2026-10-14T22:00:00.000Z",
+      "label": "2026-10-15",
+      "sessions": 6,
+      "human": 25,
+      "agent": 62,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 2,
+          "human": 7,
+          "agent": 13
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 3,
+          "human": 14,
+          "agent": 36
+        },
+        {
+          "key": "/home/mara/notizen",
+          "sessions": 1,
+          "human": 4,
+          "agent": 13
+        }
+      ]
+    },
+    {
+      "start": "2026-10-15T22:00:00.000Z",
+      "label": "2026-10-16",
+      "sessions": 4,
+      "human": 20,
+      "agent": 80,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 3,
+          "human": 17,
+          "agent": 62
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 1,
+          "human": 3,
+          "agent": 18
+        }
+      ]
+    },
+    {
+      "start": "2026-10-16T22:00:00.000Z",
+      "label": "2026-10-17",
+      "sessions": 0,
+      "human": 0,
+      "agent": 0,
+      "cells": []
+    },
+    {
+      "start": "2026-10-17T22:00:00.000Z",
+      "label": "2026-10-18",
+      "sessions": 2,
+      "human": 1,
+      "agent": 5,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 2,
+          "human": 1,
+          "agent": 5
+        }
+      ]
+    },
+    {
+      "start": "2026-10-18T22:00:00.000Z",
+      "label": "2026-10-19",
+      "sessions": 6,
+      "human": 23,
+      "agent": 80,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 3,
+          "human": 13,
+          "agent": 57
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 2,
+          "human": 6,
+          "agent": 15
+        },
+        {
+          "key": "/home/mara/notizen",
+          "sessions": 1,
+          "human": 4,
+          "agent": 8
+        }
+      ]
+    },
+    {
+      "start": "2026-10-19T22:00:00.000Z",
+      "label": "2026-10-20",
+      "sessions": 10,
+      "human": 34,
+      "agent": 99,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 9,
+          "human": 28,
+          "agent": 82
+        },
+        {
+          "key": "/home/mara/notizen",
+          "sessions": 1,
+          "human": 6,
+          "agent": 17
+        }
+      ]
+    },
+    {
+      "start": "2026-10-20T22:00:00.000Z",
+      "label": "2026-10-21",
+      "sessions": 8,
+      "human": 25,
+      "agent": 92,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 7,
+          "human": 19,
+          "agent": 80
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 1,
+          "human": 6,
+          "agent": 12
+        }
+      ]
+    },
+    {
+      "start": "2026-10-21T22:00:00.000Z",
+      "label": "2026-10-22",
+      "sessions": 13,
+      "human": 29,
+      "agent": 101,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 7,
+          "human": 17,
+          "agent": 64
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 2,
+          "human": 4,
+          "agent": 15
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 3,
+          "human": 5,
+          "agent": 17
+        },
+        {
+          "key": "dotfiles",
+          "sessions": 1,
+          "human": 3,
+          "agent": 5
+        }
+      ]
+    },
+    {
+      "start": "2026-10-22T22:00:00.000Z",
+      "label": "2026-10-23",
+      "sessions": 6,
+      "human": 28,
+      "agent": 69,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 3,
+          "human": 14,
+          "agent": 36
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 3,
+          "human": 14,
+          "agent": 33
+        }
+      ]
+    },
+    {
+      "start": "2026-10-23T22:00:00.000Z",
+      "label": "2026-10-24",
+      "sessions": 1,
+      "human": 1,
+      "agent": 2,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 1,
+          "human": 1,
+          "agent": 2
+        }
+      ]
+    },
+    {
+      "start": "2026-10-24T22:00:00.000Z",
+      "label": "2026-10-25",
+      "sessions": 2,
+      "human": 1,
+      "agent": 6,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 2,
+          "human": 1,
+          "agent": 6
+        }
+      ]
+    },
+    {
+      "start": "2026-10-25T23:00:00.000Z",
+      "label": "2026-10-26",
+      "sessions": 7,
+      "human": 24,
+      "agent": 101,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 4,
+          "human": 18,
+          "agent": 80
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 1,
+          "human": 3,
+          "agent": 10
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 2,
+          "human": 3,
+          "agent": 11
+        }
+      ]
+    },
+    {
+      "start": "2026-10-26T23:00:00.000Z",
+      "label": "2026-10-27",
+      "sessions": 8,
+      "human": 24,
+      "agent": 94,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 7,
+          "human": 20,
+          "agent": 87
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 1,
+          "human": 4,
+          "agent": 7
+        }
+      ]
+    },
+    {
+      "start": "2026-10-27T23:00:00.000Z",
+      "label": "2026-10-28",
+      "sessions": 12,
+      "human": 36,
+      "agent": 152,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 8,
+          "human": 29,
+          "agent": 112
+        },
+        {
+          "key": "wetterwarte",
+          "sessions": 4,
+          "human": 7,
+          "agent": 40
+        }
+      ]
+    },
+    {
+      "start": "2026-10-28T23:00:00.000Z",
+      "label": "2026-10-29",
+      "sessions": 2,
+      "human": 3,
+      "agent": 9,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 2,
+          "human": 3,
+          "agent": 9
+        }
+      ]
+    },
+    {
+      "start": "2026-10-29T23:00:00.000Z",
+      "label": "2026-10-30",
+      "sessions": 7,
+      "human": 30,
+      "agent": 89,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 5,
+          "human": 18,
+          "agent": 39
+        },
+        {
+          "key": "fahrtenbuch",
+          "sessions": 2,
+          "human": 12,
+          "agent": 50
+        }
+      ]
+    },
+    {
+      "start": "2026-10-30T23:00:00.000Z",
+      "label": "2026-10-31",
+      "sessions": 3,
+      "human": 9,
+      "agent": 41,
+      "cells": [
+        {
+          "key": "kompass",
+          "sessions": 3,
+          "human": 9,
+          "agent": 41
+        }
+      ]
+    },
+    {
+      "start": "2026-10-31T23:00:00.000Z",
+      "label": "2026-11-01",
+      "sessions": 0,
+      "human": 0,
+      "agent": 0,
+      "cells": []
+    }
+  ]
+}

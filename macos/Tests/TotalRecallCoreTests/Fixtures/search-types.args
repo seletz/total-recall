@@ -1,0 +1,7 @@
+search
+goreleaser cask
+--type
+event,session,memory
+--limit
+50
+--json
