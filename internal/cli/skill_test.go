@@ -261,6 +261,7 @@ func TestSkillJSONFields(t *testing.T) {
 		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{}), "", nil},
 		{"memory --json", []string{"memory", "--json"}, "[]", reflect.TypeOf(MemoryFileJSON{}), "", nil},
 		{"memory --history --json", []string{"memory", "--json", "--history", "MEMORY.md"}, "[]", reflect.TypeOf(MemoryVersionJSON{}), "", nil},
+		{"memory --timeline --json", []string{"memory", "--json", "--timeline"}, "[]", reflect.TypeOf(MemoryEventJSON{}), "", nil},
 		{"memory --grep --json", []string{"memory", "--json", "--grep", "sbom"}, "[]", reflect.TypeOf(MemoryHitJSON{}), "", nil},
 		{"stats --json", []string{"stats", "--json", "--month", "2026-10"}, "", reflect.TypeOf(StatsJSON{}), "", nil},
 		{"stats --json --period", []string{"stats", "--json", "--period", "week", "--by", "project", "--month", "2026-10"}, "", reflect.TypeOf(ActivitySeriesJSON{}), "", nil},
