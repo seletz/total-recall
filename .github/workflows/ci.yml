@@ -81,7 +81,7 @@ jobs:
           distribution: goreleaser
           # Pinned to the version in mise.toml; scripts/tool-versions-check.sh
           # (CI step "Check the tool versions") fails when the two drift.
-          version: v2.19.0
+          version: v2.20.3
           args: check
 
   # Same commands as `mise run sbom:check`: a snapshot release into dist/
@@ -121,7 +121,7 @@ jobs:
           distribution: goreleaser
           # Pinned to the version in mise.toml; scripts/tool-versions-check.sh
           # (CI step "Check the tool versions") fails when the two drift.
-          version: v2.19.0
+          version: v2.20.3
           args: release --snapshot --clean
 
       - name: Check the SBOMs
