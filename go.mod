@@ -16,7 +16,7 @@ require (
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261118134922-ee8f5034ce23
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/go-analyze/charts v0.6.4
-	github.com/klauspost/compress v1.20.2
+	github.com/klauspost/compress v1.20.5
 	github.com/spf13/cobra v1.10.2
 	github.com/wlbr/feiertage v1.20.1
 	golang.org/x/image v0.48.0
