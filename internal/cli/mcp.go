@@ -125,13 +125,14 @@ func mcpTools() []mcp.Tool {
 		},
 		{
 			Name: "memory", Title: "Project memory", Command: []string{"memory"}, FixedFlags: []string{"--json"},
-			Description: "The archived project memory of the harness (Claude Code: the memory files of every project): the files as they are now (or at a date), the versions of one file (history), or a text search over the current content (grep). Same JSON as `total-recall memory --json`." + pagingNote,
+			Description: "The archived project memory of the harness (Claude Code: the memory files of every project): the files as they are now (or at a date), the versions of one file (history), every change of all files (timeline), or a text search over the current content (grep). Same JSON as `total-recall memory --json`." + pagingNote,
 			Units:       []string{""},
 			Params: []mcp.Param{
 				pCursor,
 				{Name: "project", Type: "string", Description: "only projects whose name, path or harness key matches"},
 				{Name: "at", Type: "string", Description: "the files as they were at this date (local time)"},
 				{Name: "history", Type: "string", Description: "the versions of this file (path relative to the memory directory, e.g. MEMORY.md)"},
+				{Name: "timeline", Type: "boolean", Description: "every change of every file (added, changed, deleted), newest first, up to `at` when given"},
 				{Name: "grep", Type: "string", Description: "full-text search over the current content"},
 				{Name: "deleted", Type: "boolean", Description: "include deleted files"},
 				{Name: "raw", Type: "boolean", Description: "with grep: FTS5 syntax"},

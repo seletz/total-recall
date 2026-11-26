@@ -202,3 +202,95 @@ func TestMemorySwitchedOff(t *testing.T) {
 		t.Errorf("files = %+v", files)
 	}
 }
+
+func TestMemoryTimeline(t *testing.T) {
+	t.Parallel()
+	e := memoryEnv(t)
+	e.memFile(t, "-w-alpha", "lighthouse.md", "The beacon rotates every ten seconds now.\n", time.Date(2026, 10, 10, 8, 0, 0, 0, time.UTC))
+	if err := os.Remove(filepath.Join(e.projects, "-w-beta", "memory", "MEMORY.md")); err != nil {
+		t.Fatal(err)
+	}
+	if r := e.run(t, e.hookPayload(t, "Stop"), "ingest", "--hook"); r.code != 0 {
+		t.Fatalf("hook = %+v", r)
+	}
+
+	events := decode[[]MemoryEventJSON](t, e.mustRun(t, "memory", "--json", "--timeline"))
+	type row struct{ project, path, kind string }
+	var got []row
+	for _, ev := range events {
+		got = append(got, row{ev.Project, ev.Path, ev.Kind})
+	}
+	want := []row{
+		{"/w/beta", "MEMORY.md", "deleted"},
+		{"/w/alpha", "lighthouse.md", "changed"},
+		{"/w/alpha", "lighthouse.md", "added"},
+		{"/w/alpha", "MEMORY.md", "added"},
+		{"/w/beta", "MEMORY.md", "added"},
+	}
+	// Same time: the later sequence first, so beta's index (ingested after
+	// alpha's) comes before alpha's.
+	want[3], want[4] = want[4], want[3]
+	if len(got) != len(want) {
+		t.Fatalf("events = %+v", events)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("event %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	ch := events[1]
+	if ch.ProjectKey != "-w-alpha" || ch.Harness != "claude" || ch.TS != "2026-10-10T08:00:00.000Z" || ch.PrevTS != "2026-10-01T09:00:00.000Z" ||
+		ch.PrevSHA256 == "" || ch.SHA256 == "" || ch.SHA256 == ch.PrevSHA256 || ch.ObservedAt == "" || ch.Bytes == 0 || ch.DeltaBytes != ch.Bytes-events[2].Bytes {
+		t.Errorf("changed event = %+v", ch)
+	}
+	if d := events[0]; d.SHA256 != "" || d.PrevSHA256 != "" || d.Bytes != 0 || d.DeltaBytes >= 0 {
+		t.Errorf("deleted event = %+v", d)
+	}
+	if a := events[2]; a.PrevTS != "" || a.PrevSHA256 != "" || a.DeltaBytes != a.Bytes {
+		t.Errorf("added event = %+v", a)
+	}
+
+	// Sum equals parts: the events of a file are its versions, and their
+	// size changes add up to its size now (0 once deleted).
+	files := decode[[]MemoryFileJSON](t, e.mustRun(t, "memory", "--json", "--deleted"))
+	type id struct{ project, path string }
+	count, sum := map[id]int{}, map[id]int64{}
+	for _, ev := range events {
+		count[id{ev.ProjectKey, ev.Path}]++
+		sum[id{ev.ProjectKey, ev.Path}] += ev.DeltaBytes
+	}
+	if len(count) != len(files) {
+		t.Errorf("%d files in the timeline, %d in memory --deleted", len(count), len(files))
+	}
+	for _, f := range files {
+		k := id{f.ProjectKey, f.Path}
+		if count[k] != f.Versions || sum[k] != f.Bytes {
+			t.Errorf("%v: %d events, delta sum %d; want %d versions, %d bytes", k, count[k], sum[k], f.Versions, f.Bytes)
+		}
+	}
+
+	if n := len(decode[[]MemoryEventJSON](t, e.mustRun(t, "memory", "--json", "--timeline", "--project", "alpha"))); n != 3 {
+		t.Errorf("--project alpha: %d events, want 3", n)
+	}
+	if n := len(decode[[]MemoryEventJSON](t, e.mustRun(t, "memory", "--json", "--timeline", "--at", "2026-10-05"))); n != 3 {
+		t.Errorf("--at: %d events, want 3", n)
+	}
+	out := e.mustRun(t, "memory", "--timeline")
+	for _, want := range []string{"CHANGED", "KIND", "2026-10-10 10:00", "deleted", "lighthouse.md", "/w/beta"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("timeline table lacks %q:\n%s", want, out)
+		}
+	}
+	for _, args := range [][]string{
+		{"memory", "--timeline", "--history", "a.md"},
+		{"memory", "--timeline", "--grep", "x"},
+		{"memory", "--timeline", "--deleted"},
+	} {
+		if r := e.run(t, "", args...); r.code == 0 || !strings.Contains(r.stderr, "timeline") {
+			t.Errorf("%v = %+v", args, r)
+		}
+	}
+	if r := e.run(t, "", "memory", "--json", "--timeline", "--project", "nope"); r.code == 0 || decode[ErrorJSON](t, r.stdout).Error.Kind != ErrKindNotFound {
+		t.Errorf("unknown project = %+v", r)
+	}
+}

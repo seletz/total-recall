@@ -286,6 +286,7 @@ total-recall memory --project kompass              # nur ein Projekt
 total-recall memory --at 2026-10-01                # wie sie am Ende dieses Tages waren
 total-recall memory --deleted                      # gelöschte Dateien mit anzeigen
 total-recall memory --history MEMORY.md --project kompass   # alle Fassungen einer Datei
+total-recall memory --timeline                     # alle Änderungen aller Dateien, neueste zuerst
 total-recall memory --grep "release workflow"      # Volltextsuche im aktuellen Inhalt
 total-recall blob 5e0c9a41d2b7                     # Inhalt einer Fassung
 ```
@@ -303,13 +304,14 @@ iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 | `--at ZEIT` | der Stand zu dieser Zeit (lokale Zeit, `YYYY-MM-DD` meint das Ende des Tages, sonst `YYYY-MM-DDTHH:MM`): je Datei die letzte Fassung bis dahin |
 | `--deleted` | gelöschte Dateien mit anzeigen (`SIZE` `deleted`, JSON `deleted: true`, `sha256: null`) |
 | `--history DATEI` | alle Fassungen einer Datei, älteste zuerst, Löschungen eingeschlossen; `DATEI` ist der Pfad im Gedächtnis-Verzeichnis. Liegt die Datei in mehreren Projekten (`MEMORY.md` fast immer), ist das ohne `--project` ein `ambiguous`-Fehler, der die Projekte nennt. Mit `--at` nur die Fassungen bis dahin |
+| `--timeline` | jede Änderung jeder Datei in einem Aufruf, neueste zuerst, wie die Zeitleiste der TUI (dieselbe Funktion `memview.Timeline`): `added` (erste Fassung oder wieder da nach einer Löschung), `changed`, `deleted`, dazu die Größenänderung. Mit `--at` nur bis dahin, mit `--project` nur diese Projekte. Geht nicht zusammen mit `--history`, `--grep` und `--deleted` (Löschungen sind immer dabei) |
 | `--grep WÖRTER` | Volltextsuche (FTS5) im aktuellen Inhalt der vorhandenen Dateien, beste Treffer zuerst, mit Textausschnitt; alle Wörter müssen vorkommen. Ein eigener Index, getrennt von dem der Events; dieselbe Suche ist [`search --type memory`](#search) |
 | `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
 | `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
 
 **Zeiten.** `CHANGED` (JSON `changed`, bei `--history` `ts`) ist die Änderungszeit der Datei, als das Archiv die Fassung sah; bei einer Löschung die Zeit des Laufs, der sie bemerkte. `--history` zeigt daneben `OBSERVED` (`observed_at`), wann der Lauf die Fassung aufgenommen hat. Ändert der Agent eine Datei zweimal zwischen zwei Läufen, kennt das Archiv nur die zweite Fassung; da jeder Hook nachsieht, ist das selten.
 
-**JSON.** Ohne Option je Datei ein Objekt: `project`, `project_key` (Schlüssel der Harness), `harness`, `cwd` und `git_root` des Projekts (`null`, solange unbekannt), `path`, `sha256` (`null` bei gelöschten), `bytes`, `deleted`, `changed` (UTC), `versions` (Fassungen bis dahin, Löschungen mitgezählt). `--history`: je Fassung `project`, `project_key`, `harness`, `path`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `deleted`. `--grep`: je Treffer `project`, `project_key`, `harness`, `path`, `sha256`, `changed`, `snippet` (Treffer in `[…]`).
+**JSON.** Ohne Option je Datei ein Objekt: `project`, `project_key` (Schlüssel der Harness), `harness`, `cwd` und `git_root` des Projekts (`null`, solange unbekannt), `path`, `sha256` (`null` bei gelöschten), `bytes`, `deleted`, `changed` (UTC), `versions` (Fassungen bis dahin, Löschungen mitgezählt). `--history`: je Fassung `project`, `project_key`, `harness`, `path`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `deleted`. `--timeline`: je Änderung `project`, `project_key`, `harness`, `path`, `kind`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `prev_ts` und `prev_sha256` (`null`, außer bei `changed`), `delta_bytes`; die `delta_bytes` einer Datei ergeben ihre Größe jetzt (0 nach einer Löschung), ein Test prüft das an der `--json`-Ausgabe. `--grep`: je Treffer `project`, `project_key`, `harness`, `path`, `sha256`, `changed`, `snippet` (Treffer in `[…]`).
 
 **Projektzuordnung.** Das Archiv kennt das Projekt über den Schlüssel der Harness. Das Verzeichnis dazu liest der Adapter aus einem Transkript des Projekts; gibt es keins mehr, sucht er unter den Sessions im Archiv ein Arbeitsverzeichnis, das zu dem Schlüssel passt. Findet er keins, bleibt `cwd` leer, und das Projekt heißt wie sein Schlüssel; ein späterer Lauf trägt das Verzeichnis nach, sobald eine Session dafür auftaucht.
 

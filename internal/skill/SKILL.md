@@ -109,7 +109,7 @@ LIMIT 50"
 | `sessions` | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `account_group`, `project`, `has_attachment` (`any`, `image` or `document`), `actor` (with `has_attachment`: whose event carries it), `subagents`, `limit` (default 50, at most 500) |
 | `show` | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (default 200, at most 1000) |
 | `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `account_group`, `top`, `tools`, `path`, `path_in`, `day`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
-| `memory` | `cursor`, `project`, `at`, `history`, `grep`, `deleted`, `raw`, `limit` |
+| `memory` | `cursor`, `project`, `at`, `history`, `timeline`, `grep`, `deleted`, `raw`, `limit` |
 | `status` | none |
 | `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`; with `all=true` and no `actor`: `all`), `all`, `text_width` (default 160), `fields` (default `event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated`; `all` for every key; a name given twice counts once, empty means the default; fewer keys mean fewer pages: for an overview of a whole day use `fields: "ts_local,actor,text"` with `text_width: 80`), `limit` (leave out for all; large windows come in pages) |
 
@@ -338,6 +338,7 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit; every event lists its `attachments` |
 | `total-recall blob HASH --out FILE` (or `--json`) | writes an attachment (image, document) of the archive to FILE, or prints a JSON value of a meta record (a system prompt) to stdout; `HASH` from `show` (`attachments[].sha256`, a unique prefix suffices) or from `session_meta.raw`; `--json` prints type, size and the events, meta records and memory files (`memory`: `project`, `project_key`, `harness`, `path`, `ts`) that refer to it. Only when the user asks for the picture, document or prompt itself |
 | `total-recall memory --json [--project P] [--at D] [--deleted]` | what the agent remembers: the memory files of every project the harness keeps outside the transcripts (Claude Code: `memory/*.md`), as they are now or were at `D`; `--project` matches the project name, path or harness key (exactly, else as a part); `total-recall blob SHA256` prints a file's content. Use it when the user asks what the agent remembered or noted about a project |
+| `total-recall memory --timeline --json [--project P] [--at DATE]` | every change of every memory file in one call, newest first, like the timeline of the TUI: `kind` added, changed or deleted, `delta_bytes`, the hashes of the version and of the one it replaces; instead of one `--history` call per file; MCP: `memory` with `timeline` |
 | `total-recall memory --history FILE --json [--project P]` | the versions of one memory file, oldest first, deletions included (`sha256` null); `--project` when the file name is in several projects |
 | `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; the same as `search --type memory` |
 | `total-recall search [WORDS] --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--has-attachment[=image\|document]] [--limit N]` | full-text hits with snippets; `--has-attachment` keeps the events (and sessions) with an image or document, each event hit lists its `attachments` and `attachment_count`, and **without WORDS** it lists the newest events with attachments (how to find pasted images and documents; the kind goes after `=`); all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
@@ -524,6 +525,25 @@ One object per version of the file, oldest first.
 | `sha256` | content hash; `null` for a deletion |
 | `bytes` | size of the content |
 | `deleted` | `true` for a deletion |
+
+#### `memory --timeline --json`
+
+One object per change of any file of the selected projects, newest first (same time: later scan first). Every version is one event; the `delta_bytes` of a file add up to its size now (0 once deleted).
+
+| field | meaning |
+|---|---|
+| `project` | as in `memory --json` |
+| `project_key` | as in `memory --json` |
+| `harness` | as in `memory --json` |
+| `path` | the file |
+| `kind` | `added` (first version, or back after a deletion), `changed` or `deleted` |
+| `ts` | time of the version (UTC), as in `memory --history` |
+| `observed_at` | the scan that recorded it (UTC) |
+| `sha256` | content hash; `null` for a deletion |
+| `bytes` | size of the content, 0 for a deletion |
+| `prev_ts` | time of the version it replaces; `null` unless `changed` |
+| `prev_sha256` | hash of the version it replaces; `null` unless `changed` |
+| `delta_bytes` | change in size against the version before (negative when shrunk or deleted) |
 
 #### `memory --grep --json`
 
