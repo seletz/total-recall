@@ -163,7 +163,7 @@ func TestBuildStatusCheck(t *testing.T) {
 	var s StatusJSON
 	e.json(&s, "status", "--db", e.analytics)
 	if len(s.Sources) != 1 || s.Sources[0].Events != 21942 || s.Sources[0].Sessions != 936 || s.Sources[0].Backlog != 0 || !s.Sources[0].ArchiveFound ||
-		s.TZ != "Europe/Berlin" || s.Views != 9 || s.Sources[0].LastBatch.BatchID != 3 {
+		s.TZ != "Europe/Berlin" || s.Views != 11 || s.Sources[0].LastBatch.BatchID != 3 {
 		t.Errorf("status %+v", s)
 	}
 	// new events show up as backlog
@@ -208,8 +208,8 @@ func TestViews(t *testing.T) {
 	e := newEnv(t)
 	var vs []ViewJSON
 	e.json(&vs, "views")
-	if len(vs) != 9 {
-		t.Fatalf("views %d, want 9", len(vs))
+	if len(vs) != 11 {
+		t.Fatalf("views %d, want 11", len(vs))
 	}
 	e.json(&vs, "views", "analytics_daily_v1")
 	if len(vs) != 1 || vs[0].Columns[0].Name != "day_local" || vs[0].Columns[0].Type != "DATE" {
@@ -255,7 +255,7 @@ func TestExport(t *testing.T) {
 	dir := t.TempDir()
 	var ex []ExportJSON
 	e.json(&ex, "export", "--db", e.analytics, "--out", dir)
-	if len(ex) != 9 {
+	if len(ex) != 11 {
 		t.Fatalf("exported %d views", len(ex))
 	}
 	for _, x := range ex {
@@ -360,4 +360,46 @@ func TestReportFlags(t *testing.T) {
 	if len(weeks) == 0 {
 		t.Error("no weeks")
 	}
+}
+
+// TestWorktimeSumEqualsParts: the worktime report equals
+// stats --worktime --json in total, and its groupings add up.
+func TestWorktimeSumEqualsParts(t *testing.T) {
+	e := newEnv(t)
+	e.mustRun("build", "--db", e.analytics)
+	st := e.stats("--worktime")
+	tot := st["total"].(map[string]any)
+	var all []WorktimeJSON
+	e.json(&all, "worktime", "--db", e.analytics, "--by", "none")
+	if len(all) != 1 || all[0].RawSeconds != num(tot["raw_seconds"]) || all[0].RoundedSeconds != num(tot["rounded_seconds"]) || all[0].Days != num(tot["days"]) {
+		t.Errorf("worktime total %+v, stats %v", all, tot)
+	}
+	for _, by := range []string{"category", "project", "host"} {
+		var rows []WorktimeJSON
+		e.json(&rows, "worktime", "--db", e.analytics, "--by", by)
+		var raw, rounded int64
+		for _, r := range rows {
+			raw, rounded = raw+r.RawSeconds, rounded+r.RoundedSeconds
+		}
+		if raw != all[0].RawSeconds || (by == "category" && rounded != all[0].RoundedSeconds) {
+			t.Errorf("--by %s: %d/%d, total %+v", by, raw, rounded, all[0])
+		}
+	}
+	var days []WorktimeJSON
+	e.json(&days, "worktime", "--db", e.analytics, "--by", "none", "--period", "day")
+	got := map[string]WorktimeJSON{}
+	for _, d := range days {
+		got[d.Period] = d
+	}
+	for _, it := range st["days"].([]any) {
+		d := it.(map[string]any)
+		if num(d["raw_seconds"]) == 0 {
+			continue
+		}
+		g := got[d["day"].(string)]
+		if g.RawSeconds != num(d["raw_seconds"]) || g.RoundedSeconds != num(d["rounded_seconds"]) {
+			t.Errorf("day %s: %+v, stats %v/%v", d["day"], g, d["raw_seconds"], d["rounded_seconds"])
+		}
+	}
+	keys(t, e.mustRun("worktime", "--db", e.analytics, "--json"), "period", "key", "raw_seconds", "rounded_seconds", "days")
 }

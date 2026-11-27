@@ -108,7 +108,7 @@ func newRoot(a *App) *cobra.Command {
 	pf.StringVar(&a.dbPath, "db", "", "analytics database (default: analytics.duckdb next to the archive)")
 	pf.StringVar(&a.tz, "tz", "", "primary time zone (default: timezone of the config)")
 	root.AddCommand(newVersionCmd(a), newBuildCmd(a), newStatusCmd(a), newCheckCmd(a), newViewsCmd(a),
-		newQueryCmd(a), newExportCmd(a), newUsageCmd(a), newTokensCmd(a))
+		newQueryCmd(a), newExportCmd(a), newUsageCmd(a), newTokensCmd(a), newWorktimeCmd(a))
 	return root
 }
 

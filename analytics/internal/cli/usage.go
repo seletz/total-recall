@@ -263,14 +263,20 @@ func newTable(w io.Writer, rf reportFlags, cols ...string) *table {
 }
 
 func (t *table) row(period string, key *string, nums ...int64) {
+	cells := make([]string, len(nums))
+	for i, n := range nums {
+		cells[i] = fmt.Sprint(n)
+	}
+	t.rowText(period, key, cells...)
+}
+
+// rowText adds a row with preformatted value cells (right aligned).
+func (t *table) rowText(period string, key *string, cells ...string) {
 	r := []string{period}
 	if !t.noKey {
 		r = append(r, keyText(key))
 	}
-	for _, n := range nums {
-		r = append(r, fmt.Sprint(n))
-	}
-	t.rows = append(t.rows, r)
+	t.rows = append(t.rows, append(r, cells...))
 }
 
 func (t *table) flush() error {

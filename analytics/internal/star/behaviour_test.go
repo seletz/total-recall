@@ -19,6 +19,8 @@ var fingerprint = []string{
 	"SELECT sum(calls), count(*) FROM analytics_tool_month_v1",
 	"SELECT sum(sessions), sum(subagent_sessions) FROM analytics_session_month_v1",
 	"SELECT string_agg(project || '=' || n, ',' ORDER BY project) FROM (SELECT project, count(*) AS n FROM analytics_sessions_v1 GROUP BY project)",
+	"SELECT count(*), sum(raw_seconds), sum(rounded_seconds) FROM analytics_worktime_day_v1",
+	"SELECT string_agg(project || '=' || n, ',' ORDER BY project) FROM (SELECT project, sum(raw_seconds) AS n FROM analytics_worktime_v1 GROUP BY project)",
 }
 
 // snapshot evaluates the fingerprint queries.
