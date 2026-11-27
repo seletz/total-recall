@@ -6,7 +6,7 @@ icon: lucide/chart-network
 
 `total-recall-analytics` ist ein eigenes Programm neben `total-recall`. Es wertet die Archive eines oder mehrerer Hosts mit [DuckDB](https://duckdb.org/) aus: Es liest die Archive schreibgeschützt, baut daraus eine Analyse-Datenbank (Star-Schema) und beantwortet Fragen über alle Hosts eines Agenten-Pools. Die Archive selbst ändert es nie.
 
-Diese Seite wächst mit dem Meilenstein v1.11.0. Bisher gibt es das Programm selbst mit dem Befehl [`version`](#version) und das Schema der Analyse-Datenbank mit seinen [Views](#views-vertrag-v1); die Befehle zum Bauen und Abfragen folgen. Installieren: [Installieren, Analyse-Tool](../how-to/10-installieren.md#analyse-tool).
+Typischer Ablauf: [`build`](#build) lädt das Archiv in die Analyse-Datenbank (beim ersten Mal ganz, danach nur Neues), [`usage`](#usage) und [`tokens`](#tokens) beantworten die häufigsten Fragen, [`query`](#query) und [`export`](#export) öffnen die [Views](#views-vertrag-v1) für eigene Auswertungen, [`status`](#status) und [`check`](#check) zeigen den Zustand. Installieren: [Installieren, Analyse-Tool](../how-to/10-installieren.md#analyse-tool).
 
 ## Aufbau
 
@@ -17,6 +17,287 @@ Diese Seite wächst mit dem Meilenstein v1.11.0. Bisher gibt es das Programm sel
 - **Ausgabe** wie bei `total-recall`: `--json` gibt ein eingerücktes Dokument mit allen dokumentierten Schlüsseln aus, ein Fehler im JSON-Modus ist ein Objekt `{"error":{"kind":"…","message":"…"}}` auf stdout, die Meldung steht zusätzlich auf stderr, Exit-Code 1. `kind` ist `usage` (Flags, Argumente), `db` (Datenbank oder Archiv nicht zu öffnen), `sql` (DuckDB lehnt eine Abfrage ab) oder `internal`. Siehe [Ausgabevertrag](../explanation/design.md#ausgabevertrag-der-lesebefehle).
 
 ## Befehle
+
+Alle Befehle außer `version` und `views` lesen die Konfiguration von `total-recall` (`~/.config/total-recall/config.toml` oder `TOTAL_RECALL_CONFIG`): das Archiv (`db`), die Zeitzone (`timezone`), die [Projekt-Definitionen](../how-to/67-projekte-definieren.md) und die Namen der Logins. So heißen Projekte und Konten hier wie in `total-recall stats`. Globale Optionen:
+
+| Option | Bedeutung |
+|---|---|
+| `--config PATH` | Konfigurationsdatei von total-recall |
+| `--archive PATH` | Archiv statt `db` der Konfiguration |
+| `--db PATH` | Analyse-Datenbank; Standard: `analytics.duckdb` neben dem Archiv |
+| `--tz ZONE` | primäre Zeitzone statt `timezone` der Konfiguration |
+
+Die Beispiele laufen auf dem Demo-Archiv (Benutzer `mara`, Zone Europe/Berlin). Das Demo-Archiv hat noch keine Token-Angaben; die Token-Spalten sind deshalb 0.
+
+### build
+
+```
+total-recall-analytics build [--host NAME] [--source NAME] [--full] [--extra-tz ZONE]... [--json]
+```
+
+Lädt das Archiv in die Analyse-Datenbank (legt sie beim ersten Mal an). Geladen werden alle Sessions mit Events über dem Wasserstand der Quelle, mit `--full` alle Events der Quelle neu. Ein Lauf ist eine Transaktion: Der Vertrag der Views und alle Datentests müssen bestehen, sonst bleibt die Datenbank, wie sie war. Was dabei passiert: [Analyse-Schema](../explanation/analyse-schema.md#laden).
+
+| Option | Bedeutung |
+|---|---|
+| `--host NAME` | Host, zu dem das Archiv gehört; Standard: der kurze Name dieses Rechners |
+| `--source NAME` | Name der Quelle für den Wasserstand; Standard: der Host |
+| `--full` | alle Events der Quelle neu laden statt nur der neuen |
+| `--extra-tz ZONE` | weitere Zone für `analytics_time_slot_v1` (mehrfach) |
+| `--json` | Ausgabe als JSON |
+
+```console
+$ total-recall-analytics build --host host-a
+/home/mara/.local/share/total-recall/analytics.duckdb: batch 1 (full) from host-a (host host-a), seq 0..21942: 21942 events in 936 sessions, 35 models, 8 tests passed, 1.495s
+```
+
+Der zweite Lauf findet nichts Neues:
+
+```console
+$ total-recall-analytics build --host host-a --json
+{
+  "analytics_db": "/home/mara/.local/share/total-recall/analytics.duckdb",
+  "source": "host-a",
+  "host": "host-a",
+  "archive": "/home/mara/.local/share/total-recall/archive.db",
+  "tz": "Europe/Berlin",
+  "batch_id": 2,
+  "mode": "incremental",
+  "seq_from": 21942,
+  "seq_to": 21942,
+  "events": 0,
+  "sessions": 0,
+  "models": 35,
+  "tests": 8,
+  "elapsed_ms": 916
+}
+```
+
+JSON-Schlüssel: `analytics_db`, `source`, `host`, `archive`, `tz`, `batch_id`, `mode` (`full` oder `incremental`), `seq_from` und `seq_to` (geladen wurden Sessions mit Events in `seq_from` < seq ≤ `seq_to`), `events` und `sessions` (alle Events der berührten Sessions), `models`, `tests`, `elapsed_ms`.
+
+### status
+
+```
+total-recall-analytics status [--json]
+```
+
+Zeigt die Analyse-Datenbank (Größe, Views, Zonen) und je Quelle Host, geladene Events und Sessions, Wasserstand, Rückstand (Events des Archivs über dem Wasserstand, die der nächste `build` lädt; `?`, wenn das Archiv nicht da ist), den letzten Lauf und das Archiv.
+
+```console
+$ total-recall-analytics status
+/home/mara/.local/share/total-recall/analytics.duckdb: 13.8 MiB, 9 views, zone Europe/Berlin
+
+SOURCE  HOST    EVENTS  SESSIONS  LAST SEQ  BACKLOG  LAST BATCH                          ARCHIVE
+host-a  host-a  21942   936       21942     0        2 incremental 2026-11-27T23:53:25Z  /home/mara/.local/share/total-recall/archive.db
+```
+
+JSON: `analytics_db`, `size_bytes`, `tz`, `zones`, `views`, `sources` mit je `source`, `host`, `archive`, `archive_found`, `last_seq`, `backlog`, `events`, `sessions` und `last_batch` (`batch_id`, `mode`, `started_at`, `finished_at` in UTC, `seq_from`, `seq_to`, `events`, `sessions`).
+
+### check
+
+```
+total-recall-analytics check [--json]
+```
+
+Prüft den Vertrag der Views und führt die Datentests aus, ohne etwas zu laden. Exit-Code 1, wenn etwas fehlschlägt, für CI und Cron. Bei einer Abweichung vom Vertrag listet die Ausgabe die betroffenen Zeilen (`-` erwartet, `+` gefunden).
+
+```console
+$ total-recall-analytics check
+contract                    ok
+accepted_values             ok
+bridge_coverage             ok
+marts_sum_equals_facts      ok
+not_null_keys               ok
+relationships_fact_event    ok
+relationships_fact_session  ok
+tokens_split                ok
+unique_keys                 ok
+```
+
+JSON: `analytics_db`, `ok`, `contract_ok`, `contract_diff` (Liste), `tests` mit je `name` und `failures` (Zahl der verletzenden Zeilen).
+
+### views
+
+```
+total-recall-analytics views [VIEW...] [--json]
+```
+
+Listet die veröffentlichten Views mit Spalten und Typen aus dem Vertrag, ohne Datenbank. Die vollständige Liste steht unter [Views](#views-vertrag-v1).
+
+```console
+$ total-recall-analytics views analytics_daily_v1
+analytics_daily_v1
+  day_local            DATE
+  host                 VARCHAR
+  project              VARCHAR
+  sessions             BIGINT
+  human_prompts        BIGINT
+  agent_events         BIGINT
+  tool_calls           BIGINT
+  tokens_in            BIGINT
+  tokens_out           BIGINT
+```
+
+JSON: eine Liste mit je `view` und `columns` (`name`, `type`).
+
+### query
+
+```
+total-recall-analytics query SQL [--format table|json|jsonl|csv] [--json]
+```
+
+Führt eine SQL-Abfrage auf der Analyse-Datenbank aus. Die Datenbank ist dabei nur lesbar geöffnet, ohne Zugriff auf Dateien (kein `ATTACH`, kein `read_csv`) und mit gesperrter Konfiguration; Schnittstelle sind die Views `analytics_*_v1`. `-` liest die Abfrage von stdin. Formate wie bei `total-recall sql`: JSON behält Zahlen als Zahlen, ein Datum als `YYYY-MM-DD`, Zeitpunkte als RFC 3339 in UTC, NULL als `null`.
+
+```console
+$ total-recall-analytics query "SELECT project, sum(calls) AS calls FROM analytics_tool_month_v1 WHERE month = '2026-10' GROUP BY project ORDER BY calls DESC"
+project      calls
+kompass      825
+wetterwarte  419
+fahrtenbuch  130
+~/notizen    38
+dotfiles     13
+```
+
+```console
+$ total-recall-analytics query --format csv "SELECT iso_weekday, sum(human_events) AS human, sum(agent_events) AS agent FROM analytics_weekhour_v1 GROUP BY iso_weekday ORDER BY iso_weekday"
+iso_weekday,human,agent
+1,613,2265
+2,665,2434
+3,627,2184
+4,576,1910
+5,529,1830
+6,76,271
+7,15,76
+```
+
+Eine schreibende Abfrage ist ein Fehler der Art `sql`:
+
+```console
+$ total-recall-analytics query --json "CREATE TABLE x AS SELECT 1"
+total-recall-analytics: Invalid Input Error: Cannot execute statement of type "EXECUTE" on database "analytics" which is attached in read-only mode!
+{"error":{"kind":"sql","message":"Invalid Input Error: Cannot execute statement of type \"EXECUTE\" on database \"analytics\" which is attached in read-only mode!"}}
+```
+
+### export
+
+```
+total-recall-analytics export --out DIR [--format parquet|csv] [VIEW...] [--json]
+```
+
+Schreibt Views als Dateien `DIR/<view>.parquet` (Standard) oder `.csv`, für Notebooks und BI-Werkzeuge; ohne `VIEW` alle. Vorhandene Dateien werden ersetzt.
+
+```console
+$ total-recall-analytics export --out /home/mara/analyse
+VIEW                        ROWS   FILE
+analytics_daily_v1          304    /home/mara/analyse/analytics_daily_v1.parquet
+analytics_events_v1         21942  /home/mara/analyse/analytics_events_v1.parquet
+analytics_project_week_v1   101    /home/mara/analyse/analytics_project_week_v1.parquet
+analytics_session_month_v1  30     /home/mara/analyse/analytics_session_month_v1.parquet
+analytics_sessions_v1       936    /home/mara/analyse/analytics_sessions_v1.parquet
+analytics_time_slot_v1      17338  /home/mara/analyse/analytics_time_slot_v1.parquet
+analytics_tokens_day_v1     0      /home/mara/analyse/analytics_tokens_day_v1.parquet
+analytics_tool_month_v1     104    /home/mara/analyse/analytics_tool_month_v1.parquet
+analytics_weekhour_v1       94     /home/mara/analyse/analytics_weekhour_v1.parquet
+```
+
+JSON: eine Liste mit je `view`, `path` und `rows`.
+
+### usage
+
+```
+total-recall-analytics usage [--by GRUPPE] [--period day|week|month|total] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]
+```
+
+Nutzung über die Zeit: Sessions, eigene Prompts (`human`), Agent-Events, Tool-Aufrufe und Tokens, gruppiert nach `--by` (`project` als Standard, `host`, `model`, `family`, `tool`, `account`, `repo`, `harness` oder `none`) und `--period` (lokale Tage, ISO-Wochen `2026-W42`, Monate oder `total`, Standard) in der primären Zone. `sessions` zählt die Sessions mit einem human- oder agent-Event in der Gruppe, wie `stats`. `--since` und `--until` begrenzen auf lokale Tage. Summe gleich Teile: Gesamt und je Tag stimmen mit `total-recall stats --json` überein, und jede Gruppierung summiert sich zum Gesamt (Test).
+
+```console
+$ total-recall-analytics usage --by project
+TOTAL  PROJECT      SESSIONS  HUMAN  AGENT  TOOL CALLS  TOKENS IN  TOKENS OUT
+total  dotfiles           61    209    773         554          0           0
+total  fahrtenbuch       116    389   1375         958          0           0
+total  kompass           414   1335   4872        3444          0           0
+total  wetterwarte       270    927   3084        2105          0           0
+total  ~/notizen          75    241    866         608          0           0
+```
+
+```console
+$ total-recall-analytics usage --by none --period month --since 2026-09-01
+MONTH    SESSIONS  HUMAN  AGENT  TOOL CALLS  TOKENS IN  TOKENS OUT
+2026-09       175    589   2142        1517          0           0
+2026-10       178    585   2045        1425          0           0
+```
+
+```console
+$ total-recall-analytics usage --by project --period week --since 2026-10-12 --until 2026-10-18 --json
+[
+  {
+    "period": "2026-W42",
+    "key": "dotfiles",
+    "sessions": 1,
+    "human": 3,
+    "agent": 4,
+    "tool_calls": 1,
+    "tokens_in": 0,
+    "tokens_out": 0
+  },
+  {
+    "period": "2026-W42",
+    "key": "fahrtenbuch",
+    "sessions": 2,
+    "human": 8,
+    "agent": 32,
+    "tool_calls": 24,
+    "tokens_in": 0,
+    "tokens_out": 0
+  },
+  {
+    "period": "2026-W42",
+    "key": "kompass",
+    "sessions": 11,
+    "human": 38,
+    "agent": 114,
+    "tool_calls": 74,
+    "tokens_in": 0,
+    "tokens_out": 0
+  },
+  {
+    "period": "2026-W42",
+    "key": "wetterwarte",
+    "sessions": 26,
+    "human": 75,
+    "agent": 338,
+    "tool_calls": 254,
+    "tokens_in": 0,
+    "tokens_out": 0
+  },
+  {
+    "period": "2026-W42",
+    "key": "~/notizen",
+    "sessions": 1,
+    "human": 4,
+    "agent": 13,
+    "tool_calls": 9,
+    "tokens_in": 0,
+    "tokens_out": 0
+  }
+]
+```
+
+JSON: eine Liste mit je `period`, `key` (`null` ohne Wert, etwa ein Event ohne Modell, und bei `--by none`), `sessions`, `human`, `agent`, `tool_calls`, `tokens_in`, `tokens_out`.
+
+### tokens
+
+```
+total-recall-analytics tokens [--by GRUPPE] [--period …] [--since …] [--until …] [--json]
+```
+
+Events mit Token-Angaben und ihre Tokens, gruppiert wie bei `usage` (Standard `--by model`): Input mit seiner Aufteilung (frisch, Cache-Lesen, Cache-Schreiben, ohne Aufteilung; die vier ergeben zusammen den Input) und Output, mit denselben Schlüsseln wie `tokens` in `total-recall stats --json` und denselben Zahlen je Modell (Test). Auf dem Demo-Archiv ohne Token-Angaben ist die Liste leer:
+
+```console
+$ total-recall-analytics tokens --by model
+TOTAL  MODEL  EVENTS  INPUT  FRESH  CACHE READ  CACHE WRITE  UNSPLIT  OUTPUT
+```
+
+JSON: eine Liste mit je `period`, `key`, `events`, `input`, `fresh`, `cache_read`, `cache_write`, `unsplit`, `output`.
 
 ### version
 
@@ -271,4 +552,4 @@ Wochentag × Stunde (lokal), human- und agent-Events.
 
 ## TUI
 
-Das Analyse-Tool hat noch keine Bedienung im Terminal; sie kommt mit [#366](https://github.com/seletz/total-recall/issues/366) im selben Meilenstein. Die TUI von `total-recall` zeigt auf der Einstellungsseite nur ihre eigene Version, nicht die des Analyse-Tools; dessen Version zeigt `total-recall-analytics version`.
+Das Analyse-Tool hat noch keine Bedienung im Terminal; sie kommt mit [#366](https://github.com/seletz/total-recall/issues/366) im selben Meilenstein. Bis dahin gibt es kein TUI-Gegenstück zu den Befehlen oben. Die Zahlen von `usage` (gesamt, je Tag, je Projekt) zeigt die Statistik-Ansicht der TUI von `total-recall` für ein einzelnes Archiv, siehe [TUI](30-tui.md); über mehrere Hosts gibt es sie nur hier. Die TUI von `total-recall` zeigt auf der Einstellungsseite nur ihre eigene Version, nicht die des Analyse-Tools.

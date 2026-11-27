@@ -3,10 +3,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -18,6 +20,20 @@ type App struct {
 	Args   []string
 	Stdout io.Writer
 	Stderr io.Writer
+	// Getenv looks up environment variables; default os.Getenv.
+	Getenv func(string) string
+	// Home overrides the home directory.
+	Home string
+	// Now is the clock; default time.Now.
+	Now func() time.Time
+	// Hostname names this host for build; default os.Hostname.
+	Hostname func() (string, error)
+
+	// global flags
+	configFile string
+	archive    string
+	dbPath     string
+	tz         string
 }
 
 // Main runs the command line and returns the exit code.
@@ -28,6 +44,15 @@ func Main(a *App) int {
 	if a.Stderr == nil {
 		a.Stderr = os.Stderr
 	}
+	if a.Getenv == nil {
+		a.Getenv = os.Getenv
+	}
+	if a.Now == nil {
+		a.Now = time.Now
+	}
+	if a.Hostname == nil {
+		a.Hostname = os.Hostname
+	}
 	root := newRoot(a)
 	root.SetArgs(a.Args)
 	root.SetOut(a.Stdout)
@@ -35,6 +60,10 @@ func Main(a *App) int {
 	err := root.Execute()
 	if err == nil {
 		return 0
+	}
+	var ec exitCode
+	if errors.As(err, &ec) {
+		return int(ec)
 	}
 	if !strings.Contains(err.Error(), "\n") && errorKind(err) == ErrKindInternal && isCobraUsage(err) {
 		err = errKind(ErrKindUsage, err)
@@ -73,7 +102,13 @@ func newRoot(a *App) *cobra.Command {
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return errKind(ErrKindUsage, err)
 	})
-	root.AddCommand(newVersionCmd(a))
+	pf := root.PersistentFlags()
+	pf.StringVar(&a.configFile, "config", "", "total-recall config file (default: TOTAL_RECALL_CONFIG or ~/.config/total-recall/config.toml)")
+	pf.StringVar(&a.archive, "archive", "", "total-recall archive to load (default: db of the config)")
+	pf.StringVar(&a.dbPath, "db", "", "analytics database (default: analytics.duckdb next to the archive)")
+	pf.StringVar(&a.tz, "tz", "", "primary time zone (default: timezone of the config)")
+	root.AddCommand(newVersionCmd(a), newBuildCmd(a), newStatusCmd(a), newCheckCmd(a), newViewsCmd(a),
+		newQueryCmd(a), newExportCmd(a), newUsageCmd(a), newTokensCmd(a))
 	return root
 }
 

@@ -48,6 +48,12 @@ func errKind(kind string, err error) error {
 	return kindError{kind: kind, err: err}
 }
 
+// exitCode ends the command with a code and no further message; the
+// command has written its output already (check).
+type exitCode int
+
+func (e exitCode) Error() string { return fmt.Sprintf("exit %d", int(e)) }
+
 func usagef(format string, a ...any) error {
 	return errKind(ErrKindUsage, fmt.Errorf(format, a...))
 }
