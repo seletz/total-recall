@@ -1,5 +1,6 @@
  > the                                                              actor: all  since: all  repo: *
-─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory
+─────────────────────────────────────────────────┬─ project: all ───────────────────────────────────
  2026-01-11 19:00  c1c1c1c1-0003-4000-800…  human│ (untitled)
   push the branch                                │ claude:a1a1a1a1-0001-4000-8000-00000000…  o/alpha
  2026-01-08 17:30  a1a1a1a1-0006-4000-800…  human│ 2025-12-01 09:15 – 09:40 (25m)  main
@@ -26,5 +27,4 @@
   show the failing job                           │
 ▸2025-12-01 09:40  a1a1a1a1-0001-4000-800…  human│
   summarise the oldest one                       │
-                                                 │
  19 hits (0 ms)

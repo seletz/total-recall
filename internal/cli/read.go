@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -872,7 +873,7 @@ func (e *env) searchCmd() *cobra.Command {
 	var f filterFlags
 	var of outputFlags
 	var raw, bySession bool
-	var actor, session, order, typeList, projectRef, hasAttachment string
+	var actor, session, order, typeList, projectRef, hasAttachment, tool string
 	c := &cobra.Command{
 		Use:   "search [QUERY]",
 		Short: "Full-text search over events, sessions and project memory, with snippets",
@@ -881,11 +882,20 @@ special characters are safe). With --raw the query is passed to SQLite FTS5
 unchanged: AND, OR, NOT, "exact phrase", prefix*.
 
 --type selects what is searched, comma-separated, default event:
-  event    messages, tool calls and tool results (field kind)
-  session  sessions by name, title or agent name
-  memory   the current content of the project memory files
-The hits come grouped by type in the order given; --limit counts per type.
-attachment, meta and file are reserved type names, not searchable yet. A
+  event        everything said or done in a session: messages, tool calls
+               and tool results (field kind)
+  input        what the human typed or pasted (actor human, kind message)
+  answer       messages of the agent, no tool calls
+  tool_call    tool calls; --tool NAME keeps one tool
+  tool_result  results of tool calls
+  image        events with an image; without a query the newest ones
+  document     events with a document (PDF…); without a query the newest
+  file         backup copies of edited files (file history), by content
+  session      sessions by name, title or agent name
+  memory       the current content of the project memory files
+input, answer, tool_call and tool_result narrow event; every hit has its
+type. The hits come grouped by type in the order given; --limit counts
+per type. attachment and meta are reserved type names, not searchable. A
 filter that does not apply to a selected type is an error. --project
 narrows every type to a project (name as in stats --by project, else a
 part of name, path or remote URL).
@@ -907,14 +917,6 @@ the text). The kind is given with "=": --has-attachment=image.`,
 		if err != nil {
 			return err
 		}
-		if len(args) == 0 {
-			switch {
-			case attach == nil:
-				return usagef("search needs a query or --%s", hasAttachmentFlag)
-			case bySession:
-				return usage(errors.New("--by-session needs a query"))
-			}
-		}
 		if order != "" && !bySession {
 			return usage(errors.New("--order needs --by-session"))
 		}
@@ -928,10 +930,21 @@ the text). The kind is given with "=": --has-attachment=image.`,
 		if err != nil {
 			return usage(err)
 		}
+		if len(args) == 0 {
+			// image and document list the newest events with such an
+			// attachment, like --has-attachment.
+			listing := attach != nil || slices.ContainsFunc(types, func(t store.HitType) bool { return t == store.TypeImage || t == store.TypeDocument })
+			switch {
+			case !listing:
+				return usagef("search needs a query or --%s", hasAttachmentFlag)
+			case bySession:
+				return usage(errors.New("--by-session needs a query"))
+			}
+		}
 		if bySession && (len(types) != 1 || types[0] != store.TypeEvent) {
 			return usage(errors.New("--by-session applies to type event only"))
 		}
-		if err := checkSearchFlags(types, searchFlagValues(f, projectRef, session, actor, raw, attach != nil)); err != nil {
+		if err := checkSearchFlags(types, searchFlagValues(f, projectRef, session, actor, tool, raw, attach != nil)); err != nil {
 			return err
 		}
 		cfg, err := e.loadConfig()
@@ -991,7 +1004,7 @@ the text). The kind is given with "=": --has-attachment=image.`,
 			return e.writeSessionHits(o, rows, loc)
 		}
 		groups, err := st.SearchTyped(ctx, store.TypedQuery{Text: query, Raw: raw, Types: types, SessionFilter: sf,
-			SessionID: sessionID, Actor: actor, Project: scope})
+			SessionID: sessionID, Actor: actor, Tool: tool, Project: scope})
 		if err != nil {
 			return searchError(err)
 		}
@@ -1000,7 +1013,8 @@ the text). The kind is given with "=": --has-attachment=image.`,
 	f.register(c, 20)
 	of.register(c)
 	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*); types event and memory")
-	c.Flags().StringVar(&typeList, "type", "", "types to search, comma-separated: event (default), session, memory")
+	c.Flags().StringVar(&typeList, "type", "", "types to search, comma-separated: event (default), input, answer, tool_call, tool_result, image, document, file, session, memory")
+	c.Flags().StringVar(&tool, "tool", "", "only tool calls of this tool, e.g. Bash (type tool_call)")
 	c.Flags().StringVar(&projectRef, "project", "", "only this project: name as in stats --by project, else a part of name, path or remote URL")
 	c.Flags().StringVar(&actor, "actor", "", "only events of this actor: human, agent, peer, automation, tool")
 	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix); types event and session")

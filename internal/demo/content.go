@@ -338,6 +338,10 @@ func featured() []session {
 		},
 		{
 			id: "7d1e4c20-0010-4000-8000-000000000010", cwd: kompass.cwd, title: "Höhenprofil prüfen",
+			edits: []fileEdit{
+				{path: kompass.cwd + "/route/elevation.go", name: "5c0e7a41d2b9f860@v1", version: 1, content: elevationBefore, at: at(time.October, 28, 9, 8)},
+				{path: kompass.cwd + "/route/elevation.go", name: "5c0e7a41d2b9f860@v2", version: 2, content: elevationAfter, at: at(time.October, 28, 9, 9)},
+			},
 			turns: []turn{
 				{at: at(time.October, 28, 9, 6),
 					prompt: "Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.",

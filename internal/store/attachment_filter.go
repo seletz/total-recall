@@ -227,15 +227,12 @@ func textStart(text string) string {
 // searchAttachmentEvents lists the events with attachments without a
 // search word, newest first: the snippet is the start of the text. The
 // filters of q apply as for a word search.
-func (s *Store) searchAttachmentEvents(ctx context.Context, q TypedQuery) (TypeHits, error) {
-	g := TypeHits{Type: TypeEvent, Hits: []Hit{}}
+func (s *Store) searchAttachmentEvents(ctx context.Context, q TypedQuery, t HitType) (TypeHits, error) {
+	g := TypeHits{Type: t, Hits: []Hit{}}
 	if q.Project != nil && len(q.Project.Keys) == 0 {
 		return g, nil
 	}
-	f := SearchFilter{SessionFilter: q.SessionFilter, SessionID: q.SessionID, Actor: q.Actor}
-	if q.Project != nil {
-		f.ProjectKeys = q.Project.Keys
-	}
+	f, q := eventFilterOf(q, t)
 	cond, args := f.eventCond()
 	where := " WHERE " + strings.Join(cond, " AND ")
 	from := ` FROM events e
@@ -270,7 +267,7 @@ func (s *Store) searchAttachmentEvents(ctx context.Context, q TypedQuery) (TypeH
 	}
 	for i := range hits {
 		h := &hits[i]
-		g.Hits = append(g.Hits, Hit{Type: TypeEvent, TS: h.Event.TS, Snippet: h.Snippet, Project: h.Project, Event: h})
+		g.Hits = append(g.Hits, Hit{Type: t, TS: h.Event.TS, Snippet: h.Snippet, Project: h.Project, Event: h})
 	}
 	g.Total, err = total(len(hits), q.Limit, func() (int, error) {
 		return s.count(ctx, "SELECT count(*)"+from+where, args...)

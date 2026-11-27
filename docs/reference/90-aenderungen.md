@@ -6,6 +6,21 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.10.0 (unveröffentlicht)
+
+Meilenstein v1.10.0: Die Suche und das Gedächtnis werden in der TUI und in der CLI gezielter erreichbar.
+
+### Hinzugefügt
+
+- **Feinere Objekttypen der Suche** ([#344](https://github.com/seletz/total-recall/issues/344)): `search --type` kennt jetzt `input` (was der Mensch getippt oder eingefügt hat), `answer` (Antworten des Agenten), `tool_call`, `tool_result`, `image`, `document` und `file` (der Inhalt der Sicherungskopien bearbeiteter Dateien aus der Datei-Historie) neben `event`, `session` und `memory`. Die ersten sechs sind Verfeinerungen von `event` auf demselben Index; `image` und `document` brauchen kein Suchwort und listen dann die neuesten Events mit Bild oder Dokument. `--tool NAME` schränkt `tool_call` auf ein Tool ein. Ein Aufruf ohne `--type` liefert wie vorher `event`. Summe = Teile: `input`, `answer`, `tool_call` und `tool_result` ergeben zusammen die Treffer von `event` (dazu die Nachrichten von Peers und Automatisierung); ein Test prüft das gegen die `--json`-Ausgabe des Demo-Archivs. Neu in `search --json`: Treffer vom Typ `file` mit `meta_id`, `path`, `sha256`, `media_type` und `bytes`; das MCP-Tool `search` nimmt dieselben Typen und `tool`. Kein Schema-Wechsel. Die Typen sind ein Minor-Zuwachs, siehe [Versionierung](60-versionierung.md).
+- **Typ-Zeile in der TUI** ([#344](https://github.com/seletz/total-recall/issues/344)): Die Suche hat unter der Eingabe eine eigene Zeile mit allen zehn Typen. Jeder Umschalter zeigt seine Taste (`e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m`) und seinen Zustand (ausgewählt in Klammern) und ist mit der Maus klickbar; die Hilfe (`?`) nennt die Tasten. Treffer vom Typ `file` zeigen rechts die Sicherungskopie als Codeblock, ++enter++ öffnet die Session. Neue Screenshots: `search-types-all`, `search-input`, `search-answers`, `search-tool-calls`, `search-images`, `search-file`, `search-help`.
+- **Demo-Archiv mit Datei-Historie:** Die Session „Höhenprofil prüfen“ hat zwei Sicherungskopien einer erfundenen Datei `route/elevation.go`.
+
+### Geändert
+
+- **Tasten der Suche:** Neue Aktionen `search_type_input`, `search_type_answer`, `search_type_tool_call`, `search_type_tool_result`, `search_type_image`, `search_type_document` und `search_type_file` (Standard `u`, `g`, `c`, `o`, `I`, `D`, `f`). Die Typ-Zeile ist eine eigene Zeile unter der Eingabe (vorher teilte sie sich die Linie mit dem Projekt-Pin), die Trefferliste ist dadurch eine Zeile kürzer. Die Beschreibungen der Typ-Tasten in der Hilfe sind kürzer (`events` statt `events on/off`).
+- **Der Typ `file`** ist nicht mehr reserviert, sondern durchsuchbar; `--type file` war bis v1.9 ein `usage`-Fehler.
+
 ## v1.9.1
 
 ### Behoben

@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > smoothed                                                                             actor: all  since: all  repo: *
+─ e event u input g answer c tool_call o tool_result I image D document [f file] s session m memory ────────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+▸2026-10-28 09:09  …/kompass/route/elevation.go  Höhenprofi│ /home/mara/src/kompass/route/elevation.go
+  package route // Climb sums up the ascent of a smoothed …│ Höhenprofil prüfen
+                                                           │ 2026-10-28 09:09
+                                                           │────────────────────────────────────────────────────────────
+                                                           │   package route
+                                                           │
+                                                           │   // Climb sums up the ascent of a smoothed profile in
+                                                           │ meters: the raw
+                                                           │   // altitude of the last segment jumps, so the series is
+                                                           │ smoothed first.
+                                                           │   func Climb(profile []float64) float64 {
+                                                           │       smooth := smoothElevation(profile, 5)
+                                                           │       var up float64
+                                                           │       for i := 1; i < len(smooth); i++ {
+                                                           │           if d := smooth[i] - smooth[i-1]; d > 0 {
+                                                           │               up += d
+                                                           │           }
+                                                           │       }
+                                                           │       return up
+                                                           │   }
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ 1 hit (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • e/u/… types • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 1 search …

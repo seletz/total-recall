@@ -54,6 +54,28 @@ total-recall search --raw '"VACUUM INTO"' --repo github.com/seletz/total-recall 
 
 Die Treffer zeigen Session, Zeit und einen Textausschnitt. Mit der Session-ID geht es weiter zu `show`.
 
+Mit `--type` suchst du gezielter. Ohne `--type` ist es `event`, also alles, was in einer Session passiert; die feineren Typen teilen das auf:
+
+```sh
+# Nur, was ich selbst getippt oder eingefügt habe
+total-recall search goreleaser --type input
+
+# Nur, was der Agent geantwortet hat
+total-recall search goreleaser --type answer
+
+# Tool-Aufrufe eines Tools, und deren Ergebnisse
+total-recall search sort --type tool_call --tool Edit
+total-recall search cask --type tool_result
+
+# Bilder und Dokumente, ohne Suchwort die neuesten
+total-recall search --type image,document
+
+# Der Inhalt der Sicherungskopien bearbeiteter Dateien
+total-recall search smoothed --type file
+```
+
+Die Treffer kommen je Typ gruppiert, `--limit` gilt je Typ. Die Ausgabe und alle Typen stehen in der Referenz unter [Typen](../reference/10-befehle.md#search-types). In der TUI sind es dieselben Typen als Umschalter in der Typ-Zeile der Suche, mit Taste und Maus: [Typen und Projekt](../reference/30-tui.md#typen-und-projekt).
+
 ## Eigene Abfragen mit `sql`
 
 `sql` öffnet die Datenbank nur lesend. Du kannst also nichts kaputt machen. Tabellen, Views, der `actor` und die Zeitangaben stehen in der Referenz unter [Schema](../reference/40-schema.md); das vollständige Schema in der Spezifikation unter [Datenmodell](../explanation/design.md#datenmodell).

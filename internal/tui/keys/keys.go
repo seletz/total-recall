@@ -71,10 +71,18 @@ const (
 	SearchTypeEvent   = "search_type_event"
 	SearchTypeSession = "search_type_session"
 	SearchTypeMemory  = "search_type_memory"
-	SearchPin         = "search_pin"
-	SearchProject     = "search_project"
-	SearchAttach      = "search_attach"
-	SearchHasAttach   = "search_has_attachment"
+	// The finer event types (#344).
+	SearchTypeInput      = "search_type_input"
+	SearchTypeAnswer     = "search_type_answer"
+	SearchTypeToolCall   = "search_type_tool_call"
+	SearchTypeToolResult = "search_type_tool_result"
+	SearchTypeImage      = "search_type_image"
+	SearchTypeDocument   = "search_type_document"
+	SearchTypeFile       = "search_type_file"
+	SearchPin            = "search_pin"
+	SearchProject        = "search_project"
+	SearchAttach         = "search_attach"
+	SearchHasAttach      = "search_has_attachment"
 
 	SessionUp       = "session_up"
 	SessionDown     = "session_down"
@@ -181,9 +189,16 @@ var Actions = []Action{
 	{SearchTime, Search, []string{"t"}, "time"},
 	{SearchRepo, Search, []string{"r"}, "repo"},
 	{SearchRaw, Search, []string{"ctrl+r"}, "raw fts"},
-	{SearchTypeEvent, Search, []string{"e"}, "events on/off"},
-	{SearchTypeSession, Search, []string{"s"}, "sessions on/off"},
-	{SearchTypeMemory, Search, []string{"m"}, "memory on/off"},
+	{SearchTypeEvent, Search, []string{"e"}, "events"},
+	{SearchTypeSession, Search, []string{"s"}, "sessions"},
+	{SearchTypeMemory, Search, []string{"m"}, "memory"},
+	{SearchTypeInput, Search, []string{"u"}, "your input"},
+	{SearchTypeAnswer, Search, []string{"g"}, "answers"},
+	{SearchTypeToolCall, Search, []string{"c"}, "tool calls"},
+	{SearchTypeToolResult, Search, []string{"o"}, "tool results"},
+	{SearchTypeImage, Search, []string{"I"}, "images"},
+	{SearchTypeDocument, Search, []string{"D"}, "documents"},
+	{SearchTypeFile, Search, []string{"f"}, "files"},
 	{SearchPin, Search, []string{"p"}, "pin project of hit"},
 	{SearchProject, Search, []string{"P"}, "choose project"},
 	{SearchAttach, Search, []string{"v"}, "view attachments"},

@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/charmbracelet/x/ansi"
+	"github.com/seletz/total-recall/internal/model"
 	"strings"
 	"testing"
 	"time"
@@ -108,27 +110,47 @@ func slicesEqual(a, b []store.HitType) bool {
 	return true
 }
 
-// TestTypeClick: a click on a type in the rule row toggles it, a click
+// TestTypeClick: a click on a type in the type row toggles it, a click
 // beside the names does nothing.
 func TestTypeClick(t *testing.T) {
 	m := demoModel(t, demo.Query)
-	left, right := m.columns()
-	_, z := m.ruleRow(left, right)
-	if len(z.types) != 3 {
-		t.Fatalf("%d type zones, want 3", len(z.types))
+	_, z := m.typeRow(m.width)
+	if len(z) != len(searchableTypes()) || len(z) != 10 {
+		t.Fatalf("%d type zones, want 10", len(z))
 	}
-	m = drive(t, m, click(z.types[1].Start, 1))
+	idx := map[store.HitType]int{}
+	for i, ty := range searchableTypes() {
+		idx[ty] = i
+	}
+	m = drive(t, m, click(z[idx[store.TypeSession]].Start, 1))
 	if !m.hasType(store.TypeSession) || !m.hasType(store.TypeEvent) {
 		t.Errorf("after clicking session: types = %v", m.types)
 	}
-	m = drive(t, m, click(z.types[0].End-1, 1), click(z.types[2].Start, 1))
+	m = drive(t, m, click(z[idx[store.TypeEvent]].End-1, 1), click(z[idx[store.TypeMemory]].Start, 1))
 	if !slicesEqual(m.types, []store.HitType{store.TypeSession, store.TypeMemory}) {
 		t.Errorf("after clicking event and memory: types = %v", m.types)
 	}
 	before := len(m.groups)
-	m = drive(t, m, click(left-2, 1))
+	_, z = m.typeRow(m.width) // the widths changed with the selection
+	m = drive(t, m, click(z[len(z)-1].End+1, 1))
 	if len(m.groups) != before || len(m.types) != 2 {
 		t.Errorf("a click beside the names changed the selection: %v", m.types)
+	}
+}
+
+// TestTypeRow: every type shows its key and its state: the selected ones
+// in brackets. A narrow row drops the keys.
+func TestTypeRow(t *testing.T) {
+	m := demoModel(t, demo.Query)
+	row, _ := m.typeRow(m.width)
+	for _, want := range []string{"[e event]", "u input", "g answer", "c tool_call", "o tool_result", "I image", "D document", "f file", "s session", "m memory"} {
+		if !strings.Contains(ansi.Strip(row), want) {
+			t.Errorf("row lacks %q: %q", want, ansi.Strip(row))
+		}
+	}
+	narrow, spans := m.typeRow(70)
+	if strings.Contains(ansi.Strip(narrow), "g answer") || !strings.Contains(ansi.Strip(narrow), "[event]") || len(spans) == 0 {
+		t.Errorf("narrow row = %q", ansi.Strip(narrow))
 	}
 }
 
@@ -244,7 +266,7 @@ func TestPin(t *testing.T) {
 	if z.clear.Start >= z.clear.End {
 		t.Fatalf("no sign to drop the pin: %+v", z)
 	}
-	m = drive(t, m, click(z.clear.Start, 1))
+	m = drive(t, m, click(z.clear.Start, 2))
 	if m.pin != nil {
 		t.Error("the sign did not drop the pin")
 	}
@@ -288,11 +310,11 @@ func TestProjectPicker(t *testing.T) {
 	// applies it.
 	left, right := m.columns()
 	_, z := m.ruleRow(left, right)
-	m = drive(t, m, click(z.project.Start, 1))
+	m = drive(t, m, click(z.project.Start, 2))
 	if m.focus != focusPick {
 		t.Fatal("the project label did not open the picker")
 	}
-	m = drive(t, m, click(5, 2+1)) // second entry
+	m = drive(t, m, click(5, chromeRows-1+1)) // second entry
 	if m.pin == nil || m.focus == focusPick {
 		t.Errorf("click on an entry: pin %+v, focus %v", m.pin, m.focus)
 	}
@@ -393,5 +415,44 @@ func TestReloadKeepsMarkAcrossTypes(t *testing.T) {
 	m = tuitest.Run(t, nm, cmd).(Model)
 	if got := hitKey(*m.marked()); got != key {
 		t.Errorf("mark moved from %s to %s", key, got)
+	}
+}
+
+// TestKindTypeKeys: the keys of the finer types switch them like e, s and
+// m, and they search: input and answer split the events, image lists the
+// newest events with an image without a word, file finds the backup copy
+// of an edited file and shows its content in the preview.
+func TestKindTypeKeys(t *testing.T) {
+	m := demoModel(t, demo.Query)
+	events := groupOf(m, store.TypeEvent).Total
+	m = drive(t, m, keysOf("tab", "u")...)
+	in := groupOf(m, store.TypeInput)
+	if !m.hasType(store.TypeInput) || in == nil || in.Total == 0 || in.Total >= events {
+		t.Fatalf("input: types %v, group %+v, events %d", m.types, in, events)
+	}
+	for _, h := range in.Hits {
+		if h.Event == nil || h.Event.Event.Actor != model.ActorHuman || h.Type != store.TypeInput {
+			t.Fatalf("hit %+v is no human input", h)
+		}
+	}
+	m = drive(t, m, keysOf("e", "g")...)
+	if a := groupOf(m, store.TypeAnswer); a == nil || a.Total == 0 || m.hasType(store.TypeEvent) {
+		t.Errorf("answer: types %v, group %+v", m.types, a)
+	}
+	// The image type lists without a word.
+	empty := demoModel(t, "")
+	empty = drive(t, empty, keysOf("tab", "I", "e", "u")...)
+	if g := groupOf(empty, store.TypeImage); g == nil || len(g.Hits) != 2 { // the image event and the text of its message
+		t.Fatalf("image without a query: types %v, group %+v", empty.types, g)
+	}
+	// File history.
+	files := demoModel(t, "smoothed")
+	files = drive(t, files, keysOf("tab", "f", "e")...)
+	g := groupOf(files, store.TypeFile)
+	if g == nil || len(g.Hits) != 1 || g.Hits[0].File == nil || !strings.HasSuffix(g.Hits[0].File.Path, "route/elevation.go") {
+		t.Fatalf("file group = %+v", g)
+	}
+	if f := tuitest.Frame(files); !strings.Contains(f, "route/elevation.go") || !strings.Contains(f, "smoothElevation") {
+		t.Errorf("frame lacks the file and its content:\n%s", f)
 	}
 }

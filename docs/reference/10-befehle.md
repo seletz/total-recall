@@ -331,7 +331,7 @@ iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 
 ## `search` { #search }
 
-Volltextsuche (SQLite FTS5) mit Textausschnitten, beste Treffer zuerst. Ohne `--type` sucht sie in den Events, also in Nachrichten, Tool-Aufrufen und Tool-Ergebnissen.
+Volltextsuche (SQLite FTS5) mit Textausschnitten, beste Treffer zuerst. Ohne `--type` sucht sie in den Events, also in Nachrichten, Tool-Aufrufen und Tool-Ergebnissen. Mit `--type` grenzt sie auf feinere Objekttypen ein: was du getippt hast (`input`), was der Agent geantwortet hat (`answer`), Tool-Aufrufe und -Ergebnisse, Bilder, Dokumente, die Sicherungskopien bearbeiteter Dateien (`file`), Sessions und das Projekt-Gedächtnis, siehe [Typen](#search-types). In der TUI sind es dieselben Typen als Umschalter in der Typ-Zeile ([Typen und Projekt](30-tui.md#typen-und-projekt)).
 
 ```sh
 total-recall search goreleaser
@@ -342,6 +342,10 @@ total-recall search backup --session 9a1b2c3d                # nur in dieser Ses
 total-recall search goreleaser --by-session                  # eine Zeile je Session, Zeitleiste
 total-recall search kompass --type session,memory            # Sessions nach Titel, Projekt-Gedächtnis
 total-recall search release --project kompass --type event,memory
+total-recall search goreleaser --type input                    # nur, was ich selbst getippt oder eingefügt habe
+total-recall search sort --type tool_call --tool Edit         # nur Aufrufe des Tools Edit
+total-recall search --type image,document                     # die neuesten Events mit Bild oder Dokument, ohne Suchwort
+total-recall search smoothed --type file                      # Sicherungskopien bearbeiteter Dateien nach Inhalt
 ```
 
 ```text
@@ -359,12 +363,13 @@ FIRST             LAST              HITS  ID                  NAME              
 
 | Option | Bedeutung |
 |---|---|
-| `--type T[,T…]` | was durchsucht wird, siehe [Typen](#search-types); Default `event` |
+| `--type T[,T…]` | was durchsucht wird, siehe [Typen](#search-types): `event` (Default), `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory` |
+| `--tool NAME` | nur Aufrufe dieses Tools (`Bash`, `Edit`, …); gilt für den Typ `tool_call`, sonst ein `usage`-Fehler |
 | Filter wie `sessions` | `--since`/`--until` gelten hier für die Zeit des Events (bei `session` für die Zeit, in der die Session lief, bei `memory` für die Zeit der aktuellen Fassung) |
 | `--project P` | nur dieses Projekt, bei jedem Typ: der Name wie bei [`stats --by project`](#stats-period) (Definitionen `[[project]]` zuerst), ein Pfad oder der Schlüssel der Harness eines Gedächtnis-Projekts; ohne genauen Treffer alle, deren Name, Pfad oder Remote-URL `P` enthält. Kein Treffer ist `not_found` |
-| `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool` |
+| `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool`; gilt für `event`, bei `image` und `document` für das Event mit dem Anhang. Die Typen `input`, `answer`, `tool_call` und `tool_result` legen den Actor selbst fest, dort ist `--actor` ein `usage`-Fehler |
 | `--session ID` | nur in dieser Session; volle ID, native ID oder ein eindeutiges Präfix wie bei `show`, ein mehrdeutiges Präfix ist ein Fehler |
-| `--has-attachment[=ART]` | nur Events (und Sessions) mit einem Anhang, siehe [Anhänge finden](#anhaenge-finden); `ART` ist `any` (Default), `image` oder `document` und folgt mit `=`. Mit dem Filter darf die Suchanfrage fehlen. Gilt für die Typen `event` und `session`, bei `memory` ein `usage`-Fehler |
+| `--has-attachment[=ART]` | nur Events (und Sessions) mit einem Anhang, siehe [Anhänge finden](#anhaenge-finden); `ART` ist `any` (Default), `image` oder `document` und folgt mit `=`. Mit dem Filter darf die Suchanfrage fehlen. Gilt für `event`, `input`, `answer`, `tool_call`, `tool_result` und `session`; bei `image` und `document` (die Art steckt im Typ), `file` und `memory` ein `usage`-Fehler |
 | `--raw` | Anfrage unverändert an FTS5: `AND`, `OR`, `NOT`, `"genaue Phrase"`, `präfix*` |
 | `--limit N` | höchstens N Treffer je Typ (Default 20, 0 = alle); mit `--by-session` die N Sessions mit den jüngsten Treffern, bei `--order hits` die mit den meisten |
 | `--by-session` | eine Zeile je Session statt je Treffer: `first_hit`, `last_hit`, `hits`, `snippet` des ersten Treffers; nur für den Typ `event` |
@@ -374,31 +379,106 @@ Ohne `--raw` wird jedes Wort in Anführungszeichen gesetzt. Dann müssen alle W�
 
 ### Typen { #search-types }
 
-Jeder Typ hat seinen eigenen Index; die Namen sind dieselben in CLI, JSON und TUI und gelten für jede Harness.
+Die Namen sind dieselben in CLI, JSON, TUI und MCP und gelten für jede Harness. Die Typen `input` bis `document` sind Verfeinerungen von `event`: Sie suchen im selben Index und liefern dieselben Treffer, aber nur die einer Art. `event` bleibt der Default und findet alles; ein Aufruf ohne `--type` liefert deshalb genau das, was er immer geliefert hat.
 
 | Typ | findet | Reihenfolge | gilt mit |
 |---|---|---|---|
-| `event` | Nachrichten, Tool-Aufrufe und Tool-Ergebnisse (JSON `kind`) | beste zuerst | allen Filtern |
-| `session` | Sessions, deren Name, Titel oder Agentenname alle Wörter enthält (Groß-/Kleinschreibung egal) | neueste zuerst | `--since`, `--until`, `--repo`, `--harness`, `--name`, `--account`, `--project`, `--session` |
+| `event` | alles, was in einer Session passiert: Nachrichten, Tool-Aufrufe und Tool-Ergebnisse (JSON `kind`) | beste zuerst | allen Filtern |
+| `input` | was der Mensch getippt oder eingefügt hat (`actor` `human`, `kind` `message`; die Art steht in `input_kind`) | beste zuerst | wie `event` ohne `--actor` |
+| `answer` | Nachrichten des Agenten (`actor` `agent`, `kind` `message`), ohne Tool-Aufrufe | beste zuerst | wie `event` ohne `--actor` |
+| `tool_call` | Tool-Aufrufe (`kind` `tool_use`), mit `--tool NAME` nur eines Tools | beste zuerst | wie `event` ohne `--actor`, dazu `--tool` |
+| `tool_result` | Ergebnisse von Tool-Aufrufen (`kind` `tool_result`) | beste zuerst | wie `event` ohne `--actor` |
+| `image` | Events mit einem Bild im Anhang (Medientyp `image/…`), gefunden über ihren Text; **ohne Suchwort** die neuesten | beste zuerst, ohne Suchwort neueste zuerst | wie `event` ohne `--has-attachment` |
+| `document` | Events mit einem Dokument im Anhang (PDF und alles, was kein Bild ist); sonst wie `image` | wie `image` | wie `image` |
+| `file` | Sicherungskopien bearbeiteter Dateien (Datei-Historie, Textdateien) nach ihrem Inhalt: alle Wörter müssen vorkommen, Groß-/Kleinschreibung egal | neueste zuerst | `--since`, `--until`, `--repo`, `--harness`, `--name`, `--account`, `--account-group`, `--project`, `--session` |
+| `session` | Sessions, deren Name, Titel oder Agentenname alle Wörter enthält (Groß-/Kleinschreibung egal) | neueste zuerst | `--since`, `--until`, `--repo`, `--harness`, `--name`, `--account`, `--project`, `--session`, `--has-attachment` |
 | `memory` | Dateien des [Projekt-Gedächtnisses](#memory) nach ihrem aktuellen Inhalt | beste zuerst | `--since`, `--until`, `--repo`, `--harness`, `--project`, `--raw` |
 
-`attachment`, `meta` und `file` sind reserviert und noch nicht durchsuchbar; `--type file` ist ein `usage`-Fehler. Mehrere Typen ergeben je Typ eine Gruppe in der Reihenfolge von `--type`; einen Rang über Typen hinweg gibt es nicht, weil die Indizes nicht vergleichbar sind. Ein Filter, der für einen gewählten Typ nicht gilt, ist ein `usage`-Fehler (`--actor does not apply to type memory`), nie ein stilles Weglassen.
+`attachment` und `meta` sind reserviert und noch nicht durchsuchbar; `--type attachment` ist ein `usage`-Fehler. Mehrere Typen ergeben je Typ eine Gruppe in der Reihenfolge von `--type`; einen Rang über Typen hinweg gibt es nicht, weil die Indizes nicht vergleichbar sind. Ein Treffer kann in mehreren Gruppen stehen, wenn die Typen sich überschneiden: Die Nachricht mit einem Bild steht unter `input` und unter `image`. Ein Filter, der für einen gewählten Typ nicht gilt, ist ein `usage`-Fehler (`--actor does not apply to type memory`), nie ein stilles Weglassen.
 
-In der Textausgabe beginnt jede Zeile mit dem Typ, sobald `--type` etwas anderes als nur `event` wählt; ohne `--type` bleibt sie, wie sie war. Schneidet `--limit` einen Typ ab, steht auf stderr, wie viele Treffer er hätte:
+**Die Zahlen stimmen.** `input`, `answer`, `tool_call` und `tool_result` teilen die Events auf: Ihre Trefferzahlen ergeben zusammen die von `event`, dazu kommen nur die Nachrichten von Peers und Automatisierung, die keiner dieser Typen nimmt (`--actor peer`, `--actor automation`). Gegen das Demo-Archiv:
+
+```sh
+total-recall search goreleaser --limit 0 --json --type event | jq length          # 12
+total-recall search goreleaser --limit 0 --json --type input | jq length          # 4
+total-recall search goreleaser --limit 0 --json --type answer | jq length         # 6
+total-recall search goreleaser --limit 0 --json --type tool_call | jq length      # 1
+total-recall search goreleaser --limit 0 --json --type tool_result | jq length    # 1
+```
+
+12 = 4 + 6 + 1 + 1. Ein Test prüft die Summe gegen die echte `--json`-Ausgabe des Demo-Archivs für mehrere Suchwörter, und dass `image` und `document` genau die Events von `--has-attachment=image` und `--has-attachment=document` sind.
+
+**Beispiele** (Demo-Archiv, gekürzt):
+
+```sh
+total-recall search goreleaser --type input --limit 2
+```
 
 ```text
-session  2026-10-31 19:38  Release-Pipeline aufsetzen  kompass  claude:9a1b2c3d-…
-    [Release]-Pipeline aufsetzen
-memory  2026-11-02 08:10  kompass  release.md
-    Das [Release] läuft über goreleaser…
-memory: 20 of 31 hits, --limit 0 for all
+input  2026-10-31 22:14  Release v0.3.0  mara/kompass  claude:7d1e4c20-0001-4000-8000-000000000001  [human]
+    Lade den Homebrew-Cask mit [goreleaser] in den Tap hoch.
+input  2026-10-15 11:05  Homebrew-Tap einrichten  mara/kompass  claude:7d1e4c20-0005-4000-8000-000000000005  [human]
+    Richte den Homebrew-Tap ein, damit [goreleaser] den Cask dorthin pusht.
+input: 2 of 4 hits, --limit 0 for all
 ```
+
+Aufrufe und Ergebnisse eines Tools getrennt:
+
+```sh
+total-recall search cask --type tool_call,tool_result --limit 2
+```
+
+```text
+tool_call  2026-10-28 09:02  CI pipeline  mara/kompass  claude:7d1e4c20-0002-4000-8000-000000000002  [agent]
+    brew info --[cask] --json=v2 mara/tap/kompass
+tool_result  2026-10-28 09:02  CI pipeline  mara/kompass  claude:7d1e4c20-0002-4000-8000-000000000002  [tool]
+    …kompass_0.2.1_darwin_arm64.tar.gz","note":"[cask] generated by goreleaser","artifacts":[{"binary":["kompass"]}]}]}
+```
+
+Bilder und Dokumente ohne Suchwort, jeweils mit ihren Anhängen:
+
+```sh
+total-recall search --type image,document
+```
+
+```text
+image  2026-10-28 09:06  Höhenprofil prüfen  mara/kompass  claude:7d1e4c20-0010-4000-8000-000000000010  [human]
+    [image image/png 956 B]
+    attachments: image/png 956 B
+image  2026-10-28 09:06  Höhenprofil prüfen  mara/kompass  claude:7d1e4c20-0010-4000-8000-000000000010  [human]
+    Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.
+    attachments: image/png 956 B
+document  2026-10-28 09:06  Höhenprofil prüfen  mara/kompass  claude:7d1e4c20-0010-4000-8000-000000000010  [human]
+    [document application/pdf 342 B]
+    attachments: application/pdf 342 B
+document  2026-10-28 09:06  Höhenprofil prüfen  mara/kompass  claude:7d1e4c20-0010-4000-8000-000000000010  [human]
+    Das Höhenprofil kippt nach Kilometer 40, siehe Screenshot und die Notizen zum Format im Anhang.
+    attachments: application/pdf 342 B
+```
+
+Der Inhalt der Sicherungskopien (Claude Code legt vor jeder Bearbeitung eine Kopie der Datei an, siehe [Datei-Historie](../explanation/design.md)):
+
+```sh
+total-recall search smoothed --type file
+```
+
+```text
+file  2026-10-28 09:09  /home/mara/src/kompass/route/elevation.go  Höhenprofil prüfen  claude:7d1e4c20-0010-4000-8000-000000000010
+    package route // Climb sums up the ascent of a [smoothed] profile in meters: the raw // altitude of the last segment jumps, so the series is [smoothed] first. func Cl…
+```
+
+`file` hat keinen eigenen Index: Die Kopien der Sessions, auf die die Filter passen, werden gelesen und Wort für Wort verglichen. Gefunden werden nur Textdateien; Binärdateien haben keinen durchsuchbaren Text. Den ganzen Inhalt einer Kopie gibt `blob SHA256` aus.
+
+**In der TUI** sind die Typen Umschalter in der Typ-Zeile der Suche, mit Taste und sichtbarem Zustand, per Maus klickbar; die Bedienung mit Screenshots steht unter [Typen und Projekt](30-tui.md#typen-und-projekt).
+
+![Die Typ-Zeile der TUI mit allen Typen: jeder Umschalter zeigt seine Taste, ausgewählte stehen in Klammern](../assets/screenshots/search-types-all.png)
 
 **JSON.** Ein flaches Objekt je Treffer. Jeder Treffer hat die Kernfelder `type`, `session_id`, `session_name`, `repo`, `project` (Name wie bei `stats --by project`), `ts` (UTC), `snippet` (Treffer in `[…]`) und `rank`, dazu die Felder seines Typs; innerhalb eines Typs ist jeder Schlüssel immer vorhanden. Skripte verzweigen über `type`.
 
 | Typ | eigene Felder | Anmerkungen |
 |---|---|---|
-| `event` | `event_id`, `actor`, `input_kind`, `kind` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session |
+| `event` | `event_id`, `actor`, `input_kind`, `kind` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session. Dieselben Felder haben `input`, `answer`, `tool_call`, `tool_result`, `image` und `document`; nur `type` ist der Typ des Treffers |
+| `file` | `meta_id`, `path`, `sha256`, `media_type`, `bytes` | `ts` ist die Zeit des Datei-Historie-Eintrags, `rank` immer `0`; `path` ist die bearbeitete Datei (`null`, wenn der Eintrag sie nicht nennt), `sha256` die Kopie für `blob SHA256` |
 | `session` | `harness`, `ended_at`, `events` | `ts` ist der Start, `snippet` der passende Name, Titel oder Agentenname, `rank` immer `0` |
 | `memory` | `project_key`, `path`, `sha256` | `ts` ist die Zeit der aktuellen Fassung, `session_id` und `session_name` sind `null`; den Inhalt gibt `blob SHA256` aus |
 

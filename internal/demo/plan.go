@@ -24,6 +24,9 @@ type session struct {
 	account, organization string
 	// continuedIn is the session this one was continued in, if any.
 	continuedIn string
+	// edits are the files the agent edited: their backup copies (file
+	// history).
+	edits []fileEdit
 }
 
 // The logins of the fictional developer: the team subscription of the

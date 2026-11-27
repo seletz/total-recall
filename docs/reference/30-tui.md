@@ -108,7 +108,7 @@ In den Ansichten:
 | Klick auf eine Datei, Version oder Änderung im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei oder Änderung öffnet ihren Verlauf wie ++enter++ |
 | Klick auf einen Reiter im Anhang-Viewer | markiert den Anhang wie ++left++/++right++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
-| Klick auf einen Typ in der Linie der Suche (`event`, `session`, `memory`) | schaltet den Typ ein oder aus wie `e`, `s`, `m` |
+| Klick auf einen Typ in der Typ-Zeile der Suche (`event`, `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory`) | schaltet den Typ ein oder aus wie seine Taste (`e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m`) |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
 | Klick auf das `✕` hinter dem Pin | hebt den Pin auf wie `p` |
 | Klick auf `day`, `week`, `month` oder `project`, `agent`, `directory` in der Statistik | wählt die Periode wie `d`/`w`/`m` bzw. die Dimension wie `p`/`a`/`v` |
@@ -128,30 +128,84 @@ Klicks anderswo (Chart, Tabelle und Heatmap der Statistik, die Tage der Aktivit�
 *Suche mit Vorschau: Trefferliste links, der Austausch um den markierten Treffer rechts*
 
 - **Eingabe** oben, mit dem Fokus beim Start. Jede Änderung startet nach 150 ms Ruhe eine Suche wie `search`: ohne Rohsyntax wird jedes Wort in Anführungszeichen gesetzt, alle Wörter müssen vorkommen. Höchstens 200 Treffer je Typ werden geholt; die Statuszeile sagt `200 of 1234 hits, limit reached`, wenn es mehr gäbe. Rechts in der Eingabezeile stehen die aktiven Filter.
-- **Linie** unter der Eingabe: links der [Typ-Umschalter](#typen-und-projekt), rechts der Projekt-Pin.
+- **Typ-Zeile** unter der Eingabe: die [Typ-Umschalter](#typen-und-projekt), jeder mit seiner Taste, anklickbar. Darunter die **Linie** mit dem Projekt-Pin rechts.
 - **Trefferliste** links, zwei Zeilen je Treffer, im Format des Typs (siehe [Typen und Projekt](#typen-und-projekt)). Beim Typ `event`: Zeit (gedämpft), Session-Name und Actor (in seiner Farbe, siehe [Farben](#farben)), darunter der Textausschnitt mit den Suchwörtern gelb, fett und unterstrichen. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist seine Kopfzeile zusätzlich hinterlegt.
 - **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe) und zeigt den [Viewer](#viewer) des Treffertyps. Beim Typ `event` und einer Nachricht: der Session-Kopf (Name in der Akzentfarbe, ID und Repo gedämpft, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Die Trennzeilen nennen Zeit und Actor in seiner Farbe, der Treffer-Event ist mit `◄` markiert, die Suchwörter sind hervorgehoben wie in der Liste.
-- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die Session des markierten Treffers (auch direkt aus der Eingabe; eine Memory-Datei hat noch keine Detailansicht, dort tut ++enter++ nichts). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
+- **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die Session des markierten Treffers (auch direkt aus der Eingabe; bei einer Memory-Datei den Memory-Viewer, bei einem Treffer vom Typ `file` die Session, in der die Datei bearbeitet wurde). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
 - **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), mit mehreren Typen die Zahl je Typ (`event 12, session 0, memory 1 (3 ms)`), sonst `type to search`, `searching…` mit einem drehenden Spinner davor, solange die Abfrage läuft, `no hits` oder die Fehlermeldung.
 
 ### Typen und Projekt { #typen-und-projekt }
 
-Die Suche durchsucht die Objekttypen des Archivs, dieselben wie [`search --type`](10-befehle.md#search): `event` (Nachrichten, Tool-Aufrufe und Tool-Ergebnisse), `session` (Name, Titel, Agentenname) und `memory` (aktueller Inhalt der Gedächtnis-Dateien). Der Default ist `event`; solange nichts umgeschaltet wird, sucht und zeigt die Ansicht wie bisher.
+Die Suche durchsucht die Objekttypen des Archivs, dieselben wie [`search --type`](10-befehle.md#search-types). Sie stehen alle sichtbar in der **Typ-Zeile** direkt unter der Eingabe, jeder mit der Taste davor:
 
-![Suche über Events, Sessions und Gedächtnis: der Typ-Umschalter in der Linie, die Treffer in einer Gruppe je Typ](../assets/screenshots/search-types.png)
+| Typ | Taste | findet |
+|---|---|---|
+| `event` | `e` | alles, was in einer Session passiert (Default) |
+| `input` | `u` | was du getippt oder eingefügt hast |
+| `answer` | `g` | Antworten des Agenten |
+| `tool_call` | `c` | Tool-Aufrufe |
+| `tool_result` | `o` | Tool-Ergebnisse |
+| `image` | `I` | Events mit einem Bild, ohne Suchwort die neuesten |
+| `document` | `D` | Events mit einem Dokument, ohne Suchwort die neuesten |
+| `file` | `f` | Sicherungskopien bearbeiteter Dateien (Datei-Historie), nach Inhalt |
+| `session` | `s` | Name, Titel, Agentenname |
+| `memory` | `m` | aktueller Inhalt der Gedächtnis-Dateien |
 
-*Suche über Events, Sessions und Gedächtnis: der Typ-Umschalter in der Linie, die Treffer in einer Gruppe je Typ*
+Der Default ist `event`; solange nichts umgeschaltet wird, sucht und zeigt die Ansicht wie bisher. `input`, `answer`, `tool_call` und `tool_result` teilen `event` auf: Wer nur wissen will, was er selbst geschrieben hat, schaltet `u` ein und `e` aus.
 
-- **Umschalter:** In der Linie unter der Eingabe stehen die Typen. Ein gewählter Typ steht in Klammern (`[event]`). Ein Klick schaltet ihn ein oder aus, ebenso `e`, `s` und `m` in der Liste (`search_type_event`, `search_type_session`, `search_type_memory`); in der Eingabe wären sie Suchtext. Mehrfachauswahl ist möglich, der letzte gewählte Typ bleibt immer stehen. Jede Änderung sucht sofort neu.
-- **Gruppen:** Mit mehr als einem Typ steht vor jeder Gruppe eine Kopfzeile mit dem Typ und der Zahl der Treffer, auch bei 0. Wurde die Gruppe vom Limit gekürzt, steht dort `200 of 1234, limit reached`; die Statuszeile nennt es ebenso. Die Typen haben keinen gemeinsamen Rang, weil bm25 aus verschiedenen Indizes nicht vergleichbar ist; die Gruppen stehen in der Reihenfolge `event`, `session`, `memory`, und die Markierung läuft durch alle.
-- **Formate:** `event` wie oben beschrieben. `session`: Startzeit, der Name, der gepasst hat, mit den Suchwörtern hervorgehoben; darunter die Zahl der Events und das Projekt. `memory`: Zeit der Fassung, Projekt und Dateipfad; darunter der Ausschnitt aus der Datei.
+**Schritt 1: die Typ-Zeile.** Ein gewählter Typ steht in Klammern und hell (`[u input]`), ein ausgeschalteter gedämpft ohne Klammern (`u input`). In einem schmalen Terminal entfallen die Tasten, die Namen bleiben:
+
+![Alle Typen der Typ-Zeile: jeder Umschalter zeigt seine Taste, ausgewählte stehen in Klammern; die Treffer kommen in einer Gruppe je Typ](../assets/screenshots/search-types-all.png)
+
+*Alle Typen der Typ-Zeile: jeder Umschalter zeigt seine Taste, ausgewählte stehen in Klammern; die Treffer kommen in einer Gruppe je Typ*
+
+**Schritt 2: umschalten.** Mit der Maus: ein Klick auf den Namen schaltet den Typ ein oder aus. Mit der Tastatur: die Taste in der Liste (++tab++ aus der Eingabe, dort wären die Buchstaben Suchtext). Mehrfachauswahl ist möglich, der letzte gewählte Typ bleibt immer stehen. Jede Änderung sucht sofort neu. Die Tasten sind die Aktionen `search_type_event`, `search_type_input`, `search_type_answer`, `search_type_tool_call`, `search_type_tool_result`, `search_type_image`, `search_type_document`, `search_type_file`, `search_type_session` und `search_type_memory`.
+
+**Schritt 3: die Zustände.**
+
+![Nur Eingaben des Menschen (`u`, Event aus): Treffer in dem, was getippt oder eingefügt wurde](../assets/screenshots/search-input.png)
+
+*Nur Eingaben des Menschen (`u`, Event aus): Treffer in dem, was getippt oder eingefügt wurde, nicht in den Antworten des Agenten*
+
+![Nur Antworten des Agenten (`g`, Event aus)](../assets/screenshots/search-answers.png)
+
+*Nur Antworten des Agenten (`g`, Event aus)*
+
+![Tool-Aufrufe (`c`) und Tool-Ergebnisse (`o`) getrennt: eine Gruppe je Typ, rechts Aufruf und Ausgabe](../assets/screenshots/search-tool-calls.png)
+
+*Tool-Aufrufe (`c`) und Tool-Ergebnisse (`o`) getrennt: eine Gruppe je Typ, rechts Aufruf und Ausgabe*
+
+Bild (`I`) und Dokument (`D`) brauchen kein Suchwort: Bei leerer Eingabe listen sie die neuesten Events mit einem Bild oder einem Dokument, mit der Markierung `▣` und der Zahl der Anhänge; `v` öffnet den [Anhang-Viewer](#anhaenge).
+
+![Typen Bild und Dokument ohne Suchwort: die neuesten Events mit einem Bild oder einem Dokument](../assets/screenshots/search-images.png)
+
+*Typen Bild (`I`) und Dokument (`D`) ohne Suchwort: die neuesten Events mit einem Bild oder einem Dokument, Markierung ▣ mit der Zahl der Anhänge*
+
+Der Typ `file` (`f`) durchsucht die Sicherungskopien, die Claude Code vor jeder Bearbeitung einer Datei anlegt. Der Treffer zeigt Zeit, Pfad der Datei (bei langen Pfaden ohne den Anfang) und Session, rechts steht die Kopie als Codeblock. ++enter++ öffnet die Session, in der die Datei bearbeitet wurde.
+
+![Typ Datei (`f`): Sicherungskopien bearbeiteter Dateien, nach Inhalt gesucht; rechts die Kopie](../assets/screenshots/search-file.png)
+
+*Typ Datei (`f`): die Sicherungskopien bearbeiteter Dateien, nach Inhalt gesucht; rechts die Kopie*
+
+**Schritt 4: die Hilfe.** `?` nennt die Tasten der Typen in einer eigenen Spalte:
+
+![Hilfe der Suche: die Tasten der Typen stehen in einer eigenen Spalte](../assets/screenshots/search-help.png)
+
+*Hilfe der Suche (`?`): die Tasten der Typen stehen in einer eigenen Spalte*
+
+Dieselben Typen mit der CLI: [`search --type`](10-befehle.md#search-types).
+
+Mit mehreren Typen und dem Projekt gilt:
+
+- **Gruppen:** Mit mehr als einem Typ steht vor jeder Gruppe eine Kopfzeile mit dem Typ und der Zahl der Treffer, auch bei 0. Wurde die Gruppe vom Limit gekürzt, steht dort `200 of 1234, limit reached`; die Statuszeile nennt es ebenso. Die Typen haben keinen gemeinsamen Rang, weil bm25 aus verschiedenen Indizes nicht vergleichbar ist; die Gruppen stehen in der Reihenfolge der Typ-Zeile, und die Markierung läuft durch alle. Ein Treffer kann in mehreren Gruppen stehen: Die Nachricht mit einem Bild steht unter `input` und unter `image`.
+- **Formate:** `event` und seine Verfeinerungen (`input`, `answer`, `tool_call`, `tool_result`, `image`, `document`) wie oben beschrieben. `file`: Zeit des Datei-Historie-Eintrags, Pfad und Session, darunter der Ausschnitt aus der Kopie. `session`: Startzeit, der Name, der gepasst hat, mit den Suchwörtern hervorgehoben; darunter die Zahl der Events und das Projekt. `memory`: Zeit der Fassung, Projekt und Dateipfad; darunter der Ausschnitt aus der Datei.
 - **Projekt-Pin:** Rechts in der Linie steht `project: all`. Ein Pin schränkt **jeden** Typ auf ein Projekt ein, mit demselben Namen wie `stats --by project` und `search --project`. `p` pinnt das Projekt des markierten Treffers (bei einer Memory-Datei auch dann, wenn nur ihr Gedächtnis-Projekt bekannt ist), nochmal `p` hebt den Pin auf. `P` oder ein Klick auf das Wort öffnet die Liste der Projekte des Archivs: ++up++/++down++ bewegen, ++enter++ pinnt das Projekt unter der Markierung (`all projects` hebt den Pin auf), ++esc++ lässt alles, wie es war. Ein Klick auf das `✕` hebt den Pin ebenfalls auf.
 
 ![Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie](../assets/screenshots/search-pin.png)
 
 *Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie*
 
-Nicht jeder [Filter](#filter) gilt für jeden Typ: Actor nur für `event`, Rohsyntax für `event` und `memory`; Zeitraum und Repo für alle drei. Wo ein Typ einen Filter nicht anwendet, lässt die TUI ihn für diesen Typ weg, statt einen Fehler zu zeigen (die CLI meldet dort einen `usage`-Fehler).
+Nicht jeder [Filter](#filter) gilt für jeden Typ: Actor für `event`, `image` und `document` (die anderen Typen legen den Actor selbst fest), Rohsyntax für die Event-Typen und `memory`, Zeitraum und Repo für alle. Wo ein Typ einen Filter nicht anwendet, lässt die TUI ihn für diesen Typ weg, statt einen Fehler zu zeigen (die CLI meldet dort einen `usage`-Fehler).
 
 ### Viewer { #viewer }
 
@@ -161,6 +215,7 @@ Die Vorschau wählt den Viewer nach dem Typ des markierten Treffers. Alle Viewer
 |---|---|
 | `event`, Nachricht | der Austausch um den Treffer, wie oben beschrieben |
 | `event`, Tool-Aufruf oder Tool-Ergebnis | **Eingabe und Ausgabe getrennt**, je unter einer Trennzeile (Tool, Zeit); der Treffer ist mit `◄` markiert. Ist der Text ein JSON-Objekt oder -Array, wird er eingerückt. Das Gegenstück steht dabei: zum Ergebnis der Aufruf davor, zum Aufruf das Ergebnis danach |
+| `file` | die Sicherungskopie als Codeblock; im Kopf der Pfad der Datei, die Session und die Zeit des Eintrags |
 | `session` | der Kopf der Session, die Zahl der Events (menschlich, Agent) und die ersten fünf Nachrichten, je höchstens sechs Zeilen |
 | `event` mit Anhang | wie die anderen Event-Viewer, unter dem Text jedes Events mit Anhängen eine Zeile `▣ image/png 34,2 KiB` je Anhang; `v` öffnet den [Anhang-Viewer](#anhaenge) |
 | `memory` | die Datei als lesbares Markdown: Front Matter und Codeblöcke gedämpft, Überschriften in der Akzentfarbe ohne `#`, Aufzählungen als `•`, Absätze umbrochen, ohne die Zeichen für fett und Code. Im Kopf stehen der Pfad, das Projekt mit dem Harness und die Zeit der Fassung. Liegt der erste Treffer tief in der Datei, springt die Vorschau dorthin, sonst steht die Datei am Anfang |
@@ -179,7 +234,7 @@ Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und d
 
 - ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1` bis `4`; ++tab++ ist dafür nicht belegt.
 - ++esc++ geht eine Ebene zurück: aus dem Repo-Filter in die Liste (die Änderung wird verworfen), aus der Liste in die Eingabe. In der Eingabe tut ++esc++ nichts.
-- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, `e`, `s`, `m`, `p`, `P`, `q`, `?`, `R` und `1` bis `4` landen im Suchtext und lösen nichts aus.
+- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, die Typ-Tasten, `p`, `P`, `q`, `?`, `R` und `1` bis `4` landen im Suchtext und lösen nichts aus.
 - Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1` bis `4`, `R`, `?`, `q`.
 - Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
 - Die **Projektliste** (`P`) ist ebenfalls modal: ++up++/++down++ bewegen, ++enter++ pinnt, ++esc++ bricht ab.
@@ -562,7 +617,7 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 | ++up++ / `k`, ++down++ / `j` | `search_up`, `search_down` | – | Markierung bewegen |
 | `a`, `t`, `r` | `search_actor`, `search_time`, `search_repo` | Suchtext | Filter Actor, Zeitraum, Repo |
 | `i` | `search_has_attachment` | Suchtext | Filter „nur mit Anhang“: aus → jeder Anhang → Bild → Dokument |
-| `e`, `s`, `m` | `search_type_event`, `search_type_session`, `search_type_memory` | Suchtext | Typ `event`, `session`, `memory` ein/aus |
+| `e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m` | `search_type_event`, `search_type_input`, `search_type_answer`, `search_type_tool_call`, `search_type_tool_result`, `search_type_image`, `search_type_document`, `search_type_file`, `search_type_session`, `search_type_memory` | Suchtext | Typ `event`, `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory` ein/aus |
 | `p`, `P` | `search_pin`, `search_project` | Suchtext | Projekt des markierten Treffers pinnen oder den Pin aufheben; Liste der Projekte öffnen |
 | `v` | `search_attach` | Suchtext | Anhänge des markierten Events ansehen (nur bei einem Treffer mit Anhang) |
 | ++ctrl+r++ | `search_raw` | Rohsyntax ein/aus | Rohsyntax ein/aus |

@@ -105,7 +105,7 @@ LIMIT 50"
 
 | Tool | Arguments (`*` = required) |
 | --- | --- |
-| `search` | `query` (required unless `has_attachment` is set), `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `account`, `account_group`, `by_session`, `order`, `raw`, `has_attachment` (`any`, `image` or `document`; without `query` it lists the newest events with attachments), `limit` (default 20, at most 200; per type) |
+| `search` | `query` (required unless `has_attachment` is set or the type is `image` or `document`), `cursor`, `type`, `tool` (with `tool_call`), `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `account`, `account_group`, `by_session`, `order`, `raw`, `has_attachment` (`any`, `image` or `document`; without `query` it lists the newest events with attachments), `limit` (default 20, at most 200; per type) |
 | `sessions` | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `account_group`, `project`, `has_attachment` (`any`, `image` or `document`), `actor` (with `has_attachment`: whose event carries it), `subagents`, `limit` (default 50, at most 500) |
 | `show` | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (default 200, at most 1000) |
 | `stats` | `cursor`, `month`, `since`, `until`, `period`, `by`, `account_group`, `top`, `tools`, `path`, `path_in`, `day`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
@@ -113,7 +113,7 @@ LIMIT 50"
 | `status` | none |
 | `timeline` | `cursor`, `since`, `until`, `project`, `repo`, `actor` (default `human`, or `all`; with `all=true` and no `actor`: `all`), `all`, `text_width` (default 160), `fields` (default `event_id,ts_local,session_id,project,actor,input_kind,kind,text,text_truncated`; `all` for every key; a name given twice counts once, empty means the default; fewer keys mean fewer pages: for an overview of a whole day use `fields: "ts_local,actor,text"` with `text_width: 80`), `limit` (leave out for all; large windows come in pages) |
 
-The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version (v1.5.0 replaced the cut-off results of v1.4 by pages).
+The arguments are the flags of the command (`by_session` is `--by-session`). `search` takes `type` as `--type` does: `event` (default), `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory`, an array or a comma-separated string; hits come grouped by type, `limit` applies **per type**, and every hit has a `type` field. The tool names and arguments are stable like the commands: they only grow within a major version (v1.5.0 replaced the cut-off results of v1.4 by pages).
 
 - **Pages instead of cuts.** The first content item of every tool result is at most 32 KiB (Claude Code accepts about 25,000 tokens) and always valid CLI JSON. A larger result comes as **pages**: each page is complete CLI JSON with whole entries of one list (the `days` of `stats` with `worktime`, `workday` or `period`; the `groups` of `stats` with `tools` (their counts always sum to `total`, which is on every page); `by_day` otherwise; the `events` of `show`; the rows of `search`, `sessions` and `memory`), and every other field, above all the **totals, stays whole on every page**. `page`, `next` and `hint` are in the **second** content item, not in the JSON of the first; it says which page it is, `{"page":{"index":2,"of":5,"unit":"days","from":8,"to":16,"total":31},"next":{"cursor":"..."},"hint":"..."}`. To get the next page, call the **same tool with the same arguments plus `cursor`** set to `next.cursor`, unchanged; the last page has no `next`. All pages together are exactly the full result, so sums over several pages are right: add up the entries of the paged list, never the totals. A cursor that does not fit is a `usage` error that says why: `invalid cursor` (pass `next.cursor` unchanged), `cursor belongs to a different query` (other arguments than the call that returned it: use the same ones or start again without it) or `the result changed since this cursor was issued` (new data in the archive: start again without it). To need fewer pages, narrow first: a smaller range (`month`, `since`, `until`, `range`), `sessions` or `summary` off, a smaller `limit`. Only a single entry that alone exceeds 32 KiB loses detail (the `refs` and `sessions` lists and long texts, flagged with `truncated:true` and `cut`); lists with sums and all numbers stay whole, and if that is not enough the call is a `usage` error telling you to narrow (a shorter period, `sessions` or `summary` off).
 - **Errors.** A failed call has `isError` set and the CLI's error object as text, `{"error":{"kind":"usage","message":"..."}}`, with the same `kind` values. A `db` error or a message with *migrate* means the archive is missing or has an older schema: tell the user to run `total-recall migrate`; call `status` to see the schema version. The server opens the archive anew on every call, so it keeps working after `maintenance` or `migrate` replaced the file.
@@ -124,7 +124,7 @@ The arguments are the flags of the command (`by_session` is `--by-session`). `se
 - `events.text` of tool results is truncated to 4 KiB. `events.raw` is the whole original JSON line, redacted and zstd-compressed, with the data of images and documents replaced by `blob:sha256:<hash>` references; read it with `raw_text(raw)`, and never select it in a list query. `blobs.data` is the attachment data: never select it in a list query either, `total-recall blob HASH --out FILE` writes one. The same goes for `session_meta.raw`: filter by `type` and `session_id` first, then `raw_text(raw)` on a few rows.
 - `show SESSION` without limits prints the whole session. Check `events` and `human_events` in `sessions --json` first, then window with `--since`/`--until`, page with `--limit`/`--offset`, or start at the `event_id` of a search hit with `--from-event`. `--all` adds tool calls, tool results, automation and system events and multiplies the volume.
 - `search` returns 20 hits by default, per type (`--limit N` for more); with `--by-session` the limit keeps the N sessions with the latest hits (`--order hits`: the most hits), still listed oldest first. Narrow with `--since`, `--until`, `--repo`, `--project`, `--actor`, `--session`.
-- `search --type session,memory WORDS` finds sessions by their title and what the agent noted in its memory; `event` stays the default. Branch on the `type` field of each hit. `attachment`, `meta` and `file` are reserved type names and not searchable yet.
+- `search --type session,memory WORDS` finds sessions by their title and what the agent noted in its memory; `event` stays the default. Branch on the `type` field of each hit. To find what you asked for yourself use `--type input`; to find what the agent said `--type answer`; `tool_call`, `tool_result`, `image`, `document` and `file` (the content of backup copies of edited files) narrow further. `attachment` and `meta` are reserved type names and not searchable.
 - When listing many rows, select `snippet(events_fts, 0, '[', ']', '…', 16)` or `substr(text, 1, 300)` instead of `text`.
 
 ## Schema and pitfalls
@@ -341,7 +341,7 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | `total-recall memory --timeline --json [--project P] [--at DATE]` | every change of every memory file in one call, newest first, like the timeline of the TUI: `kind` added, changed or deleted, `delta_bytes`, the hashes of the version and of the one it replaces; instead of one `--history` call per file; MCP: `memory` with `timeline` |
 | `total-recall memory --history FILE --json [--project P]` | the versions of one memory file, oldest first, deletions included (`sha256` null); `--project` when the file name is in several projects |
 | `total-recall memory --grep WORDS --json [--project P] [--raw] [--limit N]` | full-text search over the current content of the memory files, best first, with snippets; the same as `search --type memory` |
-| `total-recall search [WORDS] --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--session ID] [--raw] [--has-attachment[=image\|document]] [--limit N]` | full-text hits with snippets; `--has-attachment` keeps the events (and sessions) with an image or document, each event hit lists its `attachments` and `attachment_count`, and **without WORDS** it lists the newest events with attachments (how to find pasted images and documents; the kind goes after `=`); all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
+| `total-recall search [WORDS] --json [--type T[,T…]] [filters as sessions] [--project P] [--actor A] [--tool NAME] [--session ID] [--raw] [--has-attachment[=image\|document]] [--limit N]` | full-text hits with snippets; `--has-attachment` keeps the events (and sessions) with an image or document, each event hit lists its `attachments` and `attachment_count`, and **without WORDS** it lists the newest events with attachments (how to find pasted images and documents; the kind goes after `=`); all words must match; `--raw` passes FTS5 syntax through. `--type` picks what is searched: `event` (default: messages, tool calls, tool results), `input` (what the human typed or pasted), `answer` (messages of the agent), `tool_call` (`--tool NAME` keeps one tool), `tool_result`, `image` and `document` (events with such an attachment; without WORDS the newest), `file` (content of the backup copies of edited files), `session` (name, title, agent name), `memory` (current memory files); hits come grouped by type in the order given, each with `type`; `--limit` counts per type; `--project` narrows every type to a project (name as in `stats --by project`, else a part of name, path or remote URL). A flag that does not apply to a selected type is a `usage` error |
 | `total-recall search WORDS --by-session --json [same filters] [--order first_hit\|hits]` | one row per session with first and last hit, hit count and the snippet of the first hit; oldest first, or most hits first; type `event` only |
 | `total-recall timeline --json [--since T] [--until T] [--project P] [--repo R] [--actor human\|agent\|…\|all] [--all] [--text-width N] [--fields F] [--limit N]` | what happened in a time window across all sessions, oldest first; default the human's messages, so "was the evening after 20:00 still work, and on what?" is one call. `--since`/`--until` take a time (`YYYY-MM-DDTHH:MM`, local) or a date and `--since` must be before `--until`; an unknown `--actor` is a `usage` error; `--all` without `--actor` means every actor; each event has `ts` (UTC), `ts_local`, `session_id`, `session_name`, `project`, `repo`, `actor`, `input_kind` (typed, pasted, bash, remote; null for other actors or when unknown), `kind` and `text` (one line, cut to `--text-width`; `text_chars` and `text_truncated` say so; `--fields` keeps only some keys, the MCP tool defaults to a compact set without `ts`, `session_name`, `repo` and `text_chars` so that a day needs fewer pages). Lists exactly the events `stats` counts as `human` in the same window |
 | `total-recall stats --json --month YYYY-MM` (or `--since/--until`) | totals per day, repo and weekday x hour |
@@ -425,7 +425,7 @@ One object per session.
 
 #### `search --json`
 
-One object per hit, grouped by type in the order of `--type`. Every hit has `type` and the core fields `session_id`, `session_name`, `repo`, `project`, `ts`, `snippet`, `rank`; the other fields depend on the type. This table is the type `event` (the default).
+One object per hit, grouped by type in the order of `--type`. Every hit has `type` and the core fields `session_id`, `session_name`, `repo`, `project`, `ts`, `snippet`, `rank`; the other fields depend on the type. This table is the type `event` (the default); `input`, `answer`, `tool_call`, `tool_result`, `image` and `document` have the same fields, only `type` differs.
 
 | field | meaning |
 |---|---|
@@ -462,6 +462,26 @@ A session whose name, title or agent name contains every word, newest first.
 | `ended_at` | UTC |
 | `events` | number of events |
 | `attachment_count` | as in `sessions --json` |
+
+#### `search --type file --json`
+
+A backup copy of an edited file (Claude Code file history) whose text contains every word, newest first.
+
+| field | meaning |
+|---|---|
+| `session_id` | session of the file-history record |
+| `session_name` | display name of the session |
+| `repo` | as in `sessions --json` |
+| `project` | as for `event` |
+| `ts` | time of the file-history record, UTC |
+| `snippet` | text around the first word, words in `[…]` |
+| `rank` | always `0` |
+| `type` | `file` |
+| `meta_id` | the file-history record that names the copy |
+| `path` | the edited file; `null` if the record does not say |
+| `sha256` | hash of the copy, for `total-recall blob` |
+| `media_type` | `text/plain` |
+| `bytes` | size of the copy |
 
 #### `search --type memory --json`
 

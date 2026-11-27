@@ -42,7 +42,7 @@ Alle Tools sind schreibgeschützt und geben das JSON des gleichnamigen Befehls z
 
 | Tool | Befehl | Parameter (`*` = Pflicht) |
 |---|---|---|
-| `search` | [`search`](../reference/10-befehle.md#search) | `query` (Pflicht, außer `has_attachment` ist gesetzt), `cursor`, `type`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `account`, `account_group`, `by_session`, `order`, `raw`, `has_attachment` (`any`, `image`, `document`; ohne `query` die neuesten Events mit Anhang), `limit` (Default 20, höchstens 200; je Typ) |
+| `search` | [`search`](../reference/10-befehle.md#search) | `query` (Pflicht, außer `has_attachment` ist gesetzt oder der Typ ist `image` oder `document`), `cursor`, `type`, `tool`, `project`, `actor`, `session`, `since`, `until`, `repo`, `harness`, `account`, `account_group`, `by_session`, `order`, `raw`, `has_attachment` (`any`, `image`, `document`; ohne `query` die neuesten Events mit Anhang), `limit` (Default 20, höchstens 200; je Typ) |
 | `sessions` | [`sessions`](../reference/10-befehle.md#sessions) | `cursor`, `since`, `until`, `repo`, `harness`, `name`, `account`, `account_group`, `project`, `has_attachment` (`any`, `image`, `document`), `actor` (mit `has_attachment`: wessen Event den Anhang trägt), `subagents`, `limit` (Default 50, höchstens 500) |
 | `show` | [`show`](../reference/10-befehle.md#show) | `session*`, `cursor`, `since`, `until`, `from_event`, `offset`, `all`, `limit` (Default 200, höchstens 1000) |
 | `stats` | [`stats`](../reference/10-befehle.md#stats) | `cursor`, `month`, `since`, `until`, `period`, `by`, `account_group`, `top`, `tools`, `path`, `path_in`, `day`, `workday`, `blocks`, `worktime`, `sessions`, `summary`, `range`, `all_events` |
@@ -50,7 +50,38 @@ Alle Tools sind schreibgeschützt und geben das JSON des gleichnamigen Befehls z
 | `status` | [`status`](../reference/10-befehle.md#status) | keine |
 | `timeline` | [`timeline`](../reference/10-befehle.md#timeline) | `cursor`, `since`, `until`, `project`, `repo`, `actor` (Default `human`, oder `all`; mit `all=true` ohne `actor` gilt `all`), `all`, `text_width` (Default 160), `fields` (Default die kompakten Schlüssel ohne `ts`, `session_name`, `repo`, `text_chars`; `all` = alle; ein doppelter Name zählt einmal, ein leerer Wert ist der Default; für einen Tagesüberblick `ts_local,actor,text` mit `text_width` 80), `limit` (ohne Angabe alle; große Fenster kommen in Seiten) |
 
-`type` ist wie `--type` ([`search`](../reference/10-befehle.md#search)): `event` (Default), `session` oder `memory`, als Array oder kommagetrennte Liste. Die Treffer kommen nach Typ gruppiert in der angegebenen Reihenfolge, **`limit` gilt je Typ**, und jeder Treffer hat das Feld `type`. `project` ist `--project`.
+`type` ist wie `--type` ([`search`](../reference/10-befehle.md#search-types)): `event` (Default), `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session` oder `memory`, als Array oder kommagetrennte Liste. `input` ist, was der Mensch getippt hat, `answer` sind die Antworten des Agenten, `image` und `document` brauchen keine `query` (dann die neuesten Events mit Bild oder Dokument), `file` durchsucht die Sicherungskopien bearbeiteter Dateien. `tool` ist `--tool` und gilt für `tool_call`.
+
+Ein Aufruf, der nur sucht, was der Mensch selbst getippt hat (die Argumente sind die Flags des Befehls, `search goreleaser --type input --limit 1`):
+
+```json
+{"name": "search", "arguments": {"query": "goreleaser", "type": "input", "limit": 1}}
+```
+
+Das Ergebnis ist das JSON des Befehls, hier gegen das Demo-Archiv:
+
+```json
+[
+  {
+    "session_id": "claude:7d1e4c20-0001-4000-8000-000000000001",
+    "session_name": "Release v0.3.0",
+    "repo": "https://git.invalid/mara/kompass",
+    "event_id": "claude:e00556b",
+    "ts": "2026-10-31T21:14:00.000Z",
+    "actor": "human",
+    "input_kind": "typed",
+    "kind": "message",
+    "snippet": "Lade den Homebrew-Cask mit [goreleaser] in den Tap hoch.",
+    "rank": -6.341897329920657,
+    "type": "input",
+    "project": "kompass",
+    "attachments": [],
+    "attachment_count": 0
+  }
+]
+```
+
+Dieselben Typen schaltet man in der TUI in der [Typ-Zeile der Suche](../reference/30-tui.md#typen-und-projekt) um, mit Taste und Maus, mit Screenshots dort. Die Treffer kommen nach Typ gruppiert in der angegebenen Reihenfolge, **`limit` gilt je Typ**, und jeder Treffer hat das Feld `type`. `project` ist `--project`.
 
 Es gibt bewusst keine Tools zum Schreiben, Migrieren, Sichern oder für `sql`: Wer gruppieren, zählen oder verknüpfen will, nimmt dafür die CLI (`total-recall sql`). Der Skill (`total-recall llm --skill`) sagt dem Agenten, wann er welchen Weg nimmt.
 

@@ -1,5 +1,6 @@
  > the                                                          actor: all  since: all  repo: gamma
-─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory
+─────────────────────────────────────────────────┬─ project: all ───────────────────────────────────
 ▸2026-01-02 15:00  d3d3d3d3-0003-4000-800…  human│ (untitled)
   list the drafts                                │ claude:d3d3d3d3-0003-4000-8000-0000000000…  gamma
  2025-12-16 08:00  d3d3d3d3-0002-4000-800…  human│ 2026-01-02 15:00 – 15:00 (5s)  main
@@ -9,7 +10,6 @@
                                                  │
                                                  │── 15:00  agent
                                                  │Two drafts.
-                                                 │
                                                  │
                                                  │
                                                  │

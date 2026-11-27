@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
@@ -88,7 +89,11 @@ func skillEnv(t *testing.T) *testEnv {
 		use,
 		tf.ToolResult(s3, "d3", "2026-10-07T09:00:02.000Z", "/w/gamma", "d2", "a.go\nb.go"),
 		tf.Assistant(s3, "d4", "2026-10-07T09:00:03.000Z", "/w/gamma", "Decided: syft generates the sbom in the release workflow."),
+		tf.FileHistoryDelta(s3, "d5", "2026-10-07T09:00:04.000Z", "/w/gamma/sbom.yml", "0123456789abcdef@v1"),
 	))
+	// The backup copy of the edited file: file-history sits next to the
+	// projects directory.
+	tf.WriteFile(t, filepath.Join(filepath.Dir(e.projects), "file-history"), s3+"/0123456789abcdef@v1", "format: cyclonedx\n")
 	tf.WriteFile(t, e.projects, "-w-gamma/"+s3+"/subagents/agent-d01.jsonl", tf.Join(
 		tf.Line{"type": "user", "uuid": "e1", "timestamp": "2026-10-07T09:00:10.000Z", "sessionId": s3, "agentId": "d01",
 			"cwd": "/w/gamma", "message": map[string]any{"role": "user", "content": "Research task: sbom tools."}},
@@ -258,6 +263,7 @@ func TestSkillJSONFields(t *testing.T) {
 		{"search --by-session --json", []string{"search", "sbom", "--json", "--by-session"}, "[]", reflect.TypeOf(SessionHitsJSON{}), "", nil},
 		{"search --type session --json", []string{"search", "researcher", "--type", "session", "--json"}, "[]", reflect.TypeOf(SessionSearchHitJSON{}), "", nil},
 		{"search --type memory --json", []string{"search", "sbom", "--type", "memory", "--json"}, "[]", reflect.TypeOf(MemorySearchHitJSON{}), "", nil},
+		{"search --type file --json", []string{"search", "cyclonedx", "--type", "file", "--json"}, "[]", reflect.TypeOf(FileSearchHitJSON{}), "", nil},
 		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{}), "", nil},
 		{"memory --json", []string{"memory", "--json"}, "[]", reflect.TypeOf(MemoryFileJSON{}), "", nil},
 		{"memory --history --json", []string{"memory", "--json", "--history", "MEMORY.md"}, "[]", reflect.TypeOf(MemoryVersionJSON{}), "", nil},

@@ -50,6 +50,25 @@ type MemorySearchHitJSON struct {
 	SHA256      NullString `json:"sha256"`
 }
 
+// FileSearchHitJSON is a hit of type file in search --json: a backup copy
+// of an edited file whose content matches. Every key is always present;
+// path is null when the record does not name the file.
+type FileSearchHitJSON struct {
+	SessionID   string     `json:"session_id"`
+	SessionName NullString `json:"session_name"`
+	Repo        NullString `json:"repo"`
+	TS          string     `json:"ts"` // time of the file-history record
+	Snippet     NullString `json:"snippet"`
+	Rank        float64    `json:"rank"` // always 0
+	Type        string     `json:"type"`
+	Project     NullString `json:"project"`
+	MetaID      string     `json:"meta_id"`
+	Path        NullString `json:"path"`
+	SHA256      string     `json:"sha256"`
+	MediaType   string     `json:"media_type"`
+	Bytes       int64      `json:"bytes"`
+}
+
 // loadProjectCatalog builds the project catalog of the archive; a broken
 // project definition is a config error.
 func loadProjectCatalog(ctx context.Context, st *store.Store, cfg *config.Config) (*project.Catalog, error) {
@@ -62,18 +81,18 @@ func loadProjectCatalog(ctx context.Context, st *store.Store, cfg *config.Config
 
 // searchFlagValues tells which filter flags of search are set, by store
 // filter name (= flag name).
-func searchFlagValues(f filterFlags, project, session, actor string, raw, attachment bool) map[string]bool {
+func searchFlagValues(f filterFlags, project, session, actor, tool string, raw, attachment bool) map[string]bool {
 	return map[string]bool{
 		store.FilterSince: f.since != "", store.FilterUntil: f.until != "", store.FilterRepo: f.repo != "",
 		store.FilterHarness: f.harness != "", store.FilterName: f.name != "", store.FilterAccount: f.account != "", store.FilterAccountGroup: f.accountGroup != "",
-		store.FilterProject: project != "", store.FilterSession: session != "", store.FilterActor: actor != "", store.FilterRaw: raw, store.FilterAttachment: attachment,
+		store.FilterProject: project != "", store.FilterSession: session != "", store.FilterActor: actor != "", store.FilterRaw: raw, store.FilterAttachment: attachment, store.FilterTool: tool != "",
 	}
 }
 
 // checkSearchFlags rejects a set flag that a selected type does not apply.
 func checkSearchFlags(types []store.HitType, set map[string]bool) error {
 	order := []string{store.FilterSince, store.FilterUntil, store.FilterRepo, store.FilterHarness, store.FilterName, store.FilterAccount, store.FilterAccountGroup,
-		store.FilterProject, store.FilterSession, store.FilterActor, store.FilterRaw, store.FilterAttachment}
+		store.FilterProject, store.FilterSession, store.FilterActor, store.FilterTool, store.FilterRaw, store.FilterAttachment}
 	for _, t := range types {
 		for _, f := range order {
 			if set[f] && !store.Supports(t, f) {
@@ -110,7 +129,7 @@ func (e *env) writeTypedHits(o *output, groups []store.TypeHits, cat *project.Ca
 		}
 		return writeList(o, out)
 	}
-	onlyEvents := len(groups) == 1 && groups[0].Type == store.TypeEvent
+	onlyEvents := len(groups) == 1 && groups[0].Type == store.TypeEvent // the default: no type prefix
 	w, n := o.w, 0
 	for _, g := range groups {
 		for _, h := range g.Hits {
@@ -121,18 +140,21 @@ func (e *env) writeTypedHits(o *output, groups []store.TypeHits, cat *project.Ca
 			}
 			var head string
 			switch h.Type {
-			case store.TypeEvent:
-				head = fmt.Sprintf("%s  %s  %s  %s  [%s]", localTime(h.TS, loc), o.cell(h.Event.SessionName, 40),
-					shortRepo(h.Event.Repo), h.Event.Event.SessionID, h.Event.Event.Actor)
 			case store.TypeSession:
 				head = fmt.Sprintf("%s  %s  %s  %s", localTime(h.TS, loc), o.cell(h.Session.DisplayName(), 40),
 					cat.Name(h.Project), h.Session.ID)
 			case store.TypeMemory:
 				head = fmt.Sprintf("%s  %s  %s", localTime(h.TS, loc), cat.MemoryName(h.Memory), h.Memory.Path)
+			case store.TypeFile:
+				f := h.File
+				head = fmt.Sprintf("%s  %s  %s  %s", localTime(h.TS, loc), o.cell(f.Path, 40), o.cell(f.SessionName, 30), f.SessionID)
+			default: // event and its refinements
+				head = fmt.Sprintf("%s  %s  %s  %s  [%s]", localTime(h.TS, loc), o.cell(h.Event.SessionName, 40),
+					shortRepo(h.Event.Repo), h.Event.Event.SessionID, h.Event.Event.Actor)
 			}
 			// The snippet line is indented by four spaces.
 			_, _ = fmt.Fprintf(w, "%s%s\n    %s\n", prefix, head, o.cell(h.Snippet, o.width-4))
-			if h.Type == store.TypeEvent && len(h.Event.Attachments) > 0 {
+			if h.Event != nil && len(h.Event.Attachments) > 0 {
 				_, _ = fmt.Fprintf(w, "    attachments: %s\n", attachmentLabel(h.Event.Attachments))
 			}
 		}
@@ -163,6 +185,12 @@ func typedHitJSON(h store.Hit, cat *project.Catalog) any {
 		}
 		return MemorySearchHitJSON{Repo: NullString(repo), TS: isoTime(m.Changed), Snippet: NullString(h.Snippet), Rank: h.Rank,
 			Type: string(h.Type), Project: NullString(cat.MemoryName(m)), ProjectKey: m.ProjectKey, Path: m.Path, SHA256: NullString(m.SHA256)}
+	case store.TypeFile:
+		f := h.File
+		repo := f.Repo
+		return FileSearchHitJSON{SessionID: f.SessionID, SessionName: NullString(f.SessionName), Repo: NullString(repo), TS: isoTime(h.TS),
+			Snippet: NullString(h.Snippet), Rank: h.Rank, Type: string(h.Type), Project: NullString(cat.Name(h.Project)),
+			MetaID: f.MetaID, Path: NullString(f.Path), SHA256: f.SHA256, MediaType: f.MediaType, Bytes: f.Bytes}
 	}
 	ev := h.Event
 	return HitJSON{SessionID: ev.Event.SessionID, SessionName: NullString(ev.SessionName), Repo: NullString(ev.Repo),

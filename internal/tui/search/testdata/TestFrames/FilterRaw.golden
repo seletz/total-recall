@@ -1,5 +1,6 @@
  > release OR notes                                            actor: all  since: all  repo: *  raw
-─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory
+─────────────────────────────────────────────────┬─ project: all ───────────────────────────────────
 ▸2026-01-05 08:45  b2b2b2b2-0004-4000-800…  agent│ (untitled)
   Start with the release notes.                  │ claude:b2b2b2b2-0004-4000-8000-000000000…  o/beta
  2025-12-04 20:30  Beta release             human│ 2026-01-05 08:45 – 08:45 (5s)  main
@@ -9,7 +10,6 @@
  2025-12-06 11:00  d3d3d3d3-0001-4000-800…  agent│
   Notes and a few drafts.                        │── 08:45  agent ◄
                                                  │Start with the release notes.
-                                                 │
                                                  │
                                                  │
                                                  │
