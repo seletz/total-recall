@@ -332,6 +332,13 @@ ALTER TABLE events ADD COLUMN tokens_cache_write INTEGER;
 	`
 ALTER TABLE events ADD COLUMN input_kind TEXT;
 `,
+	// 11 (spike #347): provenance of sessions in a central archive. host is
+	// the name of the pool host that delivered the session (push/receive);
+	// NULL = ingested on this machine.
+	`
+ALTER TABLE sessions ADD COLUMN host TEXT;
+CREATE INDEX sessions_host ON sessions(host);
+`,
 }
 
 // migrationNotes describe the migrations for `total-recall migrate`, one
@@ -357,6 +364,7 @@ var migrationNotes = []migrationNote{
 		"fills them from raw (usage) for the events that have it, a few seconds per 100,000 events with usage; the rest stays NULL"},
 	{Summary: "events: input_kind (typed, pasted, bash, remote) of human messages; " +
 		"fills it from text and raw for the human messages of the claude harness, seconds even on a large archive; events without raw stay NULL (bash and pasted are told from the text)"},
+	{Summary: "sessions: host, the pool host a central archive received the session from (NULL = ingested locally); moves no data"},
 }
 
 // migrationNote is the description of one migration.

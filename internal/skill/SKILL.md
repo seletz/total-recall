@@ -195,6 +195,7 @@ total-recall sql --json "SELECT name, sql FROM sqlite_master WHERE type IN ('tab
 | `continued_in` | full id of the session this one was continued in, else NULL (the target may be missing) |
 | `account_id` | account the session ran on (Claude: `accountUuid`), else NULL |
 | `organization_id` | organization of that account, else NULL |
+| `host` | pool host a central archive received the session from (`push`/`receive`), NULL = ingested on this machine |
 
 #### `events`
 
