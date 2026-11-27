@@ -85,6 +85,14 @@ jobs:
       - name: Install cyclonedx-gomod
         run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
 
+      - name: Cache the DuckDB build
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            analytics/duckdb/lib/darwin_arm64
+            analytics/duckdb/lib/darwin_amd64
+          key: duckdb-darwin-${{ hashFiles('analytics/duckdb/duckdb.lock', 'analytics/duckdb/extensions.cmake', 'scripts/analytics-duckdb.sh') }}
+
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.3
 
@@ -97,8 +105,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          # Signing and notarization as for total-recall, plus the entitlement
-          # in analytics/entitlements.plist.
+          # Signing and notarization exactly as for total-recall.
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
@@ -120,13 +127,19 @@ jobs:
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Install envsubst
-        # sigstore/cosign-installer needs envsubst, which the golang image
-        # does not have.
-        run: apt-get update -qq && apt-get install -y -qq gettext-base >/dev/null
+      - name: Install build tools
+        # cmake and python3 build DuckDB; sigstore/cosign-installer needs
+        # envsubst. The golang image has neither.
+        run: apt-get update -qq && apt-get install -y -qq cmake python3 gettext-base >/dev/null
 
       - name: Install cyclonedx-gomod
         run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Cache the DuckDB build
+        uses: actions/cache@v6.1.0
+        with:
+          path: analytics/duckdb/lib/linux_amd64
+          key: duckdb-linux_amd64-bookworm-${{ hashFiles('analytics/duckdb/duckdb.lock', 'analytics/duckdb/extensions.cmake', 'scripts/analytics-duckdb.sh') }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.3

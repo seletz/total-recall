@@ -18,9 +18,6 @@ type App struct {
 	Args   []string
 	Stdout io.Writer
 	Stderr io.Writer
-	// ExtDir overrides the cache directory of the embedded DuckDB extension
-	// (tests); empty means duck.DefaultExtDir.
-	ExtDir string
 }
 
 // Main runs the command line and returns the exit code.
@@ -80,11 +77,8 @@ func newRoot(a *App) *cobra.Command {
 	return root
 }
 
-// open opens a DuckDB database with the embedded extension loaded.
+// open opens a DuckDB database.
 func (a *App) open(ctx context.Context, o duck.Options) (*duck.DB, error) {
-	if o.ExtDir == "" {
-		o.ExtDir = a.ExtDir
-	}
 	db, err := duck.Open(ctx, o)
 	return db, errKind(ErrKindDB, err)
 }

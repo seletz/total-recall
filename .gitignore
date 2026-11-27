@@ -11,4 +11,4 @@
 __pycache__/
 /total-recall-analytics
 /dist-analytics/
-/analytics/internal/duck/ext/*/
+/analytics/duckdb/lib/

@@ -105,9 +105,11 @@
       groupName: "go",
     },
     {
-      // A DuckDB bump changes the sqlite extension total-recall-analytics
-      // embeds: run `scripts/analytics-ext.sh --update-lock <version>` in the
-      // PR. Until then TestLockMatchesLinkedLibrary fails with that hint.
+      // A DuckDB bump changes the DuckDB total-recall-analytics builds from
+      // source: update analytics/duckdb/duckdb.lock (version and commit of
+      // duckdb-go-bindings' duckdb-release.json) and the sqlite_scanner pin
+      // in extensions.cmake in the same PR. Until then
+      // TestLinkedDuckDBMatchesLock fails.
       description: "Group DuckDB: duckdb-go, its bindings and the prebuilt libraries",
       matchManagers: ["gomod"],
       matchPackageNames: ["github.com/duckdb/**", "go.duckdb.org/**"],

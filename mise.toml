@@ -18,33 +18,33 @@ VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o total-recall ./cmd/total-recall
 """
 
-[tasks."analytics:ext"]
-description = "Download and verify the DuckDB sqlite extension that total-recall-analytics embeds (pinned in analytics/internal/duck/ext.lock), for this platform"
-run = "scripts/analytics-ext.sh"
+[tasks."analytics:duckdb"]
+description = "Build DuckDB with sqlite_scanner compiled in for this platform (analytics/duckdb/duckdb.lock, extensions.cmake), the library total-recall-analytics links; skipped when up to date"
+run = "scripts/analytics-duckdb.sh"
 
 [tasks."analytics:build"]
 description = "Build total-recall-analytics (DuckDB, needs cgo) into ./total-recall-analytics"
-depends = ["analytics:ext"]
+depends = ["analytics:duckdb"]
 dir = "analytics"
-env = { CGO_ENABLED = "1" }
+env = { CGO_ENABLED = "1", GOFLAGS = "-tags=duckdb_use_static_lib" }
 run = """
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o ../total-recall-analytics ./cmd/total-recall-analytics
 """
 
 [tasks."analytics:test"]
-description = "Run the tests of the analytics module (cgo) against the prebuilt demo archive"
-depends = ["analytics:ext", "demo:db"]
+description = "Run the tests of the analytics module (cgo, static DuckDB) against the prebuilt demo archive"
+depends = ["analytics:duckdb", "demo:db"]
 dir = "analytics"
-env = { CGO_ENABLED = "1", TOTAL_RECALL_DEMO_DB = "{{config_root}}/build/demo.db" }
+env = { CGO_ENABLED = "1", GOFLAGS = "-tags=duckdb_use_static_lib", TOTAL_RECALL_DEMO_DB = "{{config_root}}/build/demo.db" }
 run = "go test ./..."
 
 [tasks."analytics:lint"]
-description = "Run go vet and golangci-lint on the analytics module (cgo)"
-depends = ["analytics:ext"]
+description = "Run go vet and golangci-lint on the analytics module (cgo, static DuckDB)"
+depends = ["analytics:duckdb"]
 dir = "analytics"
-env = { CGO_ENABLED = "1" }
-run = ["go vet ./...", "golangci-lint run ./..."]
+env = { CGO_ENABLED = "1", GOFLAGS = "-tags=duckdb_use_static_lib" }
+run = ["go vet ./...", "golangci-lint run --build-tags duckdb_use_static_lib ./..."]
 
 [tasks."analytics:release:snapshot"]
 description = "Build a snapshot release of total-recall-analytics into dist-analytics/ for this OS (darwin on a Mac), SBOMs checked; nothing published"

@@ -15,10 +15,10 @@ dist: dist-analytics
 
 before:
   hooks:
-    # Download and verify the DuckDB sqlite extension the binaries embed
-    # (pinned in analytics/internal/duck/ext.lock); the binary itself never
-    # downloads anything.
-    - 'scripts/analytics-ext.sh {{ if eq (index .Env "ANALYTICS_OS") "darwin" }}osx_arm64 osx_amd64{{ else }}linux_amd64{{ end }}'
+    # Build DuckDB with sqlite_scanner compiled in for the targets of this run
+    # (analytics/duckdb/duckdb.lock, extensions.cmake); skipped when the
+    # libraries of the same pins are already there (CI cache).
+    - 'scripts/analytics-duckdb.sh {{ if eq (index .Env "ANALYTICS_OS") "darwin" }}darwin_arm64 darwin_amd64{{ else }}linux_amd64{{ end }}'
 
 builds:
   - id: analytics-darwin
@@ -26,6 +26,9 @@ builds:
     dir: analytics
     main: ./cmd/total-recall-analytics
     binary: total-recall-analytics
+    # Link the DuckDB of scripts/analytics-duckdb.sh instead of duckdb-go's
+    # prebuilt one (analytics/internal/duck/cgo_<os>_<arch>.go).
+    tags: [duckdb_use_static_lib]
     env:
       - CGO_ENABLED=1
     goos: [darwin]
@@ -46,6 +49,7 @@ builds:
     dir: analytics
     main: ./cmd/total-recall-analytics
     binary: total-recall-analytics
+    tags: [duckdb_use_static_lib]
     env:
       - CGO_ENABLED=1
     goos: [linux]
@@ -53,13 +57,12 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/seletz/total-recall/internal/version.Version={{.Version}}
-    # Dynamically linked against glibc (>= 2.35) and libstdc++, both present
-    # on every glibc distribution. A static glibc build cannot load the
-    # extension (dlopen); musl is not offered by the prebuilt DuckDB library.
+    # Dynamically linked against glibc and libstdc++ of Debian bookworm,
+    # present on every glibc distribution of that age or newer.
 
-# Sign (Developer ID, hardened runtime, timestamp) and notarize like
-# total-recall, with one entitlement: DuckDB loads its embedded extension with
-# dlopen, which library validation would refuse (analytics/entitlements.plist).
+# Sign (Developer ID, hardened runtime, timestamp) and notarize exactly like
+# total-recall, without entitlements: the extensions are compiled in, nothing
+# is loaded with dlopen, so library validation stays on.
 notarize:
   macos:
     - enabled: '{{ and (isEnvSet "MACOS_SIGN_P12") (eq (index .Env "ANALYTICS_OS") "darwin") }}'
@@ -68,7 +71,6 @@ notarize:
       sign:
         certificate: "{{ .Env.MACOS_SIGN_P12 }}"
         password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
-        entitlements: analytics/entitlements.plist
       notarize:
         issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
         key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"

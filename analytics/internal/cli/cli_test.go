@@ -10,7 +10,7 @@ import (
 func run(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	code := Main(&App{Args: args, Stdout: &out, Stderr: &errb, ExtDir: t.TempDir()})
+	code := Main(&App{Args: args, Stdout: &out, Stderr: &errb})
 	return code, out.String(), errb.String()
 }
 
@@ -19,7 +19,7 @@ func TestVersionText(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"total-recall-analytics", "DuckDB", "sqlite_scanner"} {
+	for _, want := range []string{"total-recall-analytics", "DuckDB", "sqlite_scanner", "compiled in"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
@@ -35,23 +35,27 @@ func TestVersionJSONHasEveryKey(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &m); err != nil {
 		t.Fatalf("%v: %s", err, out)
 	}
-	for _, k := range []string{"version", "duckdb", "platform", "extensions"} {
+	for _, k := range []string{"version", "duckdb", "duckdb_source", "platform", "extensions"} {
 		if _, ok := m[k]; !ok {
 			t.Errorf("key %q missing: %s", k, out)
 		}
 	}
 	exts, _ := m["extensions"].([]any)
-	if len(exts) != 1 {
-		t.Fatalf("extensions = %v, want one", m["extensions"])
-	}
-	e := exts[0].(map[string]any)
-	for _, k := range []string{"name", "version", "path", "embedded"} {
-		if _, ok := e[k]; !ok {
-			t.Errorf("extension key %q missing: %v", k, e)
+	found := false
+	for _, x := range exts {
+		e := x.(map[string]any)
+		for _, k := range []string{"name", "version", "static"} {
+			if _, ok := e[k]; !ok {
+				t.Errorf("extension key %q missing: %v", k, e)
+			}
 		}
+		if e["static"] != true {
+			t.Errorf("extension not compiled in: %v", e)
+		}
+		found = found || e["name"] == "sqlite_scanner"
 	}
-	if e["name"] != "sqlite_scanner" || e["embedded"] != true {
-		t.Errorf("extension = %v", e)
+	if !found {
+		t.Errorf("sqlite_scanner missing: %v", exts)
 	}
 }
 
