@@ -210,7 +210,21 @@ Mit mehreren Typen und dem Projekt gilt:
 
 *Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie*
 
-Nicht jeder [Filter](#filter) gilt für jeden Typ: Actor für `event`, `image` und `document` (die anderen Typen legen den Actor selbst fest), Rohsyntax für die Event-Typen und `memory`, Zeitraum und Repo für alle. Wo ein Typ einen Filter nicht anwendet, lässt die TUI ihn für diesen Typ weg, statt einen Fehler zu zeigen (die CLI meldet dort einen `usage`-Fehler).
+Nicht jeder [Filter](#filter) gilt für jeden Typ: Actor für `event`, `image` und `document` (die anderen Typen legen den Actor selbst fest), Rohsyntax für die Event-Typen und `memory`, Zeitraum und Repo für alle. Wo ein Typ einen Filter nicht anwendet, sucht die TUI für diesen Typ ohne ihn und **sagt es**: Der Filter in der Eingabezeile nennt die Typen, die ihn übergehen, etwa `actor: agent (not input)`. So steht nie `actor: agent` oben, während `input` Treffer des Menschen zeigt, ohne dass ein Hinweis da wäre.
+
+![Actor-Filter agent bei gewähltem Typ input: die Eingabezeile nennt, dass input den Filter nicht anwendet](../assets/screenshots/search-actor-ignored.png)
+
+*Actor-Filter `agent` bei gewähltem Typ `input`: die Eingabezeile sagt `(not input)`; `input` legt den Actor selbst fest*
+
+**CLI.** Die CLI weist denselben Aufruf mit einem `usage`-Fehler ab (Exit 1):
+
+```sh
+total-recall search goreleaser --type input --actor agent
+```
+
+```text
+total-recall: --actor does not apply to type input
+```
 
 ### Viewer { #viewer }
 

@@ -132,6 +132,8 @@ var Shots = []Shot{
 		Caption: "Treffer in einer Tool-Ausgabe: rechts Aufruf und Ausgabe getrennt, das JSON eingerückt"},
 	{Name: "search-filter", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Keys: []string{"tab", "a", "t"}, Caption: "Filter in der Eingabezeile: actor, since und repo sind klickbar und zeigen ihren Wert; ein Klick schaltet weiter wie a und t, auf repo öffnet er die Eingabe wie r"},
+	{Name: "search-actor-ignored", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
+		Keys: []string{"tab", "a", "a", "u"}, Caption: "Actor-Filter agent bei gewähltem Typ input: die Eingabezeile sagt (not input), der Typ legt den Actor selbst fest"},
 	{Name: "search-pin", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "tests", Now: searchNow,
 		Keys: []string{"tab", "s", "m", "j", "j", "j", "p"}, Caption: "Projekt-Pin: das Projekt des markierten Treffers schränkt alle Typen ein, der Pin steht rechts in der Linie"},
 	{Name: "session", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
