@@ -33,4 +33,4 @@
 
  2 attachments
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ←/→ browse • ↑/↓ scroll • o/enter open with the system viewer • esc back • 1 search • 2 stats • 3 activity • ? help …
+ ←/→ browse • ↑/↓ scroll • o/enter open externally • esc back • 1 search • 2 stats • 3 activity • ? help • q quit

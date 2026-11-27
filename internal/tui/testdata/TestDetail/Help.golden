@@ -11,8 +11,8 @@
            │                                                                            │
            │ ↑/k          up             n   next hit            1 search      ?   help │
            │ ↓/j          down           N   previous hit        2 stats       esc back │
-           │ b/pgup       page up        T   tools on/off        3 activity    q   quit │
-           │ f/pgdn/space page down      y   copy session id     4 config      ^c  quit │
+           │ b/pgup       page up        T   tools               3 activity    q   quit │
+           │ f/pgdn/space page down      y   copy id             4 config      ^c  quit │
            │ u/^u         ½ page up      v   view attachments    5 memory               │
            │ d/^d         ½ page down    M   memory              R reload               │
            │ g/home       top            esc back                                       │

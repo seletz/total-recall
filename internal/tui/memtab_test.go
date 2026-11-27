@@ -98,3 +98,56 @@ func TestSessionJumpsToMemory(t *testing.T) {
 		}
 	})
 }
+
+// TestFooterKeepsViewActions: in the session at 100 columns the footer
+// names the actions of the view, M memory and esc back among them, before
+// the global keys; nothing of the view is cut for the global ones.
+func TestFooterKeepsViewActions(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	app, err := New(Options{Store: st, Query: "release", Now: tuitest.Clock, Location: demo.Location})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := tuitest.Drive(t, app, append([]tea.Msg{tea.WindowSizeMsg{Width: 100, Height: 30}}, tuitest.Keys("tab", "enter")...)...).(App)
+	if !m.showDetail {
+		t.Fatal("no session open")
+	}
+	line, _ := m.footer()
+	f := ansi.Strip(line)
+	for _, want := range []string{"M memory", "esc back", "T tools", "y copy id"} {
+		if !strings.Contains(f, want) {
+			t.Errorf("footer %q lacks %q", f, want)
+		}
+	}
+	if i, j := strings.Index(f, "esc back"), strings.Index(f, "1 search"); j >= 0 && i > j {
+		t.Errorf("global keys before the view's: %q", f)
+	}
+}
+
+// TestHeaderFitsEightyColumns: at 80 columns the header holds the five tabs
+// and the deepest layer name; the inactive tabs lose their names (2, 3, …)
+// when the layer name leaves no room.
+func TestHeaderFitsEightyColumns(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	app, err := New(Options{Store: st, Now: tuitest.Clock, Location: demo.Location})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.width = 80
+	for name, set := range map[string]func(*App){
+		"plain":              func(*App) {},
+		"memory":             func(a *App) { a.showMemory = true },
+		"session attachment": func(a *App) { a.showAttach, a.attachFromDetail = true, true },
+		"day session":        func(a *App) { a.showDetail, a.detailFromDay = true, true },
+	} {
+		a := app
+		set(&a)
+		h := ansi.Strip(a.header())
+		if w := ansi.StringWidth(h); w > 80 || strings.Contains(h, "\n") {
+			t.Errorf("%s: header is %d cells: %q", name, w, h)
+		}
+		if !strings.Contains(h, " 5 ") {
+			t.Errorf("%s: header lacks the last tab: %q", name, h)
+		}
+	}
+}

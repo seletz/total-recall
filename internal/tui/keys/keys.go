@@ -217,8 +217,8 @@ var Actions = []Action{
 	{SessionBottom, Session, []string{"G", "end"}, "bottom"},
 	{SessionNext, Session, []string{"n"}, "next hit"},
 	{SessionPrev, Session, []string{"N"}, "previous hit"},
-	{SessionTools, Session, []string{"T"}, "tools on/off"},
-	{SessionCopy, Session, []string{"y"}, "copy session id"},
+	{SessionTools, Session, []string{"T"}, "tools"},
+	{SessionCopy, Session, []string{"y"}, "copy id"},
 	{SessionAttach, Session, []string{"v"}, "view attachments"},
 	{SessionMemory, Session, []string{"M"}, "memory"},
 
@@ -227,8 +227,8 @@ var Actions = []Action{
 	{MemoryOpen, Memory, []string{"enter"}, "history of file"},
 	{MemoryPageUp, Memory, []string{"b", "pgup"}, "page up"},
 	{MemoryPageDown, Memory, []string{"f", "pgdown", "space"}, "page down"},
-	{MemoryDiff, Memory, []string{"d"}, "diff on/off"},
-	{MemoryBase, Memory, []string{"c"}, "compare with this version"},
+	{MemoryDiff, Memory, []string{"d"}, "diff"},
+	{MemoryBase, Memory, []string{"c"}, "compare"},
 	{MemoryTimeline, Memory, []string{"t"}, "timeline"},
 
 	{AttachPrev, Attach, []string{"left", "p"}, "previous attachment"},
@@ -237,7 +237,7 @@ var Actions = []Action{
 	{AttachDown, Attach, []string{"down", "j"}, "scroll down"},
 	{AttachPageUp, Attach, []string{"b", "pgup"}, "page up"},
 	{AttachPageDown, Attach, []string{"f", "pgdown", "space"}, "page down"},
-	{AttachOpen, Attach, []string{"o", "enter"}, "open with the system viewer"},
+	{AttachOpen, Attach, []string{"o", "enter"}, "open externally"},
 
 	{StatsDays, Stats, []string{"d"}, "days"},
 	{StatsWeeks, Stats, []string{"w"}, "weeks"},
@@ -268,14 +268,14 @@ var Actions = []Action{
 	{ActivityDown, Activity, []string{"down", "j"}, "row below (scroll)"},
 	{ActivitySelUp, Activity, []string{"K", "shift+up"}, "select day above"},
 	{ActivitySelDown, Activity, []string{"J", "shift+down"}, "select day below"},
-	{ActivityOpen, Activity, []string{"enter"}, "open the selected day"},
+	{ActivityOpen, Activity, []string{"enter"}, "open day"},
 
 	{DayUp, Day, []string{"up", "k"}, "up"},
 	{DayDown, Day, []string{"down", "j"}, "down"},
 	{DayPrev, Day, []string{"left", ",", "["}, "previous day"},
 	{DayNext, Day, []string{"right", ".", "]"}, "next day"},
 	{DayOpen, Day, []string{"enter"}, "open session"},
-	{DayToggle, Day, []string{"space"}, "show/hide sessions"},
+	{DayToggle, Day, []string{"space"}, "sessions"},
 	{DayHuman, Day, []string{"h"}, "human/all events"},
 
 	{ConfigNext, Config, []string{"tab", "right"}, "next page"},

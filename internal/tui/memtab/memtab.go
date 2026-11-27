@@ -274,7 +274,9 @@ func (m Model) View() tea.View {
 	case m.err != nil:
 		body = append(body, " "+m.th.Error.Render("error: "+m.err.Error()))
 	case m.loaded && len(m.rows) == 0:
-		body = append(body, " "+m.th.Muted.Render("no project has memory in the archive"))
+		body = append(body,
+			" "+m.th.Muted.Render("No project has memory in the archive."),
+			" "+m.th.Muted.Render("The hooks and `total-recall ingest --all` archive it (ingest.store_memory = true)."))
 	}
 	for len(body) < rows {
 		body = append(body, "")

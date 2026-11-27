@@ -263,7 +263,7 @@ func TestHelpCovers(t *testing.T) {
 			got = append(got, b.Help().Desc)
 		}
 	}
-	for _, want := range []string{"diff on/off", "compare with this version", "timeline", "history of file"} {
+	for _, want := range []string{"diff", "compare", "timeline", "history of file"} {
 		found := false
 		for _, g := range got {
 			found = found || g == want

@@ -1,12 +1,15 @@
 package memtab
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seletz/total-recall/internal/demo"
+	"github.com/seletz/total-recall/internal/store"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/tuitest"
@@ -88,5 +91,25 @@ func TestEmptyStates(t *testing.T) {
 	tm, _ = tm.(Model).Reload()
 	if !strings.Contains(tm.View().Content, "no database") {
 		t.Errorf("no database:\n%s", tm.View().Content)
+	}
+}
+
+type emptySource struct{}
+
+func (emptySource) ProjectKeys(context.Context) ([]store.ProjectKey, error) { return nil, nil }
+func (emptySource) MemoryProjects(context.Context) ([]store.MemoryProject, error) {
+	return nil, nil
+}
+
+// TestEmptyArchiveExplains: without memory the tab says why and what to do.
+func TestEmptyArchiveExplains(t *testing.T) {
+	var tm tea.Model = New(Options{Source: emptySource{}})
+	tm = tuitest.Send(t, tm, tea.WindowSizeMsg{Width: 100, Height: 10})
+	m, cmd := tm.(Model).Reload()
+	out := ansi.Strip(tuitest.Run(t, m, cmd).View().Content)
+	for _, want := range []string{"No project has memory", "ingest --all", "ingest.store_memory"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("empty tab lacks %q:\n%s", want, out)
+		}
 	}
 }

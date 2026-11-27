@@ -1,6 +1,6 @@
  total-recall            1 search  [2 stats]  3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────
- period: [day] week month  by: [project] agent directory 2026-10-05 – 2026-11-01
+ period: [day] week month  by: [project] agent directory  [heatmap] 2026-10-05 …
  events
  188 ┤▃             █ ▁                             █
      │▃   ▄   ▁     █ █ ▁   ▁     ▂ ▃ ▁ ▁ ▁     ▁ ▂ █   ▄

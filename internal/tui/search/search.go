@@ -288,6 +288,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// clickFilter does what the key of the filter does: actor, since and the
+// attachment filter step to their next value, repo opens the repo input and
+// raw switches the raw syntax off.
+func (m Model) clickFilter(kind string) (tea.Model, tea.Cmd) {
+	switch kind {
+	case "actor":
+		m.filters.actor = (m.filters.actor + 1) % len(actors)
+	case "since":
+		m.filters.span = (m.filters.span + 1) % len(spans)
+	case "attach":
+		m.filters.attach = (m.filters.attach + 1) % len(attachKinds)
+	case "raw":
+		m.filters.raw = false
+	case "repo":
+		m.focus = focusRepo
+		m.repoIn.SetValue(m.filters.repo)
+		m.repoIn.CursorEnd()
+		m.repoIn.Focus()
+		m.input.Blur()
+		return m, nil
+	}
+	return m.refilter()
+}
+
 // resizeInputs fits the search input beside the filter label and the repo
 // input into the status line.
 func (m *Model) resizeInputs() {
@@ -409,6 +433,9 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	if msg.Y == 0 {
 		if m.focus == focusPick {
 			return m, nil
+		}
+		if kind := m.filterAt(msg.X); kind != "" {
+			return m.clickFilter(kind)
 		}
 		m.focus = focusInput
 		m.input.Focus()
@@ -846,7 +873,7 @@ func (m Model) ShortHelp() []key.Binding {
 		if len(m.attachments()) > 0 {
 			help = append(help, m.keys.Attach)
 		}
-		return append(help, m.keys.Types, m.keys.Actor, m.keys.HasAttach, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input)
+		return append(help, m.keys.Actor, m.keys.HasAttach, m.keys.Time, m.keys.Repo, m.keys.Raw, m.keys.Input)
 	case focusRepo, focusPick:
 		return []key.Binding{m.keys.Confirm, m.keys.Cancel}
 	}

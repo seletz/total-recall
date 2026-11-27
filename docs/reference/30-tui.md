@@ -44,8 +44,8 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Bilder auf dieser Seite z
 
 Alle Ansichten teilen denselben Rahmen:
 
-- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity  4 config  5 memory`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs, bei 80 Spalten mit offener Ebene auch der Programmname.
-- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`; `4 config` und `5 memory` stehen nur in der Hilfe, damit die Zeile bei 100 Spalten passt), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
+- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity  4 config  5 memory`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs, bei 80 Spalten mit einer offenen Ebene (`[1 search] › session › attachments`) verlieren die anderen Tabs ihre Namen und zeigen nur die Nummer (`2  3  4  5`); die Nummern und ein Klick darauf bleiben.
+- **Fußzeile:** die Aktionen der aktuellen Ansicht zuerst, dann die globalen (siehe [Fußzeile](#fusszeile)) (`1 search • 2 stats • 3 activity • ? help • q quit`; `4 config` und `5 memory` stehen nur in der Hilfe, damit die Zeile bei 100 Spalten passt), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt, in einem abgerundeten Rahmen in der Akzentfarbe. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
 - **Farben:** alle Ansichten teilen ein Theme, siehe [Farben](#farben).
 - **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
@@ -97,7 +97,7 @@ Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, kein
 |---|---|
 | Rad | blättert, was unter dem Zeiger liegt: die Trefferliste (bewegt die Markierung wie ++up++/++down++), die Vorschau, den Verlauf einer Session, die Tage der Aktivität (wie ++up++/++down++ dort: am Rand einen Tag weiter in der Zeit) |
 | Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1` bis `5`; schließt eine offene Session oder den Memory-Viewer |
-| Klick auf einen Tastenhinweis in der Fußzeile | drückt die Taste: `? help` öffnet die Hilfe, `esc back` schließt die Session oder die Hilfe, `q quit` beendet, `T tools on/off` blendet die Tool-Events ein. Bei einem Hinweis mit mehreren Tasten (`d/w/m period`, `↑/↓ scroll`) ist jede Taste einzeln klickbar, die Beschreibung nicht; bei einem Hinweis mit einer Taste der ganze Hinweis. Was die Fußzeile abschneidet (`…`), ist nicht klickbar |
+| Klick auf einen Tastenhinweis in der Fußzeile | drückt die Taste: `? help` öffnet die Hilfe, `esc back` schließt die Session oder die Hilfe, `q quit` beendet, `T tools` blendet die Tool-Events ein. Bei einem Hinweis mit mehreren Tasten (`d/w/m period`, `↑/↓ scroll`) ist jede Taste einzeln klickbar, die Beschreibung nicht; bei einem Hinweis mit einer Taste der ganze Hinweis. Was die Fußzeile abschneidet (`…`), ist nicht klickbar |
 | Klick außerhalb der Hilfe | schließt sie wie ++esc++; ein Klick in das Fenster tut nichts |
 
 In den Ansichten:
@@ -110,6 +110,9 @@ In den Ansichten:
 | Klick auf eine Datei, Version oder Änderung im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei oder Änderung öffnet ihren Verlauf wie ++enter++ |
 | Klick auf einen Reiter im Anhang-Viewer | markiert den Anhang wie ++left++/++right++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
+| Klick auf `actor:`, `since:`, `attach:` oder `raw` rechts in der Eingabezeile | schaltet den Filter weiter wie `a`, `t`, `i` bzw. `raw` aus; ein Klick auf `repo:` öffnet die Eingabe wie `r`, siehe [Filter](#filter) |
+| Klick auf die Kacheln `events`, `human` oder `sessions` in der Statistik | wählt die Kennzahl des Charts wie `e`; `agent` und die Kachel der aktiven Perioden tun nichts |
+| Klick auf `heatmap` in der Statistik | blendet die Heatmap ein oder aus wie `h` |
 | Klick auf einen Typ in der Typ-Zeile der Suche (`event`, `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory`) | schaltet den Typ ein oder aus wie seine Taste (`e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m`) |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
 | Klick auf das `✕` hinter dem Pin | hebt den Pin auf wie `p` |
@@ -247,7 +250,12 @@ Der Fokus bleibt beim Wechsel der Ansicht und beim Öffnen einer Session erhalte
 
 ### Filter
 
-Die Filter werden in der **Liste** umgeschaltet (in der Eingabe wären die Buchstaben Suchtext). Jede Änderung sucht sofort neu.
+Die Filter stehen rechts in der Eingabezeile mit ihrem Wert (`actor: all  since: all  repo: *`). Ein Klick auf den Namen schaltet den Filter weiter, auch aus der Eingabe heraus; mit der Tastatur geht es in der **Liste** (in der Eingabe wären die Buchstaben Suchtext). Jede Änderung sucht sofort neu.
+
+![Filter in der Eingabezeile: actor, since und repo sind klickbar und zeigen ihren Wert](../assets/screenshots/search-filter.png)
+
+*Filter in der Eingabezeile: actor, since und repo sind klickbar und zeigen ihren Wert; ein Klick schaltet weiter wie a und t, auf repo öffnet er die Eingabe wie r*
+
 
 | Taste | Filter | Werte |
 |---|---|---|
@@ -266,6 +274,45 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 ![Filter „nur mit Anhang“ bei leerer Suche: die neuesten Events und Sessions mit Anhang, der Filter rechts in der Eingabezeile](../assets/screenshots/search-attachment-filter.png)
 
 *Filter „nur mit Anhang“ (`i`) bei leerer Suche: die neuesten Events und Sessions mit Anhang, ohne Suchwort; der Filter steht rechts in der Eingabezeile*
+
+## Bedienung im Überblick { #bedienung }
+
+Was die TUI kann, ist auf oberster Ebene sichtbar und mit der Maus erreichbar; die Taste steht neben dem Element oder in der Fußzeile und bleibt die Abkürzung. Die Tabelle ist die Bestandsaufnahme je Ansicht: **Element** ist ein Name, ein Umschalter oder eine Zeile auf dem Bildschirm, **Fußzeile** ein klickbarer Tastenhinweis, **Taste** eine Funktion, die nur über die Taste (und die Hilfe `?`) erreichbar ist.
+
+| Ansicht | Funktion | Sichtbar und klickbar als |
+|---|---|---|
+| überall | Ansicht wechseln (`1` bis `5`) | Element: Tab in der Kopfzeile |
+| überall | Hilfe, beenden, zurück, neu laden | Fußzeile: `? help`, `q quit`, `esc back`; neu laden (`R`) nur Taste |
+| Suche | Typen (`e u g c o I D f s m`) | Element: Typ-Zeile, Zustand in Klammern, Taste davor |
+| Suche | Filter Actor, Zeitraum, Repo | Element: `actor:`, `since:`, `repo:` in der Eingabezeile mit ihrem Wert; Fußzeile (`a`, `t`, `r`) |
+| Suche | Filter Anhang, Rohsyntax | Element: `attach: …` und `raw` in der Eingabezeile, solange sie an sind; Fußzeile (`i`, `^r`) |
+| Suche | Projekt pinnen, Projekt wählen | Element: `project:` und `✕` in der Linie |
+| Suche | Treffer öffnen, Fokus wechseln | Element: Treffer und Vorschau; Fußzeile (`enter`, `tab/esc`) |
+| Session | Treffer, Tools, ID kopieren, Anhänge, Gedächtnis, zurück | Fußzeile: `n/N`, `T`, `y`, `v`, `M`, `esc` |
+| Session | Anfang, Ende, halbe Seiten (`g`, `G`, `u`, `d`) | Taste; Blättern auch mit dem Mausrad |
+| Memory | Projekt öffnen | Element: Zeile im Reiter; Fußzeile `enter` |
+| Memory | Verlauf, Diff, Basis, Zeitleiste | Element: Datei, Version, Änderung; Fußzeile (`enter`, `d`, `c`, `t`) |
+| Anhänge | Anhang wechseln, öffnen | Element: Reiter der Anhänge; Fußzeile (`←/→`, `o`) |
+| Statistik | Periode, Dimension | Element: Umschalter oben |
+| Statistik | Kennzahl (`e`) | Element: Kacheln `events`, `human`, `sessions`, die gewählte in Akzentfarbe |
+| Statistik | Heatmap (`h`) | Element: `heatmap` in der Umschalterzeile, an in Klammern |
+| Statistik | Zeitfenster, Zoom | Fußzeile: `←/→/-/+ range` |
+| Statistik | Grafikmodus (`g`) | Taste; die Statuszeile nennt den Modus |
+| Aktivität | Fenster, Zählweise, Balken | Element: Umschalter oben |
+| Aktivität | Zeitfenster, heute/zuletzt, Tag wählen und öffnen | Fußzeile (`←/→`, `c/l`, `K/J`, `enter`); Tag auch per Klick |
+| Aktivität | Kennzahlen, Reihenfolge | Element: Kennzahlen und die Spalte `day ↓` |
+| Tagesansicht | Tag wechseln, Session öffnen, Sessions ein/aus, Zählweise | Fußzeile (`←/→`, `enter`, `space`, `h`) |
+| Config | Seiten, Zeilen, Aktionen | Element: Seitennamen, Zeilen; Fußzeile |
+
+Die Funktionen mit **Taste** sind bewusst so: Sie sind Zugriffe, die ein Mensch selten oder nur im Fluss braucht (Blättern, Grafikmodus, neu laden), und die Hilfe (`?`) listet sie mit ihren Aktionsnamen. Eine Funktion, die eine Entscheidung ist (ein Filter, ein Typ, eine Kennzahl), hat ein Element mit sichtbarem Zustand.
+
+### Fußzeile { #fusszeile }
+
+Die Fußzeile zeigt **zuerst die Aktionen der Ansicht**, in der Reihenfolge ihrer Wichtigkeit, danach die globalen Tasten (`1 search • 2 stats • 3 activity • ? help • q quit`). Reicht die Breite nicht, fallen zuerst die globalen Tasten weg, und `…` zeigt das an; die Tabs in der Kopfzeile bleiben klickbar. Die Beschreibungen sind kurz gehalten (`T tools`, `y copy id`, `M memory`), damit die Zeile bei 100 Spalten reicht: In der Session stehen bei 100 Spalten `M memory` und `esc back` vor den globalen Tasten. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`.
+
+### Leere Zustände { #leere-zustaende }
+
+Wo nichts zu sehen ist, steht, was man tun kann: die Suche ohne Eingabe `type to search`, ohne Treffer `no hits`; der Reiter `memory` ohne Gedächtnis nennt die Quelle (die Hooks und `total-recall ingest --all`, `ingest.store_memory`); ohne Datenbank sagt jede Ansicht `no database`.
 
 ## Session
 
@@ -395,7 +442,11 @@ Zu jedem Anhang gehört der Kopf (Typ, Größe, Position unter den Anhängen, di
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](20-konfiguration.md#tui).
 - **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
-- **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`. Der Titel über dem Chart nennt sie.
+- **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`, ebenso ein Klick auf die Kachel `events`, `human` bzw. `sessions`; die gewählte steht in der Akzentfarbe, der Titel über dem Chart nennt sie.
+
+![Statistik mit der Kennzahl human: die Kachel human ist hervorgehoben, das Chart zählt nur menschliche Events](../assets/screenshots/stats-metric.png)
+
+*Kennzahl human: die Kachel ist hervorgehoben, das Chart zählt nur menschliche Events; ein Klick auf eine Kachel wählt die Kennzahl wie e*
 - **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Farben unterscheiden die Segmente. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](20-konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
 - **Tabelle** (Spaltenköpfe in der Akzentfarbe): dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
@@ -410,7 +461,7 @@ Die Dimensionen:
 
 ### Heatmap
 
-`h` blendet unter dem Chart die Heatmap Wochentag × Stunde für das Zeitfenster ein (Daten wie `stats`, Kennzahl wie das Chart). Je voller die Zelle (`░▒▓█`), desto näher am Maximum, das der Titel nennt; die Farbe läuft dazu von blass nach kräftig, auf dunklem Hintergrund von Dunkel- nach Hellblau, auf hellem umgekehrt. Leere Zellen bleiben frei.
+`h` oder ein Klick auf `heatmap` in der Umschalterzeile (an: `[heatmap]`) blendet unter dem Chart die Heatmap Wochentag × Stunde für das Zeitfenster ein (Daten wie `stats`, Kennzahl wie das Chart). Je voller die Zelle (`░▒▓█`), desto näher am Maximum, das der Titel nennt; die Farbe läuft dazu von blass nach kräftig, auf dunklem Hintergrund von Dunkel- nach Hellblau, auf hellem umgekehrt. Leere Zellen bleiben frei.
 
 ![Heatmap Wochentag × Stunde unter dem Chart](../assets/screenshots/heatmap.png)
 
