@@ -120,6 +120,11 @@ jobs:
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Install envsubst
+        # sigstore/cosign-installer needs envsubst, which the golang image
+        # does not have.
+        run: apt-get update -qq && apt-get install -y -qq gettext-base >/dev/null
+
       - name: Install cyclonedx-gomod
         run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
 
