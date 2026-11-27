@@ -11,8 +11,11 @@ Was ein [Release auf GitHub](https://github.com/seletz/total-recall/releases) al
 | `total-recall-<tag>-<os>-<arch>.tar.gz` | Das statische Binary `total-recall` und die Shell-Vervollständigungen für bash, zsh und fish. Das darwin-Binary ist ab v1.0.2 [signiert und notarisiert](#signatur-der-macos-binaries). |
 | `total-recall-<tag>-<os>-<arch>.cdx.json` | Die [SBOM](#sbom) des Binarys aus demselben Archiv. |
 | `checksums-<tag>.txt` | SHA-256 aller Archive und SBOMs im Format von `sha256sum`. |
+| `total-recall-analytics-<tag>-<os>-<arch>.tar.gz` | Das [Analyse-Tool](15-analyse.md) für `darwin-arm64`, `darwin-amd64` und `linux-amd64`, siehe [Analyse-Tool](#analyse-tool). |
+| `total-recall-analytics-<tag>-<os>-<arch>.cdx.json` | Die SBOM des Analyse-Tools aus demselben Archiv. |
+| `checksums-total-recall-analytics-<tag>-<os>.txt` | SHA-256 der Archive und SBOMs des Analyse-Tools, eine Datei je Betriebssystem (`darwin`, `linux`). |
 
-Alle Dateien eines Releases entstehen in einem Lauf von goreleaser aus dem getaggten Commit (`.goreleaser.yml`, Workflow `release.yml`). `mise run release:snapshot` baut dieselben Dateien lokal nach `dist/`, ohne etwas zu veröffentlichen; die Version heißt dann `<letzter Tag>-SNAPSHOT-<commit>`. Der Snapshot signiert nicht, weil die [Secrets](#secrets-des-release-laufs) lokal fehlen; einen signierten Snapshot baut der Workflow [`signed-snapshot.yml`](#signatur-ohne-release-testen).
+Die Dateien von `total-recall` entstehen in einem Lauf von goreleaser aus dem getaggten Commit (`.goreleaser.yml`, Workflow `release.yml`), die des Analyse-Tools danach in zwei weiteren Läufen ([Analyse-Tool](#analyse-tool)). `mise run release:snapshot` baut dieselben Dateien lokal nach `dist/`, ohne etwas zu veröffentlichen; die Version heißt dann `<letzter Tag>-SNAPSHOT-<commit>`. Der Snapshot signiert nicht, weil die [Secrets](#secrets-des-release-laufs) lokal fehlen; einen signierten Snapshot baut der Workflow [`signed-snapshot.yml`](#signatur-ohne-release-testen).
 
 ## Checksummen prüfen
 
@@ -154,6 +157,35 @@ Einrichten, einmalig durch den Maintainer:
 Das `-i` von `base64` ist die macOS-Schreibweise; auf Linux `base64 -w0 datei`. Die kodierten Dateien nie ins Repository legen; `gh secret set` liest den Wert von der Standardeingabe, sodass er nicht in der Shell-History landet.
 
 Das Developer-ID-Zertifikat gilt fünf Jahre, der Zeitstempel hält bestehende Signaturen darüber hinaus gültig. Ein neues Zertifikat heißt nur `MACOS_SIGN_P12` und `MACOS_SIGN_PASSWORD` neu setzen; die API-Keys verfallen nicht, lassen sich aber in App Store Connect widerrufen.
+
+## Analyse-Tool
+
+Das [Analyse-Tool](15-analyse.md) `total-recall-analytics` braucht cgo (DuckDB) und lässt sich deshalb nicht wie `total-recall` vom Linux-Runner für alle Plattformen bauen. `release.yml` baut es nach dem Lauf von `total-recall` in zwei eigenen Jobs mit derselben goreleaser-Version und der Konfiguration `.goreleaser-analytics.yml`; die Umgebungsvariable `ANALYTICS_OS` wählt die Builds:
+
+| Job | Runner | baut |
+|---|---|---|
+| `analytics-darwin` | `macos-15` (arm64) | `darwin-arm64` nativ, `darwin-amd64` mit `clang -arch x86_64`; beide signiert und notarisiert; Cask `total-recall-analytics` |
+| `analytics-linux` | `ubuntu-latest` im Container `golang:<go-version>-bookworm` | `linux-amd64`, gegen glibc 2.36 von Debian 12 gebaut, läuft ab glibc 2.35 |
+
+Jeder Lauf hängt seine Archive, SBOMs und seine Checksummen-Datei an das bestehende Release und lässt dessen Text stehen (`release.mode: keep-existing`, kein eigenes Changelog). Vor dem Bauen lädt `scripts/analytics-ext.sh` die SQLite-Erweiterung von DuckDB für die Zielplattformen und prüft sie gegen `analytics/internal/duck/ext.lock`; das Binary bettet sie ein und lädt sie zur Laufzeit nie aus dem Netz. Die CI baut bei jedem Pull Request dieselben Snapshots auf denselben Runnern (`analytics-release-snapshot-darwin`, `analytics-release-snapshot-linux`), prüft die SBOMs und startet die Binaries; `mise run analytics:release:snapshot` baut den Snapshot für das eigene Betriebssystem nach `dist-analytics/`.
+
+**Signatur:** wie bei `total-recall` (Developer ID, Hardened Runtime, Zeitstempel, notarisiert), mit einer Berechtigung (Entitlement): `com.apple.security.cs.disable-library-validation` (`analytics/entitlements.plist`). Die Hardened Runtime lädt sonst nur Bibliotheken, die Apple oder dasselbe Team signiert hat. Die SQLite-Erweiterung trägt aber die Signatur von DuckDB, die DuckDB selbst beim Laden prüft, und keine Apple-Signatur unseres Teams; ohne die Berechtigung bricht das Laden mit `mapping process and mapped file (non-platform) have different Team IDs` ab. Prüfen wie unter [Signatur prüfen](#signatur-prufen), dazu die Berechtigung:
+
+```sh
+codesign -d --entitlements - ./total-recall-analytics
+```
+
+Erwartet ist ein Eintrag `com.apple.security.cs.disable-library-validation` mit dem Wert `true`. Der Workflow `signed-snapshot.yml` hat dafür den Job `analytics`: Er baut den signierten Snapshot auf einem Mac, prüft Hardened Runtime, Team-ID und Berechtigung mit `codesign` und startet das signierte arm64-Binary mit `version`, das die Erweiterung lädt. Das Artefakt heißt `signed-snapshot-analytics-darwin`.
+
+**SBOM:** wie bei `total-recall`, geprüft gegen `analytics/go.sum`:
+
+```sh
+go run ./tools/sbom check -name total-recall-analytics -version 1.11.0 -sum analytics/go.sum total-recall-analytics-v1.11.0-darwin-arm64.cdx.json
+```
+
+Das Modul `analytics` bindet `total-recall` über eine `replace`-Direktive auf das Verzeichnis darüber ein (`replace github.com/seletz/total-recall => ../`). cyclonedx-gomod führt so ein Modul als Komponente `../` ohne Version und Hash; `tools/sbom` entfernt sie, weil es Quellcode desselben Commits wie die Hauptkomponente ist. Die SBOM nennt die eingebettete SQLite-Erweiterung nicht, weil sie kein Go-Modul ist; Version und Prüfsummen stehen in `analytics/internal/duck/ext.lock` des getaggten Commits, und `total-recall-analytics version` zeigt die geladene Version.
+
+**Neue DuckDB-Version:** Renovate fasst `github.com/duckdb/duckdb-go/v2` und die vorgebauten Bibliotheken zu einem Pull Request zusammen. Darin muss `scripts/analytics-ext.sh --update-lock <version>` die Erweiterungen der neuen Version laden und `ext.lock` neu schreiben; bis dahin schlägt `TestLockMatchesLinkedLibrary` fehl und nennt den Befehl.
 
 ## Werkzeuge des Release-Laufs
 

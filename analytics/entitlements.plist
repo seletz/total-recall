@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements of the signed total-recall-analytics binary (.goreleaser-analytics.yml).
+  The hardened runtime only maps libraries signed by Apple or by our own team.
+  DuckDB loads its sqlite_scanner extension with dlopen from the cache file the
+  binary writes from its embedded copy; that file carries DuckDB's signature
+  (DuckDB checks it on LOAD), not ours, so library validation is switched off.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

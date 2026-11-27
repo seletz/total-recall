@@ -97,6 +97,23 @@
       groupName: "go",
     },
     {
+      // The CI container of the analytics release builds pins the same Go as
+      // go.mod (golang:<version>-bookworm); bump it with the go group.
+      description: "Group the golang build image with the Go toolchain",
+      matchDatasources: ["docker"],
+      matchDepNames: ["golang"],
+      groupName: "go",
+    },
+    {
+      // A DuckDB bump changes the sqlite extension total-recall-analytics
+      // embeds: run `scripts/analytics-ext.sh --update-lock <version>` in the
+      // PR. Until then TestLockMatchesLinkedLibrary fails with that hint.
+      description: "Group DuckDB: duckdb-go, its bindings and the prebuilt libraries",
+      matchManagers: ["gomod"],
+      matchPackageNames: ["github.com/duckdb/**", "go.duckdb.org/**"],
+      groupName: "duckdb",
+    },
+    {
       // Major updates are breaking; they wait until someone ticks them in the
       // Dependency Dashboard issue.
       description: "Majors need approval in the dependency dashboard",

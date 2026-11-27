@@ -70,6 +70,42 @@ CGO_ENABLED=0 go install github.com/seletz/total-recall/cmd/total-recall@latest
 
 Die Version zeigt dann `dev`, weil sie beim Release-Build gesetzt wird.
 
+## Analyse-Tool
+
+Das [Analyse-Tool](../reference/15-analyse.md) `total-recall-analytics` ist ein eigenes Programm mit DuckDB und kommt mit demselben Release, als eigenes Archiv je Plattform: macOS arm64 und amd64 (signiert und notarisiert) sowie Linux amd64. Anders als `total-recall` ist es nicht statisch gebaut: Unter Linux braucht es glibc ab 2.35 und libstdc++ (Debian 12, Ubuntu 22.04 und neuer; Alpine geht nicht). Es ist rund 70 MB groß, weil es DuckDB und die SQLite-Erweiterung von DuckDB enthält. Für `total-recall` selbst wird es nicht gebraucht.
+
+Release-Archiv, Beispiel für macOS auf Apple Silicon; die Prüfsummen stehen in einer eigenen Datei je Betriebssystem:
+
+```sh
+tag=v1.11.0
+curl -LO https://github.com/seletz/total-recall/releases/download/$tag/total-recall-analytics-$tag-darwin-arm64.tar.gz
+curl -LO https://github.com/seletz/total-recall/releases/download/$tag/checksums-total-recall-analytics-$tag-darwin.txt
+shasum -a 256 --ignore-missing -c checksums-total-recall-analytics-$tag-darwin.txt
+tar -xzf total-recall-analytics-$tag-darwin-arm64.tar.gz
+install -m 0755 total-recall-analytics ~/.local/bin/
+```
+
+Für Linux `linux-amd64` und `checksums-total-recall-analytics-$tag-linux.txt`. Mit Homebrew gibt es einen eigenen Cask:
+
+```sh
+brew install --cask seletz/tap/total-recall-analytics
+```
+
+Aus dem Quellcode braucht es zusätzlich einen C-Compiler (Xcode Command Line Tools bzw. `gcc`/`g++`), weil der DuckDB-Treiber cgo nutzt. `mise run analytics:build` lädt die SQLite-Erweiterung für die eigene Plattform, prüft sie gegen `analytics/internal/duck/ext.lock` und baut `./total-recall-analytics`:
+
+```sh
+mise run analytics:build
+install -m 0755 total-recall-analytics ~/.local/bin/
+```
+
+Prüfen, dass DuckDB läuft und die eingebettete Erweiterung lädt; die Ausgabe ist unter [`version`](../reference/15-analyse.md#version) beschrieben:
+
+```sh
+total-recall-analytics version
+```
+
+Das Programm nimmt keine Verbindung ins Netz auf. Beim ersten Start schreibt es die Erweiterung (etwa 40 MB) in sein Cache-Verzeichnis, siehe [Aufbau](../reference/15-analyse.md#aufbau).
+
 ## Aktualisieren
 
 Ein neues Binary einspielen wie beim Installieren (`brew upgrade --cask total-recall`, Release-Archiv oder Build). Innerhalb einer Major-Version bleiben Befehle, Flags, JSON-Ausgabe, Config-Schlüssel und Hooks gültig; ein neues Datenbankschema kann auch eine Minor-Version bringen, weil die Migration ohnehin nur von Hand läuft ([Versionierung](../reference/60-versionierung.md)). Deshalb nach jedem Update prüfen, ob eines anliegt:

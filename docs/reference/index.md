@@ -10,6 +10,7 @@ Nachschlagewerk: was es gibt, wie es heißt, was es tut. Die Referenz beschreibt
 In diesem Abschnitt:
 
 - [Befehle](10-befehle.md): jeder Befehl mit Optionen, Ausgabe und JSON.
+- [Analyse-Tool](15-analyse.md): `total-recall-analytics`, das eigene Programm mit DuckDB für Auswertungen über die Archive eines Agenten-Pools.
 - [Konfiguration](20-konfiguration.md): die TOML-Datei, alle Schlüssel, Umgebungsvariablen.
 - [TUI](30-tui.md): Ansichten, Tasten, Maus, Farben, Grafikmodi.
 - [Schema](40-schema.md): Tabellen, Views, `actor` und Zeiten für eigene SQL-Abfragen.

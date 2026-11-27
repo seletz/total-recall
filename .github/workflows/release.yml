@@ -61,3 +61,76 @@ jobs:
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+
+  # total-recall-analytics needs cgo and is built on a runner per OS after the
+  # release above exists; each run adds its archives, SBOMs and checksum file
+  # to that release (.goreleaser-analytics.yml, release.mode keep-existing).
+  analytics-darwin:
+    needs: goreleaser
+    runs-on: macos-15
+    env:
+      ANALYTICS_OS: darwin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: analytics/go.mod
+          cache-dependency-path: analytics/go.sum
+
+      - name: Install cyclonedx-gomod
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.3
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.20.3
+          args: release --clean --config .goreleaser-analytics.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # Signing and notarization as for total-recall, plus the entitlement
+          # in analytics/entitlements.plist.
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+
+  analytics-linux:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    container: golang:1.27.4-bookworm
+    env:
+      ANALYTICS_OS: linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install cyclonedx-gomod
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.3
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.20.3
+          args: release --clean --config .goreleaser-analytics.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Check that the release tools are pinned to one version everywhere. mise.toml
 # is the source of truth: `goreleaser = "X"` under [tools] and the
-# cyclonedx-gomod pin of the task release:snapshot. Every goreleaser-action
+# cyclonedx-gomod pins of the release tasks. Every goreleaser-action
 # step in .github/workflows/ must pin `version: vX`, every `go install` of
 # cyclonedx-gomod the same tag, and every workflow that runs goreleaser-action
 # must install cosign first, otherwise the action skips the signature check of
@@ -23,7 +23,13 @@ fail() {
 }
 
 goreleaser=$(sed -nE 's/^goreleaser = "([0-9][^"]*)"$/\1/p' "$MISE")
-cyclonedx=$(sed -nE 's/.*"github:CycloneDX\/cyclonedx-gomod" = "([0-9][^"]*)".*/\1/p' "$MISE")
+# The release tasks (release:snapshot, analytics:release:snapshot) each pin
+# cyclonedx-gomod; all pins must name the same version.
+cyclonedx=$(sed -nE 's/.*"github:CycloneDX\/cyclonedx-gomod" = "([0-9][^"]*)".*/\1/p' "$MISE" | sort -u)
+if [ "$(printf '%s\n' "$cyclonedx" | grep -c .)" -gt 1 ]; then
+  fail "mise.toml: the cyclonedx-gomod pins of the release tasks differ: $(echo $cyclonedx)"
+  cyclonedx=$(printf '%s\n' "$cyclonedx" | head -n 1)
+fi
 [ -n "$goreleaser" ] || { fail "mise.toml: no fixed goreleaser version under [tools] (goreleaser = \"X.Y.Z\")"; }
 [ -n "$cyclonedx" ] || { fail "mise.toml: no cyclonedx-gomod pin in task release:snapshot"; }
 echo "mise.toml: goreleaser ${goreleaser:-?}, cyclonedx-gomod ${cyclonedx:-?}"

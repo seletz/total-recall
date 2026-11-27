@@ -1,0 +1,10 @@
+# DuckDB version bundled by github.com/duckdb/duckdb-go/v2 and the
+# sqlite_scanner extension total-recall-analytics embeds for it:
+# <extension> <platform> <sha256 of the .gz as downloaded> <sha256 of the extension>
+# Written by scripts/analytics-ext.sh --update-lock; a test checks the version
+# against the linked library.
+duckdb v2.0.1
+sqlite_scanner osx_arm64 6cd6e6971755bd5f3dcd72b0e6b4334f4d54895c4c0f888f7b92c75c06a23e07 ce609d0483b7ecaebe5d5ee26be9c637777717585fe5e36a7dbf39a91619f489
+sqlite_scanner osx_amd64 cf9829d03f84e23231a6aa8b34c65caf486734b43e6356780e6b2e517e7d4f94 0722cfabfb2911691d9cecd32fd4c13be726d79a7d9e8885619bba09e9d85926
+sqlite_scanner linux_amd64 20f413e16c630fc20c3317877babcd43affaf0c80d6808f96919f29dcd924a3c 001fe717c67afba055e49f867a5d3850d3818e29fdf9f11d8992a321cc756054
+sqlite_scanner linux_arm64 2f9dfc6bdb5d444c0dddd79a069e37eb9b3f3007119af07d84d74f9f33b905ce 6c924fc252a2ac42a4ac076419eb80c76ca09cf1223feb256fdf8ed398d537df

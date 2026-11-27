@@ -118,8 +118,12 @@ const deprecatedLicensePrefix = "deprecated_"
 // Finish sets name and version of the main component (metadata.component)
 // of the SBOM at path and writes the file back. Detected licenses with a
 // deprecated SPDX id are kept as free-text names so the document validates
-// against the CycloneDX schema. Everything else, the purl of the main
-// component included, stays as the tool wrote it.
+// against the CycloneDX schema. Modules built from a local directory (a
+// replace directive to a path, as the analytics module has for total-recall)
+// are source of the same commit as the main component: Finish removes them
+// and their dependency entries, since they carry neither a version nor a
+// hash. Everything else, the purl of the main component included, stays as
+// the tool wrote it.
 func Finish(path, name, version string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -142,7 +146,11 @@ func Finish(path, name, version string) error {
 	meta["component"] = mustJSON(component)
 	doc["metadata"] = mustJSON(meta)
 	if raw, ok := doc["components"]; ok {
-		fixed, err := fixLicenses(raw)
+		kept, err := dropLocalModules(doc, raw)
+		if err != nil {
+			return fmt.Errorf("%s: components: %w", filepath.Base(path), err)
+		}
+		fixed, err := fixLicenses(kept)
 		if err != nil {
 			return fmt.Errorf("%s: components: %w", filepath.Base(path), err)
 		}
@@ -153,6 +161,66 @@ func Finish(path, name, version string) error {
 		return err
 	}
 	return os.WriteFile(path, append(out, '\n'), 0o644)
+}
+
+// isLocalModule reports whether a component name is a filesystem path, the
+// name cyclonedx-gomod gives a module replaced by a local directory.
+func isLocalModule(name string) bool {
+	return name == "." || name == ".." || strings.HasPrefix(name, "./") || strings.HasPrefix(name, "../") || strings.HasPrefix(name, "/")
+}
+
+// dropLocalModules removes the components of local modules from raw and
+// their bom-refs from doc["dependencies"]; it returns the kept components.
+func dropLocalModules(doc map[string]json.RawMessage, raw json.RawMessage) (json.RawMessage, error) {
+	var components []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &components); err != nil {
+		return nil, err
+	}
+	dropped := map[string]bool{}
+	kept := components[:0]
+	for _, c := range components {
+		var name, ref string
+		_ = json.Unmarshal(c["name"], &name)
+		if isLocalModule(name) {
+			_ = json.Unmarshal(c["bom-ref"], &ref)
+			dropped[ref] = true
+			continue
+		}
+		kept = append(kept, c)
+	}
+	if len(dropped) == 0 {
+		return raw, nil
+	}
+	if deps, ok := doc["dependencies"]; ok {
+		var entries []map[string]json.RawMessage
+		if err := json.Unmarshal(deps, &entries); err != nil {
+			return nil, fmt.Errorf("dependencies: %w", err)
+		}
+		out := entries[:0]
+		for _, e := range entries {
+			var ref string
+			_ = json.Unmarshal(e["ref"], &ref)
+			if dropped[ref] {
+				continue
+			}
+			if on, ok := e["dependsOn"]; ok {
+				var refs []string
+				if err := json.Unmarshal(on, &refs); err != nil {
+					return nil, fmt.Errorf("dependencies: %w", err)
+				}
+				keep := []string{}
+				for _, r := range refs {
+					if !dropped[r] {
+						keep = append(keep, r)
+					}
+				}
+				e["dependsOn"] = mustJSON(keep)
+			}
+			out = append(out, e)
+		}
+		doc["dependencies"] = mustJSON(out)
+	}
+	return mustJSON(kept), nil
 }
 
 // fixLicenses rewrites evidence.licenses[].license of every component: a
@@ -335,6 +403,9 @@ func CheckFile(path string, e Expect, sum GoSum) (Report, error) {
 		if c.Name == stdModule {
 			rep.Go = c.Version
 			continue
+		}
+		if isLocalModule(c.Name) {
+			return fail("module %s is a local directory; Finish removes those", c.Name)
 		}
 		want, ok := sum.Hash(c.Name, c.Version)
 		if !ok {

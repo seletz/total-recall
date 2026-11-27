@@ -127,6 +127,130 @@ jobs:
       - name: Check the SBOMs
         run: go run ./tools/sbom check dist
 
+  # total-recall-analytics (module analytics/) links DuckDB and needs cgo.
+  # The jobs above never build it: a nested module is outside `./...` of the
+  # root module, so their CGO_ENABLED=0 checks stay as they are.
+  analytics:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: analytics/go.mod
+          cache-dependency-path: analytics/go.sum
+
+      - name: Download the embedded DuckDB extension
+        # Same command as `mise run analytics:ext`: fetches the sqlite
+        # extension pinned in analytics/internal/duck/ext.lock and checks its
+        # checksums; go build embeds it.
+        run: scripts/analytics-ext.sh
+
+      - name: Build the demo archive
+        env:
+          CGO_ENABLED: "0"
+        run: go run ./tools/demo -out build/demo.db
+
+      - name: go vet
+        working-directory: analytics
+        run: go vet ./...
+
+      - name: go test
+        working-directory: analytics
+        env:
+          TOTAL_RECALL_DEMO_DB: ${{ github.workspace }}/build/demo.db
+        run: go test -timeout 20m ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.15.0
+          install-mode: goinstall
+          working-directory: analytics
+
+      - name: Run the binary
+        working-directory: analytics
+        run: |
+          go build -o "${RUNNER_TEMP}/total-recall-analytics" ./cmd/total-recall-analytics
+          "${RUNNER_TEMP}/total-recall-analytics" version
+
+  # Same as `mise run analytics:release:snapshot`, once per release runner:
+  # the release workflow runs the identical config, so what passes here ships.
+  analytics-release-snapshot-darwin:
+    runs-on: macos-15
+    env:
+      ANALYTICS_OS: darwin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: analytics/go.mod
+          cache-dependency-path: analytics/go.sum
+
+      - name: Install cyclonedx-gomod
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.3
+
+      - name: goreleaser snapshot
+        uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.20.3
+          args: release --snapshot --clean --config .goreleaser-analytics.yml
+
+      - name: Check the SBOMs
+        run: go run ./tools/sbom check -sum analytics/go.sum dist-analytics
+
+      - name: Run the binary
+        run: dist-analytics/analytics-darwin_darwin_arm64_v8.0/total-recall-analytics version
+
+  analytics-release-snapshot-linux:
+    runs-on: ubuntu-latest
+    # Debian bookworm (glibc 2.36): the binary links glibc dynamically and runs
+    # on distributions at least that old.
+    container: golang:1.27.4-bookworm
+    env:
+      ANALYTICS_OS: linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Trust the checkout
+        # The container runs as root, the workspace belongs to the runner user.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install cyclonedx-gomod
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.3
+
+      - name: goreleaser snapshot
+        uses: goreleaser/goreleaser-action@v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.20.3
+          args: release --snapshot --clean --config .goreleaser-analytics.yml
+
+      - name: Check the SBOMs
+        run: go run ./tools/sbom check -sum analytics/go.sum dist-analytics
+
+      - name: Run the binary
+        run: dist-analytics/analytics-linux_linux_amd64_v1/total-recall-analytics version
+
   docs:
     runs-on: ubuntu-latest
     steps:

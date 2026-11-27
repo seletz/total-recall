@@ -18,6 +18,43 @@ VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o total-recall ./cmd/total-recall
 """
 
+[tasks."analytics:ext"]
+description = "Download and verify the DuckDB sqlite extension that total-recall-analytics embeds (pinned in analytics/internal/duck/ext.lock), for this platform"
+run = "scripts/analytics-ext.sh"
+
+[tasks."analytics:build"]
+description = "Build total-recall-analytics (DuckDB, needs cgo) into ./total-recall-analytics"
+depends = ["analytics:ext"]
+dir = "analytics"
+env = { CGO_ENABLED = "1" }
+run = """
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Version=${VERSION}" -o ../total-recall-analytics ./cmd/total-recall-analytics
+"""
+
+[tasks."analytics:test"]
+description = "Run the tests of the analytics module (cgo) against the prebuilt demo archive"
+depends = ["analytics:ext", "demo:db"]
+dir = "analytics"
+env = { CGO_ENABLED = "1", TOTAL_RECALL_DEMO_DB = "{{config_root}}/build/demo.db" }
+run = "go test ./..."
+
+[tasks."analytics:lint"]
+description = "Run go vet and golangci-lint on the analytics module (cgo)"
+depends = ["analytics:ext"]
+dir = "analytics"
+env = { CGO_ENABLED = "1" }
+run = ["go vet ./...", "golangci-lint run ./..."]
+
+[tasks."analytics:release:snapshot"]
+description = "Build a snapshot release of total-recall-analytics into dist-analytics/ for this OS (darwin on a Mac), SBOMs checked; nothing published"
+tools = { "github:CycloneDX/cyclonedx-gomod" = "1.12.0" }
+env = { ANALYTICS_OS = "{{ os() | replace(from='macos', to='darwin') }}" }
+run = [
+  "goreleaser release --snapshot --clean --config .goreleaser-analytics.yml",
+  "go run ./tools/sbom check -sum analytics/go.sum dist-analytics",
+]
+
 [tasks."demo:db"]
 description = "Build the synthetic demo archive (build/demo.db): the shared fixture of tests and screenshots"
 run = "go run ./tools/demo -out build/demo.db"
