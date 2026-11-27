@@ -17,6 +17,8 @@ Harness-neutral archive of coding-agent sessions (Claude Code first) in a local 
 - Never mention Claude/AI in commits, PRs, issues.
 - Branch from `develop`, PR into `develop`. Conventional commit style (`feat(store): …`).
 - **TUI change → regenerate the screenshots:** `mise run docs:screenshots` and commit the images in `docs/assets/screenshots/` and the goldens in `internal/screenshot/testdata/frames/`. `mise run docs:screenshots:check` renders into a temp dir and fails when either is stale; CI runs it, and `TestFramesGolden` fails on stale goldens too. New view or state in the docs → add a `Shot` in `internal/screenshot/frames.go`, never a hand-drawn sketch. The screenshots and the tests that need a populated archive use the synthetic demo archive (`mise run demo:db`, `internal/demo`); never anything real.
+- **Release → docs match:** before the changelog/release PR, review all docs touched by the milestone, re-render all screenshots (`mise run docs:screenshots`) and run `mise run docs:build`.
+- **Every feature is documented in two parts:** (1) CLI usage: command, options, example with real output; (2) the TUI: where to find it, how to operate it with mouse and keys, with real screenshots (a `Shot` per step and state in `internal/screenshot/frames.go`, rendered by `mise run docs:screenshots` against the demo archive; text alone does not count). A missing part means the docs are incomplete. Where the TUI has no counterpart (machine-readable JSON), the docs say how to see the same in the TUI, or the PR names the gap.
 
 ## Layout
 
