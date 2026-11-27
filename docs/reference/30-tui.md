@@ -256,6 +256,20 @@ Die Filter stehen rechts in der Eingabezeile mit ihrem Wert (`actor: all  since:
 
 *Filter in der Eingabezeile: actor, since und repo sind klickbar und zeigen ihren Wert; ein Klick schaltet weiter wie a und t, auf repo öffnet er die Eingabe wie r*
 
+**CLI.** Dieselben Filter sind die Optionen `--actor`, `--since` und `--repo` von [`search`](10-befehle.md#search) (Demo-Archiv):
+
+```sh
+total-recall search goreleaser --actor human --since 2026-10-15 --repo kompass --limit 2
+```
+
+```text
+2026-10-31 22:14  Release v0.3.0  mara/kompass  claude:7d1e4c20-0001-4000-8000-000000000001  [human]
+    Lade den Homebrew-Cask mit [goreleaser] in den Tap hoch.
+2026-10-15 11:05  Homebrew-Tap einrichten  mara/kompass  claude:7d1e4c20-0005-4000-8000-000000000005  [human]
+    Richte den Homebrew-Tap ein, damit [goreleaser] den Cask dorthin pusht.
+event: 2 of 3 hits, --limit 0 for all
+```
+
 
 | Taste | Filter | Werte |
 |---|---|---|
@@ -447,6 +461,21 @@ Zu jedem Anhang gehört der Kopf (Typ, Größe, Position unter den Anhängen, di
 ![Statistik mit der Kennzahl human: die Kachel human ist hervorgehoben, das Chart zählt nur menschliche Events](../assets/screenshots/stats-metric.png)
 
 *Kennzahl human: die Kachel ist hervorgehoben, das Chart zählt nur menschliche Events; ein Klick auf eine Kachel wählt die Kennzahl wie e*
+
+**CLI.** Die Zahlen hinter dem Chart liefert [`stats --period … --by project`](10-befehle.md#stats-period): je Periode und Projekt Sessions, menschliche und Agenten-Events, `events` ist ihre Summe (Demo-Archiv, gekürzt):
+
+```sh
+total-recall stats --period week --by project --since 2026-10-05 --until 2026-11-01 | head -6
+```
+
+```text
+PERIOD    KEY                 SESSIONS  HUMAN  AGENT
+2026-W41  kompass             21        73     217
+2026-W41  wetterwarte         9         35     110
+2026-W41  fahrtenbuch         2         10     50
+2026-W41  /home/mara/notizen  2         8      22
+2026-W41  dotfiles            1         4      14
+```
 - **Chart:** eine gestapelte Säule je Periode, Segmente sind die sechs größten Werte der Dimension über das ganze Fenster plus `other`. Die Legende steht darunter; die Farben bleiben beim Umschalten stabil. Farben unterscheiden die Segmente. Perioden ohne Aktivität bleiben leer, die Achse ist lückenlos. Bei Periode Tag sind die Achsenbeschriftungen von Feiertagen (aus `bundesland` in [`[work]`](20-konfiguration.md#work)) magenta und die des Wochenendes blass, nur im Text-Chart.
 - **Tabelle** (Spaltenköpfe in der Akzentfarbe): dieselben Reihen mit zwei Session-Zahlen, menschlichen und Agenten-Events und Anteil an allen Events. `sessions` zählt die eindeutigen Sessions im ganzen Zeitfenster, jede einmal. `session-days`, `session-weeks` bzw. `session-months` (je nach Periode) summiert die Sessions je Periode, so wie das Chart sie zeigt: eine Session, die an drei Tagen aktiv war, zählt bei Tagen dreimal. Die Differenz der beiden Spalten zeigt, wie viele Sessions über Periodengrenzen liefen.
 - **Statuszeile:** Grafikmodus, Anzahl Perioden, Dauer der Abfrage, Zustand der Heatmap. Ergebnisse werden je Kombination gecacht; Zurückschalten ist sofort.
@@ -466,6 +495,15 @@ Die Dimensionen:
 ![Heatmap Wochentag × Stunde unter dem Chart](../assets/screenshots/heatmap.png)
 
 *Heatmap Wochentag × Stunde unter dem Chart*
+
+**CLI.** `stats` ohne `--period` und `--by` druckt dieselbe Tabelle als Zahlen, am Ende des Aufrufs (Demo-Archiv, `--since 2026-10-05 --until 2026-11-01`):
+
+```text
+human events per weekday × hour
+     00  01  02  03  04  05  06  07  08  09  10  11  12  13  14  15  16  17  18  19  20  21  22  23
+Mon  .   .   .   .   .   .   .   .   .   7   10  13  9   14  10  13  12  12  3   .   .   .   .   .
+Tue  .   .   .   .   .   .   .   .   5   9   13  11  13  11  12  12  10  9   1   .   2   4   2   .
+```
 
 Die Heatmap braucht zehn Zeilen. Bleibt dem Chart daneben weniger als seine Mindesthöhe von acht Zeilen, wechselt sie in ein **kompaktes Layout** mit neun Zeilen: die Stundenbeschriftung rückt in die Achsenzeile, die Legende der Schattierungen von leer bis Maximum (`░▒▓█`) steht im Titel. Bei 80×24 passen so Chart und Heatmap untereinander; die Tabelle bleibt dafür ausgeblendet. In beiden Layouts werden die Zellen schmaler, bis jede Stunde eine Spalte hat, dann steht nur noch jede zweite Stunde dran.
 
