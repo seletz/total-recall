@@ -432,9 +432,17 @@ Was [`status`](10-befehle.md#status) ausgibt, als Tabelle: Pfad und Größe des 
 
 *Seite Settings: das Backup-Verzeichnis wird in der Eingabezeile bearbeitet*
 
+![Seite Settings: alle Schlüssel mit Wert und Herkunft, unter der Linie Hilfetext, Default und der Hinweis zur Wirkung des markierten Schlüssels](../assets/screenshots/config-settings-list.png)
+
+*Seite Settings: alle Schlüssel mit Wert und Herkunft, unter der Linie Hilfetext, Default und der Hinweis zur Wirkung des markierten Schlüssels*
+
 Jeder Schlüssel der Konfiguration mit Wert und Herkunft (`default`, `file`, `env`, `flag`), nach Tabellen gruppiert wie [`config show`](10-befehle.md#config). Unter der Linie stehen zum markierten Schlüssel der Hilfetext, bei Aufzählungen die erlaubten Werte, und der Default. ++up++/++down++ (`k`/`j`), das Mausrad und ein Klick bewegen die Markierung.
 
 ++enter++ (`config_select`) ändert den markierten Wert: Ein Wahrheitswert kippt, eine Aufzählung (`view`, `rounding`, `count`, …) nimmt den nächsten Wert, alles andere öffnet eine Eingabezeile mit dem aktuellen Wert; ++enter++ übernimmt, ++esc++ verwirft. Der Text wird wie in der Datei gelesen: Zahlen (auch Dezimalzahlen wie `chart.scale`), Dauern (`20m`, `1h30m`, `0`), Uhrzeiten (`04:00`), Pfade, Listen als TOML-Array (`["a", "b"]`) oder durch Kommas getrennte Wörter (die Farbskala `chart.heatmap`). `d` (`config_default`) setzt den Schlüssel auf den Default zurück: die Zeile wird in der Datei auskommentiert.
+
+![Ein abgelehnter Wert: Die Meldung steht in der Eingabezeile, die Datei bleibt unverändert](../assets/screenshots/config-settings-invalid.png)
+
+*Ein abgelehnter Wert: Die Meldung steht in der Eingabezeile, die Datei bleibt unverändert*
 
 Geschrieben wird nur, was die Prüfung besteht: Der neue Wert muss zum Typ passen und darf keinen neuen Fehler erzeugen, den `config show` melden würde; die Datei wird dazu so geladen wie beim Start. Ein abgelehnter Wert lässt die Datei unverändert, die Meldung steht in der Eingabezeile. Beim Schreiben bleiben alle Kommentare und die übrigen Zeilen erhalten, nur die eine Zeile ändert sich; ein in der Vorlage auskommentierter Schlüssel (`# reload = "5s"`) wird an seiner Stelle aktiviert, ein fehlender Schlüssel ans Ende seiner Tabelle gesetzt, eine fehlende Tabelle angelegt, eine fehlende Datei aus der Vorlage geschrieben. Vor jedem Schreiben entsteht `config.toml.bak`, geschrieben wird atomar (temporäre Datei, dann umbenannt). Wirkung: Die Zeile `default` unter der Linie sagt zu jedem Schlüssel, was eine Änderung tut, und die Meldung nach dem Schreiben wiederholt es.
 
@@ -465,6 +473,14 @@ Tasten der Liste: ++enter++ (`config_select`) öffnet die markierte Definition i
 ![Config, Seite Projects: ein neues Projekt aus dem Repository dotfiles der Liste; das Muster (die Remote-URL) wird bearbeitet, die Vorschau zeigt, was es trifft](../assets/screenshots/config-projects-pattern.png)
 
 *Ein Muster in der Eingabezeile: die Zeile `pattern` zeigt beim Tippen, was es trifft*
+
+![`m` auf einem Pfad ohne Definition: Die Rückfrage nennt das Muster und das Projekt, das es bekommt](../assets/screenshots/config-projects-assign.png)
+
+*`m` auf einem Pfad ohne Definition: Die Rückfrage nennt das Muster und das Projekt, das es bekommt*
+
+![`x` auf einer Definition: Die Rückfrage nennt die Datei, `y` löscht, ++esc++ bricht ab](../assets/screenshots/config-projects-delete.png)
+
+*`x` auf einer Definition: Die Rückfrage nennt die Datei, `y` löscht, ++esc++ bricht ab*
 
 **Vorschau.** Die Zeile unter der Linie rechnet den Entwurf gegen das Archiv: Ist ein Muster markiert oder in der Eingabezeile, zeigt `pattern <muster>` die Pfade, die genau dieses Muster trifft, mit ihrer Sessionzahl und den Namen, die sie ohne Definition hätten; sonst zeigt `preview` dasselbe für alle Muster der Definition. Ein Pfad, den eine frühere Definition bekommt, steht als `… goes to <name> (earlier)` dabei. Fehlt noch der Name oder ein Muster, sagt die Zeile das; ein doppelter Name erscheint hier, bevor er geschrieben wird. Die Vorschau zählt wie `UNMATCHED` Sessions der obersten Ebene, Subagenten zählen zur Eltern-Session.
 

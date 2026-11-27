@@ -20,6 +20,10 @@ Epic [#320](https://github.com/seletz/total-recall/issues/320): Was die TUI übe
 - **`stats --workday --projects`** ([#326](https://github.com/seletz/total-recall/issues/326)): je Tag und im Zeitraum die gezählten Events je Projekt (und die Minuten mit Aktivität), dieselben Zahlen wie Farben und Legende der Aktivitätsansicht (`store.ProjectDays`). Summe = Teile je Tag: Die Events der Projekte ergeben `human` + `agent` des Tags; ein Test prüft das an der `--json`-Ausgabe des Demo-Archivs.
 - **`memory --timeline --json`** ([#327](https://github.com/seletz/total-recall/issues/327)): alle Änderungen aller Dateien des Projekt-Gedächtnisses in einem Aufruf, neueste zuerst, mit derselben Funktion wie die Zeitleiste der TUI (statt eines `--history`-Aufrufs je Datei). Auch als Parameter `timeline` des MCP-Tools `memory`. Summe = Teile: Die Größenänderungen einer Datei ergeben ihre Größe jetzt, die Ereignisse ihre Fassungen; ein Test prüft das gegen `memory --json --deleted`.
 
+### Dokumentation
+
+- Jedes Feature von v1.9.0 steht jetzt in der Befehlsreferenz mit CLI-Beispiel und mit der Bedienung in der TUI samt Screenshots; neue Aufnahmen: Settings (Liste, abgelehnter Wert), Projects (Löschen, Pfad einem Projekt zuschlagen). Die How-tos [Einstellungen in der TUI ändern](../how-to/65-einstellungen-tui.md) und [Projekte definieren](../how-to/67-projekte-definieren.md) zeigen jeden Schritt und nennen den Weg über die Kommandozeile.
+
 ## v1.8.1
 
 ### Behoben

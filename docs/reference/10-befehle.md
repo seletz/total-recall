@@ -309,6 +309,20 @@ iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 | `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
 | `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
 
+**In der TUI.** `--timeline` ist die Zeitleiste der [Memory-Ansicht](30-tui.md#memory): in der Suche (`1`) den Typ `memory` mit `m` einschalten (oder in der Linie auf `memory` klicken), einen Treffer des Typs mit ++enter++ öffnen (ein zweiter Klick tut dasselbe), im Viewer `t`. Eine Zeile je Änderung, neueste oben, mit `+` (`added`), `~` (`changed`) oder `✗` (`deleted`), Pfad und Größenänderung (`delta_bytes`); rechts der Diff der markierten Änderung, ++enter++ oder ein zweiter Klick öffnet den Verlauf der Datei. Die TUI zeigt die Zeitleiste je Projekt, die CLI ohne `--project` alle Projekte in einem Aufruf.
+
+![Suche mit eingeschaltetem Typ `memory`: die Treffer des Projekt-Gedächtnisses, ++enter++ öffnet den Viewer](../assets/screenshots/search-memory.png)
+
+*Suche mit eingeschaltetem Typ `memory`: die Treffer des Projekt-Gedächtnisses, ++enter++ öffnet den Viewer*
+
+![Der Treffer des Typs `memory` öffnet den Memory-Viewer; die Dateien des Projekts, `t` schaltet auf die Zeitleiste](../assets/screenshots/memory.png)
+
+*Der Treffer des Typs `memory` öffnet den Memory-Viewer; die Dateien des Projekts, `t` schaltet auf die Zeitleiste*
+
+![`memory --timeline` in der TUI: was wann hinzukam, sich änderte oder gelöscht wurde, rechts der Diff der markierten Änderung](../assets/screenshots/memory-timeline.png)
+
+*`memory --timeline` in der TUI: was wann hinzukam, sich änderte oder gelöscht wurde, rechts der Diff der markierten Änderung*
+
 **Zeiten.** `CHANGED` (JSON `changed`, bei `--history` `ts`) ist die Änderungszeit der Datei, als das Archiv die Fassung sah; bei einer Löschung die Zeit des Laufs, der sie bemerkte. `--history` zeigt daneben `OBSERVED` (`observed_at`), wann der Lauf die Fassung aufgenommen hat. Ändert der Agent eine Datei zweimal zwischen zwei Läufen, kennt das Archiv nur die zweite Fassung; da jeder Hook nachsieht, ist das selten.
 
 **JSON.** Ohne Option je Datei ein Objekt: `project`, `project_key` (Schlüssel der Harness), `harness`, `cwd` und `git_root` des Projekts (`null`, solange unbekannt), `path`, `sha256` (`null` bei gelöschten), `bytes`, `deleted`, `changed` (UTC), `versions` (Fassungen bis dahin, Löschungen mitgezählt). `--history`: je Fassung `project`, `project_key`, `harness`, `path`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `deleted`. `--timeline`: je Änderung `project`, `project_key`, `harness`, `path`, `kind`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `prev_ts` und `prev_sha256` (`null`, außer bei `changed`), `delta_bytes`; die `delta_bytes` einer Datei ergeben ihre Größe jetzt (0 nach einer Löschung), ein Test prüft das an der `--json`-Ausgabe. `--grep`: je Treffer `project`, `project_key`, `harness`, `path`, `sha256`, `changed`, `snippet` (Treffer in `[…]`).
@@ -694,6 +708,12 @@ Jeder Tag hat `projects` (leer ohne Aktivität), oben steht `projects` für den 
 **Einzelne Nachrichten.** Eine einzelne Nachricht nach einer langen Pause ergibt einen Block von 0 Sekunden: für eine Anwesenheitsbuchung Rauschen. Damit der Aufrufer ihn erkennt, ohne Events nachzuzählen, hat jeder Block `events` (die Zahl der gezählten Events darin) und `single` (`true`, wenn es genau eins ist). Die Sekunden bleiben unverändert, es gibt keinen Mindestwert, nichts fällt weg. Zwei Events mit derselben Zeit sind ein Block von 0 Sekunden mit `events: 2`, kein einzelner. Es gilt immer: Pro Tag ergeben die `events` aller Blöcke genau `human` plus `agent` des Tags, und `block_seconds` plus `break_seconds` die Spanne. Alle Sekunden sind ganze Sekunden: Die Blockgrenzen werden nach der ersten Aktivität des Tags auf ganze Sekunden abgerundet, bevor die Dauern gebildet werden, daher ist `block_seconds` exakt die Summe der `seconds` der Blöcke und `block_seconds` plus `break_seconds` exakt `span_seconds` (auch bei Zeitstempeln mit Millisekunden), in `total` genauso. Die Tabelle zeigt einen einzelnen Block nur mit der Uhrzeit und einem `*` (`15:00*`) und erklärt das Zeichen unter der Tabelle.
 
 `--workday` lässt sich nicht mit `--period`, `--by`, `--top` oder `--worktime` kombinieren.
+
+**In der TUI.** Die Zahlen von `--projects` sind die Farben und die Legende der [Aktivitätsansicht](30-tui.md#aktivitat): `total-recall tui activity` (oder `3`), dann `p` (die Taste steht in der Hilfe `?`). Die Balken wechseln in Projektfarben, jedes Segment zeigt das Projekt mit den meisten Nachrichten, die Legende nennt je Projekt Farbe, Zeichen und Zahl der Nachrichten (`events` der Ausgabe). `p` noch einmal schaltet zurück. Die Textspalte `PROJECTS` hat in der TUI keine eigene Tabelle; die Legende ist ihr Gegenstück.
+
+![`stats --workday --projects` in der TUI: Balken in Projektfarben, rechts die Legende mit den Nachrichten je Projekt](../assets/screenshots/activity-projects.png)
+
+*`stats --workday --projects` in der TUI: Balken in Projektfarben, rechts die Legende mit den Nachrichten je Projekt*
 
 ### Ein Tag chronologisch: `--day` { #stats-day }
 
@@ -1167,6 +1187,16 @@ Statt des Format-Checks laufen die Prüfungen der Seite **Setup** der [TUI](30-t
 
 Je Prüfung `name`, `ok` (Haken), `warn` (Hinweis an einer bestandenen Prüfung; weder `ok` noch `warn` ist ein Fehler), `text` (die Zeile der Setup-Seite, das Home-Verzeichnis als `~`) und `fix`: `null` oder was die TUI an dieser Stelle zu tun anbietet (`write template`, `create the directory`); die CLI führt es nicht aus. `ok` oben ist wahr, wenn alle Prüfungen bestehen. `--setup` verträgt sich nicht mit `--harness` und `--days` (`usage`).
 
+**In der TUI.** `doctor --setup` ist die Seite **setup** der [Config-Ansicht](30-tui.md#setup): `total-recall tui config`, ++shift+tab++ vom Status aus (oder Klick auf `setup`). Je Prüfung eine Zeile mit `√`, `!` oder `×` und demselben Text; ++up++/++down++ oder ein Klick markieren eine Zeile. Wo `fix` nicht `null` ist, bietet ++enter++ die Korrektur an (nach `y`), und `c` kopiert den Hook-Block bzw. den `claude mcp add`-Befehl in die Zwischenablage; die CLI führt nichts davon aus.
+
+![`doctor --setup` in der TUI: die Prüfungen mit Haken, Hinweis oder Fehler](../assets/screenshots/config-setup.png)
+
+*`doctor --setup` in der TUI: die Prüfungen mit Haken, Hinweis oder Fehler*
+
+![Die Zeile `mcp` markiert: darunter der Befehl, der den MCP-Server einträgt](../assets/screenshots/config-setup-mcp.png)
+
+*Die Zeile `mcp` markiert: darunter der Befehl, der den MCP-Server einträgt*
+
 ## `hooks print` { #hooks-print }
 
 Gibt die Hook-Konfiguration für `~/.claude/settings.json` als JSON aus.
@@ -1242,6 +1272,20 @@ log (effective)  /Users/me/Library/Application Support/total-recall/total-recall
 
 **`config set SCHLÜSSEL WERT` und `config unset SCHLÜSSEL`** ändern dieselbe Datei wie die Einstellungsseite der TUI und rufen dieselben Funktionen auf: Der Wert wird nach der Art des Schlüssels geprüft (Bool, Zahl, Dauer wie `20m`, Liste, erlaubte Werte), Kommentare und Reihenfolge bleiben, eine fehlende Datei entsteht aus der Vorlage, die alte Fassung bleibt als `<Datei>.bak`. Das Ergebnis muss ohne neues Problem laden. `unset` kommentiert die Zeile aus, sodass wieder Default, Umgebung oder Flag gelten. Beide schreiben nur `config.toml`, nie das Archiv, und öffnen es nicht. Tabellen (`project`, `account`, `worktime.category`, `accounts`) lassen sich so nicht setzen; für `[[project]]` siehe `config project`.
 
+**In der TUI.** `config set` und `unset` sind die Seite **settings** der [Config-Ansicht](30-tui.md#settings): `total-recall tui config`, ++tab++ (oder ein Klick auf `settings`), mit ++up++/++down++ oder dem Mausrad zum Schlüssel, ++enter++ schreibt (`set`), `d` setzt zurück (`unset`). Der Katalog aus `config show --json` ist, was die TUI unter der Linie zeigt: Hilfetext, erlaubte Werte und Default des markierten Schlüssels.
+
+![Seite Settings: Wert und Herkunft je Schlüssel; unter der Linie der Katalogeintrag des markierten Schlüssels (Hilfetext, Default)](../assets/screenshots/config-settings-list.png)
+
+*Seite Settings: Wert und Herkunft je Schlüssel; unter der Linie der Katalogeintrag des markierten Schlüssels (Hilfetext, Default)*
+
+![Die Eingabezeile entspricht `config set SCHLÜSSEL WERT`; ++enter++ schreibt, ++esc++ verwirft](../assets/screenshots/config-settings.png)
+
+*Die Eingabezeile entspricht `config set SCHLÜSSEL WERT`; ++enter++ schreibt, ++esc++ verwirft*
+
+![Ein abgelehnter Wert entspricht der Fehlerart `validation`: nichts wird geschrieben](../assets/screenshots/config-settings-invalid.png)
+
+*Ein abgelehnter Wert entspricht der Fehlerart `validation`: nichts wird geschrieben*
+
 ```sh
 $ total-recall config set tui.view stats --json
 {
@@ -1282,6 +1326,16 @@ Jeder Aufruf mit `--json` liefert:
 
 `project` ist die Definition nach der Änderung (bei `rm` die gelöschte), `position` ihre Stelle in der Datei ab 1; `description` und `color` sind `null`, wenn leer; `changed` ist `false`, wenn nichts zu tun war (`move` an die Stelle, an der sie steht). Eine Definition, die nicht besteht (ohne Muster, unbekannte Farbe, Name doppelt, Position außerhalb), ist ein Fehler der Art `validation`; ein unbekannter Name ein `not_found`; die Datei bleibt dann unberührt.
 
+**In der TUI.** Dieselben Änderungen macht die Seite **projects**: `total-recall tui config`, ++tab++ zweimal. `add` ist ++enter++ oder `a` auf einem Pfad unter `UNMATCHED` (oder `a` in der Liste), `set` das Formular (++enter++ auf einer Definition), `rm` ist `x` mit Rückfrage, `move` sind `K`/`J`; geschrieben wird mit `y`. Alles geht auch per Klick auf die Zeile. Rezept mit allen Zuständen: [Projekte definieren](../how-to/67-projekte-definieren.md#in-der-tui).
+
+![`config project set` in der TUI: das Formular einer Definition mit Farbwahl und Vorschau](../assets/screenshots/config-projects-edit.png)
+
+*`config project set` in der TUI: das Formular einer Definition mit Farbwahl und Vorschau*
+
+![`config project rm` in der TUI: `x` fragt nach, `y` löscht](../assets/screenshots/config-projects-delete.png)
+
+*`config project rm` in der TUI: `x` fragt nach, `y` löscht*
+
 ### `config projects` { #config-projects }
 
 ```sh
@@ -1308,6 +1362,16 @@ Zeigt, was die Seite Projects der TUI zeigt, mit denselben Funktionen (`store.Pr
 `keys` sind nach Sessions absteigend sortiert; `name` ist der Name ohne Definition, `project` die zugehörige Definition (`null`: kein Projekt), `remote` und `last` sind `null`, wenn unbekannt. `problem` nennt den ersten Fehler der Definitionsliste (sonst `null`); Definitionen, die nicht bestehen, bleiben bei der Zuordnung draußen. Alle Schlüssel sind immer vorhanden.
 
 **`--preview`** prüft einen Entwurf, ohne zu speichern (`--match` wiederholbar und Pflicht, `--name`, `--description`, `--color` wie bei [`config project add`](#config-project)). Trägt der Entwurf den Namen einer vorhandenen Definition, ersetzt er sie (`replaces`), sonst kommt er ans Ende; die erste passende Definition gewinnt, deshalb nimmt eine frühere ihm Pfade weg. `preview` enthält `definition`, `paths` und `sessions` (was der Entwurf bekäme), `matched_sessions` (alles, was seine Muster treffen), `matches` (je Treffer `key`, `name`, `sessions`, `taken_by` oder `null`) und `text`, die Zeile der TUI („matches 1 path · 326 sessions: kompass“). Auch hier gilt Summe = Teile: Die `sessions` der Treffer ohne `taken_by` sind `sessions`, mit `taken_by` dazu `matched_sessions`. Ohne `--preview` sind die Entwurfs-Flags ein Fehler (`usage`), ein leeres Muster oder eine falsche Farbe `validation`.
+
+**In der TUI.** `config projects` ist die Seite **projects** (`total-recall tui config`, ++tab++ zweimal): oben die Definitionen mit Sessions und Mustern, darunter unter `UNMATCHED` die Pfade ohne Projekt, mit den Zahlen der Ausgabe. `--preview` ist die Vorschau beim Bearbeiten eines Musters: Die Zeile `pattern …` unter der Linie zeigt beim Tippen, welche Pfade und wie viele Sessions es trifft und was eine frühere Definition wegnimmt.
+
+![`config projects` in der TUI: Definitionen und Pfade ohne Projekt](../assets/screenshots/config-projects.png)
+
+*`config projects` in der TUI: Definitionen und Pfade ohne Projekt*
+
+![`config projects --preview` in der TUI: die Vorschau zeigt beim Tippen, was das Muster trifft](../assets/screenshots/config-projects-pattern.png)
+
+*`config projects --preview` in der TUI: die Vorschau zeigt beim Tippen, was das Muster trifft*
 
 ## `version` { #version }
 

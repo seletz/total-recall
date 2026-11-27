@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                        1 search   2 stats   3 activity  [4 config]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status settings [projects] actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   NAME                DESCRIPTION                      SESSIONS  MATCH
+▸ ■ kompass             Wanderkarten, alle Repositories       326  https://git.invalid/mara/kompass*, ~/src/kompass*
+  ■ wetterwarte         Messstation und Auswertung            218  https://git.invalid/mara/wetterwarte
+  ■ fahrtenbuch                                                88  https://git.invalid/mara/fahrtenbuch
+
+   UNMATCHED           SESSIONS  LAST         PATH
+  /home/mara/notizen        58  12d17h ago   /home/mara/notizen
+  dotfiles                  51  11d01h ago   /home/mara/dotfiles  https://git.invalid/mara/dotfiles
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ kompass  #4e79a7  matches 1 path · 326 sessions: kompass
+ remove kompass from ~/.config/total-recall/config.toml? y confirms, esc cancels
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ y confirm • esc back • ^c quit
