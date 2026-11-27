@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.9.0 (unveröffentlicht)
+## v1.9.0
 
 Epic [#320](https://github.com/seletz/total-recall/issues/320): Was die TUI über Go-Funktionen kann, geht jetzt auch über die CLI, damit jede Oberfläche ein dünner Client bleibt.
 
