@@ -6,6 +6,12 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.9.1 (unveröffentlicht)
+
+### Behoben
+
+- **`doctor` meldet die Record-Typen `data-flow-records`, `data-flow-incomplete` und `derived-from` nicht mehr als unbekannt** ([#353](https://github.com/seletz/total-recall/issues/353)). Claude Code 2.1.33x schreibt sie; sie haben weder Zeitstempel noch Text, `doctor` endete deshalb mit Exit-Code 2. Sie bleiben als Meta-Record im Archiv: der Datenfluss der Session, der Hinweis auf einen unvollständigen Datenfluss und die Herkunft einer Session (etwa durch Fork).
+
 ## v1.9.0
 
 Epic [#320](https://github.com/seletz/total-recall/issues/320): Was die TUI über Go-Funktionen kann, geht jetzt auch über die CLI, damit jede Oberfläche ein dünner Client bleibt.
