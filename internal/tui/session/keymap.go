@@ -13,7 +13,7 @@ import (
 // n/N in one entry each.
 type KeyMap struct {
 	Up, Down, PageUp, PageDown, HalfUp, HalfDown, Top, Bottom key.Binding
-	Next, Prev, Tools, Copy, Attach, Back                     key.Binding
+	Next, Prev, Tools, Copy, Attach, Memory, Back             key.Binding
 	Scroll, Hit                                               key.Binding
 }
 
@@ -32,6 +32,7 @@ func newKeyMap(m keys.Map) KeyMap {
 		Tools:    m.Binding(keys.SessionTools),
 		Copy:     m.Binding(keys.SessionCopy),
 		Attach:   m.Binding(keys.SessionAttach),
+		Memory:   m.Binding(keys.SessionMemory),
 		Back:     m.Binding(keys.GlobalBack),
 		Scroll:   m.Group("scroll", keys.SessionUp, keys.SessionDown),
 		Hit:      m.Group("next/prev hit", keys.SessionNext, keys.SessionPrev),
@@ -55,7 +56,7 @@ func (k KeyMap) ShortHelp(attach bool) []key.Binding {
 	if attach {
 		help = append(help, k.Attach)
 	}
-	return append(help, k.Back)
+	return append(help, k.Memory, k.Back)
 }
 
 // FullHelp returns the bindings shown in the help overlay: scrolling in the
@@ -63,6 +64,6 @@ func (k KeyMap) ShortHelp(attach bool) []key.Binding {
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.HalfUp, k.HalfDown, k.Top, k.Bottom},
-		{k.Next, k.Prev, k.Tools, k.Copy, k.Attach, k.Back},
+		{k.Next, k.Prev, k.Tools, k.Copy, k.Attach, k.Memory, k.Back},
 	}
 }

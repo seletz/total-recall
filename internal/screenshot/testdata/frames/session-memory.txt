@@ -1,0 +1,36 @@
+ total-recall             updated 10:00:00             [1 search] › memory  2 stats   3 activity   4 config   5 memory
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ kompass  memory  claude
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▸ MEMORY.md                                4× │ MEMORY.md
+   conventions.md                           1× │ kompass  claude
+   release-process.md                       3× │ 2026-10-31 22:40
+   ✗ old-notes.md                      deleted │────────────────────────────────────────────────────────────────────────
+                                               │ Memory
+                                               │
+                                               │ • [Release process](release-process.md) — how a kompass release is cut
+                                               │ and published
+                                               │ • [Conventions](conventions.md) — code style and test rules of the
+                                               │ repository
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+ 3 files, 1 deleted
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter history of file • t timeline • b/f scroll text • esc back • 1 search • 2 stats • 3 activity • ? help …

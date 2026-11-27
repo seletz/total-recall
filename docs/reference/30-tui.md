@@ -4,7 +4,7 @@ icon: lucide/keyboard
 ---
 # TUI
 
-`total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap, die erste und letzte Aktivität je Tag und eine Ansicht [Config](#config) mit Status, Einstellungen, Wartungsaktionen und Prüfung der Installation. Die Datenbank wird nur lesend geöffnet; allein die Aktionen der Ansicht Config schreiben, nach Bestätigung und wie die gleichnamigen Befehle.
+`total-recall tui` öffnet das Archiv in einer Vollbild-Oberfläche im Terminal: Volltextsuche mit Vorschau beim Tippen, eine Detailansicht je Session, eine Statistik der Aktivität als Chart, Tabelle und Heatmap, die erste und letzte Aktivität je Tag und eine Ansicht [Memory](#memory) für das archivierte Projekt-Gedächtnis und eine Ansicht [Config](#config) mit Status, Einstellungen, Wartungsaktionen und Prüfung der Installation. Die Datenbank wird nur lesend geöffnet; allein die Aktionen der Ansicht Config schreiben, nach Bestätigung und wie die gleichnamigen Befehle.
 
 !!! note "Herkunft"
     Die TUI ist das Ergebnis eines Spikes und seit v0.2.0 fester Bestandteil von `total-recall`. Entwurf, Abweichungen, Messwerte und die Entscheidung zur Übernahme stehen in [Spike: TUI](../explanation/spike-tui.md). Die Oberfläche ist Englisch wie die übrige CLI-Ausgabe. Die Textbeispiele auf dieser Seite sind erfunden, ebenso die Bilder: Sie zeigen das synthetische Demo-Archiv (`mise run demo:db`), eine erfundene Entwicklerin mit erfundenen Projekten und Sessions von Mai bis Oktober 2026. Erzeugt werden sie mit `mise run docs:screenshots`; wer die TUI ändert, erzeugt sie neu, und `mise run docs:screenshots:check` prüft, ob sie noch stimmen, siehe [Design](../explanation/design.md#technik).
@@ -16,13 +16,14 @@ total-recall tui                          # startet in der Suche
 total-recall tui stats                    # startet in der Statistik
 total-recall tui activity                 # startet in der Aktivität je Tag
 total-recall tui config                   # startet in Status, Einstellungen, Aktionen, Setup
+total-recall tui memory                   # startet in der Liste der Projekte mit Gedächtnis
 total-recall tui --query "goreleaser"     # Suche mit vorbelegtem Suchtext
 total-recall tui stats --graphics text    # Chart als Text, kein Bild
 ```
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` \| `activity` \| `config` | Ansicht beim Start, Default `view` aus `[tui]`, sonst `search` |
+| `search` \| `stats` \| `activity` \| `config` \| `memory` | Ansicht beim Start, Default `view` aus `[tui]`, sonst `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort beim Start |
 | `--graphics auto\|text\|kitty` | Chart-Darstellung in der Statistik, Default `graphics` aus `[tui]`, sonst `auto`; siehe [Grafikmodi](#grafikmodi) |
 | `--no-mouse` | Maus dem Terminal überlassen: kein Mausrad, keine Klicks, dafür Textauswahl durch einfaches Ziehen; siehe [Maus](#maus). Default `mouse` aus `[tui]`; `--no-mouse=false` schaltet die Maus für einen Aufruf wieder ein |
@@ -43,8 +44,8 @@ Die Oberfläche braucht mindestens 80×24 Zeichen; die Bilder auf dieser Seite z
 
 Alle Ansichten teilen denselben Rahmen:
 
-- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity  4 config`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs.
-- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`; `4 config` steht nur in der Hilfe, damit die Zeile bei 100 Spalten passt), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
+- **Kopfzeile:** links der Programmname in einem Farbverlauf, in der Mitte gedämpft der Stand der Daten (`updated 14:03:12`, siehe [Neuladen](#neuladen)), rechts die Ansichten als Tabs. Die aktive steht in eckigen Klammern auf der Akzentfarbe (`[1 search]  2 stats  3 activity  4 config  5 memory`), damit sie auch ohne Farbe erkennbar ist. Ist eine Session geöffnet, hängt ihr Name an der Suche: `[1 search] › session`. Wird es eng, weicht der Stand den Tabs, bei 80 Spalten mit offener Ebene auch der Programmname.
+- **Fußzeile:** die wichtigsten Tasten der aktuellen Ansicht, dann die globalen (`1 search • 2 stats • 3 activity • ? help • q quit`; `4 config` und `5 memory` stehen nur in der Hilfe, damit die Zeile bei 100 Spalten passt), die Tasten in der Akzentfarbe, die Beschreibungen gedämpft. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`, weil alle anderen Tasten in das Feld gehen.
 - **Hilfe:** `?` legt ein Overlay mit allen Tasten der aktuellen Ansicht und den globalen Tasten über den Inhalt, in einem abgerundeten Rahmen in der Akzentfarbe. ++esc++ oder `?` schließt es. Das Overlay wird aus derselben Tastenbelegung erzeugt wie die Fußzeile.
 - **Farben:** alle Ansichten teilen ein Theme, siehe [Farben](#farben).
 - **Maus:** ein Klick auf einen Tab in der Kopfzeile wechselt die Ansicht, das Mausrad blättert im Inhalt; siehe [Maus](#maus).
@@ -95,7 +96,7 @@ Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, kein
 | Maus | Wirkung |
 |---|---|
 | Rad | blättert, was unter dem Zeiger liegt: die Trefferliste (bewegt die Markierung wie ++up++/++down++), die Vorschau, den Verlauf einer Session, die Tage der Aktivität (wie ++up++/++down++ dort: am Rand einen Tag weiter in der Zeit) |
-| Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1`, `2`, `3`, `4`; schließt eine offene Session |
+| Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1` bis `5`; schließt eine offene Session oder den Memory-Viewer |
 | Klick auf einen Tastenhinweis in der Fußzeile | drückt die Taste: `? help` öffnet die Hilfe, `esc back` schließt die Session oder die Hilfe, `q quit` beendet, `T tools on/off` blendet die Tool-Events ein. Bei einem Hinweis mit mehreren Tasten (`d/w/m period`, `↑/↓ scroll`) ist jede Taste einzeln klickbar, die Beschreibung nicht; bei einem Hinweis mit einer Taste der ganze Hinweis. Was die Fußzeile abschneidet (`…`), ist nicht klickbar |
 | Klick außerhalb der Hilfe | schließt sie wie ++esc++; ein Klick in das Fenster tut nichts |
 
@@ -105,6 +106,7 @@ In den Ansichten:
 |---|---|
 | Klick auf einen Treffer | markiert ihn und gibt der Liste den Fokus; ein zweiter Klick auf den markierten Treffer öffnet die Session wie ++enter++ |
 | Klick auf die Vorschau | öffnet den markierten Treffer wie ++enter++, egal ob Eingabe oder Liste den Fokus hat |
+| Klick auf ein Projekt im Reiter memory | markiert es; ein zweiter Klick auf das markierte Projekt öffnet sein Gedächtnis wie ++enter++ |
 | Klick auf eine Datei, Version oder Änderung im Memory-Viewer | markiert sie; ein zweiter Klick auf die markierte Datei oder Änderung öffnet ihren Verlauf wie ++enter++ |
 | Klick auf einen Reiter im Anhang-Viewer | markiert den Anhang wie ++left++/++right++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
@@ -232,10 +234,10 @@ Die Vorschau wählt den Viewer nach dem Typ des markierten Treffers. Alle Viewer
 
 Innerhalb der Suche können zwei Elemente den Fokus haben: die **Eingabe** und die **Trefferliste**. Die Vorschau ist reine Anzeige und folgt der Markierung. Der Repo-Filter ist ein modales Feld, das `r` aus der Liste öffnet; er gehört nicht zur Reihenfolge.
 
-- ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1` bis `4`; ++tab++ ist dafür nicht belegt.
+- ++tab++ und ++shift+tab++ wechseln zwischen Eingabe und Liste, in beide Richtungen, und bleiben dabei in der Suche. Die Ansichten wechseln nur `1` bis `5`; ++tab++ ist dafür nicht belegt.
 - ++esc++ geht eine Ebene zurück: aus dem Repo-Filter in die Liste (die Änderung wird verworfen), aus der Liste in die Eingabe. In der Eingabe tut ++esc++ nichts.
-- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, die Typ-Tasten, `p`, `P`, `q`, `?`, `R` und `1` bis `4` landen im Suchtext und lösen nichts aus.
-- Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1` bis `4`, `R`, `?`, `q`.
+- Hat die **Eingabe** den Fokus, sind alle Tasten Suchtext. Ausnahmen sind nur ++tab++/++shift+tab++ (Fokus), ++enter++ (markierten Treffer öffnen), ++ctrl+r++ (Rohsyntax) und ++ctrl+c++ (beenden). `a`, `t`, `r`, die Typ-Tasten, `p`, `P`, `q`, `?`, `R` und `1` bis `5` landen im Suchtext und lösen nichts aus.
+- Hat die **Liste** den Fokus, gelten ihre Tasten (bewegen, öffnen, Filter) und die globalen Tasten der App: `1` bis `5`, `R`, `?`, `q`.
 - Im **Repo-Filter** übernehmen ++enter++ und ++tab++ den Wert, ++esc++ verwirft ihn; alles andere ist Text.
 - Die **Projektliste** (`P`) ist ebenfalls modal: ++up++/++down++ bewegen, ++enter++ pinnt, ++esc++ bricht ab.
 - Die **Maus** folgt derselben Ordnung: ein Klick auf einen Treffer gibt der Liste den Fokus, ein Klick auf die Eingabezeile der Eingabe; das Rad ändert den Fokus nicht. Solange der Repo-Filter offen ist, tut die Maus nichts.
@@ -267,7 +269,7 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 ## Session
 
-++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern, Markierung und Fokus zurück. `1` bis `4` schließen die Detailansicht ebenfalls.
+++enter++ auf einem Treffer öffnet die Session als Ebene über der Suche. Die Suche bleibt darunter erhalten: ++esc++ führt mit Eingabe, Treffern, Markierung und Fokus zurück. `1` bis `5` schließen die Detailansicht ebenfalls. `M` springt zum [Gedächtnis des Projekts](#memory-aus-session) der Session.
 
 ![Session-Detail mit Treffer, Tool-Aufrufe eingeblendet (`T`)](../assets/screenshots/session.png)
 
@@ -281,7 +283,33 @@ Die Hervorhebung in Vorschau und Detailansicht nimmt die Wörter der Eingabe; in
 
 ## Memory { #memory }
 
-++enter++ auf einem Treffer des Typs `memory` öffnet den **Memory-Viewer** des Projekts, als zweite Ebene neben der Session: Die Suche bleibt darunter erhalten, ++esc++ führt zurück, `1` bis `4` schließen die Ebene. Der Tab in der Kopfzeile zeigt `› memory`. Die Daten kommen aus dem archivierten [Projekt-Gedächtnis](../explanation/design.md#memory), dieselben wie beim Befehl [`memory`](10-befehle.md#memory); gelesen wird nur, geschrieben nichts.
+Das Gedächtnis hat einen **Reiter** in der Kopfzeile (`5 memory`, Taste `5`, `total-recall tui memory`) und einen **Viewer** je Projekt. Auf drei Wegen kommt man in den Viewer: aus dem Reiter, aus einem Treffer der Suche und aus einer Session. Die Daten kommen aus dem archivierten [Projekt-Gedächtnis](../explanation/design.md#memory), dieselben wie beim Befehl [`memory`](10-befehle.md#memory); gelesen wird nur, geschrieben nichts.
+
+### Reiter memory { #memory-reiter }
+
+Der Reiter listet die **Projekte mit Gedächtnis**, nach Name sortiert, mit demselben Namen wie `stats --by project` (Definitionen `[[project]]` zuerst). Je Zeile stehen der Name, der Harness, die Zahl der Dateien (bei gelöschten mit Zusatz, `3 files, 1 deleted`) und der Zeitpunkt der letzten Änderung; die Statuszeile zählt Projekte, Dateien und Versionen. Das ist die Liste, die der Befehl [`memory`](10-befehle.md#memory) je Projekt zusammenfasst.
+
+![Reiter memory: die Projekte mit Gedächtnis, je Projekt Harness, Zahl der Dateien und letzte Änderung; Enter oder ein zweiter Klick öffnet das Gedächtnis](../assets/screenshots/memory-tab.png)
+
+*Reiter memory: die Projekte mit Gedächtnis, je Projekt Harness, Zahl der Dateien und letzte Änderung; Enter oder ein zweiter Klick öffnet das Gedächtnis*
+
+**Bedienung.** Mit der Maus: ein Klick auf `5 memory` in der Kopfzeile öffnet den Reiter, das Rad oder ein Klick auf eine Zeile bewegt die Markierung, ein zweiter Klick auf die markierte Zeile öffnet das Gedächtnis des Projekts. Mit der Tastatur: `5`, ++up++/++down++ (`k`/`j`) oder ++pgup++/++pgdn++, ++enter++ öffnet. Der Viewer liegt als Ebene über dem Reiter, die Kopfzeile zeigt `[5 memory] › kompass`; ++esc++ führt zurück in die Projektliste, die Markierung bleibt.
+
+![Der Memory-Viewer aus dem Reiter: der Kopf nennt das Projekt, esc führt zurück in die Projektliste](../assets/screenshots/memory-tab-viewer.png)
+
+*Der Memory-Viewer aus dem Reiter: der Kopf nennt das Projekt, esc führt zurück in die Projektliste*
+
+### Viewer { #memory-viewer }
+
+Der **Memory-Viewer** eines Projekts ist eine Ebene neben der Session: Wer von einem Treffer des Typs `memory` kommt (++enter++ in der [Suche](#suche)), findet die Suche darunter erhalten, ++esc++ führt zurück, `1` bis `5` schließen die Ebene. Der Tab in der Kopfzeile zeigt dann `› memory`.
+
+### Aus der Session { #memory-aus-session }
+
+`M` im Session-Detail (Hinweis `M memory` in der Fußzeile, mit der Maus klickbar) öffnet das Gedächtnis des **Projekts der Session**: das Git-Repository der Session, sonst ihr Arbeitsverzeichnis, gefunden über dieselbe Projektzuordnung wie die Suche. ++esc++ führt zurück in die Session. Hat das Projekt kein Gedächtnis, bleibt die Session stehen und die Trennlinie sagt `no memory for kompass`; eine Session ohne Verzeichnis meldet `no project for this session`.
+
+![Taste M im Session-Detail: das Gedächtnis des Projekts der Session, esc führt zurück in die Session](../assets/screenshots/session-memory.png)
+
+*Taste M im Session-Detail: das Gedächtnis des Projekts der Session, esc führt zurück in die Session*
 
 ![Memory-Viewer eines Projekts: links die Dateien mit MEMORY.md als Index, die gelöschte Datei zuletzt, rechts der Inhalt als lesbares Markdown](../assets/screenshots/memory.png)
 
@@ -319,7 +347,7 @@ Bilder und Dokumente, die Claude Code in einer Nachricht oder einem Tool-Ergebni
 
 - **Markierung in der Trefferliste:** Ein Event-Treffer mit Anhang trägt hinter der Zeit `▣` und die Zahl der Anhänge (`▣2`); die Vorschau nennt unter dem Text des Events jeden Anhang mit Typ und Größe, die Fußzeile den Hinweis `v view attachments`. Sessions und Treffer ohne Anhänge bleiben unverändert. Eine Nachricht mit Bildern besteht im Archiv aus mehreren Events derselben Transkriptzeile: erst der Text (`[Image #1] …`), dann je ein Event pro Bild oder Dokument. Eine Textsuche trifft meist den Text; damit man von dort zum Bild kommt, trägt auch das Text-Event die Anhänge seiner Nachricht (die der anderen Events derselben Zeile), und `v` öffnet das erste dieser Bilder. Ein `[Image #n]` ohne Blob im Archiv (nicht gespeichert, nicht mitgeliefert) bleibt unmarkiert.
 - **Markierung in der Session:** Die Trennzeile eines Events mit Anhängen endet auf `▣` und der Zahl; die Fußzeile nennt `v` nur in einer Session, die Anhänge hat. Mit ausgeblendeten Tools zählen nur die Events, die zu sehen sind.
-- **Anhang-Viewer:** `v` öffnet ihn als dritte Ebene neben Session und Memory: Er blättert durch **alle Anhänge der Session** in der Reihenfolge des Verlaufs, beginnend beim Anhang des Events, bei dem man war (in der Session: der markierte Event, sonst der erste Event mit Anhang ab der obersten sichtbaren Zeile). Der Tab zeigt `› attachments`, aus der Session `› session › attachments`; ++esc++ führt dorthin zurück, wo man herkam, `1` bis `4` schließen die Ebene. Über dem Inhalt stehen die Reiter der Anhänge (Nummer, Typ, Größe, der markierte in Klammern); ++left++/++right++ oder ein Klick auf einen Reiter wechseln, ++up++/++down++ und ++pgup++/++pgdn++ scrollen, was länger ist als das Fenster.
+- **Anhang-Viewer:** `v` öffnet ihn als dritte Ebene neben Session und Memory: Er blättert durch **alle Anhänge der Session** in der Reihenfolge des Verlaufs, beginnend beim Anhang des Events, bei dem man war (in der Session: der markierte Event, sonst der erste Event mit Anhang ab der obersten sichtbaren Zeile). Der Tab zeigt `› attachments`, aus der Session `› session › attachments`; ++esc++ führt dorthin zurück, wo man herkam, `1` bis `5` schließen die Ebene. Über dem Inhalt stehen die Reiter der Anhänge (Nummer, Typ, Größe, der markierte in Klammern); ++left++/++right++ oder ein Klick auf einen Reiter wechseln, ++up++/++down++ und ++pgup++/++pgdn++ scrollen, was länger ist als das Fenster.
 
 ![Treffer mit Anhang: in der Liste die Markierung ▣ mit der Zahl der Anhänge, in der Vorschau eine Zeile je Anhang, in der Fußzeile die Taste v](../assets/screenshots/search-attachment.png)
 
@@ -598,7 +626,7 @@ Die Standardbelegung ist für ein deutsches Mac-Layout gewählt: Keine Aktion h�
 
 | Taste | Aktion | Wirkung |
 |---|---|---|
-| `1` / `2` / `3` / `4` | `global_search` / `global_stats` / `global_activity` / `global_config` | Suche / Statistik / Aktivität / Config; schließt eine offene Session |
+| `1` / `2` / `3` / `4` / `5` | `global_search` / `global_stats` / `global_activity` / `global_config` / `global_memory` | Suche / Statistik / Aktivität / Config / Memory; schließt eine offene Session oder den Memory-Viewer |
 | ++tab++ / ++shift+tab++ | `search_focus` | Fokus innerhalb der Ansicht wechseln: in der Suche Eingabe ↔ Liste. Wechselt nie die Ansicht |
 | `?` | `global_help` | Hilfe ein/aus |
 | ++esc++ | `global_back` | eine Ebene zurück: Session → Suche, Hilfe schließen, Liste → Eingabe, Repo-Filter abbrechen |
@@ -636,9 +664,12 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `T` | `session_tools` | Tool-Events ein/aus |
 | `y` | `session_copy` | Session-ID kopieren |
 | `v` | `session_attach` | Anhänge der Session ansehen (nur in einer Session mit Anhängen) |
+| `M` | `session_memory` | Gedächtnis des Projekts der Session öffnen |
 | ++esc++ | `global_back` | zurück zur Suche |
 
 ### Memory
+
+Reiter (Liste der Projekte): ++up++ / `k`, ++down++ / `j` (`memory_up`, `memory_down`) und ++pgup++/++pgdn++ (`memory_page_up`, `memory_page_down`) bewegen die Markierung, ++enter++ (`memory_open`) öffnet das Gedächtnis des Projekts. Im Viewer:
 
 | Taste | Aktion | Wirkung |
 |---|---|---|
@@ -648,7 +679,7 @@ Im Repo-Filter: ++enter++ (`search_open`) oder ++tab++ (`search_focus`) übernim
 | `c` | `memory_base` | im Verlauf: die markierte Version als Basis des Diffs merken oder lösen |
 | `t` | `memory_timeline` | Zeitleiste des Projekts |
 | `b` / ++pgup++, `f` / ++pgdn++ / ++space++ | `memory_page_up`, `memory_page_down` | den Text blättern |
-| ++esc++ | `global_back` | eine Seite zurück, von den Dateien zur Suche |
+| ++esc++ | `global_back` | eine Seite zurück, von den Dateien zu dem, woher man kam (Projektliste, Suche oder Session) |
 
 ### Anhänge
 

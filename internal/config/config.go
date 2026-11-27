@@ -375,7 +375,7 @@ func ValidReload(d time.Duration) error {
 
 // Allowed values of the [tui] table.
 var (
-	TUIViews      = []string{"search", "stats", "activity", "config"}
+	TUIViews      = []string{"search", "stats", "activity", "config", "memory"}
 	TUIGraphics   = []string{"auto", "text", "kitty"}
 	TUIImages     = []string{"auto", "text", "kitty"}
 	TUIPeriods    = []string{"day", "week", "month"}

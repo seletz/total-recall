@@ -1,4 +1,4 @@
- total-recall                                           1 search  [2 stats]  3 activity   4 config
+ total-recall                                1 search  [2 stats]  3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -14,11 +14,11 @@
              │ w weeks     a by agent        →/./] later       2 stats       esc back │
              │ m months    v by directory    -     zoom out    3 activity    q   quit │
              │ e metric    h heatmap         +/=   zoom in     4 config      ^c  quit │
-             │                               g     graphics    R reload               │
+             │                               g     graphics    5 memory               │
+             │                                                 R reload               │
              │                                                                        │
              │ esc or ? closes this help                                              │
              ╰────────────────────────────────────────────────────────────────────────╯
-
 
 
 

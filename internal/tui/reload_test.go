@@ -300,7 +300,7 @@ func TestHeaderMigrationPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app.width = tuitest.Width
+	app.width = tuitest.Width + 20 // five tabs leave less room than four
 	h := ansi.Strip(app.header())
 	if !strings.Contains(h, "migration pending: total-recall migrate") || strings.Contains(h, "updated") {
 		t.Errorf("header = %q", h)

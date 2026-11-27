@@ -309,7 +309,23 @@ iris     MEMORY.md                  2026-10-30 11:15  864 B    3
 | `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
 | `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
 
-**In der TUI.** `--timeline` ist die Zeitleiste der [Memory-Ansicht](30-tui.md#memory): in der Suche (`1`) den Typ `memory` mit `m` einschalten (oder in der Linie auf `memory` klicken), einen Treffer des Typs mit ++enter++ öffnen (ein zweiter Klick tut dasselbe), im Viewer `t`. Eine Zeile je Änderung, neueste oben, mit `+` (`added`), `~` (`changed`) oder `✗` (`deleted`), Pfad und Größenänderung (`delta_bytes`); rechts der Diff der markierten Änderung, ++enter++ oder ein zweiter Klick öffnet den Verlauf der Datei. Die TUI zeigt die Zeitleiste je Projekt, die CLI ohne `--project` alle Projekte in einem Aufruf.
+**In der TUI.** Die Liste der Projekte mit Gedächtnis, die der Aufruf ohne Option zeigt, ist der Reiter **`5 memory`** (`total-recall tui memory` startet dort): je Projekt Harness, Zahl der Dateien (und gelöschten) und letzte Änderung; ++enter++ oder ein zweiter Klick öffnet den [Memory-Viewer](30-tui.md#memory) des Projekts, ohne Suche. Aus einer Session führt `M` zum Gedächtnis ihres Projekts. Die Ausgabe von `total-recall memory` gegen das Demo-Archiv:
+
+```text
+PROJECT      FILE                CHANGED           SIZE   VERSIONS
+fahrtenbuch  MEMORY.md           2026-09-09 20:15  101 B  1
+kompass      MEMORY.md           2026-10-31 22:40  177 B  4
+kompass      conventions.md      2026-10-28 09:30  308 B  1
+kompass      release-process.md  2026-10-31 22:35  695 B  3
+wetterwarte  MEMORY.md           2026-10-14 18:05  91 B   1
+wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
+```
+
+![Reiter memory: die drei Projekte des Demo-Archivs mit Harness, Zahl der Dateien und letzter Änderung](../assets/screenshots/memory-tab.png)
+
+*Reiter `5 memory`: die Projekte mit Gedächtnis, wie `total-recall memory` sie zählt*
+
+`--timeline` ist die Zeitleiste der [Memory-Ansicht](30-tui.md#memory): im Reiter `5 memory` ein Projekt mit ++enter++ öffnen (oder in der Suche (`1`) den Typ `memory` mit `m` einschalten, einen Treffer mit ++enter++ öffnen), im Viewer `t`. Eine Zeile je Änderung, neueste oben, mit `+` (`added`), `~` (`changed`) oder `✗` (`deleted`), Pfad und Größenänderung (`delta_bytes`); rechts der Diff der markierten Änderung, ++enter++ oder ein zweiter Klick öffnet den Verlauf der Datei. Die TUI zeigt die Zeitleiste je Projekt, die CLI ohne `--project` alle Projekte in einem Aufruf.
 
 ![Suche mit eingeschaltetem Typ `memory`: die Treffer des Projekt-Gedächtnisses, ++enter++ öffnet den Viewer](../assets/screenshots/search-memory.png)
 
@@ -1020,7 +1036,7 @@ total-recall tui stats --graphics text        # Chart als Text, keine Terminal-A
 
 | Argument / Option | Bedeutung |
 |---|---|
-| `search` \| `stats` \| `activity` \| `config` | Ansicht beim Start, Default `tui.view` aus der Config, sonst `search` |
+| `search` \| `stats` \| `activity` \| `config` \| `memory` | Ansicht beim Start, Default `tui.view` aus der Config, sonst `search` |
 | `--query TEXT` | Suchtext vorbelegen; die Suche läuft sofort |
 | `--graphics auto\|text\|kitty` | Darstellung des Charts in der Statistik. `auto` sondiert das Terminal und zeigt ein Bild nur in Ghostty, kitty und herdr, sonst Text. `text` zeigt immer Blockzeichen und schickt keine Abfrage ans Terminal. `kitty` erzwingt das Bild ohne Sondierung. Default `tui.graphics` aus der Config, sonst `auto` |
 | `--no-mouse` | Maus dem Terminal überlassen (Textauswahl durch Ziehen). Default `tui.mouse` aus der Config; `--no-mouse=false` schaltet die Maus für einen Aufruf ein |

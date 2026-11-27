@@ -1,4 +1,4 @@
- total-recall                updated 10:00:00                [1 search] › attachments  2 stats   3 activity   4 config
+ total-recall          updated 10:00:00           [1 search] › attachments  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Höhenprofil prüfen  attachments
  1 image/png 956 B [2 application/pdf 342 B]

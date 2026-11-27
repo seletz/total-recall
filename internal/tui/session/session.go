@@ -37,6 +37,20 @@ type OpenAttachments struct {
 	Title     string
 }
 
+// OpenMemory is sent by the view when the user asks for the memory of the
+// project of the session (the memory view is above this package, so the app
+// finds the memory project and turns it into that view's Open). Ref is the
+// project of the session as the archive keys it: the git root, else the
+// working directory (Dir).
+type OpenMemory struct {
+	Key, Remote string
+	Dir         bool
+}
+
+// Notice is the answer of the app to OpenMemory when the project has no
+// memory: the view shows Text in its status line.
+type Notice struct{ Text string }
+
 // Back is sent by the view when the user presses esc; the app returns to
 // the previous view.
 type Back struct{}
@@ -170,6 +184,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.load()
 	case loadedMsg:
 		return m.loadedResult(msg)
+	case Notice:
+		m.notice = msg.Text
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case tea.MouseWheelMsg:
@@ -193,6 +209,8 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.SetClipboard(m.session.ID)
 	case key.Matches(msg, m.keys.Attach):
 		return m.attach()
+	case key.Matches(msg, m.keys.Memory):
+		return m.memory()
 	case key.Matches(msg, m.keys.Tools):
 		m.all = !m.all
 		m.refresh.on = false // a reload in flight is superseded
@@ -358,6 +376,20 @@ func (m *Model) setAttached(atts []store.SessionAttachment) {
 		}
 		m.attached[a.EventID] = append(m.attached[a.EventID], a)
 	}
+}
+
+// memory emits OpenMemory for the project of the session; a session
+// without a directory has none and only says so.
+func (m Model) memory() (tea.Model, tea.Cmd) {
+	o := OpenMemory{Key: m.session.GitRoot, Remote: m.session.GitRemoteURL}
+	if o.Key == "" {
+		o.Key, o.Remote, o.Dir = m.session.Cwd, "", true
+	}
+	if o.Key == "" {
+		m.notice = "no project for this session"
+		return m, nil
+	}
+	return m, func() tea.Msg { return o }
 }
 
 // attach emits OpenAttachments for the attachments of the session, marked at

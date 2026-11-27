@@ -1,4 +1,4 @@
- total-recall                  updated 10:00:00                   [1 search] › memory  2 stats   3 activity   4 config
+ total-recall             updated 10:00:00             [1 search] › memory  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  kompass  history of release-process.md  · diff
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -164,6 +164,15 @@ func New(ld Loader, loc *time.Location, km keys.Map) Model {
 // Title implements tui.View.
 func (Model) Title() string { return "memory" }
 
+// Crumb names what the view shows in the header: the project, else the
+// title.
+func (m Model) Crumb() string {
+	if m.open.Project != "" {
+		return m.open.Project
+	}
+	return m.Title()
+}
+
 // Init implements tea.Model.
 func (Model) Init() tea.Cmd { return nil }
 

@@ -133,11 +133,15 @@ Dasselbe geht interaktiv:
 total-recall tui
 ```
 
-Tippe `goreleaser`. Die Trefferliste füllt sich beim Tippen, rechts steht der Austausch um den markierten Treffer. ++tab++ wechselt in die Liste, ++up++ und ++down++ bewegen die Markierung, ++enter++ öffnet die Session, ++esc++ führt zurück. `2` zeigt die Statistik der Aktivität, `3` die erste und letzte Aktivität je Tag, `4` den Zustand des Archivs und die Einstellungen, `?` alle Tasten, `q` beendet.
+Tippe `goreleaser`. Die Trefferliste füllt sich beim Tippen, rechts steht der Austausch um den markierten Treffer. ++tab++ wechselt in die Liste, ++up++ und ++down++ bewegen die Markierung, ++enter++ öffnet die Session, ++esc++ führt zurück. `2` zeigt die Statistik der Aktivität, `3` die erste und letzte Aktivität je Tag, `4` den Zustand des Archivs und die Einstellungen, `5` das Gedächtnis der Projekte (Enter öffnet ein Projekt, die Taste `M` in einer Session springt zum Gedächtnis ihres Projekts), `?` alle Tasten, `q` beendet.
 
 Unter der Eingabe steht die **Typ-Zeile**: `event` ist alles, `input` nur deine Eingaben, `answer` die Antworten des Agenten, dazu Tool-Aufrufe, Tool-Ergebnisse, Bilder, Dokumente, Dateien, Sessions und Gedächtnis. Ein Klick auf einen Namen schaltet den Typ ein oder aus; die Taste steht davor (`u` für `input`, nach ++tab++).
 
 ![Die Typ-Zeile der Suche: jeder Typ mit seiner Taste, ausgewählte in Klammern](../assets/screenshots/search-types-all.png)
+
+Das Gedächtnis hat einen eigenen Reiter, `5 memory`: die Projekte, zu denen der Agent sich Notizen gemacht hat, mit der Zahl der Dateien.
+
+![Der Reiter memory: die Projekte mit Gedächtnis](../assets/screenshots/memory-tab.png)
 
 Damit hast du das Archiv einmal von vorn bis hinten gesehen: Es füllt sich ab jetzt von selbst.
 
