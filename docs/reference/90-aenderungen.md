@@ -23,6 +23,7 @@ Meilenstein v1.10.0: Die Suche kennt feinere Objekttypen (CLI, TUI, MCP), das Pr
 
 ### Behoben
 
+- **Actor-Filter der TUI bei Typen mit festem Actor** ([#373](https://github.com/seletz/total-recall/issues/373)): Die TUI übergeht den Filter bei `input`, `answer`, `tool_call`, `tool_result` und `file` weiterhin (die CLI meldet dort einen `usage`-Fehler), sagt es aber jetzt: Die Eingabezeile zeigt `actor: agent (not input)`; dasselbe gilt für `attach:` und `raw`, wo ein gewählter Typ sie nicht anwendet. Neuer Screenshot: `search-actor-ignored`.
 - **Screenshots:** Das Kreuz bei gelöschten Dateien (`✗`), das `✕` des Pins und das `▣` der Anhänge fehlten im Font der Screenshots und erschienen als Kästchen. Der Renderer zeichnet sie jetzt selbst; ein Test prüft, dass jedes Zeichen jedes Bildes entweder gezeichnet wird oder im Font steht.
 
 ### Geändert

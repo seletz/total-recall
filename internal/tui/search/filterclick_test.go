@@ -61,3 +61,39 @@ func TestFilterSegments(t *testing.T) {
 		t.Errorf("label = %q", got)
 	}
 }
+
+// TestIgnoredFilterIsShown: a filter that a selected type does not apply
+// is never dropped silently: the label names the types that ignore it
+// (#373). Where every selected type applies it, the label is unchanged.
+func TestIgnoredFilterIsShown(t *testing.T) {
+	tests := []struct {
+		name  string
+		keys  []string
+		want  string
+		other string
+	}{
+		{"event only", []string{"tab", "a", "a"}, "actor: agent", "(not"},
+		{"input", []string{"tab", "a", "a", "u"}, "actor: agent (not input)", ""},
+		{"several", []string{"tab", "a", "a", "u", "g", "c"}, "actor: agent (not input, answer, tool_call)", ""},
+		{"file ignores actor too", []string{"tab", "a", "f"}, "actor: human (not file)", ""},
+		{"all actors", []string{"tab", "u"}, "actor: all", "(not"},
+		{"raw on session", []string{"tab", "s", "ctrl+r"}, "raw (not session)", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := drive(t, demoModel(t, demo.Query), keysOf(tt.keys...)...)
+			line := ansi.Strip(m.inputLine())
+			if !strings.Contains(line, tt.want) {
+				t.Errorf("line %q lacks %q", line, tt.want)
+			}
+			if tt.other != "" && strings.Contains(line, tt.other) {
+				t.Errorf("line %q has %q", line, tt.other)
+			}
+		})
+	}
+	// The click targets follow the longer label.
+	m := drive(t, demoModel(t, demo.Query), keysOf("tab", "a", "u")...)
+	if got := m.filterAt(filterX(t, m, "since:")); got != "since" {
+		t.Errorf("click on since lands on %q", got)
+	}
+}

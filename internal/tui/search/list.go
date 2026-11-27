@@ -118,7 +118,7 @@ func (m Model) View() tea.View {
 // inputLine is the search input with the filter label right-aligned.
 func (m Model) inputLine() string {
 	left := " " + m.input.View()
-	label := m.th.Muted.Render(m.filters.label())
+	label := m.th.Muted.Render(m.filterLabel())
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(label)-1, 1)
 	return ansi.Truncate(left+strings.Repeat(" ", gap)+label+" ", m.width, "")
 }
@@ -127,10 +127,10 @@ func (m Model) inputLine() string {
 // "" for none. It follows inputLine: the label is right-aligned.
 func (m Model) filterAt(x int) string {
 	left := " " + m.input.View()
-	label := m.filters.label()
+	label := m.filterLabel()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(label)-1, 1)
 	col := lipgloss.Width(left) + gap
-	for _, s := range m.filters.segments() {
+	for _, s := range m.filterSegments() {
 		w := lipgloss.Width(s.text)
 		if x >= col && x < col+w && x < m.width {
 			return s.kind

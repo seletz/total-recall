@@ -315,7 +315,7 @@ func (m Model) clickFilter(kind string) (tea.Model, tea.Cmd) {
 // resizeInputs fits the search input beside the filter label and the repo
 // input into the status line.
 func (m *Model) resizeInputs() {
-	label := len([]rune(m.filters.label()))
+	label := len([]rune(m.filterLabel()))
 	m.input.SetWidth(max(m.width-len(m.input.Prompt)-label-4, 1))
 	m.repoIn.SetWidth(max(m.width-len(m.repoIn.Prompt)-2, 1))
 }

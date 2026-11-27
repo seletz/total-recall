@@ -117,3 +117,45 @@ func terms(query string, raw bool) []string {
 	}
 	return out
 }
+
+// filterNames maps the kind of a label segment to the filter of the store
+// that the types may not apply.
+var filterNames = map[string]string{"actor": store.FilterActor, "attach": store.FilterAttachment, "raw": store.FilterRaw}
+
+// filterSegments are the segments of the label with a note on every active
+// filter that a selected type does not apply: "actor: agent (not input)".
+// A filter is never dropped without a word (#373).
+func (m Model) filterSegments() []segment {
+	segs := m.filters.segments()
+	for i, s := range segs {
+		name, ok := filterNames[s.kind]
+		if !ok || (s.kind == "actor" && m.filters.actor == 0) {
+			continue
+		}
+		var ignored []string
+		for _, t := range m.types {
+			if t == store.TypeImage || t == store.TypeDocument {
+				if s.kind == "attach" {
+					continue // they are the attachment filter themselves
+				}
+			}
+			if !store.Supports(t, name) {
+				ignored = append(ignored, string(t))
+			}
+		}
+		if len(ignored) > 0 {
+			segs[i].text += " (not " + strings.Join(ignored, ", ") + ")"
+		}
+	}
+	return segs
+}
+
+// filterLabel is the label of the input line.
+func (m Model) filterLabel() string {
+	segs := m.filterSegments()
+	texts := make([]string, len(segs))
+	for i, s := range segs {
+		texts[i] = s.text
+	}
+	return strings.Join(texts, "  ")
+}

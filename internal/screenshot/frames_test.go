@@ -93,6 +93,7 @@ func TestRenderAll(t *testing.T) {
 		"session-attachment":       {"› session", "Höhenprofil prüfen", "▣1", "v view attachments"},
 		"stats":                    {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
 		"stats-metric":             {"[2 stats]", "period: [day] week month", "heatmap", "▎", "events", "human", "sessions"},
+		"search-actor-ignored":     {"[1 search]", "actor: agent (not input)", "[u input]"},
 		"search-filter":            {"[1 search]", "actor: human  since: 7d  repo: *", "[e event]"},
 		"heatmap":                  {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
 		"activity-week":            {"[3 activity]", "period: day [week] month", "week:", "Thu 2026-06-04", "Fronleichnam", "00:45 (+1)", "count: all [human]"},
