@@ -1,0 +1,11 @@
+# Spike #349: the "middle way". The models are plain SQL in a small subset
+# of dbt syntax ({{ config(...) }}, {{ source('tr', 'x') }}, {{ var('tz') }});
+# dbt builds them in PostgreSQL, total-recall renders the same files itself
+# and runs them in SQLite (internal/analytics/dbtlite.go). One model here.
+name: total_recall_analytics
+version: "0.1.0"
+config-version: 2
+profile: total_recall_analytics
+model-paths: ["models"]
+vars:
+  tz: Europe/Berlin

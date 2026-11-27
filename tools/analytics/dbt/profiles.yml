@@ -1,0 +1,13 @@
+# Throwaway container only (scripts/analytics-pg.sh), never a real database.
+total_recall_analytics:
+  target: spike
+  outputs:
+    spike:
+      type: postgres
+      host: 127.0.0.1
+      port: 55449
+      user: postgres
+      password: spike
+      dbname: postgres
+      schema: analytics_dbt
+      threads: 2

@@ -1,0 +1,31 @@
+version: 2
+models:
+  - name: daily
+    config:
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [day_local, host, project]
+    columns:
+      - name: day_local
+        data_type: text
+        constraints: [{type: not_null}]
+      - name: host
+        data_type: text
+        data_tests: [{accepted_values: {arguments: {values: ['host-a', 'host-b']}}}]
+      - name: project
+        data_type: text
+        data_tests: [not_null]
+      - name: sessions
+        data_type: bigint
+      - name: human_prompts
+        data_type: bigint
+      - name: agent_events
+        data_type: bigint
+      - name: tool_calls
+        data_type: bigint
+      - name: tokens_in
+        data_type: numeric
+      - name: tokens_out
+        data_type: numeric

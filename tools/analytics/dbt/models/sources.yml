@@ -1,0 +1,11 @@
+version: 2
+sources:
+  - name: tr
+    schema: tr
+    tables:
+      - name: fact_event
+      - name: bridge_time_slot
+      - name: dim_host
+      - name: dim_project
+      - name: dim_actor
+      - name: dim_event_type
