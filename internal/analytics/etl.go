@@ -48,7 +48,8 @@ type Options struct {
 	// Accounts names a login: name and group (config [[account]]); nil
 	// leaves both empty.
 	Accounts func(account, organization string) (name, group string)
-	// Full reloads all facts instead of the events above the watermark.
+	// Full reloads all facts of this source instead of the events above
+	// the watermark.
 	Full bool
 	// Now is the clock for the batch record; default time.Now.
 	Now func() time.Time
@@ -132,8 +133,13 @@ func run(ctx context.Context, tx *sql.Tx, o Options) (Report, error) {
 	}
 	if o.Full || !last.Valid {
 		r.Mode = "full"
-		for _, s := range []string{"DELETE FROM fact_event", "DELETE FROM fact_session"} {
-			if _, err := tx.ExecContext(ctx, s); err != nil {
+		// Only the facts this source loaded: several archives (hosts) may
+		// feed one target, each with its own watermark.
+		for _, s := range []string{
+			"DELETE FROM fact_session WHERE session_key IN (SELECT session_key FROM fact_event WHERE batch_id IN (SELECT batch_id FROM etl_batch WHERE source = ?))",
+			"DELETE FROM fact_event WHERE batch_id IN (SELECT batch_id FROM etl_batch WHERE source = ?)",
+		} {
+			if _, err := tx.ExecContext(ctx, s, o.Source); err != nil {
 				return r, fmt.Errorf("analytics: %s: %w", s, err)
 			}
 		}
