@@ -8,7 +8,7 @@ Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Lis
 
 ## v1.10.0 (unveröffentlicht)
 
-Meilenstein v1.10.0: Die Suche und das Gedächtnis werden in der TUI und in der CLI gezielter erreichbar.
+Meilenstein v1.10.0: Die Suche kennt feinere Objekttypen (CLI, TUI, MCP), das Projekt-Gedächtnis hat in der TUI einen eigenen Reiter, und alles Wichtige in der TUI ist sichtbar und mit der Maus bedienbar. Es gibt keinen Schema-Wechsel und keine Migration; die Befehle gewinnen nur Optionen und Felder.
 
 ### Hinzugefügt
 
@@ -29,6 +29,7 @@ Meilenstein v1.10.0: Die Suche und das Gedächtnis werden in der TUI und in der 
 
 - **Tasten der Suche:** Neue Aktionen `search_type_input`, `search_type_answer`, `search_type_tool_call`, `search_type_tool_result`, `search_type_image`, `search_type_document` und `search_type_file` (Standard `u`, `g`, `c`, `o`, `I`, `D`, `f`). Die Typ-Zeile ist eine eigene Zeile unter der Eingabe (vorher teilte sie sich die Linie mit dem Projekt-Pin), die Trefferliste ist dadurch eine Zeile kürzer. Die Beschreibungen der Typ-Tasten in der Hilfe sind kürzer (`events` statt `events on/off`).
 - **Der Typ `file`** ist nicht mehr reserviert, sondern durchsuchbar; `--type file` war bis v1.9 ein `usage`-Fehler.
+- **Die TUI hat fünf Ansichten:** `total-recall tui memory` und `tui.view = "memory"` sind neu gültig; die Hilfe (`?`) und die Tastenbelegung (`[keys]`) kennen `global_memory` (`5`) und `session_memory` (`M`). Die Beschreibungen mehrerer Tasten in Fußzeile und Hilfe sind kürzer (`tools` statt `tools on/off`, `copy id` statt `copy session id`, `diff`, `compare`, `open externally`, `open day`); die Aktionsnamen und Standardtasten bleiben.
 
 ## v1.9.1
 

@@ -292,10 +292,33 @@ total-recall blob 5e0c9a41d2b7                     # Inhalt einer Fassung
 ```
 
 ```text
-PROJECT  FILE                       CHANGED           SIZE     VERSIONS
-kompass  MEMORY.md                  2026-10-28 16:02  1.2 KiB  7
-kompass  trail-markers.md           2026-10-12 09:40  412 B    1
-iris     MEMORY.md                  2026-10-30 11:15  864 B    3
+PROJECT      FILE                CHANGED           SIZE   VERSIONS
+fahrtenbuch  MEMORY.md           2026-09-09 20:15  101 B  1
+kompass      MEMORY.md           2026-10-31 22:40  177 B  4
+kompass      conventions.md      2026-10-28 09:30  308 B  1
+kompass      release-process.md  2026-10-31 22:35  695 B  3
+wetterwarte  MEMORY.md           2026-10-14 18:05  91 B   1
+wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
+```
+
+Die Zeitleiste und der Verlauf einer Datei (Demo-Archiv):
+
+```sh
+total-recall memory --timeline | head -5
+total-recall memory --history MEMORY.md --project kompass
+```
+
+```text
+CHANGED           KIND     PROJECT      FILE                BYTES
+2026-10-31 22:40  changed  kompass      MEMORY.md           +47
+2026-10-31 22:35  changed  kompass      release-process.md  +333
+2026-10-28 10:00  deleted  kompass      old-notes.md        -195
+2026-10-28 09:35  changed  kompass      MEMORY.md           -10
+CHANGED           OBSERVED          SIZE   SHA256        PROJECT  FILE
+2026-10-12 21:50  2026-10-12 22:00  68 B   14d4af6cd6e4  kompass  MEMORY.md
+2026-10-15 17:58  2026-10-15 18:00  140 B  41a759c47d98  kompass  MEMORY.md
+2026-10-28 09:35  2026-10-28 10:00  130 B  25659949b520  kompass  MEMORY.md
+2026-10-31 22:40  2026-11-02 10:00  177 B  91a028d70acc  kompass  MEMORY.md
 ```
 
 | Option | Bedeutung |
@@ -480,7 +503,7 @@ total-recall search smoothed --type file
 
 ```text
 file  2026-10-28 09:09  /home/mara/src/kompass/route/elevation.go  Höhenprofil prüfen  claude:7d1e4c20-0010-4000-8000-000000000010
-    package route // Climb sums up the ascent of a [smoothed] profile in meters: the raw // altitude of the last segment jumps, so the series is [smoothed] first. func Cl…
+    package route // Climb sums up the ascent of a [smoothed] profile in meters: the raw // altitude of the last segment jumps, so the series is [smoothed] first. func Climb(p…
 ```
 
 `file` hat keinen eigenen Index: Die Kopien der Sessions, auf die die Filter passen, werden gelesen und Wort für Wort verglichen. Gefunden werden nur Textdateien; Binärdateien haben keinen durchsuchbaren Text. Den ganzen Inhalt einer Kopie gibt `blob SHA256` aus.
