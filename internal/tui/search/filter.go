@@ -36,8 +36,15 @@ type filters struct {
 	raw    bool   // FTS5 syntax passed through
 }
 
-// label is the text shown at the right end of the input line.
-func (f filters) label() string {
+// segment is one filter of the label: its kind (actor, since, repo, attach,
+// raw) and its text.
+type segment struct {
+	kind, text string
+}
+
+// segments are the parts of the label, in order; the attachment filter and
+// raw show only while they are on.
+func (f filters) segments() []segment {
 	actor, repo := actors[f.actor], f.repo
 	if actor == "" {
 		actor = "all"
@@ -45,14 +52,24 @@ func (f filters) label() string {
 	if repo == "" {
 		repo = "*"
 	}
-	s := "actor: " + actor + "  since: " + spans[f.span].label + "  repo: " + repo
+	out := []segment{{"actor", "actor: " + actor}, {"since", "since: " + spans[f.span].label}, {"repo", "repo: " + repo}}
 	if k := attachKinds[f.attach]; k != "" {
-		s += "  attach: " + k
+		out = append(out, segment{"attach", "attach: " + k})
 	}
 	if f.raw {
-		s += "  raw"
+		out = append(out, segment{"raw", "raw"})
 	}
-	return s
+	return out
+}
+
+// label is the text shown at the right end of the input line.
+func (f filters) label() string {
+	segs := f.segments()
+	texts := make([]string, len(segs))
+	for i, s := range segs {
+		texts[i] = s.text
+	}
+	return strings.Join(texts, "  ")
 }
 
 // attachment returns the attachment filter for the store, nil when it is

@@ -778,10 +778,23 @@ func (a App) statusText() string {
 // tabs renders the view tabs of the header: the number of an inactive tab
 // in the accent, the active tab in brackets on the accent background.
 func (a App) tabs() []string {
+	full := a.tabsFor(false)
+	if a.width > 0 && lipgloss.Width(strings.Join(full, " "))+1 >= a.width {
+		return a.tabsFor(true)
+	}
+	return full
+}
+
+// tabsFor renders the tabs; short leaves the names off the inactive ones
+// (" 2 "), for a window too narrow for them beside a layer name.
+func (a App) tabsFor(short bool) []string {
 	tabs := make([]string, len(a.views))
 	for i, v := range a.views {
 		if i != a.active {
 			tabs[i] = " " + a.th.Mark.Render(itoa(i+1)) + " " + v.Title() + " "
+			if short {
+				tabs[i] = " " + a.th.Mark.Render(itoa(i+1)) + " "
+			}
 			continue
 		}
 		t := a.th.Active.Render("[" + itoa(i+1) + " " + v.Title() + "]")

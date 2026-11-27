@@ -642,7 +642,7 @@ func TestAttachmentView(t *testing.T) {
 		{"from the session", "image", []string{"tab", "enter", "v"}, []string{"› session › attachments", "png 96×48"}, nil},
 		{"back to the session", "image", []string{"tab", "enter", "v", "esc"}, []string{"› session", "Höhenprofil prüfen"}, []string{"› attachments"}},
 		{"number key leaves", "image", []string{"tab", "v", "2"}, []string{"[2 stats]"}, []string{"› attachments"}},
-		{"help", "image", []string{"tab", "v", "?"}, []string{"keys: attachments", "open with the system viewer"}, nil},
+		{"help", "image", []string{"tab", "v", "?"}, []string{"keys: attachments", "open externally"}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

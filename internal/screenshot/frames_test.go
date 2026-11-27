@@ -92,6 +92,8 @@ func TestRenderAll(t *testing.T) {
 		"attachment-narrow":        {"› attachments", "png 96×48", "total-recall blob"},
 		"session-attachment":       {"› session", "Höhenprofil prüfen", "▣1", "v view attachments"},
 		"stats":                    {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
+		"stats-metric":             {"[2 stats]", "period: [day] week month", "heatmap", "▎", "events", "human", "sessions"},
+		"search-filter":            {"[1 search]", "actor: human  since: 7d  repo: *", "[e event]"},
 		"heatmap":                  {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},
 		"activity-week":            {"[3 activity]", "period: day [week] month", "week:", "Thu 2026-06-04", "Fronleichnam", "00:45 (+1)", "count: all [human]"},
 		"activity-month":           {"[3 activity]", "period: day week [month]", "month:", "2026-06", "Fronleichnam"},

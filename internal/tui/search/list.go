@@ -123,6 +123,23 @@ func (m Model) inputLine() string {
 	return ansi.Truncate(left+strings.Repeat(" ", gap)+label+" ", m.width, "")
 }
 
+// filterAt returns the kind of the filter under column x of the input line,
+// "" for none. It follows inputLine: the label is right-aligned.
+func (m Model) filterAt(x int) string {
+	left := " " + m.input.View()
+	label := m.filters.label()
+	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(label)-1, 1)
+	col := lipgloss.Width(left) + gap
+	for _, s := range m.filters.segments() {
+		w := lipgloss.Width(s.text)
+		if x >= col && x < col+w && x < m.width {
+			return s.kind
+		}
+		col += w + 2
+	}
+	return ""
+}
+
 // columns splits the width into the list and the preview column, minus the
 // separator.
 func (m Model) columns() (left, right int) {

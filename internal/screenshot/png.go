@@ -178,6 +178,22 @@ func shape(img *image.RGBA, r image.Rectangle, ch rune, fg color.Color) bool {
 	case '▚':
 		fill(img, image.Rect(r.Min.X, r.Min.Y, cx, cy), fg)
 		fill(img, image.Rect(cx, cy, r.Max.X, r.Max.Y), fg)
+	case '✗', '✕':
+		// A cross the font lacks: two diagonals through the middle of the cell.
+		half := w / 3
+		for i := -half; i <= half; i++ {
+			y := cy + i*(h/3)/max(half, 1)
+			fill(img, image.Rect(cx+i-stroke/2, y-stroke/2, cx+i+stroke/2+1, y+stroke/2+1), fg)
+			fill(img, image.Rect(cx-i-stroke/2, y-stroke/2, cx-i+stroke/2+1, y+stroke/2+1), fg)
+		}
+	case '▣':
+		// A frame with a filled square inside.
+		o, in := w/4, w/4+w/6
+		fill(img, image.Rect(cx-o, cy-o, cx+o, cy-o+stroke), fg)
+		fill(img, image.Rect(cx-o, cy+o-stroke, cx+o, cy+o), fg)
+		fill(img, image.Rect(cx-o, cy-o, cx-o+stroke, cy+o), fg)
+		fill(img, image.Rect(cx+o-stroke, cy-o, cx+o, cy+o), fg)
+		fill(img, image.Rect(cx-o+in/2, cy-o+in/2, cx+o-in/2, cy+o-in/2), fg)
 	case '▪':
 		fill(img, image.Rect(cx-w/4, cy-w/4, cx+w/4, cy+w/4), fg)
 	case '─':

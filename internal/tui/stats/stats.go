@@ -287,8 +287,17 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // period, a dimension name the dimension, exactly like their keys. Clicks
 // elsewhere do nothing, so do clicks without a database.
 func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
-	if msg.Button != tea.MouseLeft || msg.Y != 0 || m.opts.Loader == nil {
+	if msg.Button != tea.MouseLeft || m.opts.Loader == nil {
 		return m, nil
+	}
+	if msg.Y == 1 {
+		return m.clickTile(msg.X)
+	}
+	if msg.Y != 0 {
+		return m, nil
+	}
+	if sp := m.heatSpan(); msg.X >= sp.Start && msg.X < sp.End {
+		return m.toggleHeatmap()
 	}
 	_, periods, dims := m.switches()
 	if i := zone.At(periods, msg.X); i >= 0 {
@@ -617,7 +626,12 @@ func (m Model) switches() (string, []zone.Span, []zone.Span) {
 	periods, pSpans := zone.Toggles(m.th.Active, periodNames, slices.Index(periodValues, m.window.Period), lipgloss.Width(left))
 	left += periods + "  by: "
 	dims, dSpans := zone.Toggles(m.th.Active, dimensionNames, slices.Index(dimensionValues, m.dim), lipgloss.Width(left))
-	left += dims
+	left += dims + "  "
+	heat := "heatmap"
+	if m.heat.on {
+		heat = m.th.Active.Render("[heatmap]")
+	}
+	left += heat
 	right := m.window.String()
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	line := left + strings.Repeat(" ", gap) + right
@@ -626,6 +640,25 @@ func (m Model) switches() (string, []zone.Span, []zone.Span) {
 		pSpans, dSpans = zone.Clip(pSpans, max(m.width-1, 0)), zone.Clip(dSpans, max(m.width-1, 0))
 	}
 	return line, pSpans, dSpans
+}
+
+// heatSpan is the columns of the heatmap toggle on the switches line,
+// clipped like the line.
+func (m Model) heatSpan() zone.Span {
+	left := " period: "
+	periods, _ := zone.Toggles(m.th.Active, periodNames, slices.Index(periodValues, m.window.Period), lipgloss.Width(left))
+	left += periods + "  by: "
+	dims, _ := zone.Toggles(m.th.Active, dimensionNames, slices.Index(dimensionValues, m.dim), lipgloss.Width(left))
+	start := lipgloss.Width(left + dims + "  ")
+	w := len("heatmap")
+	if m.heat.on {
+		w += 2
+	}
+	sp := zone.Span{Start: start, End: start + w}
+	if start+w > m.width {
+		sp = sp.Clip(max(m.width-1, 0))
+	}
+	return sp
 }
 
 // tiles is the row of key figures of the window above the chart: the
@@ -637,7 +670,66 @@ func (m Model) tiles() string {
 	if !m.loaded {
 		return ""
 	}
-	human, agent, active := 0, 0, 0
+	human, agent, active := m.tileFigures()
+	parts := m.tileParts(human, agent, active)
+	texts := make([]string, len(parts))
+	for i, p := range parts {
+		texts[i] = p.text
+	}
+	return ansi.Truncate(" "+strings.Join(texts, "  "), m.width, "…")
+}
+
+// tilePart is one figure of the tiles row; metric is the chart metric a
+// click on it selects, -1 for a tile that is no metric.
+type tilePart struct {
+	text   string
+	metric chart.Metric
+}
+
+// tileParts lays out the tiles. The events, human and sessions tiles are
+// the metrics of the chart: the one in use has its label in the accent.
+func (m Model) tileParts(human, agent, active int) []tilePart {
+	tile := func(st lipgloss.Style, figure, label string, metric chart.Metric) tilePart {
+		lst := m.th.Muted
+		if metric >= 0 && metric == m.metric {
+			lst = m.th.AccentText.Bold(true)
+		}
+		return tilePart{text: m.th.AccentText.Render("▎") + st.Render(figure) + " " + lst.Render(label), metric: metric}
+	}
+	return []tilePart{
+		tile(m.th.Figure, group(human+agent), "events", chart.MetricEvents),
+		tile(m.th.Actor(model.ActorHuman), group(human), "human", chart.MetricHuman),
+		tile(m.th.Actor(model.ActorAgent), group(agent), "agent", -1),
+		tile(m.th.Figure, group(m.series.Sessions), "sessions", chart.MetricSessions),
+		tile(m.th.Figure, fmt.Sprintf("%d/%d", active, len(m.series.Buckets)), m.window.Period.String()+"s active", -1),
+	}
+}
+
+// clickTile selects the metric of the tile at column x of the tiles row;
+// the other tiles do nothing.
+func (m Model) clickTile(x int) (tea.Model, tea.Cmd) {
+	if !m.loaded || m.layout().tiles == 0 {
+		return m, nil
+	}
+	human, agent, active := m.tileFigures()
+	col := 1
+	for _, p := range m.tileParts(human, agent, active) {
+		w := lipgloss.Width(p.text)
+		if x >= col && x < col+w && x < m.width-1 {
+			if p.metric < 0 || p.metric == m.metric {
+				return m, nil
+			}
+			m.metric = p.metric
+			return m, m.rebuild()
+		}
+		col += w + 2
+	}
+	return m, nil
+}
+
+// tileFigures sums the human and agent events and counts the periods with
+// activity of the loaded series.
+func (m Model) tileFigures() (human, agent, active int) {
 	for _, b := range m.series.Buckets {
 		sum := 0
 		for _, c := range b.Cells {
@@ -649,17 +741,7 @@ func (m Model) tiles() string {
 			active++
 		}
 	}
-	tile := func(st lipgloss.Style, figure, label string) string {
-		return m.th.AccentText.Render("▎") + st.Render(figure) + " " + m.th.Muted.Render(label)
-	}
-	parts := []string{
-		tile(m.th.Figure, group(human+agent), "events"),
-		tile(m.th.Actor(model.ActorHuman), group(human), "human"),
-		tile(m.th.Actor(model.ActorAgent), group(agent), "agent"),
-		tile(m.th.Figure, group(m.series.Sessions), "sessions"),
-		tile(m.th.Figure, fmt.Sprintf("%d/%d", active, len(m.series.Buckets)), m.window.Period.String()+"s active"),
-	}
-	return ansi.Truncate(" "+strings.Join(parts, "  "), m.width, "…")
+	return human, agent, active
 }
 
 // chartView is the chart area: the container's view, or the hint while

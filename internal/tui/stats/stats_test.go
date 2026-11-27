@@ -273,7 +273,7 @@ func TestStaleHeatmap(t *testing.T) {
 	if cmd != nil {
 		t.Error("switching the heatmap off started a command")
 	}
-	if f := tuitest.Frame(m); strings.Contains(f, "heatmap") {
+	if f := tuitest.Frame(m); strings.Contains(f, "weekday × hour") || strings.Contains(f, "[heatmap]") {
 		t.Errorf("heatmap still shown after h:\n%s", f)
 	}
 }
@@ -630,5 +630,47 @@ func TestSetKeys(t *testing.T) {
 	}
 	if h := m.keys.Period.Help(); h.Key != "d/W/m" {
 		t.Errorf("period group help = %q", h.Key)
+	}
+}
+
+// TestClickMetricAndHeatmap: the figures of the tiles row choose the
+// metric of the chart like e, the heatmap name on the switches line
+// toggles the heatmap like h; the tile of the metric in use is marked.
+func TestClickMetricAndHeatmap(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := drive(t, newModel(t, st))
+	tile := func(m Model, label string) int {
+		t.Helper()
+		line := strings.Split(ansi.Strip(m.View().Content), "\n")[1]
+		x := strings.Index(line, label)
+		if x < 0 {
+			t.Fatalf("tiles %q lack %q", line, label)
+		}
+		return ansi.StringWidth(line[:x])
+	}
+	for _, tt := range []struct {
+		label  string
+		metric chart.Metric
+	}{{"human", chart.MetricHuman}, {"sessions", chart.MetricSessions}, {"events", chart.MetricEvents}} {
+		m = tuitest.Send(t, m, tea.MouseClickMsg{X: tile(m, tt.label), Y: 1, Button: tea.MouseLeft}).(Model)
+		if m.metric != tt.metric {
+			t.Errorf("click on %q: metric = %v, want %v", tt.label, m.metric, tt.metric)
+		}
+	}
+	// "agent" has no metric of its own: a click does nothing.
+	m = tuitest.Send(t, m, tea.MouseClickMsg{X: tile(m, "agent"), Y: 1, Button: tea.MouseLeft}).(Model)
+	if m.metric != chart.MetricEvents {
+		t.Errorf("click on agent changed the metric to %v", m.metric)
+	}
+	m = tuitest.Send(t, m, tea.MouseClickMsg{X: switchX(t, m, "heatmap"), Y: 0, Button: tea.MouseLeft}).(Model)
+	if !m.heat.on {
+		t.Error("click on heatmap did not switch it on")
+	}
+	if line, _, _ := m.switches(); !strings.Contains(ansi.Strip(line), "[heatmap]") {
+		t.Errorf("heatmap on, switches %q", ansi.Strip(line))
+	}
+	m = tuitest.Send(t, m, tea.MouseClickMsg{X: switchX(t, m, "[heatmap]"), Y: 0, Button: tea.MouseLeft}).(Model)
+	if m.heat.on {
+		t.Error("second click did not switch it off")
 	}
 }
