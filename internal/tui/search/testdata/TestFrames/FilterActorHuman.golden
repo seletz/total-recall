@@ -1,5 +1,6 @@
  > release                                                        actor: human  since: all  repo: *
-─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory
+─────────────────────────────────────────────────┬─ project: all ───────────────────────────────────
 ▸2025-12-04 20:30  Beta release             human│ Beta release
   tag the release                                │ claude:b2b2b2b2-0001-4000-8000-000000000…  o/beta
                                                  │ 2025-12-04 20:30 – 20:30 (5s)  main
@@ -9,7 +10,6 @@
                                                  │
                                                  │── 20:30  agent
                                                  │Tagged v0.2.0.
-                                                 │
                                                  │
                                                  │
                                                  │

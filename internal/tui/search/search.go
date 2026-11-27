@@ -2,7 +2,7 @@
 // on top, a rule with the type switcher and the project pin, the hits of the
 // archive in the left column and a preview of the marked hit on the right.
 //
-// The search covers the object types of the store (event, session, memory):
+// The search covers the object types of the store (event and its refinements, file, session, memory):
 // the switcher selects them, the hits are listed in one group per type, each
 // in the format of its type, and the preview picks a viewer (package viewer)
 // by the type of the marked hit. Event is the default; with it alone the
@@ -415,6 +415,9 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if msg.Y == 1 {
+		return m.clickTypes(msg.X)
+	}
+	if msg.Y == 2 {
 		return m.clickRule(msg.X)
 	}
 	line := msg.Y - (chromeRows - 1)
@@ -627,7 +630,7 @@ func (m Model) pinScope() *store.ProjectScope {
 func searchTypes(ctx context.Context, s Searcher, query string, f store.SearchFilter, types []store.HitType, scope *store.ProjectScope, att *store.AttachmentFilter) ([]store.TypeHits, error) {
 	var out []store.TypeHits
 	for _, t := range types {
-		if att != nil && !store.Supports(t, store.FilterAttachment) {
+		if att != nil && !store.Supports(t, store.FilterAttachment) && t != store.TypeImage && t != store.TypeDocument {
 			// Memory has no attachments; with the filter on it has no hits.
 			out = append(out, store.TypeHits{Type: t, Hits: []store.Hit{}})
 			continue
@@ -649,7 +652,9 @@ func searchTypes(ctx context.Context, s Searcher, query string, f store.SearchFi
 		if store.Supports(t, store.FilterProject) {
 			q.Project = scope
 		}
-		q.Attachment = att
+		if store.Supports(t, store.FilterAttachment) {
+			q.Attachment = att
+		}
 		g, err := s.SearchTyped(ctx, q)
 		if err != nil {
 			return nil, err
@@ -678,17 +683,27 @@ func (m Model) toggleTypeAndSearch(t store.HitType) (tea.Model, tea.Cmd) {
 	return m.refilter()
 }
 
-// clickRule handles a click at column x of the rule row: a type toggles,
-// the project label opens the project choice, the sign drops the pin.
+// clickTypes handles a click at column x of the type row: the type under
+// the pointer toggles.
+func (m Model) clickTypes(x int) (tea.Model, tea.Cmd) {
+	if m.focus == focusPick {
+		return m, nil
+	}
+	_, spans := m.typeRow(m.width)
+	if i := zone.At(spans, x); i >= 0 {
+		return m.toggleTypeAndSearch(searchableTypes()[i])
+	}
+	return m, nil
+}
+
+// clickRule handles a click at column x of the rule row: the project label
+// opens the project choice, the sign drops the pin.
 func (m Model) clickRule(x int) (tea.Model, tea.Cmd) {
 	if m.focus == focusPick {
 		return m, nil
 	}
 	left, right := m.columns()
 	_, z := m.ruleRow(left, right)
-	if i := zone.At(z.types, x); i >= 0 {
-		return m.toggleTypeAndSearch(searchableTypes()[i])
-	}
 	switch {
 	case z.clear.Contains(x):
 		m.pin = nil
@@ -725,6 +740,9 @@ func (m Model) open() tea.Cmd {
 	case h.Session != nil:
 		o := OpenSession{SessionID: h.Session.ID, Terms: ts}
 		return func() tea.Msg { return o }
+	case h.File != nil:
+		o := OpenSession{SessionID: h.File.SessionID, Terms: ts}
+		return func() tea.Msg { return o }
 	case h.Memory != nil:
 		o := memview.Open{ProjectID: h.Memory.ProjectID, Project: m.projectName(*h), Harness: h.Memory.Harness, Path: h.Memory.Path, Terms: ts}
 		return func() tea.Msg { return o }
@@ -734,11 +752,21 @@ func (m Model) open() tea.Cmd {
 
 // canSearch reports whether there is something to search for: a text, or
 // the attachment filter, which on its own lists the newest attachments.
-func (m Model) canSearch() bool { return m.input.Value() != "" || m.filters.attach != 0 }
+func (m Model) canSearch() bool {
+	return m.input.Value() != "" || m.filters.attach != 0 || m.listsAttachments()
+}
+
+// listsAttachments reports that an image or document type is selected:
+// without a word it lists the newest events with such an attachment.
+func (m Model) listsAttachments() bool {
+	return m.hasType(store.TypeImage) || m.hasType(store.TypeDocument)
+}
 
 // browsing reports that the list shows what the attachment filter lists
 // without a search word.
-func (m Model) browsing() bool { return m.input.Value() == "" && m.filters.attach != 0 }
+func (m Model) browsing() bool {
+	return m.input.Value() == "" && (m.filters.attach != 0 || m.listsAttachments())
+}
 
 // attachments returns the attachments of the marked hit: only an event
 // hit has any.
@@ -830,7 +858,8 @@ func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{m.keys.List, m.keys.Input, m.keys.Open, m.keys.Up, m.keys.Down},
 		{m.keys.Actor, m.keys.HasAttach, m.keys.Time, m.keys.Repo, m.keys.Raw},
-		{m.keys.TypeEvent, m.keys.TypeSession, m.keys.TypeMemory, m.keys.Pin, m.keys.Project, m.keys.Attach},
+		{m.keys.TypeEvent, m.keys.TypeInput, m.keys.TypeAnswer, m.keys.TypeToolCall, m.keys.TypeToolResult, m.keys.TypeImage, m.keys.TypeDocument, m.keys.TypeFile, m.keys.TypeSession, m.keys.TypeMemory},
+		{m.keys.Pin, m.keys.Project, m.keys.Attach},
 	}
 }
 

@@ -32,11 +32,29 @@ const (
 	// TypeMemory is a file of the project memory, found by its current
 	// content.
 	TypeMemory HitType = "memory"
-	// TypeAttachment is an attachment of an event (image, document).
+	// TypeInput is a message the human typed or pasted (actor human,
+	// kind message): a refinement of TypeEvent (#344).
+	TypeInput HitType = "input"
+	// TypeAnswer is a message of the agent (actor agent, kind message), no
+	// tool call.
+	TypeAnswer HitType = "answer"
+	// TypeToolCall is a tool call (kind tool_use), optionally of one tool
+	// (TypedQuery.Tool).
+	TypeToolCall HitType = "tool_call"
+	// TypeToolResult is the result of a tool call (kind tool_result).
+	TypeToolResult HitType = "tool_result"
+	// TypeImage is an event with an image attachment (media type image/…),
+	// found by its text; without a query the newest ones.
+	TypeImage HitType = "image"
+	// TypeDocument is an event with an attachment that is no image (PDF…).
+	TypeDocument HitType = "document"
+	// TypeAttachment is an attachment of an event (image, document); it
+	// stays reserved, TypeImage and TypeDocument are searchable.
 	TypeAttachment HitType = "attachment"
 	// TypeMeta is a meta record of a session.
 	TypeMeta HitType = "meta"
-	// TypeFile is a version of an edited file (file history).
+	// TypeFile is a backup copy of an edited file (file history), found by
+	// its content.
 	TypeFile HitType = "file"
 )
 
@@ -63,6 +81,8 @@ const (
 	FilterRaw          = "raw"
 	// FilterAttachment is SessionFilter.Attachment (CLI --has-attachment).
 	FilterAttachment = "has-attachment"
+	// FilterTool is TypedQuery.Tool (CLI --tool).
+	FilterTool = "tool"
 )
 
 // typeDef is the search of one type and the filters it applies.
@@ -75,14 +95,20 @@ type typeDef struct {
 // typeDefs lists every type in display order; a nil search marks a
 // reserved type.
 var typeDefs = []typeDef{
-	{TypeEvent, (*Store).searchEventHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount, FilterAccountGroup,
-		FilterProject, FilterSession, FilterActor, FilterRaw, FilterAttachment}},
+	{TypeEvent, (*Store).searchEventHits, withFilters(eventFilters, FilterActor)},
+	{TypeInput, kindSearch(TypeInput), eventFilters},
+	{TypeAnswer, kindSearch(TypeAnswer), eventFilters},
+	{TypeToolCall, kindSearch(TypeToolCall), withFilters(eventFilters, FilterTool)},
+	{TypeToolResult, kindSearch(TypeToolResult), eventFilters},
+	// The attachment kind is the type: --has-attachment adds nothing.
+	{TypeImage, kindSearch(TypeImage), withFilters(without(eventFilters, FilterAttachment), FilterActor)},
+	{TypeDocument, kindSearch(TypeDocument), withFilters(without(eventFilters, FilterAttachment), FilterActor)},
+	{TypeFile, (*Store).searchFileHits, fileFilters},
 	{TypeSession, (*Store).searchSessionHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterName, FilterAccount, FilterAccountGroup,
 		FilterProject, FilterSession, FilterAttachment}},
 	{TypeMemory, (*Store).searchMemoryHits, []string{FilterSince, FilterUntil, FilterRepo, FilterHarness, FilterProject, FilterRaw}},
 	{TypeAttachment, nil, nil},
 	{TypeMeta, nil, nil},
-	{TypeFile, nil, nil},
 }
 
 func typeDefOf(t HitType) (typeDef, bool) {
@@ -229,8 +255,11 @@ type TypedQuery struct {
 	SessionFilter
 	// SessionID restricts events or sessions to one session.
 	SessionID string
-	// Actor is an exact actor of events.
+	// Actor is an exact actor of events (type event); with the types image
+	// and document the actor of the event that carries the attachment.
 	Actor string
+	// Tool is an exact tool name (type tool_call).
+	Tool string
 	// Project restricts every type to projects; nil does not restrict.
 	Project *ProjectScope
 	// HighlightStart/End wrap matches in snippets; default "[" and "]".
@@ -254,6 +283,7 @@ func (q TypedQuery) filters() []string {
 	add(q.Project != nil, FilterProject)
 	add(q.SessionID != "", FilterSession)
 	add(q.Actor != "", FilterActor)
+	add(q.Tool != "", FilterTool)
 	add(q.Raw, FilterRaw)
 	add(q.Attachment != nil, FilterAttachment)
 	return out
@@ -266,8 +296,10 @@ func (q TypedQuery) highlight() (string, string) {
 	return q.HighlightStart, q.HighlightEnd
 }
 
-// Hit is one search hit of any type. Exactly one of Event, Session and
-// Memory is set, the one of Type; viewers switch on Type.
+// Hit is one search hit of any type. Exactly one of Event, Session,
+// Memory and File is set: Session for TypeSession, Memory for TypeMemory,
+// File for TypeFile, Event for every other type (the event types of #344
+// share the event search); viewers switch on Type.
 type Hit struct {
 	Type HitType
 	// TS is the event time, the start of the session or the time of the
@@ -280,6 +312,7 @@ type Hit struct {
 	Event   *SearchHit
 	Session *SessionInfo
 	Memory  *MemoryHit
+	File    *FileHit
 }
 
 // TypeHits are the hits of one type, best first (sessions: newest
@@ -295,9 +328,10 @@ type TypeHits struct {
 // returns one group per type in that order. A reserved or unknown type
 // is an error, a filter that a selected type does not apply a
 // *FilterError. Without a Text and with an Attachment filter the types
-// event and session list what has an attachment, newest first: the
-// events (snippet = start of the text), the sessions; Text-less queries
-// of other types, and without the filter, have no hits.
+// of events and session list what has an attachment, newest first: the
+// events (snippet = start of the text), the sessions; image and document
+// do so without the filter. Text-less queries of other types, and
+// without the filter, have no hits.
 func (s *Store) SearchTyped(ctx context.Context, q TypedQuery) ([]TypeHits, error) {
 	types := q.Types
 	if len(types) == 0 {
@@ -323,9 +357,9 @@ func (s *Store) SearchTyped(ctx context.Context, q TypedQuery) ([]TypeHits, erro
 			if g, err = d.search(s, ctx, q); err != nil {
 				return nil, err
 			}
-		case q.Attachment != nil && t == TypeEvent:
+		case isEventType(t) && (q.Attachment != nil || t == TypeImage || t == TypeDocument):
 			var err error
-			if g, err = s.searchAttachmentEvents(ctx, q); err != nil {
+			if g, err = s.searchAttachmentEvents(ctx, q, t); err != nil {
 				return nil, err
 			}
 		case q.Attachment != nil && t == TypeSession:
@@ -357,15 +391,19 @@ func (s *Store) count(ctx context.Context, q string, args ...any) (int, error) {
 }
 
 func (s *Store) searchEventHits(ctx context.Context, q TypedQuery) (TypeHits, error) {
-	g := TypeHits{Type: TypeEvent, Hits: []Hit{}}
+	return s.searchEventsAs(ctx, q, TypeEvent)
+}
+
+// searchEventsAs searches the events of type t (TypeEvent or a kind of
+// events, see eventFilterOf) on the event index.
+func (s *Store) searchEventsAs(ctx context.Context, q TypedQuery, t HitType) (TypeHits, error) {
+	g := TypeHits{Type: t, Hits: []Hit{}}
 	if q.Project != nil && len(q.Project.Keys) == 0 {
 		return g, nil
 	}
 	hs, he := q.highlight()
-	f := SearchFilter{SessionFilter: q.SessionFilter, SessionID: q.SessionID, Actor: q.Actor, Raw: q.Raw, HighlightStart: hs, HighlightEnd: he}
-	if q.Project != nil {
-		f.ProjectKeys = q.Project.Keys
-	}
+	f, q := eventFilterOf(q, t)
+	f.Raw, f.HighlightStart, f.HighlightEnd = q.Raw, hs, he
 	hits, err := s.Search(ctx, q.Text, f)
 	if err != nil {
 		return g, err
@@ -375,7 +413,7 @@ func (s *Store) searchEventHits(ctx context.Context, q TypedQuery) (TypeHits, er
 	}
 	for i := range hits {
 		h := &hits[i]
-		g.Hits = append(g.Hits, Hit{Type: TypeEvent, TS: h.Event.TS, Snippet: h.Snippet, Rank: h.Rank, Project: h.Project, Event: h})
+		g.Hits = append(g.Hits, Hit{Type: t, TS: h.Event.TS, Snippet: h.Snippet, Rank: h.Rank, Project: h.Project, Event: h})
 	}
 	g.Total, err = total(len(hits), q.Limit, func() (int, error) {
 		text := q.Text

@@ -1,7 +1,8 @@
  total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  > image                                                                                actor: all  since: all  repo: *
-─ [event] session memory ──────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory ────────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
 ▸2026-10-28 09:06 ▣1  Höhenprofil prüfen              human│ Höhenprofil prüfen
   [image image/png 956 B]                                  │ claude:7d1e4c20-0010-4000-8000-000000000010  mara/kompass
                                                            │ 2026-10-28 09:06 – 09:10 (4m)  main
@@ -18,7 +19,6 @@
                                                            │The profile showed the raw altitude of the last segment. I
                                                            │now smooth the series before the climb is summed up; the
                                                            │picture matches the route again.
-                                                           │
                                                            │
                                                            │
                                                            │

@@ -22,7 +22,7 @@ func TestParseHitTypes(t *testing.T) {
 		{" session , memory,session ", []HitType{TypeSession, TypeMemory}, ""},
 		{"event,,memory", []HitType{TypeEvent, TypeMemory}, ""},
 		{"bogus", nil, `unknown type "bogus"`},
-		{"file", nil, `type "file" is not searchable yet`},
+		{"meta", nil, `type "meta" is not searchable yet`},
 		{"event,attachment", nil, `type "attachment" is not searchable yet`},
 	}
 	for _, tt := range tests {
@@ -50,7 +50,7 @@ func TestHitTypes(t *testing.T) {
 		}
 		names = append(names, n)
 	}
-	if got := strings.Join(names, ","); got != "event*,session*,memory*,attachment,meta,file" {
+	if got := strings.Join(names, ","); got != "event*,input*,answer*,tool_call*,tool_result*,image*,document*,file*,session*,memory*,attachment,meta" {
 		t.Errorf("HitTypes = %s", got)
 	}
 }
@@ -73,7 +73,7 @@ func TestSupports(t *testing.T) {
 		{TypeMemory, FilterName, false},
 		{TypeMemory, FilterAccount, false},
 		{TypeMemory, FilterSession, false},
-		{TypeFile, FilterSince, false},
+		{TypeAttachment, FilterSince, false},
 	}
 	for _, tt := range tests {
 		if got := Supports(tt.t, tt.filter); got != tt.want {
@@ -231,7 +231,7 @@ func TestSearchTypedFilterErrors(t *testing.T) {
 		{"name on memory", TypedQuery{Text: "x", Types: []HitType{TypeMemory}, SessionFilter: SessionFilter{Name: "a"}}, FilterName, TypeMemory},
 		{"account on memory", TypedQuery{Text: "x", Types: []HitType{TypeMemory}, SessionFilter: SessionFilter{Account: "a"}}, FilterAccount, TypeMemory},
 		{"session on memory", TypedQuery{Text: "x", Types: []HitType{TypeMemory}, SessionID: "a"}, FilterSession, TypeMemory},
-		{"reserved type", TypedQuery{Text: "x", Types: []HitType{TypeFile}}, "", TypeFile},
+		{"reserved type", TypedQuery{Text: "x", Types: []HitType{TypeAttachment}}, "", TypeAttachment},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

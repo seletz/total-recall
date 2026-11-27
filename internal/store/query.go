@@ -363,6 +363,9 @@ type SearchFilter struct {
 	SessionID string
 	// Actor is an exact actor (human, agent, peer, automation, tool).
 	Actor string
+	// Kind is an exact event kind and Tool an exact tool name (#344: the
+	// types input, answer, tool_call and tool_result).
+	Kind, Tool string
 	// Raw passes the query to FTS5 unchanged (AND/OR/NOT, "phrases", prefix*).
 	// Otherwise every whitespace-separated term is quoted and all must match.
 	Raw bool
@@ -480,6 +483,14 @@ func (f SearchFilter) eventCond() ([]string, []any) {
 	if f.Actor != "" {
 		cond = append(cond, "e.actor = ?")
 		args = append(args, f.Actor)
+	}
+	if f.Kind != "" {
+		cond = append(cond, "e.kind = ?")
+		args = append(args, f.Kind)
+	}
+	if f.Tool != "" {
+		cond = append(cond, "e.tool_name = ?")
+		args = append(args, f.Tool)
 	}
 	if f.SessionID != "" {
 		cond = append(cond, "e.session_id = ?")

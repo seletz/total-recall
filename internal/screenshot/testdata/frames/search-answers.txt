@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > goreleaser cask                                                                      actor: all  since: all  repo: *
+─ e event u input [g answer] c tool_call o tool_result I image D document f file s session m memory ────────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+▸2026-10-28 09:05  CI pipeline                        agent│ CI pipeline
+  goreleaser needs HOMEBREW_TAP_GITHUB_TOKEN in the workfl…│ claude:7d1e4c20-0002-4000-8000-000000000002  mara/kompass
+ 2026-10-15 11:12  Homebrew-Tap einrichten            agent│ 2026-10-28 09:02 – 09:16 (14m)  main
+  …goreleaser publishes the cask there; users install it w…│────────────────────────────────────────────────────────────
+ 2026-10-12 15:45  Packaging                          agent│── 09:02  human
+  …the binary to kompass and set the cask name. goreleaser…│can we build the cask in goreleaser and push it to the tap
+ 2026-10-22 17:34  Signierte Releases                 agent│from CI?
+  Yes: goreleaser signs the checksums file with cosign aft…│
+ 2026-10-31 22:20  Release v0.3.0                     agent│── 09:05  agent ◄
+  …The release workflow is running; goreleaser builds the …│goreleaser needs HOMEBREW_TAP_GITHUB_TOKEN in the workflow
+ 2026-10-31 22:16  Release v0.3.0                     agent│secrets and a cask entry in .goreleaser.yml. I added both;
+  goreleaser skips the cask upload when the tap token is m…│the cask is published on every tag.
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ 6 hits (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • e/s/m types • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 1 search …

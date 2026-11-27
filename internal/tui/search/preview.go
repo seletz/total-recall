@@ -25,6 +25,12 @@ type Loader interface {
 	MemoryContent(ctx context.Context, projectID int64, file string, at time.Time) (store.MemoryVersion, string, error)
 }
 
+// BlobLoader is the optional part of a Loader that reads an archived blob;
+// the preview of a file hit (a backup copy of an edited file) needs it.
+type BlobLoader interface {
+	Blob(ctx context.Context, ref string) (store.BlobInfo, []byte, error)
+}
+
 // previewTickMsg fires after PreviewDebounce; it loads the marked hit when
 // seq is still the current preview sequence.
 type previewTickMsg struct{ seq uint64 }
@@ -75,6 +81,8 @@ func hitKey(h store.Hit) string {
 		return "session:" + h.Session.ID
 	case h.Memory != nil:
 		return "memory:" + h.Memory.Harness + ":" + h.Memory.ProjectKey + ":" + h.Memory.Path
+	case h.File != nil:
+		return "file:" + h.File.MetaID + ":" + h.File.SHA256
 	}
 	return ""
 }
@@ -155,6 +163,17 @@ func loadViewer(ctx context.Context, ld Loader, hit store.Hit, project string) (
 			return nil, err
 		}
 		return viewer.Session{Info: *hit.Session, First: events[:min(len(events), viewer.FirstMessages)]}, nil
+	case hit.File != nil:
+		bl, ok := ld.(BlobLoader)
+		if !ok {
+			return nil, errors.New("no viewer for this hit")
+		}
+		_, data, err := bl.Blob(ctx, hit.File.SHA256)
+		if err != nil {
+			return nil, err
+		}
+		// The copy is source text: show it as a code block.
+		return viewer.Memory{Path: hit.File.Path, Project: hit.File.SessionName, Changed: hit.TS, Content: "```\n" + string(data) + "\n```"}, nil
 	case hit.Memory != nil:
 		v, content, err := ld.MemoryContent(ctx, hit.Memory.ProjectID, hit.Memory.Path, time.Time{})
 		if err != nil {

@@ -33,8 +33,10 @@ type KeyMap struct {
 	// the marked hit (or drops the pin) and Project chooses one from the
 	// list.
 	TypeEvent, TypeSession, TypeMemory key.Binding
-	Types                              key.Binding
-	Pin, Project                       key.Binding
+	// The finer event types (#344).
+	TypeInput, TypeAnswer, TypeToolCall, TypeToolResult, TypeImage, TypeDocument, TypeFile key.Binding
+	Types                                                                                  key.Binding
+	Pin, Project                                                                           key.Binding
 	// Attach opens the attachments of the marked event.
 	Attach key.Binding
 	// HasAttach cycles the filter that keeps what has an attachment.
@@ -58,14 +60,21 @@ func newKeyMap(m keys.Map) KeyMap {
 		Raw:   m.Binding(keys.SearchRaw),
 		Move:  m.Group("move", keys.SearchUp, keys.SearchDown),
 
-		TypeEvent:   m.Binding(keys.SearchTypeEvent),
-		TypeSession: m.Binding(keys.SearchTypeSession),
-		TypeMemory:  m.Binding(keys.SearchTypeMemory),
-		Types:       m.Group("types", keys.SearchTypeEvent, keys.SearchTypeSession, keys.SearchTypeMemory),
-		Pin:         m.Binding(keys.SearchPin),
-		Project:     m.Binding(keys.SearchProject),
-		Attach:      m.Binding(keys.SearchAttach),
-		HasAttach:   m.Binding(keys.SearchHasAttach),
+		TypeEvent:      m.Binding(keys.SearchTypeEvent),
+		TypeSession:    m.Binding(keys.SearchTypeSession),
+		TypeMemory:     m.Binding(keys.SearchTypeMemory),
+		TypeInput:      m.Binding(keys.SearchTypeInput),
+		TypeAnswer:     m.Binding(keys.SearchTypeAnswer),
+		TypeToolCall:   m.Binding(keys.SearchTypeToolCall),
+		TypeToolResult: m.Binding(keys.SearchTypeToolResult),
+		TypeImage:      m.Binding(keys.SearchTypeImage),
+		TypeDocument:   m.Binding(keys.SearchTypeDocument),
+		TypeFile:       m.Binding(keys.SearchTypeFile),
+		Types:          m.Group("types", keys.SearchTypeEvent, keys.SearchTypeSession, keys.SearchTypeMemory),
+		Pin:            m.Binding(keys.SearchPin),
+		Project:        m.Binding(keys.SearchProject),
+		Attach:         m.Binding(keys.SearchAttach),
+		HasAttach:      m.Binding(keys.SearchHasAttach),
 
 		Confirm: key.NewBinding(key.WithKeys(slices.Concat(open, focus)...), key.WithHelp(keys.Display(open[0]), "apply")),
 		Cancel:  key.NewBinding(key.WithKeys(back...), key.WithHelp(keys.Display(back[0]), "cancel")),

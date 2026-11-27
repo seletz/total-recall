@@ -102,9 +102,9 @@ func TestMouseBody(t *testing.T) {
 		msgs := append([]tea.Msg{tea.WindowSizeMsg{Width: tuitest.Width, Height: tuitest.Height}}, tuitest.Keys(keys...)...)
 		return tuitest.Drive(t, app, msgs...).(App)
 	}
-	// Row headerRows+2 is the first hit of the search view; the second
+	// Row headerRows+3 is the first hit of the search view; the second
 	// hit starts two rows below.
-	secondHit := headerRows + 2 + 2
+	secondHit := headerRows + 3 + 2
 	t.Run("click marks a hit", func(t *testing.T) {
 		m := tuitest.Send(t, open(t), tea.MouseClickMsg{X: 5, Y: secondHit, Button: tea.MouseLeft}).(App)
 		if !strings.Contains(tuitest.Frame(m), "\n▸") && !strings.Contains(ansi.Strip(m.views[0].View().Content), "▸") {
@@ -168,7 +168,13 @@ func helpRect(t *testing.T, a App) zone.Rect {
 	t.Helper()
 	lines := strings.Split(tuitest.Frame(a), "\n")
 	r := zone.Rect{X: -1}
-	col := func(l, s string) int { return ansi.StringWidth(l[:strings.Index(l, s)]) }
+	col := func(l, s string) int {
+		i := strings.Index(l, s)
+		if i < 0 {
+			t.Fatalf("no %q in %q\n%s", s, l, tuitest.Frame(a))
+		}
+		return ansi.StringWidth(l[:i])
+	}
 	for y, l := range lines {
 		if strings.Contains(l, "╭") {
 			r.X, r.Y, r.W = col(l, "╭"), y, col(l, "╮")-col(l, "╭")+1

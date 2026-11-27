@@ -1,7 +1,8 @@
  total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  > cask generated                                                                       actor: all  since: all  repo: *
-─ [event] session memory ──────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory ────────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
 ▸2026-10-28 09:02  CI pipeline                         tool│ CI pipeline
   …kompass_0.2.1_darwin_arm64.tar.gz","note":"cask generat…│ claude:7d1e4c20-0002-4000-8000-000000000002  mara/kompass
                                                            │ 2026-10-28 09:02 – 09:16 (14m)  main
@@ -30,7 +31,6 @@
                                                            │        }
                                                            │      ]
                                                            │    }
-                                                           │  ]
  1 hit (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  tab list • enter open • ^r raw fts • ^c quit

@@ -34,6 +34,20 @@ func (k KeyMap) typeKey(t store.HitType) key.Binding {
 		return k.TypeSession
 	case store.TypeMemory:
 		return k.TypeMemory
+	case store.TypeInput:
+		return k.TypeInput
+	case store.TypeAnswer:
+		return k.TypeAnswer
+	case store.TypeToolCall:
+		return k.TypeToolCall
+	case store.TypeToolResult:
+		return k.TypeToolResult
+	case store.TypeImage:
+		return k.TypeImage
+	case store.TypeDocument:
+		return k.TypeDocument
+	case store.TypeFile:
+		return k.TypeFile
 	}
 	return key.Binding{}
 }
@@ -60,47 +74,76 @@ func (m *Model) toggleType(t store.HitType) bool {
 	return true
 }
 
-// ruleZones are the clickable elements of the rule row: one span per
-// searchable type (same order as searchableTypes), the project label and
-// the sign that drops the pin (empty without a pin).
+// ruleZones are the clickable elements of the rule row: the project label
+// and the sign that drops the pin (empty without a pin).
 type ruleZones struct {
-	types          []zone.Span
 	project, clear zone.Span
 }
 
-// ruleRow renders the rule between the input and the body for the two
-// columns: the type switcher in the left one ("[event] session memory",
-// the selected types in brackets and the title style) and the project pin
-// in the right one ("project: all", or the name with a sign to drop it).
-// The zones come from the same pass as the text, so clicks never drift.
-func (m Model) ruleRow(left, right int) (string, ruleZones) {
-	var z ruleZones
-	st := m.th.Rule
-	dash := func(n int) string { return st.Render(strings.Repeat("─", max(n, 0))) }
-
+// typeRow renders the row of the object types: one switcher per
+// searchable type, "[h input]" for a selected one (title style) and
+// "h input" for one that is off, the key first so that the switcher
+// shows how to work it from the keyboard. When the row is too narrow the
+// keys go, then the row is cut. The zones come from the same pass as the
+// text (same order as searchableTypes), so clicks never drift.
+func (m Model) typeRow(width int) (string, []zone.Span) {
+	types := searchableTypes()
+	label := func(t store.HitType, keys bool) string {
+		name := string(t)
+		if k := m.keys.typeKey(t); keys && len(k.Keys()) > 0 {
+			name = keyLabel(k) + " " + name
+		}
+		if m.hasType(t) {
+			name = "[" + name + "]"
+		}
+		return name
+	}
+	keys := true
+	need := 2
+	for _, t := range types {
+		need += lipgloss.Width(label(t, true)) + 1
+	}
+	if need > width {
+		keys = false
+	}
 	var b strings.Builder
+	var spans []zone.Span
+	st := m.th.Rule
 	b.WriteString(st.Render("─ "))
 	x := 2
-	for _, t := range searchableTypes() {
-		name := string(t)
+	for _, t := range types {
+		name := label(t, keys)
 		w := lipgloss.Width(name)
 		if m.hasType(t) {
-			name, w = "["+name+"]", w+2
 			b.WriteString(m.th.Title.Render(name))
 		} else {
 			b.WriteString(m.th.Muted.Render(name))
 		}
-		z.types = append(z.types, zone.Span{Start: x, End: x + w})
+		spans = append(spans, zone.Span{Start: x, End: x + w})
 		b.WriteString(" ")
 		x += w + 1
 	}
-	z.types = zone.Clip(z.types, left)
-	leftPart := ansi.Truncate(b.String(), left, "")
-	leftPart += dash(left - lipgloss.Width(leftPart))
+	line := ansi.Truncate(b.String(), width, "")
+	line += st.Render(strings.Repeat("─", max(width-lipgloss.Width(line), 0)))
+	return line, zone.Clip(spans, width)
+}
 
-	b.Reset()
+// keyLabel is the key shown for a type switcher: the first of its bindings.
+func keyLabel(k key.Binding) string { return k.Help().Key }
+
+// ruleRow renders the rule between the type row and the body for the two
+// columns: a plain rule in the left one and the project pin in the right
+// one ("project: all", or the name with a sign to drop it). The zones come
+// from the same pass as the text, so clicks never drift.
+func (m Model) ruleRow(left, right int) (string, ruleZones) {
+	var z ruleZones
+	st := m.th.Rule
+	dash := func(n int) string { return st.Render(strings.Repeat("─", max(n, 0))) }
+	leftPart := dash(left)
+
+	var b strings.Builder
 	b.WriteString(st.Render("─ "))
-	x = left + 1 + 2
+	x := left + 1 + 2
 	label := "project: "
 	b.WriteString(m.th.Muted.Render(label))
 	x += len(label)

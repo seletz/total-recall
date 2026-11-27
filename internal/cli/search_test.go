@@ -133,7 +133,7 @@ func TestSearchTypeErrors(t *testing.T) {
 		msg  string
 	}{
 		{"unknown type", []string{"--type", "bogus"}, ErrKindUsage, `unknown type "bogus"`},
-		{"reserved type", []string{"--type", "event,file"}, ErrKindUsage, `type "file" is not searchable yet`},
+		{"reserved type", []string{"--type", "event,attachment"}, ErrKindUsage, `type "attachment" is not searchable yet`},
 		{"actor on memory", []string{"--type", "memory", "--actor", "human"}, ErrKindUsage, "--actor does not apply to type memory"},
 		{"raw on session", []string{"--type", "event,session", "--raw"}, ErrKindUsage, "--raw does not apply to type session"},
 		{"name on memory", []string{"--type", "memory", "--name", "x"}, ErrKindUsage, "--name does not apply to type memory"},

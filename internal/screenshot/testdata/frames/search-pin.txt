@@ -1,7 +1,8 @@
  total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  > tests                                                                                actor: all  since: all  repo: *
-─ [event] [session] [memory] ──────────────────────────────┬─ project: kompass ✕ ───────────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ────────────────
+───────────────────────────────────────────────────────────┬─ project: kompass ✕ ───────────────────────────────────────
  event  195                                                │ Rennrad-Profil
 ▸2026-10-31 11:28  Rennrad-Profil                     agent│ claude:7d1e02d6-02d6-4000-8000-0000000002d6  mara/kompass
   Umbenannt, Importe angepasst, Tests laufen.              │ 2026-10-31 10:35 – 11:52 (1h17m)  main
@@ -29,8 +30,7 @@
   Umbenannt, Importe angepasst, Tests laufen.              │
  2026-10-21 16:42  Benchmarks für den Routing-Kern    agent│
   Umbenannt, Importe angepasst, Tests laufen.              │
- 2026-10-21 12:23  Tiles-Cache nach Neustart leer     agent│
-  Umbenannt, Importe angepasst, Tests laufen.              │
+                                                           │
  event 195, session 22, memory 1 (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open • e/s/m types • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 1 search …

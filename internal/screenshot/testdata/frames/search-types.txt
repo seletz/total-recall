@@ -1,7 +1,8 @@
  total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  > goreleaser cask                                                                      actor: all  since: all  repo: *
-─ [event] [session] [memory] ──────────────────────────────┬─ project: all ─────────────────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
  event  10                                                 │ Release v0.3.0
 ▸2026-10-31 22:14  Release v0.3.0                     human│ claude:7d1e4c20-0001-4000-8000-000000000001  mara/kompass
   Lade den Homebrew-Cask mit goreleaser in den Tap hoch.   │ 2026-10-31 22:14 – 22:20 (6m)  main
@@ -27,7 +28,6 @@
  memory  1                                                 │
  2026-10-31 22:35  kompass  release-process.md             │
   …goreleaser, which builds the binaries for darwin/arm64 …│
-                                                           │
                                                            │
                                                            │
                                                            │

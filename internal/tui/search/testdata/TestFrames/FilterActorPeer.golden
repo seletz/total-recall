@@ -1,7 +1,7 @@
  > release                                                         actor: peer  since: all  repo: *
-─ [event] session memory ────────────────────────┬─ project: all ───────────────────────────────────
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory
+─────────────────────────────────────────────────┬─ project: all ───────────────────────────────────
  No hits for release.                            │
-                                                 │
                                                  │
                                                  │
                                                  │

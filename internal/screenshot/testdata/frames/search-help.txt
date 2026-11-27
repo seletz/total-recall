@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+          ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+          │ keys: search                                                                                     │
+          │                                                                                                  │
+          │ tab     list     a  actor       e events          p pin project of hit    1 search      ?   help │
+          │ tab/esc input    i  attached    u your input      P choose project        2 stats       esc back │
+          │ enter   open     t  time        g answers         v view attachments      3 activity    q   quit │
+          │ ↑/k     up       r  repo        c tool calls                              4 config      ^c  quit │
+          │ ↓/j     down     ^r raw fts     o tool results                            R reload               │
+          │                                 I images                                                         │
+          │                                 D documents                                                      │
+          │                                 f files                                                          │
+          │                                 s sessions                                                       │
+          │                                 m memory                                                         │
+          │                                                                                                  │
+          │ esc or ? closes this help                                                                        │
+          ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ esc back • q quit

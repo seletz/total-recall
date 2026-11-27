@@ -111,7 +111,7 @@ func Build(ctx context.Context, path string) (Summary, error) {
 	git := Git()
 	deps := ingest.Deps{
 		Store:       st,
-		Adapters:    []harness.Adapter{claude.New(projects)},
+		Adapters:    []harness.Adapter{claude.New(projects, claude.WithFileHistoryDir(fileHistoryDir(projects)))},
 		StoreRaw:    true,
 		StoreBlobs:  true,
 		StoreMemory: true,
@@ -204,6 +204,11 @@ func writeSession(projects string, s session) error {
 		lines = append(lines, testfixture.SessionOwnerOf(s.id, s.account, s.organization))
 	}
 	lines = append(lines, s.lines(s.id, "")...)
+	history, err := writeFileHistory(projects, s)
+	if err != nil {
+		return err
+	}
+	lines = append(lines, history...)
 	if s.continuedIn != "" {
 		last := s.turns[len(s.turns)-1]
 		lines = append(lines, testfixture.ContinuedIn(s.id, stamp(last.at.Add(last.replyAt+time.Hour)), s.continuedIn))

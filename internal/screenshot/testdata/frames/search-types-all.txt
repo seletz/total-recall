@@ -1,0 +1,36 @@
+ total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > route                                                                                actor: all  since: all  repo: *
+─ [e event] [u input] [g answer] [c tool_call] [o tool_result] I image D document [f file] s session m memory ──────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+ event  200 of 4518, limit reached                         │ Streaming-Parser
+▸2026-10-31 12:15  Streaming-Parser                   agent│ claude:7d1e02d7-02d7-4000-8000-0000000002d7  mara/kompass
+  route/sort.go                                            │ 2026-10-31 11:58 – 12:31 (33m)  main
+ 2026-10-31 11:44  Rennrad-Profil                     agent│────────────────────────────────────────────────────────────
+  route/cache.go                                           │── 12:15:20  tool_use Edit ◄
+ 2026-10-31 11:43  Rennrad-Profil                     agent│route/sort.go
+  route/sort.go                                            │
+ 2026-10-31 11:20  Rennrad-Profil                     agent│── 12:15:25  tool (tool_result)
+  route/cache.go                                           │The file has been updated.
+ 2026-10-31 11:20  Rennrad-Profil                     agent│
+  route/cache.go                                           │
+ 2026-10-31 11:18  Rennrad-Profil                     agent│
+  route/sort.go                                            │
+ 2026-10-31 11:17  Rennrad-Profil                     agent│
+  route/sort.go                                            │
+ 2026-10-31 11:00  Rennrad-Profil                     agent│
+  route/cache.go                                           │
+ 2026-10-30 16:55  Kartenkacheln offline              agent│
+  route/cache.go                                           │
+ 2026-10-30 16:01  Kartenkacheln offline              agent│
+  route/cache.go                                           │
+ 2026-10-30 14:25  Doku der Befehle                   agent│
+  route/sort.go                                            │
+ 2026-10-30 14:24  Doku der Befehle                   agent│
+  route/sort.go                                            │
+ 2026-10-28 21:54  Wegpunkte stabil sortieren         agent│
+  route/sort.go                                            │
+                                                           │
+ event 200 of 4518, input 200 of 202, answer 200 of 436, tool_call 200 of 1462, tool_result 200 of 2417, file 2 (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • e/s/m types • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 1 search …

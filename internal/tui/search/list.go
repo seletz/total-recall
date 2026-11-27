@@ -21,8 +21,8 @@ const (
 	hlEnd   = "\x1f"
 )
 
-// Rows of the body around the two columns: input, rule, status.
-const chromeRows = 3
+// Rows of the body around the two columns: input, types, rule, status.
+const chromeRows = 4
 
 // linesPerHit is the height of one hit: head line and snippet line. A
 // group header (more than one type selected) is one line.
@@ -92,12 +92,13 @@ func (m Model) View() tea.View {
 	sep := m.th.Rule.Render(strings.TrimSuffix(strings.Repeat("│\n", rows), "\n"))
 	body := lipgloss.JoinHorizontal(lipgloss.Top, col(m.list(left, rows), left), sep, col(m.previewView(right, rows), right))
 	rule, _ := m.ruleRow(left, right)
+	typeRow, _ := m.typeRow(m.width)
 	bottom := " " + m.status()
 	if m.focus == focusRepo {
 		bottom = " " + m.repoIn.View()
 	}
 	v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left,
-		m.inputLine(), rule, body, bottom))
+		m.inputLine(), typeRow, rule, body, bottom))
 	switch m.focus {
 	case focusInput:
 		if c := m.input.Cursor(); c != nil {
@@ -202,6 +203,8 @@ func (m Model) entry(i, w int) []string {
 		return m.entrySession(h, mark, base, w)
 	case store.TypeMemory:
 		return m.entryMemory(h, mark, base, w)
+	case store.TypeFile:
+		return m.entryFile(h, mark, base, w)
 	}
 	return m.entryEvent(h, mark, base, w)
 }
@@ -259,6 +262,25 @@ func (m Model) entryMemory(h store.Hit, mark string, base lipgloss.Style, w int)
 	head := m.th.Mark.Inherit(base).Render(mark) + m.th.Muted.Inherit(base).Render(ts) +
 		base.Render("  ") + m.th.Title.Inherit(base).Render(m.projectName(h)) + base.Render("  "+h.Memory.Path)
 	return []string{ansi.Truncate(head, w, ""), "  " + m.renderSnippet(markdownMarks.Replace(h.Snippet), max(w-2, 0))}
+}
+
+// entryFile renders a file hit (a backup copy of an edited file): a mark,
+// the time of the record (muted), the file path and the session, then the
+// snippet of the copy.
+func (m Model) entryFile(h store.Hit, mark string, base lipgloss.Style, w int) []string {
+	f := h.File
+	ts := h.TS.In(m.opts.Location).Format("2006-01-02 15:04")
+	path := f.Path
+	if path == "" {
+		path = "(file)"
+	}
+	// A long path loses its start: the file name is what tells copies apart.
+	if room := w - 1 - len(ts) - 2 - 12; ansi.StringWidth(path) > room && room > 1 {
+		path = "…" + ansi.TruncateLeft(path, ansi.StringWidth(path)-room+1, "")
+	}
+	head := m.th.Mark.Inherit(base).Render(mark) + m.th.Muted.Inherit(base).Render(ts) +
+		base.Render("  ") + m.th.Title.Inherit(base).Render(path) + m.th.Muted.Inherit(base).Render("  "+f.SessionName)
+	return []string{ansi.Truncate(head, w, ""), "  " + m.renderSnippet(h.Snippet, max(w-2, 0))}
 }
 
 // markdownMarks drops the emphasis and code markers of a memory file's

@@ -1,9 +1,9 @@
  total-recall  [1 search]  2 stats   3 activity   4 config
 ────────────────────────────────────────────────────────────
  > type to search           actor: all  since: all  repo: *
-─ [event] session memory ────┬─ project: all ───────────────
+─ [event] input answer tool_call tool_result image document
+─────────────────────────────┬─ project: all ───────────────
  No database open.           │
-                             │
                              │
                              │
                              │
