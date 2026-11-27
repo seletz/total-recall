@@ -1,4 +1,4 @@
- total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+ total-recall                 updated 10:00:00                  [1 search]  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  > tests                                                                                actor: all  since: all  repo: *
 ─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ────────────────

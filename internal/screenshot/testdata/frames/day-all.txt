@@ -1,4 +1,4 @@
- total-recall                    updated 12:00:00                     1 search   2 stats  [3 activity] › day  4 config
+ total-recall              updated 12:00:00                1 search   2 stats  [3 activity] › day  4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ‹ Tue 2026-06-02 ›  · all events [h]
  09:10–00:47 (+1) · span 15h37m · work 12h27m · breaks 3h10m · +7h37m vs 8h00m · booked 5h32m (6h00m) · 177 events

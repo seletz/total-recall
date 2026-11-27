@@ -129,7 +129,7 @@ resolve = true
 # group = "firma"
 
 [tui]
-view = "search"                  # Ansicht beim Start: search, stats, activity, config
+view = "search"                  # Ansicht beim Start: search, stats, activity, config, memory
 graphics = "auto"                # Chart: auto, text, kitty (--graphics)
 images = "auto"                  # Bilder im Anhang-Viewer: auto, text, kitty
 mouse = true                     # false = --no-mouse

@@ -1,4 +1,4 @@
- total-recall                 1 search   2 stats  [3 activity] › day  4 config
+ total-recall      1 search   2 stats  [3 activity] › day  4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────
  ‹ Tue 2026-06-02 ›  · human events only [h]
  09:10–00:45 (+1) · span 15h35m · work 12h15m · breaks 3h20m · +7h35m vs 8h00m …

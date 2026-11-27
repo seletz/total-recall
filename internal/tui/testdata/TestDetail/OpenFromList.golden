@@ -1,4 +1,4 @@
- total-recall        updated 13:00:00        [1 search] › session  2 stats   3 activity   4 config
+ total-recall  updated 13:00:00   [1 search] › session  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  (untitled)                                             claude:b2b2b2b2-0004-4000-8000-000000000004
  o/beta  main  2026-01-05 08:45 – 08:45 (5s)  1 human  1 agent
@@ -27,4 +27,4 @@ Start with the release notes.
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • esc back • 1 search • 2 stat…
+ ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • M memory • esc back …

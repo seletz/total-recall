@@ -1,4 +1,4 @@
- total-recall                  updated 10:00:00                  [1 search] › session  2 stats   3 activity   4 config
+ total-recall            updated 10:00:00             [1 search] › session  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Release v0.3.0                                                             claude:7d1e4c20-0001-4000-8000-000000000001
  mara/kompass  main  2026-10-31 22:14 – 22:20 (6m)  2 human  4 agent
@@ -33,4 +33,4 @@ To git.invalid:mara/kompass
 
 ── 2026-10-31 22:20:00  agent
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • esc back • 1 search • 2 stats • 3 activity …
+ ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • M memory • esc back • 1 search • 2 stats …

@@ -58,6 +58,7 @@ const (
 	GlobalQuit     = "global_quit"
 	GlobalReload   = "global_reload"
 	GlobalConfig   = "global_config"
+	GlobalMemory   = "global_memory"
 
 	SearchFocus = "search_focus"
 	SearchOpen  = "search_open"
@@ -97,6 +98,7 @@ const (
 	SessionTools    = "session_tools"
 	SessionCopy     = "session_copy"
 	SessionAttach   = "session_attach"
+	SessionMemory   = "session_memory"
 
 	MemoryUp       = "memory_up"
 	MemoryDown     = "memory_down"
@@ -180,6 +182,7 @@ var Actions = []Action{
 	{GlobalQuit, Global, []string{"q"}, "quit"},
 	{GlobalReload, Global, []string{"R"}, "reload"},
 	{GlobalConfig, Global, []string{"4"}, "config"},
+	{GlobalMemory, Global, []string{"5"}, "memory"},
 
 	{SearchFocus, Search, []string{"tab", "shift+tab"}, "input ↔ list"},
 	{SearchOpen, Search, []string{"enter"}, "open"},
@@ -217,6 +220,7 @@ var Actions = []Action{
 	{SessionTools, Session, []string{"T"}, "tools on/off"},
 	{SessionCopy, Session, []string{"y"}, "copy session id"},
 	{SessionAttach, Session, []string{"v"}, "view attachments"},
+	{SessionMemory, Session, []string{"M"}, "memory"},
 
 	{MemoryUp, Memory, []string{"up", "k"}, "up"},
 	{MemoryDown, Memory, []string{"down", "j"}, "down"},

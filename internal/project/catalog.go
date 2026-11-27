@@ -173,6 +173,17 @@ func containsID(ids []int64, id int64) bool {
 	return false
 }
 
+// MemoryProjectName is the display name of the memory project id: its
+// project name, else the harness's native key, "" for an unknown id.
+func (c *Catalog) MemoryProjectName(id int64) string {
+	for _, m := range c.mem {
+		if m.p.ID == id {
+			return m.name
+		}
+	}
+	return ""
+}
+
 // Entry is one project of the catalog as the pin of the TUI search lists
 // it: the display name and what it restricts a typed search to.
 type Entry struct {

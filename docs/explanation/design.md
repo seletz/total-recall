@@ -185,7 +185,7 @@ internal/config           TOML laden, Defaults, Env/Flag-Overrides, Pfad-Expansi
 internal/config/tomledit  TOML-Datei zeilenweise ändern, Kommentare bleiben: Set/Unset, Tabellen-Arrays (anhängen, setzen, auskommentieren, entfernen, verschieben), Diff, Save mit .bak und atomar
 internal/logfile          Log-Datei der Hooks und Befehle: Logger mit Rotation, ERROR-Zeilen lesen (status, TUI)
 internal/ops              Verdrahtung der schreibenden Abläufe für CLI und TUI: Store mit Wartungs-Lock öffnen, ingest.Deps, Adapter, Wartungsoptionen, Hook-Block, Formatierung der Zusammenfassungen
-internal/tui              TUI: App-Shell, Keymap, Maus; Views search, session, stats, activity, configview (Status, Settings, Projects, Actions, Setup) sowie chart, theme, window, zone, tuitest in Unterpaketen
+internal/tui              TUI: App-Shell, Keymap, Maus; Views search, session, memtab, memview, stats, activity, configview (Status, Settings, Projects, Actions, Setup) sowie chart, theme, window, zone, tuitest in Unterpaketen
 internal/tui/keys         Katalog der Tasten-Aktionen (Name, Kontext, Default, Hilfetext), Validierung von [keys]
 internal/version          Version via ldflags
 ```

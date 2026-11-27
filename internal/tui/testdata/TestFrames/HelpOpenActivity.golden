@@ -1,4 +1,4 @@
- total-recall                                           1 search   2 stats  [3 activity]  4 config
+ total-recall                                1 search   2 stats  [3 activity]  4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -22,9 +22,9 @@ selected day    3 activity    q   quit │
 │ h human/all events    l     last day/week/month    ↑/k row above (scroll)
 4 config      ^c  quit │
 │                                                    ↓/j row below (scroll)
+5 memory               │
+│
 R reload               │
 │
-│
-│ esc or ? closes this help
 ────────────────────────────────────────────────────────────────────────────────────────────────────
  esc back • q quit

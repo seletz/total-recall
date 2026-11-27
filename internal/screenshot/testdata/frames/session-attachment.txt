@@ -1,4 +1,4 @@
- total-recall                  updated 10:00:00                  [1 search] › session  2 stats   3 activity   4 config
+ total-recall            updated 10:00:00             [1 search] › session  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Höhenprofil prüfen                                                         claude:7d1e4c20-0010-4000-8000-000000000010
  mara/kompass  main  2026-10-28 09:06 – 09:10 (4m)  3 human  1 agent
@@ -33,4 +33,4 @@ picture matches the route again.
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • v view attachments • esc back • 1 search …
+ ↑/↓ scroll • n/N next/prev hit • T tools on/off • y copy session id • v view attachments • M memory • esc back …

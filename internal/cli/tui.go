@@ -32,7 +32,7 @@ type tuiFlags struct {
 func (e *env) tuiCmd() *cobra.Command {
 	var f tuiFlags
 	c := &cobra.Command{
-		Use:   "tui [search|stats|activity|config]",
+		Use:   "tui [search|stats|activity|config|memory]",
 		Short: "Interactive search, activity charts and first/last activity per day",
 		Long: `tui opens the archive read-only in a full-screen terminal UI with a live
 search view, an activity statistics view and a view of the first and the

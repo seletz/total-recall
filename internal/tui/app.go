@@ -60,6 +60,9 @@ type App struct {
 	// showMemory is set.
 	memory     memview.Model
 	showMemory bool
+	// memFromDetail is set while the memory view was opened from the
+	// session detail, which Back returns to.
+	memFromDetail bool
 	// attach is the attachment view, a layer like the detail. It is
 	// opened from a search hit or from the detail; attachFromDetail makes
 	// Back return to the detail then.
@@ -217,7 +220,7 @@ func (a *App) show(i int) tea.Cmd {
 	if a.showAttach {
 		leave = a.attach.Leave()
 	}
-	a.active, a.showDetail, a.showMemory, a.showAttach, a.showDay, a.detailFromDay = i, false, false, false, false, false
+	a.active, a.showDetail, a.showMemory, a.showAttach, a.showDay, a.detailFromDay, a.memFromDetail = i, false, false, false, false, false, false
 	if !a.stale[i] {
 		return leave
 	}
@@ -264,6 +267,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.showMemory, a.showDetail = true, false
 		a.setStale(len(a.views)+1, false) // Open loads afresh
 		return a.updateMemory(msg)
+	case session.OpenMemory:
+		return a.openProjectMemory(msg)
 	case session.OpenAttachments:
 		return a.openAttachments(attview.Open(msg), true)
 	case attview.Open:
@@ -288,6 +293,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.show(a.active)
 	case memview.Back:
+		if a.memFromDetail {
+			a.memFromDetail, a.showMemory, a.showDetail = false, false, true
+			return a, nil
+		}
 		return a, a.show(a.active)
 	case tickMsg:
 		if a.opts.Store == nil {
@@ -345,6 +354,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, a.show(2)
 	case key.Matches(msg, a.keys.Config):
 		return a, a.show(3)
+	case key.Matches(msg, a.keys.Memory):
+		return a, a.show(4)
 	case key.Matches(msg, a.keys.Reload):
 		if a.opts.Store == nil {
 			return a, nil
@@ -495,6 +506,40 @@ func (a *App) setKeys(cfg *config.Config) {
 	a.memory = a.memory.SetKeys(km).(memview.Model)
 	a.attach = a.attach.SetKeys(km).(attview.Model)
 	a.day = a.day.SetKeys(km).(dayview.Model)
+}
+
+// openProjectMemory opens the memory of the project of the session in the
+// detail: the memory project whose directory is the session's. Without one
+// the detail says so and stays.
+func (a App) openProjectMemory(o session.OpenMemory) (tea.Model, tea.Cmd) {
+	notice := func(text string) (tea.Model, tea.Cmd) {
+		return a.updateDetail(session.Notice{Text: text})
+	}
+	if a.opts.Store == nil {
+		return notice("no database")
+	}
+	ctx := context.Background()
+	cat, err := project.LoadCatalog(ctx, a.opts.Store, a.opts.Projects, a.opts.Home)
+	if err != nil {
+		return notice("memory: " + err.Error())
+	}
+	name, sc := cat.ScopeOf(store.ProjectRef{Key: o.Key, Dir: o.Dir, Remote: o.Remote}, 0)
+	if len(sc.MemoryProjectIDs) == 0 {
+		return notice("no memory for " + name)
+	}
+	id := sc.MemoryProjectIDs[0]
+	harness := ""
+	if ps, err := a.opts.Store.MemoryProjects(ctx); err == nil {
+		for _, p := range ps {
+			if p.ID == id {
+				harness = p.Harness
+			}
+		}
+	}
+	m, cmd := a.Update(memview.Open{ProjectID: id, Project: name, Harness: harness})
+	app := m.(App)
+	app.memFromDetail = true
+	return app, cmd
 }
 
 // openAttachments shows the attachment view above the view it was opened
@@ -683,6 +728,11 @@ func (a App) View() tea.View {
 func (a App) header() string {
 	left := " " + a.th.Gradient("total-recall")
 	right := strings.Join(a.tabs(), " ") + " "
+	if lipgloss.Width(left)+lipgloss.Width(right) >= a.width {
+		// Five tabs and a layer name fill a narrow window: the name of the
+		// program gives way to them.
+		left = ""
+	}
 	gap := max(a.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	status, important := a.reloadStatus()
 	if status != "" && lipgloss.Width(status)+2 > gap {
@@ -741,7 +791,12 @@ func (a App) tabs() []string {
 		case a.showAttach:
 			t += a.th.AccentText.Render(" › " + a.attach.Title())
 		case a.showMemory:
-			t += a.th.AccentText.Render(" › " + a.memory.Title())
+			// Above the memory tab the viewer is named by its project.
+			crumb := a.memory.Title()
+			if v.Title() == crumb {
+				crumb = a.memory.Crumb()
+			}
+			t += a.th.AccentText.Render(" › " + crumb)
 		case a.showDetail && a.detailFromDay:
 			t += a.th.AccentText.Render(" › " + a.day.Title() + " › " + a.detail.Title())
 		case a.showDetail:

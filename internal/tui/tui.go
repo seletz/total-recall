@@ -48,6 +48,7 @@ import (
 	"github.com/seletz/total-recall/internal/tui/configview"
 	"github.com/seletz/total-recall/internal/tui/dayview"
 	"github.com/seletz/total-recall/internal/tui/keys"
+	"github.com/seletz/total-recall/internal/tui/memtab"
 	"github.com/seletz/total-recall/internal/tui/memview"
 	"github.com/seletz/total-recall/internal/tui/search"
 	"github.com/seletz/total-recall/internal/tui/session"
@@ -85,10 +86,11 @@ const (
 	ViewStats    = "stats"
 	ViewActivity = "activity"
 	ViewConfig   = "config"
+	ViewMemory   = "memory"
 )
 
 // ViewNames lists the views in tab order.
-var ViewNames = []string{ViewSearch, ViewStats, ViewActivity, ViewConfig}
+var ViewNames = []string{ViewSearch, ViewStats, ViewActivity, ViewConfig, ViewMemory}
 
 // Options configure the app.
 type Options struct {
@@ -227,7 +229,7 @@ func New(opts Options) (App, error) {
 	if err != nil {
 		return App{}, err
 	}
-	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao), configview.New(configOptions(opts, colors))}
+	views := []View{search.New(searchOptions(opts)), stats.New(so), activity.New(ao), configview.New(configOptions(opts, colors)), memtab.New(memtabOptions(opts))}
 	active := -1
 	for i, v := range views {
 		if v.Title() == opts.Start {
@@ -276,6 +278,16 @@ func configOptions(opts Options, colors *chart.Colors) configview.Options {
 		co.Store = opts.Store
 	}
 	return co
+}
+
+// memtabOptions is what the memory tab gets from the app options; a nil
+// store stays a nil Source.
+func memtabOptions(opts Options) memtab.Options {
+	mo := memtab.Options{Resolver: opts.Projects, Home: opts.Home, Location: opts.Location, Keys: opts.Keys}
+	if opts.Store != nil {
+		mo.Source = opts.Store
+	}
+	return mo
 }
 
 // searchOptions is what the search view gets from the app options. A nil

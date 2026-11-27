@@ -1,4 +1,4 @@
- total-recall                       updated 10:00:00                       [1 search]  2 stats   3 activity   4 config
+ total-recall                 updated 10:00:00                  [1 search]  2 stats   3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -15,8 +15,8 @@
           │ tab/esc input    i  attached    u your input      P choose project        2 stats       esc back │
           │ enter   open     t  time        g answers         v view attachments      3 activity    q   quit │
           │ ↑/k     up       r  repo        c tool calls                              4 config      ^c  quit │
-          │ ↓/j     down     ^r raw fts     o tool results                            R reload               │
-          │                                 I images                                                         │
+          │ ↓/j     down     ^r raw fts     o tool results                            5 memory               │
+          │                                 I images                                  R reload               │
           │                                 D documents                                                      │
           │                                 f files                                                          │
           │                                 s sessions                                                       │
