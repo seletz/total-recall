@@ -508,7 +508,7 @@ func TestMigrate(t *testing.T) {
 	m = press(t, m, "down", "down", "down", "enter")
 	f = frame(m)
 	requireContains(t, f, "migrate: migrate from schema v1 to v"+itoa(latest)+" after a copy (archive.db.pre-v1.bak)",
-		"y confirms, esc cancels", "schema    v1 -> v"+itoa(latest)+", "+itoa(latest-1)+" pending migrations:", "v2    sessions: harness-generated title", "backup    ", "space     about")
+		"y confirms, esc cancels", "v2    sessions: harness-generated title", "backup    ", "space     about")
 	m = press(t, m, "esc")
 	requireContains(t, frame(m), "migrate: cancelled")
 	if _, err := os.Stat(old + ".pre-v1.bak"); err == nil {

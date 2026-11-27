@@ -100,3 +100,15 @@ run = "scripts/charts-check.sh -db build/demo.db"
 description = "Build documentation site (strict)"
 depends = ["uv:sync"]
 run = "uv run --locked zensical build --clean --strict"
+
+[tasks."spike:pool"]
+description = "Spike #347: split the demo archive over two hosts, push both over HTTPS into build/pool/central.db and compare the --json outputs (synthetic data only)"
+run = "scripts/pool-demo.sh"
+
+[tasks."spike:pg"]
+description = "Spike #347: project build/pool/central.db into a throwaway PostgreSQL container (port 55432) and print the comparison and example analyses"
+run = [
+  "docker run -d --rm --name tr-spike-pg -e POSTGRES_PASSWORD=spike -e POSTGRES_DB=archive -p 127.0.0.1:55432:5432 postgres:17-alpine || true",
+  "sleep 3",
+  "go run ./tools/pgspike -db build/pool/central.db -dsn 'postgres://postgres:spike@127.0.0.1:55432/archive?sslmode=disable'",
+]

@@ -12,11 +12,11 @@
   ingest all                read every transcript of every harness from the stored offset · migrate first
   doctor                    check the transcripts for format drift; reads only
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- migrate: migrate from schema v9 to v10 after a copy (archive.db.pre-v9.bak)
+ migrate: migrate from schema v10 to v11 after a copy (archive.db.pre-v10.bak)
  y confirms, esc cancels
-   schema    v9 -> v10, 1 pending migration:
-     v10   events: input_kind (typed, pasted, bash, remote) of human messages; fills it from text and raw for the human…
-   backup    ~/.local/share/total-recall/archive.db.pre-v9.bak
+   schema    v10 -> v11, 1 pending migration:
+     v11   sessions: host, the pool host a central archive received the session from (NULL = ingested locally); moves n…
+   backup    ~/.local/share/total-recall/archive.db.pre-v10.bak
    space     about 0.2 MiB free needed next to the database (copy and migration)
 
 
