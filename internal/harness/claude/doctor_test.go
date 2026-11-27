@@ -383,3 +383,36 @@ func TestCheckFormatIsolationLatch(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckFormatDataFlowAndDerivedFrom: Claude Code 2.1.33x writes
+// data-flow-records (with and without snapshot), data-flow-incomplete and
+// derived-from records (#353). They have no timestamp and no text. They are
+// known to doctor and kept as meta records. The fixtures are synthetic.
+func TestCheckFormatDataFlowAndDerivedFrom(t *testing.T) {
+	const sid = "00000000-0000-4000-8000-000000000001"
+	tests := []struct {
+		name     string
+		metaType string
+		line     string
+	}{
+		{"data-flow-records with records", "data-flow-records", `{"type":"data-flow-records","v":1,"sessionId":"` + sid + `","records":[{"tool_name":"Read","event_id":"00000000-0000-4000-8000-000000000002"}]}`},
+		{"data-flow-records snapshot", "data-flow-records", `{"type":"data-flow-records","v":1,"sessionId":"` + sid + `","records":[],"snapshot":true}`},
+		{"data-flow-incomplete", "data-flow-incomplete", `{"type":"data-flow-incomplete","v":1,"sessionId":"` + sid + `"}`},
+		{"derived-from", "derived-from", `{"type":"derived-from","v":1,"sessionId":"` + sid + `","sessions":[{"type":"session","id":"00000000-0000-4000-8000-000000000003","via":"fork"}]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !slices.Contains(MetaRecordTypes(), tt.metaType) {
+				t.Errorf("%s is not in metaTypes", tt.metaType)
+			}
+			dir := writeTree(t, map[string]string{"-w/s/abc.jsonl": tt.line + "\n"})
+			r, err := New(dir).CheckFormat(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !r.Clean() {
+				t.Errorf("%s reported as drift: %+v", tt.metaType, r)
+			}
+		})
+	}
+}

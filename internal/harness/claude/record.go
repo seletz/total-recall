@@ -59,6 +59,9 @@ var (
 		"fork-context-ref",          // first line of a forked subagent transcript (2.1.322+): parent session, its last message and the context length; no timestamp, no text
 		"frame-link",                // artifact frame of the session (URL, title, artifact count); the URL and title are not repeated elsewhere
 		"isolation-latch",           // side (connectors or web) and session of an isolation latch (2.1.325+); no timestamp, no text
+		"data-flow-records",         // data flow of the session (2.1.33x+): tool calls and event IDs, or a snapshot; no timestamp, no text
+		"data-flow-incomplete",      // marker that the data flow of the session is incomplete (2.1.33x+); no timestamp, no text
+		"derived-from",              // sessions this one derives from, e.g. by fork (2.1.33x+); no timestamp, no text
 	}
 	// skippedTypes carry nothing the archive needs: the API request cache
 	// (hashes of prompt blocks and the message content behind them, which
