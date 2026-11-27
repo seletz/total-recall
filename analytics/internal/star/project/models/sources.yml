@@ -1,0 +1,11 @@
+version: 2
+
+# The archive, attached read-only as "src" (total-recall-analytics:
+# star.Run; dbt: the attach list of the profile).
+sources:
+  - name: tr
+    database: src
+    schema: main
+    tables:
+      - name: sessions
+      - name: events

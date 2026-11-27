@@ -1,0 +1,16 @@
+# Example dbt-duckdb profile: an analytics database and an archive attached as
+# "src". dbt-duckdb installs the sqlite extension from the network itself;
+# total-recall-analytics has it compiled in and never does.
+total_recall_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: build/analytics-dbt.duckdb
+      attach:
+        - path: build/demo.db
+          alias: src
+          type: sqlite
+          read_only: true
+      settings:
+        TimeZone: UTC
