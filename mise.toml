@@ -22,6 +22,11 @@ go build -ldflags "-s -w -X github.com/seletz/total-recall/internal/version.Vers
 description = "Build DuckDB with sqlite_scanner compiled in for this platform (analytics/duckdb/duckdb.lock, extensions.cmake), the library total-recall-analytics links; skipped when up to date"
 run = "scripts/analytics-duckdb.sh"
 
+[tasks."analytics:pool-bench"]
+description = "Measure total-recall-analytics build --pool and queries on the demo pool scaled 1x/10x/100x (synthetic, build/pool-bench)"
+depends = ["analytics:duckdb"]
+run = "scripts/analytics-pool-bench.sh"
+
 [tasks."analytics:build"]
 description = "Build total-recall-analytics (DuckDB, needs cgo) into ./total-recall-analytics"
 depends = ["analytics:duckdb"]

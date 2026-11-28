@@ -47,6 +47,11 @@ type Options struct {
 	Source string
 	// Host is the host of every session of the archive.
 	Host string
+	// ArchiveID is the archive's own ID (archive_meta, total-recall schema
+	// v11), "" when unknown. With it a run replaces a source that loaded
+	// the same archive under another name (a renamed host) and loads in
+	// full when the source had another archive before.
+	ArchiveID string
 	// TZ is the primary time zone: local days of the marts and views.
 	TZ *time.Location
 	// ExtraZones are further zones of the bridge.
@@ -78,6 +83,9 @@ type Report struct {
 	Models   int
 	Tests    int
 	Elapsed  time.Duration
+	// Replaced are the sources that had loaded the same archive under
+	// another name; their facts were removed (see Options.ArchiveID).
+	Replaced []string
 }
 
 // ErrContract means the published views differ from contract.txt.
@@ -150,6 +158,7 @@ CREATE TABLE IF NOT EXISTS etl_watermark (
 	archive  VARCHAR NOT NULL,
 	last_seq BIGINT NOT NULL
 );
+ALTER TABLE etl_watermark ADD COLUMN IF NOT EXISTS archive_id VARCHAR;
 CREATE TABLE IF NOT EXISTS etl_setting (
 	key   VARCHAR PRIMARY KEY,
 	value VARCHAR NOT NULL
@@ -170,11 +179,16 @@ func (r *Report) run(ctx context.Context, tx *sql.Tx, p Project, o Options) erro
 			return fmt.Errorf("macros: %w", err)
 		}
 	}
+	if err := r.replaceRenamed(ctx, tx, o); err != nil {
+		return err
+	}
 	var last sql.NullInt64
-	if err := tx.QueryRowContext(ctx, "SELECT last_seq FROM etl_watermark WHERE source = ?", o.Source).Scan(&last); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	var lastID sql.NullString
+	if err := tx.QueryRowContext(ctx, "SELECT last_seq, archive_id FROM etl_watermark WHERE source = ?", o.Source).Scan(&last, &lastID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("watermark: %w", err)
 	}
-	if o.Full || !last.Valid {
+	otherArchive := o.ArchiveID != "" && lastID.Valid && lastID.String != o.ArchiveID
+	if o.Full || !last.Valid || otherArchive || len(r.Replaced) > 0 {
 		r.Mode = "full"
 		if err := deleteSource(ctx, tx, o.Source); err != nil {
 			return err
@@ -253,8 +267,8 @@ func (r *Report) run(ctx context.Context, tx *sql.Tx, p Project, o Options) erro
 	if len(failed) > 0 {
 		return fmt.Errorf("data tests failed: %s", strings.Join(failed, "; "))
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO etl_watermark (source, host, archive, last_seq) VALUES (?, ?, ?, ?)`,
-		o.Source, o.Host, o.Archive, r.SeqTo); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO etl_watermark (source, host, archive, last_seq, archive_id) VALUES (?, ?, ?, ?, ?)`,
+		o.Source, o.Host, o.Archive, r.SeqTo, sql.NullString{String: o.ArchiveID, Valid: o.ArchiveID != ""}); err != nil {
 		return fmt.Errorf("watermark: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO etl_setting (key, value) VALUES ('tz', ?), ('zones', ?)`,
@@ -264,6 +278,39 @@ func (r *Report) run(ctx context.Context, tx *sql.Tx, p Project, o Options) erro
 	if _, err := tx.ExecContext(ctx, "UPDATE etl_batch SET finished_at = ?, events_loaded = ?, sessions_loaded = ? WHERE batch_id = ?",
 		o.Now().UTC(), r.Events, r.Sessions, r.BatchID); err != nil {
 		return fmt.Errorf("batch: %w", err)
+	}
+	return nil
+}
+
+// replaceRenamed removes the sources that loaded o.ArchiveID under
+// another name: the archive is loaded again, in full, under o.Source, so
+// a renamed host is never counted twice.
+func (r *Report) replaceRenamed(ctx context.Context, tx *sql.Tx, o Options) error {
+	if o.ArchiveID == "" {
+		return nil
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT source FROM etl_watermark WHERE archive_id = ? AND source <> ? ORDER BY source", o.ArchiveID, o.Source)
+	if err != nil {
+		return fmt.Errorf("watermark: %w", err)
+	}
+	var old []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("watermark: %w", err)
+		}
+		old = append(old, s)
+	}
+	_ = rows.Close()
+	for _, s := range old {
+		if err := deleteSource(ctx, tx, s); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM etl_watermark WHERE source = ?", s); err != nil {
+			return fmt.Errorf("watermark: %w", err)
+		}
+		r.Replaced = append(r.Replaced, s)
 	}
 	return nil
 }

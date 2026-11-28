@@ -28,22 +28,26 @@ Alle Befehle außer `version` und `views` lesen die Konfiguration von `total-rec
 | `--db PATH` | Analyse-Datenbank; Standard: `analytics.duckdb` neben dem Archiv |
 | `--tz ZONE` | primäre Zeitzone statt `timezone` der Konfiguration |
 
-Die Beispiele laufen auf dem Demo-Archiv (Benutzer `mara`, Zone Europe/Berlin). Das Demo-Archiv hat noch keine Token-Angaben; die Token-Spalten sind deshalb 0.
+Die Beispiele laufen auf dem Demo-Archiv (Benutzer `mara`, Zone Europe/Berlin). Das Demo-Archiv hat keine Token-Angaben; die Token-Spalten sind dort 0. Die Beispiele zum [Pool](#pool) laufen auf dem Demo-Pool, dessen zwei Hosts Tokens und Modelle haben.
 
 ### build
 
 ```
 total-recall-analytics build [--host NAME] [--source NAME] [--full] [--extra-tz ZONE]... [--json]
+total-recall-analytics build --pool [--pool-dir DIR] [--cache DIR] [--full] [--extra-tz ZONE]... [--json]
 ```
 
 Lädt das Archiv in die Analyse-Datenbank (legt sie beim ersten Mal an). Geladen werden alle Sessions mit Events über dem Wasserstand der Quelle, mit `--full` alle Events der Quelle neu. Danach rechnet der Lauf die Arbeitszeit über alle Quellen neu ([worktime](#worktime)). Ein Lauf ist eine Transaktion: Der Vertrag der Views und alle Datentests müssen bestehen, sonst bleibt die Datenbank, wie sie war. Was dabei passiert: [Analyse-Schema](../explanation/analyse-schema.md#laden).
 
 | Option | Bedeutung |
 |---|---|
-| `--host NAME` | Host, zu dem das Archiv gehört; Standard: der kurze Name dieses Rechners |
+| `--host NAME` | Host, zu dem das Archiv gehört; Standard: der Host, den das Archiv gespeichert hat ([`host`](20-konfiguration.md#host), ab Schema v11), sonst der kurze Name dieses Rechners |
 | `--source NAME` | Name der Quelle für den Wasserstand; Standard: der Host |
 | `--full` | alle Events der Quelle neu laden statt nur der neuen |
 | `--extra-tz ZONE` | weitere Zone für `analytics_time_slot_v1` (mehrfach) |
+| `--pool` | alle Hosts des Pool-Verzeichnisses laden statt eines Archivs (siehe [Pool](#pool)) |
+| `--pool-dir DIR` | Pool-Verzeichnis statt [`[backup] pool_dir`](20-konfiguration.md#pool_dir); schließt `--pool` ein |
+| `--cache DIR` | wohin `--pool` die Backups entpackt; Standard `<Cache-Verzeichnis des Benutzers>/total-recall/pool` |
 | `--json` | Ausgabe als JSON |
 
 ```console
@@ -60,6 +64,8 @@ $ total-recall-analytics build --host host-a --json
   "source": "host-a",
   "host": "host-a",
   "archive": "/home/mara/.local/share/total-recall/archive.db",
+  "archive_id": "de00000000000000000000000000a001",
+  "replaced": [],
   "tz": "Europe/Berlin",
   "batch_id": 2,
   "mode": "incremental",
@@ -69,11 +75,95 @@ $ total-recall-analytics build --host host-a --json
   "sessions": 0,
   "models": 39,
   "tests": 9,
-  "elapsed_ms": 967
+  "elapsed_ms": 954
 }
 ```
 
-JSON-Schlüssel: `analytics_db`, `source`, `host`, `archive`, `tz`, `batch_id`, `mode` (`full` oder `incremental`), `seq_from` und `seq_to` (geladen wurden Sessions mit Events in `seq_from` < seq ≤ `seq_to`), `events` und `sessions` (alle Events der berührten Sessions), `models`, `tests`, `elapsed_ms`.
+JSON-Schlüssel: `analytics_db`, `source`, `host`, `archive`, `archive_id` (die ID des Archivs, `null` vor Schema v11), `replaced` (Quellen, die dasselbe Archiv unter einem früheren Host-Namen geladen hatten und ersetzt wurden), `tz`, `batch_id`, `mode` (`full` oder `incremental`), `seq_from` und `seq_to` (geladen wurden Sessions mit Events in `seq_from` < seq ≤ `seq_to`), `events` und `sessions` (alle Events der berührten Sessions), `models`, `tests`, `elapsed_ms`.
+#### Pool { #pool }
+
+Mit `--pool` kommen die Archive aus dem Pool-Verzeichnis ([Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md)): je Host die neueste Kopie, einmal in den Cache entpackt und schreibgeschützt eingehängt. Jedes Archiv wird eine eigene Quelle unter dem Host, den es selbst gespeichert hat. Jedes Archiv zählt genau einmal:
+
+- Ein Archiv ohne Kennung (Schema vor v11) wird übersprungen, mit dem Hinweis, auf diesem Host zu migrieren.
+- Von mehreren Kopien desselben Archivs (gleiche ID, etwa der alte Ordner eines umbenannten Hosts) zählt nur die neueste.
+- Zwei verschiedene Archive, die denselben Host nennen, werden beide übersprungen: Ihre Sessions ließen sich nach Host nicht trennen. Abhilfe: [`host`](20-konfiguration.md#host) auf einem der Rechner setzen.
+- Lädt ein Archiv, das schon unter einem anderen Namen geladen war (umbenannter Host), ersetzt es diese Quelle (`replaced`), statt doppelt zu zählen. Ein neues Archiv unter einem bekannten Host-Namen (neu aufgesetzter Rechner) wird ganz geladen.
+
+Der Pool ist die Summe der Hosts: Je Host sind Sessions, Events und Tokens dieselben wie in `total-recall stats --json` auf dem Archiv des Hosts, über den Pool dieselben wie auf einem Archiv mit allen Sessions. Die Arbeitszeit rechnet über alle Hosts zusammen, weil eine Lücke der Person gehört und nicht dem Rechner; ein Test prüft beides gegen den Demo-Pool.
+
+Gegen den Demo-Pool (zwei Hosts, siehe [Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md)):
+
+```console
+$ total-recall-analytics build --pool
+/home/mara/.local/share/total-recall/analytics.duckdb: pool /srv/pool/total-recall, 2 archives
+  batch 1 (full) from host-a (host host-a), seq 0..15058: 15058 events in 639 sessions, 39 models, 9 tests passed, 1.399s
+  batch 2 (full) from host-b (host host-b), seq 0..6884: 6884 events in 297 sessions, 39 models, 9 tests passed, 468ms
+```
+
+Der zweite Lauf mit `--json` (gekürzt auf den ersten Host):
+
+```console
+$ total-recall-analytics build --pool --json
+{
+  "analytics_db": "/home/mara/.local/share/total-recall/analytics.duckdb",
+  "pool": "/srv/pool/total-recall",
+  "cache": "/home/mara/.cache/total-recall/pool",
+  "builds": [
+    {
+      "analytics_db": "/home/mara/.local/share/total-recall/analytics.duckdb",
+      "source": "host-a",
+      "host": "host-a",
+      "archive": "/home/mara/.cache/total-recall/pool/host-a/archive-2026-11-28.db",
+      "archive_id": "de00000000000000000000000000b00a",
+      "replaced": [],
+      …
+    },
+    …
+  ],
+  "skipped": []
+}
+```
+
+JSON: `analytics_db`, `pool`, `cache`, `builds` (je Archiv ein Objekt wie bei `build --json`) und `skipped` (je übersprungener Kopie `host` = Ordner, `backup` und `reason`).
+
+Die Auswertungen trennen nach Host mit `--by host`:
+
+```console
+$ total-recall-analytics usage --by host
+TOTAL  HOST    SESSIONS  HUMAN  AGENT  TOOL CALLS  TOKENS IN  TOKENS OUT
+total  host-a       639   2068   7528        5315   99166013     1232133
+total  host-b       297   1033   3442        2354   45018319      563130
+
+$ total-recall-analytics tokens --by host
+TOTAL  HOST    EVENTS     INPUT  FRESH  CACHE READ  CACHE WRITE  UNSPLIT   OUTPUT
+total  host-a    7528  99166013  22584    91370456      7772973        0  1232133
+total  host-b    3442  45018319  10326    41321787      3686206        0   563130
+
+$ total-recall-analytics worktime --by host
+TOTAL  HOST    DAYS   HOURS
+total  host-a   120  299:19
+total  host-b    91  140:24
+```
+
+Liegt dasselbe Backup ein zweites Mal im Pool, hier im Ordner `host-c`, zählt es nicht doppelt:
+
+```console
+$ total-recall-analytics build --pool
+/home/mara/.local/share/total-recall/analytics.duckdb: pool /srv/pool/total-recall, 2 archives
+  batch 5 (incremental) from host-a (host host-a), seq 15058..15058: 0 events in 0 sessions, 39 models, 9 tests passed, 955ms
+  batch 6 (incremental) from host-b (host host-b), seq 6884..6884: 0 events in 0 sessions, 39 models, 9 tests passed, 345ms
+skipped host-c: another copy of the archive of host-b, an older or equally new one
+```
+
+**Leistung.** Gemessen mit `mise run analytics:pool-bench` ([`scripts/analytics-pool-bench.sh`](https://github.com/seletz/total-recall/blob/develop/scripts/analytics-pool-bench.sh)) auf einem Apple M3 Max: der Demo-Pool (zwei Hosts) und derselbe Pool mit 10- und 100-mal so vielen Sessions und Events (kopiert, ohne Rohzeilen). Die Kopien im Pool schreibt das echte `total-recall backup`; das Skript prüft, dass die Analyse-Datenbank so viele Events hat wie die Archive.
+
+| Pool | Events | Pool-Verzeichnis | Analyse-Datenbank | `build --pool` (alles) | `build --pool` (nichts Neues) | `usage --by host --period month` | `tokens --by model` | `worktime` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Demo | 21 942 | 2,7 MiB | 15 MiB | 1,2 s | 0,4 s | 51 ms | 48 ms | 43 ms |
+| × 10 | 219 420 | 8,3 MiB | 27 MiB | 2,4 s | 1,1 s | 79 ms | 59 ms | 47 ms |
+| × 100 | 2 194 200 | 62 MiB | 227 MiB | 13,1 s | 5,5 s | 113 ms | 72 ms | 45 ms |
+
+Ein Lauf ohne neue Events kostet vor allem die Marts und die Arbeitszeit, die jeder Lauf je Host neu berechnet; die Abfragen bleiben auch bei 2,2 Millionen Events unter einer Fünftelsekunde.
 
 ### status
 
@@ -91,7 +181,7 @@ SOURCE  HOST    EVENTS  SESSIONS  LAST SEQ  BACKLOG  LAST BATCH                 
 host-a  host-a  21942   936       21942     0        2 incremental 2026-11-27T23:58:39Z  /home/mara/.local/share/total-recall/archive.db
 ```
 
-JSON: `analytics_db`, `size_bytes`, `tz`, `zones`, `views`, `sources` mit je `source`, `host`, `archive`, `archive_found`, `last_seq`, `backlog`, `events`, `sessions` und `last_batch` (`batch_id`, `mode`, `started_at`, `finished_at` in UTC, `seq_from`, `seq_to`, `events`, `sessions`).
+JSON: `analytics_db`, `size_bytes`, `tz`, `zones`, `views`, `sources` mit je `source`, `host`, `archive`, `archive_id` (`null` ohne Kennung), `archive_found`, `last_seq`, `backlog`, `events`, `sessions` und `last_batch` (`batch_id`, `mode`, `started_at`, `finished_at` in UTC, `seq_from`, `seq_to`, `events`, `sessions`).
 
 ### check
 

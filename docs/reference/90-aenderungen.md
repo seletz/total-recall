@@ -29,6 +29,11 @@ Meilenstein v1.11.0: ein eigenes Analyse-Tool mit DuckDB für die Archive eines 
   - **Neuer Befehl [`pool`](10-befehle.md#pool):** Er zeigt je Host die neueste Kopie mit Host, ID, Schema, Sessions und Events und meldet, was nicht passt. Er entpackt in einen Cache und liest mit `immutable=1`, der Pool wird nie geschrieben.
   - **`status`:** Zeile `pool`, in JSON `pool_dir`, `pool_copy`, `pool_copy_at`; dieselbe Zeile auf der Seite Status der TUI.
   - Rezept: [Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md).
+- **Analyse-Tool liest den Pool** ([#362](https://github.com/seletz/total-recall/issues/362)): `total-recall-analytics build --pool` lädt alle Hosts des Pool-Verzeichnisses, jeden als eigene Quelle unter dem Host, den sein Archiv nennt.
+  - **Jedes Archiv zählt einmal:** Kopien desselben Archivs zählen einfach, zwei Archive mit demselben Host-Namen und Archive vor Schema v11 werden mit Grund übersprungen. Ein umbenannter Host ersetzt seine alte Quelle, ein neues Archiv unter bekanntem Namen wird ganz geladen.
+  - **Summe gleich Teile:** Je Host stimmen die Zahlen mit `stats --json` des Host-Archivs überein, über den Pool mit einem Archiv aller Sessions, Arbeitszeit eingeschlossen.
+  - **Leistung:** 2,2 Millionen Events laden in 13 s, Abfragen bleiben unter 0,2 s.
+  - **Weitere Änderungen:** `build` nimmt den Host jetzt aus dem Archiv (`--host` geht vor), legt den Ordner der Analyse-Datenbank bei Bedarf an, und `build --json` und `status --json` haben `archive_id`. Siehe [Pool](15-analyse.md#pool).
 
 ### Upgrade auf v1.11.0
 

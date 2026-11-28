@@ -221,7 +221,7 @@ func Open(ctx context.Context, e Entry, cache string) (Archive, error) {
 		return a, err
 	}
 	var err error
-	a.Archive, a.SchemaVersion, err = identity(ctx, a.URI())
+	a.Archive, a.SchemaVersion, err = Identity(ctx, a.Path)
 	if err != nil {
 		return a, fmt.Errorf("pool: %s: %w", e.Host, err)
 	}
@@ -246,11 +246,12 @@ func cleanCache(dir, keep string) error {
 	return nil
 }
 
-// identity reads the schema version and archive_meta of the database at
-// uri; an archive before schema v11 has none.
-func identity(ctx context.Context, uri string) (store.Archive, int, error) {
+// Identity reads the schema version and archive_meta of the database at
+// path, read-only and immutable (ReadURI); an archive before schema v11
+// has none.
+func Identity(ctx context.Context, path string) (store.Archive, int, error) {
 	var a store.Archive
-	db, err := sql.Open("sqlite", uri)
+	db, err := sql.Open("sqlite", ReadURI(path))
 	if err != nil {
 		return a, 0, err
 	}

@@ -82,6 +82,17 @@ total-recall tui config
 
 Die Übersicht über alle Hosts (`total-recall pool`) hat in der TUI keine eigene Ansicht; sie gehört zum Analyse-Tool.
 
+## Auswerten
+
+Auf dem Rechner, der auswertet, lädt das [Analyse-Tool](../reference/15-analyse.md#pool) alle Hosts des Pools:
+
+```sh
+total-recall-analytics build --pool
+total-recall-analytics usage --by host
+```
+
+Es entpackt jede Kopie einmal in den Cache, lädt jeden Host als eigene Quelle und zählt jedes Archiv einmal, auch wenn eine Kopie doppelt im Pool liegt. Die Ausgabe gegen den Demo-Pool steht in der [Referenz](../reference/15-analyse.md#pool).
+
 ## Warum `backup` den Pool schreibt
 
 Der Weg über `backup` braucht nichts außer der Config: Der Hook, der ohnehin täglich ein Backup schreibt, füllt auch den Pool, auf macOS wie auf Linux gleich. Ein eigener Abgleich mit `rsync` bräuchte einen zweiten Zeitplan (launchd, systemd-Timer, cron) je Rechner, der wissen müsste, welche Datei die neueste ist, und alte Kopien im Pool nicht löschen dürfte. `backup` schreibt die Kopie als Temporärdatei (`archive-*.tmp`, kein Backup-Name) und benennt sie erst fertig um. Ein Leser sieht deshalb nie eine halbe Kopie unter einem gültigen Namen; Synchronisierer wie Syncthing übertragen ebenfalls erst fertige Dateien.
