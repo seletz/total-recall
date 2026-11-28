@@ -65,7 +65,7 @@ Fakten tragen nur UTC: den Zeitpunkt und die UTC-Viertelstunde (`slot_key`). Lok
 
 Ein Lauf lädt ein Archiv (eine *Quelle*) in einer Transaktion:
 
-1. **Stage:** alle Events jeder Session, die ein Event über dem Wasserstand der Quelle hat (`events.seq`). Die ganze berührte Session wird neu geladen, damit nachträglich geänderte Session-Attribute (Git-Root aufgelöst, Login nachgetragen, Eltern-Session später archiviert) alle ihre Events erreichen.
+1. **Stage:** alle Events jeder Session, die ein Event über dem Wasserstand der Quelle hat (`events.seq`). Die ganze berührte Session wird neu geladen, damit nachträglich geänderte Session-Attribute (Git-Root aufgelöst, Login nachgetragen, Eltern-Session später archiviert) alle ihre Events erreichen. `kind`, `actor` und `input_kind` behalten ihre Werte aus dem Wertebereich des Archivs (`kind`: `message`, `tool_use`, `tool_result`, `system`, `meta`); ein unbekannter Wert, etwa aus einer neueren Version von `total-recall`, wird `unknown`, mit einer Warnung statt eines Abbruchs ([Unbekannte Werte](../reference/15-analyse.md#unbekannte-werte)).
 2. **Dimensionen, Namen, Fakten:** Dimensionen und `fact_event` werden auf ihren Schlüssel ersetzt (löschen und einfügen). Ein erneut geladenes Event, auch dasselbe von einem zweiten Host, ersetzt seine Zeile: Jeder Lauf ist idempotent. Projekt- und Login-Namen rechnet Go aus der Konfiguration.
 3. **Kalender, Marts, Views:** werden bei jedem Lauf ganz neu gebaut; sie sind nie die einzige Kopie von etwas.
 4. **Prüfen:** Vertrag der Views und Datentests (eindeutige und gesetzte Schlüssel, Beziehungen, erlaubte Werte, Token-Aufteilung, Abdeckung der Brücke, Marts = Fakten). Schlägt etwas fehl, wird die ganze Transaktion verworfen.

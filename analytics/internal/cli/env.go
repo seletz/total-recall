@@ -51,7 +51,18 @@ func (a *App) openAnalytics(ctx context.Context, cfg *config.Config, readOnly bo
 		return nil, path, errKind(ErrKindDB, err)
 	}
 	db, err := a.open(ctx, duck.Options{Path: path, ReadOnly: readOnly})
-	return db, path, err
+	if err != nil || !readOnly {
+		return db, path, err
+	}
+	// A build that failed leaves a database without views.
+	if ok, err := star.Built(ctx, db); err != nil || !ok {
+		_ = db.Close()
+		if err == nil {
+			err = fmt.Errorf("analytics database %s: %w (run build first)", path, star.ErrNotBuilt)
+		}
+		return nil, path, errKind(ErrKindDB, err)
+	}
+	return db, path, nil
 }
 
 // hostName is --host, else the short host name of this machine.

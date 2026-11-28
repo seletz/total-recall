@@ -2,18 +2,22 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/seletz/total-recall/analytics/internal/duck"
+	"github.com/seletz/total-recall/analytics/internal/star"
 	trcli "github.com/seletz/total-recall/internal/cli"
 	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
@@ -201,6 +205,58 @@ func TestCommandsBeforeBuild(t *testing.T) {
 		if code != 1 || !strings.Contains(out, `"kind":"db"`) || !strings.Contains(out, "run build first") {
 			t.Errorf("%s before build: exit %d, %s", cmd, code, out)
 		}
+	}
+}
+
+// TestCommandsAfterFailedBuild: a build that failed leaves an analytics
+// database without views; the commands say to build, not that a view is
+// missing.
+func TestCommandsAfterFailedBuild(t *testing.T) {
+	e := newEnv(t)
+	db, err := duck.Open(context.Background(), duck.Options{Path: e.analytics})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), "CREATE TABLE etl_batch (batch_id BIGINT)"); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	for _, cmd := range []string{"usage", "tokens", "worktime", "check"} {
+		code, out, _ := e.run(cmd, "--db", e.analytics, "--json")
+		if code != 1 || !strings.Contains(out, `"kind":"db"`) || !strings.Contains(out, "run build first") {
+			t.Errorf("%s after a failed build: exit %d, %s", cmd, code, out)
+		}
+	}
+	if code, out, errOut := e.run("tui", "--db", e.analytics); code == 0 || !strings.Contains(out+errOut, "run build first") {
+		t.Errorf("tui after a failed build: exit %d, %s%s", code, out, errOut)
+	}
+}
+
+// TestBuildWarnsAboutUnknownValues: a value outside the schema's value set
+// (a newer total-recall) loads as "unknown" with a warning; the build and
+// the commands after it work.
+func TestBuildWarnsAboutUnknownValues(t *testing.T) {
+	e := newEnv(t)
+	db, _ := sql.Open("sqlite", e.archive)
+	if _, err := db.Exec("UPDATE events SET kind = 'future-kind' WHERE seq IN (SELECT seq FROM events WHERE kind = 'message' ORDER BY seq LIMIT 2)"); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	var b BuildJSON
+	e.json(&b, "build", "--db", e.analytics, "--host", "host-a")
+	if want := []star.UnknownValue{{Column: "kind", Value: "future-kind", Events: 2}}; !reflect.DeepEqual(b.Unknown, want) {
+		t.Errorf("unknown_values %+v, want %+v", b.Unknown, want)
+	}
+	out := e.mustRun("build", "--db", e.analytics, "--host", "host-a", "--full")
+	if !strings.Contains(out, `  warning: 2 events with kind "future-kind", loaded as unknown`) {
+		t.Errorf("build text without warning:\n%s", out)
+	}
+	e.mustRun("usage", "--db", e.analytics)
+	var clean BuildJSON
+	e2 := newEnv(t)
+	e2.json(&clean, "build", "--db", e2.analytics, "--host", "host-a")
+	if clean.Unknown == nil || len(clean.Unknown) != 0 {
+		t.Errorf("unknown_values of the demo archive %#v, want []", clean.Unknown)
 	}
 }
 

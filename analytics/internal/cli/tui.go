@@ -2,8 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
@@ -39,11 +37,7 @@ r reloads.`,
 			if err != nil {
 				return err
 			}
-			path := a.analyticsPath(cfg)
-			if _, err := os.Stat(path); err != nil {
-				return errKind(ErrKindDB, fmt.Errorf("analytics database %s: %w (run build first)", path, star.ErrNotBuilt))
-			}
-			db, err := a.open(cmd.Context(), duck.Options{Path: path, ReadOnly: true})
+			db, path, err := a.openAnalytics(cmd.Context(), cfg, true)
 			if err != nil {
 				return err
 			}

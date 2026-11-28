@@ -28,16 +28,19 @@ type BuildJSON struct {
 	// another name and were removed (a renamed host).
 	ArchiveID *string  `json:"archive_id"`
 	Replaced  []string `json:"replaced"`
-	TZ        string   `json:"tz"`
-	BatchID   int64    `json:"batch_id"`
-	Mode      string   `json:"mode"`
-	SeqFrom   int64    `json:"seq_from"`
-	SeqTo     int64    `json:"seq_to"`
-	Events    int      `json:"events"`
-	Sessions  int      `json:"sessions"`
-	Models    int      `json:"models"`
-	Tests     int      `json:"tests"`
-	ElapsedMS int64    `json:"elapsed_ms"`
+	// Unknown are the values of the new events outside the value sets of
+	// the schema (a newer total-recall), loaded as "unknown".
+	Unknown   []star.UnknownValue `json:"unknown_values"`
+	TZ        string              `json:"tz"`
+	BatchID   int64               `json:"batch_id"`
+	Mode      string              `json:"mode"`
+	SeqFrom   int64               `json:"seq_from"`
+	SeqTo     int64               `json:"seq_to"`
+	Events    int                 `json:"events"`
+	Sessions  int                 `json:"sessions"`
+	Models    int                 `json:"models"`
+	Tests     int                 `json:"tests"`
+	ElapsedMS int64               `json:"elapsed_ms"`
 }
 
 // BuildPoolJSON is the output of `build --pool --json`.
@@ -205,7 +208,7 @@ func (b buildRun) load(ctx context.Context, archive, source, host, archiveID str
 	if err != nil {
 		return BuildJSON{}, errKind(ErrKindDB, fmt.Errorf("%s: %w", source, err))
 	}
-	out := BuildJSON{AnalyticsDB: b.path, Source: r.Source, Host: host, Archive: archive, Replaced: append([]string{}, r.Replaced...),
+	out := BuildJSON{AnalyticsDB: b.path, Source: r.Source, Host: host, Archive: archive, Replaced: append([]string{}, r.Replaced...), Unknown: append([]star.UnknownValue{}, r.Unknown...),
 		TZ: o.TZ.String(), BatchID: r.BatchID, Mode: r.Mode, SeqFrom: r.SeqFrom, SeqTo: r.SeqTo, Events: r.Events, Sessions: r.Sessions,
 		Models: r.Models, Tests: r.Tests, ElapsedMS: r.Elapsed.Milliseconds()}
 	if archiveID != "" {
@@ -274,6 +277,11 @@ func writeBuildLine(w io.Writer, out BuildJSON, indent string) error {
 	}
 	for _, s := range out.Replaced {
 		if _, err = fmt.Fprintf(w, "%s  replaced source %s: the same archive under its old name\n", indent, s); err != nil {
+			return err
+		}
+	}
+	for _, u := range out.Unknown {
+		if _, err = fmt.Fprintf(w, "%s  warning: %s\n", indent, u); err != nil {
 			return err
 		}
 	}
