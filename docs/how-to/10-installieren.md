@@ -124,6 +124,20 @@ total-recall maintenance                          # 4. Datei neu aufbauen (nach 
 total-recall status                               # 5. prüfen: schema ohne Hinweis
 ```
 
+**v1.11.0 (Schema v11)** legt nur die kleine Tabelle [`archive_meta`](../reference/40-schema.md#archive_meta) an. Sie hält eine zufällige ID des Archivs und den Host aus [`host`](../reference/20-konfiguration.md#host). `migrate` dauert Millisekunden und speichert den Host gleich mit; Schritt 3 und 4 entfallen. Danach zeigt `status` die Zeile `host` mit Name und ID ([Rechner im Pool benennen](68-host-benennen.md)). Gegen eine Kopie des Demo-Archivs (10,7 MiB):
+
+```text
+$ total-recall migrate --yes
+database  /home/mara/.local/share/total-recall/archive.db  (10.7 MiB)
+schema    v10 -> v11, 1 pending migration:
+  v11   archive_meta: a random archive_id and the host name (config key host) that identify the archive in a pool of hosts; moves no data, migrate records the host right away
+backup    /home/mara/.local/share/total-recall/archive.db.pre-v10.bak
+space     about 13.3 MiB free needed next to the database (copy and migration)
+store: schema v10 -> v11: backup written to /home/mara/.local/share/total-recall/archive.db.pre-v10.bak
+store: migration v11 applied (5ms)
+migrated v10 -> v11 (34ms); the copy /home/mara/.local/share/total-recall/archive.db.pre-v10.bak can be removed once everything works
+```
+
 **v1.4.0 (Schema v8)** legt nur die Tabellen für das [Projekt-Gedächtnis](../reference/10-befehle.md#memory) an, `migrate` dauert Sekunden, Schritt 3 und 4 entfallen. Das Gedächtnis nimmt der nächste Hook auf oder sofort ein `total-recall ingest --all`, in weniger als einer Sekunde. Frühere Stände gibt es nicht; ab dann ist jede Fassung im Archiv, auch gelöschte Dateien ([Datenschutz](../explanation/datenschutz.md#gedaechtnis)).
 
 **v1.3.0 (Schema v7)** legt nur vier Tabellen an, `migrate` dauert Sekunden. Was das Release ändert, steckt im dritten Schritt: `raw` wird wieder die **vollständige** Transkriptzeile ohne Größengrenze, eingefügte Bilder und Dokumente kommen als Blobs ins Archiv, und die [Meta-Records](../reference/40-schema.md#session_meta) (Anhänge wie die geladenen `CLAUDE.md`-Dateien, System-Prompts, Modus, Pull Request, Datei-Historie, …) werden gespeichert ([Änderungen](../reference/90-aenderungen.md)). Alles drei holt `ingest --all --reread --rewrite-raw` für den Altbestand aus den Transkripten, und zwar **nur, solange Claude Code die noch hat** (`cleanupPeriodDays`, standardmäßig 30 Tage): Was schon gelöscht ist, bleibt der Auszug von v1.2. Deshalb den Schritt bald nach dem Update ausführen; er dauert etwa so lange wie das erste Einlesen, lässt sich abbrechen und wiederholen. Zahlen von einer Kopie eines echten Archivs stehen in den [Änderungen](../reference/90-aenderungen.md). `maintenance` danach gibt den Platz der ersetzten Zeilen frei.

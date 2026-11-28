@@ -287,6 +287,11 @@ func TestMigrateFromEveryVersion(t *testing.T) {
 			}
 			checks["SELECT count(*) FROM events WHERE id = 'claude:e1' AND input_kind IS "+e1Kind] = 1
 			checks["SELECT count(*) FROM events WHERE id IN ('claude:e2', 'claude:e3', 'other:x1') AND input_kind IS NULL"] = 3
+			// Migration 11: the archive gets a random ID and no host yet
+			// (the migration knows no configuration); sessions and events
+			// are untouched.
+			checks["SELECT count(*) FROM archive_meta WHERE key = 'archive_id' AND length(value) = 32 AND value NOT GLOB '*[^0-9a-f]*'"] = 1
+			checks["SELECT count(*) FROM archive_meta"] = 1
 			for q, want := range checks {
 				if got := countRows(t, s, q); got != want {
 					t.Errorf("%s = %d, want %d", q, got, want)

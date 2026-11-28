@@ -46,6 +46,13 @@ func (m Model) statusView(width, height int) string {
 		add("archive", m.tilde(cfg.DB)+"  "+warn("missing: run ingest all (actions)"))
 	default:
 		add("archive", m.tilde(cfg.DB))
+		host, note, bad := ops.HostCell(cfg.Host, s.archive)
+		if bad {
+			note = warn(note)
+		} else {
+			note = m.th.Muted.Render(note)
+		}
+		add("host", host+"  "+note)
 		add("size", mib(s.size)+"  "+m.th.Muted.Render(fmt.Sprintf("%d pages, %d free", s.pages.PageCount, s.pages.FreelistPages)))
 		ps := strconv.Itoa(s.pages.PageSize)
 		if s.pages.PageSize < ops.RecommendedPageSize {

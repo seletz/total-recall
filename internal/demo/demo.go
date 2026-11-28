@@ -51,6 +51,11 @@ const (
 	// Query is the search of the search and session screenshots; the
 	// conversations of October answer it, the invented filler never does.
 	Query = "goreleaser cask"
+	// Host is the host the demo archive belongs to (config key host).
+	Host = "host-a"
+	// ArchiveID is the fixed ID of the demo archive; the migration gives
+	// a real archive a random one, which would change every build.
+	ArchiveID = "de00000000000000000000000000a001"
 )
 
 // Location is the time zone the activity is designed in.
@@ -103,7 +108,7 @@ func Build(ctx context.Context, path string) (Summary, error) {
 	// The archive says it was last read at Now, so a status rendered
 	// against it does not depend on when it was built.
 	clock := Now // the memory replay moves it back in time
-	st, err := store.Open(path, store.WithClock(func() time.Time { return clock }))
+	st, err := store.Open(path, store.WithClock(func() time.Time { return clock }), store.WithHost(Host))
 	if err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
@@ -141,13 +146,13 @@ func Build(ctx context.Context, path string) (Summary, error) {
 	if err := st.Close(); err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
-	return relocate(ctx, path, projects, Projects)
+	return relocate(ctx, path, projects, Projects, ArchiveID)
 }
 
 // relocate rewrites the transcript paths of the archive at dbPath from the
-// directory they were read from to where the demo says they live, and
-// counts what the archive holds.
-func relocate(ctx context.Context, dbPath, from, to string) (Summary, error) {
+// directory they were read from to where the demo says they live, sets the
+// archive ID to id and counts what the archive holds.
+func relocate(ctx context.Context, dbPath, from, to, id string) (Summary, error) {
 	db, err := sql.Open("sqlite", "file:"+dbPath)
 	if err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
@@ -158,6 +163,9 @@ func relocate(ctx context.Context, dbPath, from, to string) (Summary, error) {
 	if _, err := db.ExecContext(ctx, "UPDATE sources SET path = ? || substr(path, ?) WHERE substr(path, 1, ?) = ?",
 		to, len(from)+1, len(from), from); err != nil {
 		return Summary{}, fmt.Errorf("demo: relocate: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE archive_meta SET value = ? WHERE key = 'archive_id'", id); err != nil {
+		return Summary{}, fmt.Errorf("demo: archive id: %w", err)
 	}
 	// The page layout after the ingest depends on the length of the
 	// temporary path; a vacuum lays the file out from its content alone,

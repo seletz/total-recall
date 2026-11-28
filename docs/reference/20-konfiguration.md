@@ -50,6 +50,7 @@ Die Abschnitte `[work]`, `[worktime]`, `[tui]`, `[chart]` (samt den Farben der K
 db = "~/Library/Application Support/total-recall/archive.db"
 timezone = "Europe/Berlin"      # für Auswertungen (stats, Tagesgrenzen)
 day_start = "04:00"              # Tagesgrenze für die Aktivität je Tag
+# host = "host-a"                # Name dieses Hosts im Pool; Default: Hostname
 log = ""                         # leer = neben der DB
 
 [backup]
@@ -173,6 +174,11 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 
 `day_start` { #day_start }
 :   Uhrzeit (`HH:MM`, Ortszeit), zu der ein Tag für die erste und letzte Aktivität je Tag beginnt ([`stats --workday`](10-befehle.md#stats-workday), TUI-Ansicht „activity“). Aktivität davor zählt zum Vortag und wird als `01:30 (+1)` angezeigt. `00:00` ist die Kalendermitternacht. Default: `04:00`. Wirkt nicht auf `stats` ohne `--workday` und nicht auf `daily_activity`.
+
+`host` { #host }
+:   Name dieses Rechners in einem Pool aus mehreren Hosts, deren Archive das [Analyse-Tool](15-analyse.md) gemeinsam auswertet. Erlaubt sind 1 bis 63 Buchstaben, Ziffern, `.`, `_` und `-`, am Anfang ein Buchstabe oder eine Ziffer; der Name taugt so auch als Datei- oder Ordnername im Pool-Verzeichnis. Default: der Hostname bis zum ersten Punkt, kleingeschrieben (`MacBook-Pro.fritz.box` wird `macbook-pro`). Lässt sich daraus kein gültiger Name bilden, bleibt der Default leer, und `status` bittet darum, `host` zu setzen.
+
+    Das Archiv speichert den Namen (Tabelle `archive_meta`, siehe [Schema](40-schema.md#archive_meta)) beim nächsten Schreiben: bei `migrate`, bei jedem `ingest` und damit bei jedem Hook-Lauf, bei `reindex` und bei den Aktionen der TUI. Jedes Backup ist eine Kopie des Archivs und trägt den Namen damit in sich. Ändert sich `host`, zeigt [`status`](10-befehle.md#status) bis zum nächsten Schreiben beide Namen.
 
 `log`
 :   Logdatei für Fehler aus Hook-Läufen und Hintergrundprozessen (`--detach`) sowie Hinweise wie die `WARN`-Zeile, wenn eine Schema-Migration aussteht und die Hooks deshalb nichts schreiben. Leer heißt: `total-recall.log` neben der Datenbank. Wird die Datei größer als 5 MiB, wird sie in `<log>.1` umbenannt (eine ältere Generation bleibt, eine noch ältere wird ersetzt).

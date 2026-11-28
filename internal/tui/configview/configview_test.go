@@ -72,7 +72,8 @@ func quote(s string) string { return `"` + s + `"` }
 
 func (h *testEnv) reload(t *testing.T) {
 	t.Helper()
-	cfg, err := config.Load(config.Options{GOOS: "linux", Home: h.home, Getenv: func(k string) string { return h.env[k] }})
+	cfg, err := config.Load(config.Options{GOOS: "linux", Home: h.home, Getenv: func(k string) string { return h.env[k] },
+		Hostname: func() (string, error) { return "host-b", nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +199,10 @@ func TestStatus(t *testing.T) {
 	requireRow(t, f, "size", "0.")
 	requireRow(t, f, "page size", "4096")
 	requireRow(t, f, "schema", "v"+v+", binary v"+v)
+	// The fixture was ingested without a host: the configured one is
+	// recorded at the next write.
+	requireRow(t, f, "host", "host-b  archive ")
+	requireContains(t, f, ", recorded at the next write")
 	requireRow(t, f, "sessions", "4")
 	requireRow(t, f, "meta records", "0.0 MiB in 1 records")
 	requireRow(t, f, "events", "9")
@@ -508,7 +513,7 @@ func TestMigrate(t *testing.T) {
 	m = press(t, m, "down", "down", "down", "enter")
 	f = frame(m)
 	requireContains(t, f, "migrate: migrate from schema v1 to v"+itoa(latest)+" after a copy (archive.db.pre-v1.bak)",
-		"y confirms, esc cancels", "schema    v1 -> v"+itoa(latest)+", "+itoa(latest-1)+" pending migrations:", "v2    sessions: harness-generated title", "backup    ", "space     about")
+		"y confirms, esc cancels", "schema    v1 -> v"+itoa(latest)+", "+itoa(latest-1)+" pending migrations:", "more", "v"+itoa(latest)+"   ", "backup    ", "space     about")
 	m = press(t, m, "esc")
 	requireContains(t, frame(m), "migrate: cancelled")
 	if _, err := os.Stat(old + ".pre-v1.bak"); err == nil {
@@ -701,5 +706,26 @@ func TestStatusBackupUnknown(t *testing.T) {
 				requireContains(t, f, "permission denied")
 			}
 		})
+	}
+}
+
+// TestTrimLog: a running log keeps its newest lines, the details of a
+// confirmation keep their header and their end.
+func TestTrimLog(t *testing.T) {
+	log := []string{"head", "a", "b", "c", "d", "end"}
+	for _, tc := range []struct {
+		avail   int
+		confirm bool
+		want    string
+	}{
+		{6, true, "head|a|b|c|d|end"},
+		{4, false, "b|c|d|end"},
+		{4, true, "head|  … 3 more|d|end"},
+		{2, true, "d|end"},
+		{0, true, ""},
+	} {
+		if got := strings.Join(trimLog(log, tc.avail, tc.confirm), "|"); got != tc.want {
+			t.Errorf("trimLog(%d, %v) = %q, want %q", tc.avail, tc.confirm, got, tc.want)
+		}
 	}
 }

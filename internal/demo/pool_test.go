@@ -247,3 +247,35 @@ func tokenSums(t *testing.T, db *sql.DB, q string) map[string][4]int64 {
 	}
 	return out
 }
+
+// TestArchiveIdentity: the demo archive and the archives of the pool carry
+// fixed IDs (a random one would change every build) and the host they
+// belong to; all.db is no host's archive and names none.
+func TestArchiveIdentity(t *testing.T) {
+	p := sharedPool(t)
+	_, shared := fixturedb.Demo(t)
+	want := map[string][2]string{
+		shared: {demo.ArchiveID, demo.Host},
+		p.All:  {demo.PoolArchiveID("all"), ""},
+	}
+	for _, h := range p.Hosts {
+		want[h.Path] = [2]string{demo.PoolArchiveID(h.Host), h.Host}
+	}
+	ids := map[string]bool{}
+	for path, w := range want {
+		db := rawDB(t, path)
+		got := [2]string{}
+		for i, k := range []string{"archive_id", "host"} {
+			if err := db.QueryRow("SELECT coalesce((SELECT value FROM archive_meta WHERE key = ?), '')", k).Scan(&got[i]); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got != w {
+			t.Errorf("%s: id, host = %v, want %v", filepath.Base(path), got, w)
+		}
+		if ids[got[0]] {
+			t.Errorf("%s: ID %s used twice", filepath.Base(path), got[0])
+		}
+		ids[got[0]] = true
+	}
+}

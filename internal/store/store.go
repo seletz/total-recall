@@ -58,6 +58,9 @@ type Store struct {
 	version int
 	// allowOutdated lets Open accept an older schema without migrating it.
 	allowOutdated bool
+	// host is recorded as the archive's host on a read-write open
+	// (WithHost).
+	host string
 	// progress receives the progress of migrations (WithProgress).
 	progress func(Progress)
 	lockDir  string // WithLockDir: shared maintenance lock held until Close
@@ -91,6 +94,12 @@ func WithClock(now func() time.Time) Option { return func(s *Store) { s.now = no
 // For backup (the step before a migration) and Migrate itself; a store
 // opened this way must not rely on columns of newer migrations.
 func AllowOutdated() Option { return func(s *Store) { s.allowOutdated = true } }
+
+// WithHost records name as the host of the archive (archive_meta) when a
+// read-write Open finds the current schema and the archive names another
+// host or none; an unchanged name writes nothing. Empty: the archive
+// keeps what it has. Read-only and outdated stores ignore it.
+func WithHost(name string) Option { return func(s *Store) { s.host = name } }
 
 // WithProgress sets the receiver of migration progress (see Progress);
 // Migrate passes its option through. Default: none.
@@ -154,6 +163,13 @@ func Open(path string, opts ...Option) (*Store, error) {
 		return nil, err
 	}
 	s.version = v
+	if v >= archiveVersion && s.host != "" {
+		if err := s.recordHost(context.Background(), s.host); err != nil {
+			_ = db.Close()
+			s.release()
+			return nil, err
+		}
+	}
 	return s, nil
 }
 

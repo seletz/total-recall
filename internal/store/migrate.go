@@ -108,6 +108,9 @@ type MigrateOptions struct {
 	Logf func(format string, args ...any)
 	// Progress receives the progress of the running migration; default none.
 	Progress func(Progress)
+	// Host is recorded as the archive's host once the archive has the
+	// identity of schema v11 (see WithHost); empty: none.
+	Host string
 }
 
 // MigrateResult reports what Migrate did. Plan is the plan it executed;
@@ -161,6 +164,11 @@ func Migrate(ctx context.Context, path string, o MigrateOptions) (MigrateResult,
 	// migrateTo reads the version again and does only what is left.
 	if err := st.migrateTo(ctx, len(migrations)); err != nil {
 		return res, err
+	}
+	if o.Host != "" {
+		if err := st.recordHost(ctx, o.Host); err != nil {
+			return res, err
+		}
 	}
 	res.Duration = time.Since(start)
 	return res, nil

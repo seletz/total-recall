@@ -6,6 +6,7 @@
   db                       ~/.local/share/total-recall/archive.db                                                default
   timezone                 Europe/Berlin                                                                         file
   day_start                04:00                                                                                 file
+  host                     host-a                                                                                default
 ▸ log                      ""                                                                                    file
   [backup]
   dir                      ~/Documents/total-recall                                                              file
@@ -27,7 +28,6 @@
   enabled                  true                                                                                  file
   projects_dir             ~/.claude/projects                                                                    default
   skip_record_types        []                                                                                    file
-  [harness.claude.actors]
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  log  Log file for hook errors; empty = total-recall.log next to the database
  default:  · change: used by the next command or action

@@ -386,14 +386,27 @@ func (p actionsPage) view(m *Model, width, height int) string {
 	}
 	lines = append(lines, m.line(" "+status, width))
 	avail := height - len(lines)
-	log := p.log
-	if len(log) > avail {
-		log = log[len(log)-max(avail, 0):]
-	}
+	log := trimLog(p.log, avail, p.confirm)
+
 	for _, l := range log {
 		lines = append(lines, m.line("   "+m.th.Muted.Render(l), width))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// trimLog fits log into avail lines. A running log keeps its newest lines;
+// the details of a confirmation (the migration plan) keep their first line
+// (the header) and their last lines and say how many lines between them
+// were left out.
+func trimLog(log []string, avail int, confirm bool) []string {
+	if len(log) <= avail {
+		return log
+	}
+	if !confirm || avail < 3 {
+		return log[len(log)-max(avail, 0):]
+	}
+	tail := log[len(log)-(avail-2):]
+	return append([]string{log[0], fmt.Sprintf("  … %d more", len(log)-1-len(tail))}, tail...)
 }
 
 // ---- the actions, in process, with the functions of the CLI ----

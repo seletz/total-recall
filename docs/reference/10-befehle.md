@@ -134,25 +134,39 @@ total-recall status --all-errors        # alle Fehler des Logs, unabhängig vom 
 total-recall status --errors 20         # bis zu 20 Fehlerzeilen statt 5
 ```
 
-```text
-database              /Users/me/Library/Application Support/total-recall/archive.db
-size                  612.4 MiB
-page size             4096  (total-recall maintenance rebuilds with 16384 and saves space)
-schema                v5 (binary supports v5)
-sessions              274
-events                158203
-sources               280
-raw                   61.4 MiB in 152012 events, compressed 3.3x (estimated from 2000 rows); 6191 events without raw: line too long
-blobs                 4935 blobs, 425.0 MiB (191.4 MiB stored): 1234 attachments 120.1 MiB, 517 JSON values 13.0 MiB, 3184 files 58.3 MiB
-meta records          38.1 MiB in 79412 records
-memory                905 files in 35 projects (3 deleted), 948 versions, 1.9 MiB (1.1 MiB stored)
-last ingest (claude)  2026-11-01 14:59  (2m ago)
-last backup           /Users/me/Documents/total-recall/archive-2026-11-01.db.zst  (5h12m ago)
-log                   /Users/me/Library/Application Support/total-recall/total-recall.log
+Ausgabe gegen das Demo-Archiv, gleich nach einem Backup:
 
-recent errors (last 24h, since 2026-10-31 15:01): 1
-  2026-11-01 08:12  (6h49m ago)  hook Stop: /Users/me/.claude/projects/x/y.jsonl: permission denied
-older errors: 3 (not shown; status --all-errors lists them, log: /Users/me/Library/Application Support/total-recall/total-recall.log)
+```text
+database              /home/mara/.local/share/total-recall/archive.db
+host                  host-a  archive de00000000000000000000000000a001
+size                  10.7 MiB
+page size             4096  (total-recall maintenance rebuilds with 16384 and saves space)
+schema                v11 (binary supports v11)
+sessions              936
+events                21942
+sources               936
+raw                   1.7 MiB in 21942 events, compressed 4.2x (estimated from 2000 rows)
+blobs                 18 blobs, 4.7 KiB (3.7 KiB stored): 16 attachments 3.3 KiB, 2 files 420 B
+meta records          0.0 MiB in 2 records
+memory                8 files in 6 projects (1 deleted), 15 versions, 2.9 KiB (2.2 KiB stored)
+last ingest (claude)  2026-11-02 10:00  (25d17h ago)
+last backup           /home/mara/Documents/total-recall/archive-2026-11-28.db.zst  (0s ago)
+log                   /home/mara/.local/share/total-recall/total-recall.log
+
+recent errors (last 24h, since 2026-11-27 03:55): none
+```
+
+**Host.** Die Zeile `host` nennt den konfigurierten Namen dieses Rechners ([`host`](20-konfiguration.md#host)) und die ID des Archivs ([`archive_meta`](40-schema.md#archive_meta)). Beides braucht das [Analyse-Tool](15-analyse.md), um die Archive mehrerer Hosts auseinanderzuhalten. Weicht das Archiv ab, steht der Unterschied dahinter: nach einer Änderung von `host` `archive …, recorded as <alter Name> until the next write`, vor der Migration auf Schema v11 `the archive records it after migrate`. In JSON sind es die Felder `host` (konfiguriert), `archive_host` (im Archiv, `null` solange nichts geschrieben hat) und `archive_id` (`null` vor v11):
+
+```json
+{
+  "db": "/home/mara/.local/share/total-recall/archive.db",
+  "host": "host-a",
+  "archive_host": "host-a",
+  "archive_id": "de00000000000000000000000000a001",
+  "db_size_bytes": 11190272,
+  "page_size": 4096,
+  "schema_version": 11,
 ```
 
 **Letztes Backup.** `last backup` hat drei Zustände. Mit Backup steht der Pfad mit Alter da (`ok`). Ist das Verzeichnis lesbar und leer oder fehlt es, steht `none in <Verzeichnis>` (`none`). Kann `status` das Verzeichnis nicht lesen (jeder Fehler beim Lesen außer „nicht vorhanden“ zählt: `operation not permitted`, `permission denied`, Ein-/Ausgabefehler), etwa weil es unter `~/Documents` liegt und der aufrufenden App die macOS-Freigabe fehlt (`operation not permitted`), ist der Zustand `unknown`, und das sagt **nichts** über die Backups: Die Zeile nennt den Grund, darunter steht ein Hinweis (`hint:`). Der Hinweis hängt vom Verzeichnis ab: Nur wenn es unter macOS wirklich in `~/Documents`, `~/Desktop` oder `~/Downloads` liegt **und** der Fehler `operation not permitted` ist (so meldet macOS die Datenschutz-Sperre), nennt er die Freigabe und den betroffenen Ordner; sonst, auch bei `permission denied` in einem dieser Ordner (das sind gewöhnliche Dateirechte), heißt er „Dateirechte prüfen“. „Die Backups sind in Ordnung“ steht nur darin, wenn die Statusdatei (siehe unten) ein Backup der letzten 48 Stunden belegt. Die Abhilfe bei der Freigabe: der App (Terminal) unter Datenschutz & Sicherheit → Dateien und Ordner den Zugriff auf „Dokumente“ geben und **danach das Terminal bzw. die App neu starten**, denn laufende Prozesse behalten die alten Rechte; oder `[backup] dir` außerhalb von `~/Documents` legen. Die Zeit des letzten Backups kennt `status` trotzdem: Jedes Backup schreibt neben die Datenbank die kleine Statusdatei `<db>.backup.json` (Zeit, Datei, Größe), und `status` liest sie, wenn das Verzeichnis nicht lesbar ist (auch ein übersprungener Lauf von `backup --if-older` legt sie an, wenn sie fehlt). Ein lesbares Verzeichnis gilt immer mehr als die Statusdatei. Im JSON stehen dafür `last_backup_state` (`ok`, `none` oder `unknown`), bei `unknown` `last_backup_reason` (`no access: operation not permitted`) und `last_backup_hint`, sonst `null`; `last_backup` und `last_backup_at` bleiben wie bisher (bei `unknown` aus der Statusdatei oder `null`). Der Exit-Code ändert sich nicht.

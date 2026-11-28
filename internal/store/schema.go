@@ -332,6 +332,17 @@ ALTER TABLE events ADD COLUMN tokens_cache_write INTEGER;
 	`
 ALTER TABLE events ADD COLUMN input_kind TEXT;
 `,
+	// 11: identity of the archive for a pool of hosts: archive_id, random
+	// once per archive (a copy or backup keeps it), and host, the name of
+	// the host that writes it (config key host, recorded by Open with
+	// WithHost).
+	`
+CREATE TABLE archive_meta (
+	key   TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
+INSERT INTO archive_meta (key, value) VALUES ('archive_id', lower(hex(randomblob(16))));
+`,
 }
 
 // migrationNotes describe the migrations for `total-recall migrate`, one
@@ -357,6 +368,7 @@ var migrationNotes = []migrationNote{
 		"fills them from raw (usage) for the events that have it, a few seconds per 100,000 events with usage; the rest stays NULL"},
 	{Summary: "events: input_kind (typed, pasted, bash, remote) of human messages; " +
 		"fills it from text and raw for the human messages of the claude harness, seconds even on a large archive; events without raw stay NULL (bash and pasted are told from the text)"},
+	{Summary: "archive_meta: a random archive_id and the host name (config key host) that identify the archive in a pool of hosts; moves no data, migrate records the host right away"},
 }
 
 // migrationNote is the description of one migration.

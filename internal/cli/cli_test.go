@@ -81,11 +81,12 @@ func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 	t.Helper()
 	var out, errb bytes.Buffer
 	app := &App{
-		Stdin:  strings.NewReader(stdin),
-		Stdout: &out,
-		Stderr: &errb,
-		Args:   args,
-		Home:   cmp.Or(e.home, e.dir),
+		Stdin:    strings.NewReader(stdin),
+		Stdout:   &out,
+		Stderr:   &errb,
+		Args:     args,
+		Home:     cmp.Or(e.home, e.dir),
+		Hostname: func() (string, error) { return "host-a", nil },
 		Getenv: func(k string) string {
 			if k == "TOTAL_RECALL_CONFIG" {
 				return e.configPath

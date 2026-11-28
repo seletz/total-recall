@@ -36,15 +36,21 @@ import (
 // OlderErrors the count before it. With --all-errors the window is null and
 // OlderErrors 0. Lines that only report a missing transcript never count.
 type StatusJSON struct {
-	DB                  string `json:"db"`
-	DBSizeBytes         int64  `json:"db_size_bytes"`
-	PageSize            int    `json:"page_size"`
-	SchemaVersion       int    `json:"schema_version"`
-	BinarySchemaVersion int    `json:"binary_schema_version"`
-	MigrationPending    bool   `json:"migration_pending"`
-	Sessions            int    `json:"sessions"`
-	Events              int    `json:"events"`
-	Sources             int    `json:"sources"`
+	DB string `json:"db"`
+	// Host is the configured host (config key host); ArchiveHost the host
+	// the archive recorded at its last write (null: none yet), ArchiveID
+	// the archive's own ID (null before schema v11). See store.Archive.
+	Host                string     `json:"host"`
+	ArchiveHost         NullString `json:"archive_host"`
+	ArchiveID           NullString `json:"archive_id"`
+	DBSizeBytes         int64      `json:"db_size_bytes"`
+	PageSize            int        `json:"page_size"`
+	SchemaVersion       int        `json:"schema_version"`
+	BinarySchemaVersion int        `json:"binary_schema_version"`
+	MigrationPending    bool       `json:"migration_pending"`
+	Sessions            int        `json:"sessions"`
+	Events              int        `json:"events"`
+	Sources             int        `json:"sources"`
 	// RawRows is the number of events with a stored raw line, RawBytes
 	// their compressed size, RawTruncated the number of events whose raw
 	// line was dropped for its size, RawRatio the uncompressed over the
@@ -253,6 +259,10 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		if err != nil {
 			return err
 		}
+		arch, err := st.Archive(ctx)
+		if err != nil {
+			return err
+		}
 		// The raw statistics need the columns of v5; on an older archive
 		// the line says so instead of failing the whole status.
 		var rs store.RawStats
@@ -274,7 +284,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			}
 		}
 		now, loc := e.app.Now(), cfg.Location()
-		out := StatusJSON{DB: cfg.DB, PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
+		out := StatusJSON{DB: cfg.DB, Host: cfg.Host, ArchiveHost: NullString(arch.Host), ArchiveID: NullString(arch.ID), PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
 			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes, BlobKinds: blobKinds(bs), MetaRows: ms.Rows, MetaBytes: ms.Bytes,
@@ -325,6 +335,7 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		w := o.w
 		rows := [][]string{
 			{"database", cfg.DB},
+			{"host", hostCell(cfg.Host, arch)},
 			{"size", fmt.Sprintf("%.1f MiB", float64(out.DBSizeBytes)/(1<<20))},
 			{"page size", pageSizeCell(ps.PageSize)},
 			{"schema", schemaCell(v, out.BinarySchemaVersion)},
@@ -1750,4 +1761,11 @@ func tokenCount(n int64) string {
 	default:
 		return fmt.Sprintf("%.1fG", float64(n)/1e9)
 	}
+}
+
+// hostCell is the host line of status: the configured host and what the
+// archive recorded (ops.HostCell).
+func hostCell(host string, a store.Archive) string {
+	v, note, _ := ops.HostCell(host, a)
+	return v + "  " + note
 }

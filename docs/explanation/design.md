@@ -56,6 +56,7 @@ Die TUI (Ansicht Config, Seiten Settings und Projects) schreibt einzelne Schlüs
 db = "~/Library/Application Support/total-recall/archive.db"
 timezone = "Europe/Berlin"      # für Auswertungen (stats, Tagesgrenzen)
 day_start = "04:00"              # Tagesgrenze für die Aktivität je Tag (stats --workday, TUI)
+# host = "host-a"                # Name des Rechners im Pool (archive_meta); Default: Hostname bis zum ersten Punkt
 log = ""                         # leer = neben der DB
 
 [backup]
@@ -371,6 +372,17 @@ Claude Code führt je Projekt ein Gedächtnis aus Markdown-Dateien (`<projects_d
 **Einlesen** (`ingest.Memory`, aus `ingest.All` bei `ingest.store_memory` und aus jedem Hook nach dem Transkript): je Harness ein Lock (`memory:<harness>`, wie die Quellen; gesperrt zählt als `locked`), der gespeicherte Stand (`store.MemoryState`) gegen die Liste des Adapters. Gelesen wird nur eine Datei, deren Größe oder mtime sich geändert hat; ihr Inhalt läuft durch `Redactor.Text` und geht dann an `store.WriteMemory`, das den Hash bildet: gleicher Hash ändert nur `size`/`mtime`, ein neuer schreibt Blob (`text/markdown`, zstd, `ON CONFLICT DO NOTHING`), Version und Index. Eine gespeicherte Datei, die nicht mehr auf der Platte liegt, bekommt eine Löschung, ebenso alle Dateien eines Projekts, dessen Gedächtnis-Verzeichnis fehlt; fehlt das ganze Datenverzeichnis des Adapters, wird nichts gelöscht. Eine Transaktion je Projekt. Gemessen auf einer Kopie des Archivs: der erste Lauf über 905 Dateien 0,63 s, ein Lauf ohne Änderung 10 ms. Frühere Stände vor dem ersten Lauf gibt es nicht.
 
 **Lesen** (für `memory` und die geplante TUI-Ansicht): `MemoryProjects` (mit Git-Root aus `dirs`, Zahl der Dateien, Löschungen, Fassungen, letzte Änderung), `MemoryFiles` (Stand jetzt oder zu `At`: je Datei die Fassung mit der höchsten `seq` und `ts <= At`; optional mit gelöschten), `MemoryVersions` (je Datei, älteste zuerst), `MemoryContent` (Inhalt einer Datei zu einem Zeitpunkt), `SearchMemory` (FTS über die aktuellen Fassungen, je Projekt, Zeit der aktuellen Fassung, Repo und Harness einschränkbar; die Suche des Typs `memory` von `search --type`), `MemoryStats` (`status`), `BlobMemory` (`blob --json`). Keine Zeile des Gedächtnisses zählt in `stats`, `daily_activity`, `exchanges` oder der Arbeitszeit; `search` sieht es nur mit `--type memory`.
+
+### `archive_meta` { #archive_meta }
+
+Kennung des Archivs für einen Pool aus mehreren Hosts (Migration 11, [#358](https://github.com/seletz/total-recall/issues/358)). Schlüssel-Wert-Tabelle (`key` TEXT PK, `value` TEXT):
+
+| Schlüssel | Inhalt |
+|---|---|
+| `archive_id` | 32 Hex-Ziffern, zufällig, von der Migration einmal erzeugt; Kopien und Backups tragen dieselbe |
+| `host` | Config-Schlüssel `host`; `store.WithHost` schreibt ihn beim Öffnen zum Schreiben (`ops.OpenWrite`: Ingest, Hooks, `reindex`, Aktionen der TUI) nur bei einer Änderung, `migrate` gleich nach der Migration (`MigrateOptions.Host`). Lesende und veraltete Stores schreiben nie. |
+
+`store.Archive` liest beides; `status` zeigt es (`ops.HostCell`, gemeinsam mit der TUI). Die Backups behalten ihren Dateinamen; die Kennung steckt im Archiv. Pro Archiv statt pro Session (wie `sessions.host` im Spike #347), weil ein Archiv genau einem Host gehört; die Herkunft je Session braucht erst der zentrale Abgleich (v1.12.0).
 
 ### Views
 

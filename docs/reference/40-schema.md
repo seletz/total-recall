@@ -22,6 +22,7 @@ Das Wichtigste zum Schema der Datenbank für eigene Abfragen mit [`sql`](10-befe
 | `blobs` | Bilder und Dokumente aus den Transkripten und die großen JSON-Werte der Meta-Records (System-Prompts, Tool-Definitionen), einmal je Inhalt (SHA-256), seit Schema v6; siehe [unten](#blobs) |
 | `event_blobs` | welche Events welche Blobs tragen, in welcher Reihenfolge |
 | `memory_projects`, `memory_files`, `memory_versions`, `memory_fts` | das Projekt-Gedächtnis der Harness, versioniert, seit Schema v8; siehe [unten](#memory) |
+| `archive_meta` | Kennung des Archivs: `archive_id` und `host`, seit Schema v11; siehe [unten](#archive_meta) |
 
 Wichtige Spalten in `events`: `seq` (Einfügereihenfolge, Primärschlüssel), `id`, `session_id`, `ts` (UTC) und `ts_local` (Ortszeit mit Offset, für Tagesgrenzen), `kind` (`message`, `tool_use`, `tool_result`, `system`, `meta`), `role`, `actor`, `input_kind`, `text`, `tool_name`, `model`, `tokens_in`, `tokens_cache_read`, `tokens_cache_write`, `tokens_out`. `tokens_in` ist die Summe aus frischer Eingabe, Cache-Schreiben und Cache-Lesen; die beiden Cache-Spalten (seit Schema v9, [#185](https://github.com/seletz/total-recall/issues/185)) sind deren Teile, die frische Eingabe ist `tokens_in - tokens_cache_read - tokens_cache_write`. `NULL` heißt unbekannt (Event ohne Token-Zahlen, oder ohne `raw`, aus dem sich die Zahlen nachfüllen ließen), `0` heißt gemessen null.
 
@@ -77,6 +78,29 @@ total-recall sql "SELECT DISTINCT json_extract(raw_text(raw), '$.prUrl') FROM se
 ```
 
 Welche Record-Typen von Claude Code als Meta-Record landen und welche bewusst draußen bleiben, steht im [Design](../explanation/design.md#session_meta).
+
+## Kennung des Archivs { #archive_meta }
+
+Seit Schema v11 ([#358](https://github.com/seletz/total-recall/issues/358)) weiß ein Archiv, wer es ist. Das braucht das [Analyse-Tool](15-analyse.md), wenn es die Archive mehrerer Hosts zusammen auswertet. `archive_meta` hat die Spalten `key` und `value` und zwei Schlüssel:
+
+| Schlüssel | Inhalt |
+|---|---|
+| `archive_id` | 32 Hex-Ziffern, zufällig. Die Migration nach v11 (oder das Anlegen eines neuen Archivs) erzeugt sie einmal. Jede Kopie und jedes Backup trägt dieselbe ID; zwei verschiedene Archive haben nie dieselbe. |
+| `host` | der Name aus dem Konfigurationsschlüssel [`host`](20-konfiguration.md#host). Geschrieben von `migrate` und bei jedem Öffnen zum Schreiben (Ingest, Hooks, `reindex`, Aktionen der TUI), wenn er sich geändert hat. Fehlt, solange nichts geschrieben hat. |
+
+Im Demo-Archiv:
+
+```sh
+total-recall sql "SELECT key, value FROM archive_meta ORDER BY key"
+```
+
+```text
+key         value
+archive_id  de00000000000000000000000000a001
+host        host-a
+```
+
+[`status`](10-befehle.md#status) zeigt beides in der Zeile `host`, `status --json` in den Feldern `host`, `archive_host` und `archive_id`.
 
 ## Projekt-Gedächtnis { #memory }
 

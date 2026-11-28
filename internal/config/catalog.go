@@ -55,6 +55,7 @@ var Catalog = []Key{
 	{"db", KindPath, nil, "Path of the archive database; keep it out of cloud-synced folders"},
 	{"timezone", KindString, nil, "Time zone for evaluations (stats, day boundaries), e.g. Europe/Berlin"},
 	{"day_start", KindClock, nil, "Wall-clock time at which a day begins for the activity per day"},
+	{"host", KindString, nil, "Name of this host in a pool of hosts, recorded in the archive and its backups; default: the host name"},
 	{"log", KindPath, nil, "Log file for hook errors; empty = total-recall.log next to the database"},
 	{"backup.dir", KindPath, nil, "Directory of the backups (archive-YYYY-MM-DD.db.zst)"},
 	{"backup.keep_daily", KindInt, nil, "Number of most recent days whose copies are kept"},
