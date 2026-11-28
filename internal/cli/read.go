@@ -843,8 +843,11 @@ type HitJSON struct {
 	// InputKind as in EventJSON (since v1.6.0).
 	InputKind NullString `json:"input_kind"`
 	Kind      string     `json:"kind"`
-	Snippet   NullString `json:"snippet"`
-	Rank      float64    `json:"rank"`
+	// ToolName is the tool of a tool call (and of its result, where the
+	// harness names it), null for every other event (since v1.10.0).
+	ToolName NullString `json:"tool_name"`
+	Snippet  NullString `json:"snippet"`
+	Rank     float64    `json:"rank"`
 	// Type is the hit type (always "event"), Project the name of the
 	// session's project like stats --by project (since v1.4.0).
 	Type    string     `json:"type"`
@@ -886,7 +889,7 @@ unchanged: AND, OR, NOT, "exact phrase", prefix*.
                and tool results (field kind)
   input        what the human typed or pasted (actor human, kind message)
   answer       messages of the agent, no tool calls
-  tool_call    tool calls; --tool NAME keeps one tool
+  tool_call    tool calls; --tool NAME keeps one tool (alone, --tool means this type)
   tool_result  results of tool calls
   image        events with an image; without a query the newest ones
   document     events with a document (PDF…); without a query the newest
@@ -929,6 +932,10 @@ the text). The kind is given with "=": --has-attachment=image.`,
 		types, err := store.ParseHitTypes(typeList)
 		if err != nil {
 			return usage(err)
+		}
+		if typeList == "" && tool != "" {
+			// --tool only means tool calls: no need to say so twice.
+			types = []store.HitType{store.TypeToolCall}
 		}
 		if len(args) == 0 {
 			// image and document list the newest events with such an
@@ -1014,7 +1021,7 @@ the text). The kind is given with "=": --has-attachment=image.`,
 	of.register(c)
 	c.Flags().BoolVar(&raw, "raw", false, "pass QUERY to FTS5 unchanged (AND/OR/NOT, phrases, prefix*); types event and memory")
 	c.Flags().StringVar(&typeList, "type", "", "types to search, comma-separated: event (default), input, answer, tool_call, tool_result, image, document, file, session, memory")
-	c.Flags().StringVar(&tool, "tool", "", "only tool calls of this tool, e.g. Bash (type tool_call)")
+	c.Flags().StringVar(&tool, "tool", "", "only tool calls of this tool, e.g. Bash, compared without case; without --type it means --type tool_call")
 	c.Flags().StringVar(&projectRef, "project", "", "only this project: name as in stats --by project, else a part of name, path or remote URL")
 	c.Flags().StringVar(&actor, "actor", "", "only events of this actor: human, agent, peer, automation, tool")
 	c.Flags().StringVar(&session, "session", "", "only this session (full ID, native ID or unique prefix); types event and session")

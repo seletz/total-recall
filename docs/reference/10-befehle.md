@@ -383,6 +383,7 @@ total-recall search kompass --type session,memory            # Sessions nach Tit
 total-recall search release --project kompass --type event,memory
 total-recall search goreleaser --type input                    # nur, was ich selbst getippt oder eingefügt habe
 total-recall search sort --type tool_call --tool Edit         # nur Aufrufe des Tools Edit
+total-recall search sort --tool edit                          # dasselbe: ohne Groß-/Kleinschreibung, --type tool_call ist dann überflüssig
 total-recall search --type image,document                     # die neuesten Events mit Bild oder Dokument, ohne Suchwort
 total-recall search smoothed --type file                      # Sicherungskopien bearbeiteter Dateien nach Inhalt
 ```
@@ -403,7 +404,7 @@ FIRST             LAST              HITS  ID                  NAME              
 | Option | Bedeutung |
 |---|---|
 | `--type T[,T…]` | was durchsucht wird, siehe [Typen](#search-types): `event` (Default), `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory` |
-| `--tool NAME` | nur Aufrufe dieses Tools (`Bash`, `Edit`, …); gilt für den Typ `tool_call`, sonst ein `usage`-Fehler |
+| `--tool NAME` | nur Aufrufe dieses Tools (`Bash`, `Edit`, …), ohne Rücksicht auf Groß- und Kleinschreibung (`--tool bash` findet `Bash`). Ohne `--type` heißt `--tool` automatisch `--type tool_call`; mit einem anderen Typ (außer `tool_call`) ist es ein `usage`-Fehler |
 | Filter wie `sessions` | `--since`/`--until` gelten hier für die Zeit des Events (bei `session` für die Zeit, in der die Session lief, bei `memory` für die Zeit der aktuellen Fassung) |
 | `--project P` | nur dieses Projekt, bei jedem Typ: der Name wie bei [`stats --by project`](#stats-period) (Definitionen `[[project]]` zuerst), ein Pfad oder der Schlüssel der Harness eines Gedächtnis-Projekts; ohne genauen Treffer alle, deren Name, Pfad oder Remote-URL `P` enthält. Kein Treffer ist `not_found` |
 | `--actor A` | nur `human`, `agent`, `peer`, `automation` oder `tool`; gilt für `event`, bei `image` und `document` für das Event mit dem Anhang. Die Typen `input`, `answer`, `tool_call` und `tool_result` legen den Actor selbst fest, dort ist `--actor` ein `usage`-Fehler |
@@ -495,6 +496,18 @@ document  2026-10-28 09:06  Höhenprofil prüfen  mara/kompass  claude:7d1e4c20-
     attachments: application/pdf 342 B
 ```
 
+`--tool` vergleicht ohne Rücksicht auf Groß- und Kleinschreibung und braucht kein `--type`; im JSON nennt `tool_name` das Tool (Demo-Archiv):
+
+```sh
+total-recall search sort --tool edit --limit 1 --json | jq -c '.[0] | {type, kind, tool_name}'
+```
+
+```text
+{"type":"tool_call","kind":"tool_use","tool_name":"Edit"}
+```
+
+`tool_name` hat jeder Treffer der Event-Typen, bei allem außer Tool-Aufrufen ist es `null`. In der TUI hat `--tool` keine eigene Bedienung: Der Typ `tool_call` (`c` in der Typ-Zeile) zeigt die Aufrufe, das Werkzeug steht im Text des Treffers.
+
 Der Inhalt der Sicherungskopien (Claude Code legt vor jeder Bearbeitung eine Kopie der Datei an, siehe [Datei-Historie](../explanation/design.md)):
 
 ```sh
@@ -516,7 +529,7 @@ file  2026-10-28 09:09  /home/mara/src/kompass/route/elevation.go  Höhenprofil 
 
 | Typ | eigene Felder | Anmerkungen |
 |---|---|---|
-| `event` | `event_id`, `actor`, `input_kind`, `kind` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session. Dieselben Felder haben `input`, `answer`, `tool_call`, `tool_result`, `image` und `document`; nur `type` ist der Typ des Treffers |
+| `event` | `event_id`, `actor`, `input_kind`, `kind`, `tool_name` | `rank` FTS5, kleiner ist besser; ein Subagent zählt beim Projekt zu seiner Eltern-Session. Dieselben Felder haben `input`, `answer`, `tool_call`, `tool_result`, `image` und `document`; nur `type` ist der Typ des Treffers |
 | `file` | `meta_id`, `path`, `sha256`, `media_type`, `bytes` | `ts` ist die Zeit des Datei-Historie-Eintrags, `rank` immer `0`; `path` ist die bearbeitete Datei (`null`, wenn der Eintrag sie nicht nennt), `sha256` die Kopie für `blob SHA256` |
 | `session` | `harness`, `ended_at`, `events` | `ts` ist der Start, `snippet` der passende Name, Titel oder Agentenname, `rank` immer `0` |
 | `memory` | `project_key`, `path`, `sha256` | `ts` ist die Zeit der aktuellen Fassung, `session_id` und `session_name` sind `null`; den Inhalt gibt `blob SHA256` aus |

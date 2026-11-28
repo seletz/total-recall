@@ -437,6 +437,7 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `actor` | |
 | `input_kind` | see `events.input_kind`; `null` if unknown or not a human event |
 | `kind` | `message`, `tool_use`, `tool_result`, … |
+| `tool_name` | the tool of a tool call (`Bash`, `Edit`, …), else `null`; `--tool` compares it without case |
 | `snippet` | matched words in `[…]` |
 | `rank` | FTS5 rank, lower is better |
 | `type` | `event` |

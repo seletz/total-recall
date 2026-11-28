@@ -154,3 +154,43 @@ func TestSearchToolAndFile(t *testing.T) {
 		t.Errorf("limit note: %+v", r)
 	}
 }
+
+// TestSearchToolName (#374): --tool compares without case, the JSON of
+// every event hit has tool_name (the tool of a tool call, else null), and
+// --tool without --type means --type tool_call.
+func TestSearchToolName(t *testing.T) {
+	t.Parallel()
+	e, base := attachEnv(t)
+	exact := kindHits(t, e, base, "go", "test", "--type", "tool_call", "--tool", "Bash")["tool_call"]
+	if len(exact) == 0 {
+		t.Fatal("no Bash tool calls in the demo archive")
+	}
+	for _, tool := range []string{"bash", "BASH"} {
+		if got := kindHits(t, e, base, "go", "test", "--type", "tool_call", "--tool", tool)["tool_call"]; len(got) != len(exact) {
+			t.Errorf("--tool %s: %d hits, --tool Bash: %d", tool, len(got), len(exact))
+		}
+	}
+	// Without --type the type is tool_call.
+	plain := kindHits(t, e, base, "go", "test", "--tool", "bash")
+	if len(plain["tool_call"]) != len(exact) || len(plain) != 1 {
+		t.Errorf("--tool without --type: %d tool_call hits of %d, groups %d", len(plain["tool_call"]), len(exact), len(plain))
+	}
+	// tool_name: always present; the tool of a call, null for the rest.
+	for _, h := range exact {
+		if v, ok := h["tool_name"]; !ok || v != "Bash" {
+			t.Errorf("tool_call hit tool_name = %v (present %v)", v, ok)
+		}
+	}
+	for ty, hs := range kindHits(t, e, base, "the", "--type", "input,answer,tool_result") {
+		for _, h := range hs {
+			if v, ok := h["tool_name"]; !ok || v != nil {
+				t.Errorf("%s hit tool_name = %v (present %v), want null", ty, v, ok)
+			}
+		}
+	}
+	// --tool with another type is still a usage error.
+	r := e.run(t, "", append(append([]string{}, base...), "search", "x", "--type", "event", "--tool", "Bash", "--json")...)
+	if r.code == 0 || !strings.Contains(r.stdout, "--tool does not apply to type event") {
+		t.Errorf("--type event --tool: %+v", r)
+	}
+}
