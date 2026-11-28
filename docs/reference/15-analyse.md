@@ -66,6 +66,7 @@ $ total-recall-analytics build --host host-a --json
   "archive": "/home/mara/.local/share/total-recall/archive.db",
   "archive_id": "de00000000000000000000000000a001",
   "replaced": [],
+  "unknown_values": [],
   "tz": "Europe/Berlin",
   "batch_id": 2,
   "mode": "incremental",
@@ -79,7 +80,19 @@ $ total-recall-analytics build --host host-a --json
 }
 ```
 
-JSON-Schlüssel: `analytics_db`, `source`, `host`, `archive`, `archive_id` (die ID des Archivs, `null` vor Schema v11), `replaced` (Quellen, die dasselbe Archiv unter einem früheren Host-Namen geladen hatten und ersetzt wurden), `tz`, `batch_id`, `mode` (`full` oder `incremental`), `seq_from` und `seq_to` (geladen wurden Sessions mit Events in `seq_from` < seq ≤ `seq_to`), `events` und `sessions` (alle Events der berührten Sessions), `models`, `tests`, `elapsed_ms`.
+JSON-Schlüssel: `analytics_db`, `source`, `host`, `archive`, `archive_id` (die ID des Archivs, `null` vor Schema v11), `replaced` (Quellen, die dasselbe Archiv unter einem früheren Host-Namen geladen hatten und ersetzt wurden), `unknown_values` (siehe [unten](#unbekannte-werte)), `tz`, `batch_id`, `mode` (`full` oder `incremental`), `seq_from` und `seq_to` (geladen wurden Sessions mit Events in `seq_from` < seq ≤ `seq_to`), `events` und `sessions` (alle Events der berührten Sessions), `models`, `tests`, `elapsed_ms`.
+#### Unbekannte Werte { #unbekannte-werte }
+
+Die Spalten `kind`, `actor` und `input_kind` der Events haben einen festen Wertebereich ([Schema](40-schema.md)). Ein Wert außerhalb davon, etwa aus einer neueren Version von `total-recall`, bricht den Lauf nicht ab: Die Events werden mit dem Wert `unknown` geladen und zählen in allen Summen mit, und `build` warnt je Spalte und Wert, einmal für die neuen Events eines Laufs. Ausgabe gegen eine Kopie des Demo-Archivs, in der drei Events den erfundenen `kind` `checkpoint` tragen:
+
+```console
+$ total-recall-analytics build --host host-a
+/home/mara/.local/share/total-recall/analytics.duckdb: batch 1 (full) from host-a (host host-a), seq 0..21942: 21942 events in 936 sessions, 39 models, 9 tests passed, 358ms
+  warning: 3 events with kind "checkpoint", loaded as unknown
+```
+
+In `--json` steht dasselbe in `unknown_values`: `[{"column": "kind", "value": "checkpoint", "events": 3}]`. In den Views erscheinen diese Events mit `kind = 'unknown'`. Schlägt dagegen ein Datentest fehl, nennt die Meldung die ersten verletzenden Zeilen, etwa `data tests failed: accepted_values: 1 rows (col=kind value=…)`; die Datenbank bleibt dann, wie sie war, und die übrigen Befehle sagen `run build first`, solange noch kein Lauf gelungen ist.
+
 #### Pool { #pool }
 
 Mit `--pool` kommen die Archive aus dem Pool-Verzeichnis ([Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md)): je Host die neueste Kopie, einmal in den Cache entpackt und schreibgeschützt eingehängt. Jedes Archiv wird eine eigene Quelle unter dem Host, den es selbst gespeichert hat. Jedes Archiv zählt genau einmal:

@@ -265,16 +265,52 @@ func Build(ctx context.Context, db execer, m Model, c RenderContext) error {
 	return nil
 }
 
-// TestFailures runs a data test and returns the number of violating rows.
-func TestFailures(ctx context.Context, db execer, t Model, c RenderContext) (int, error) {
+// maxFailureRows is how many violating rows TestFailures returns.
+const maxFailureRows = 3
+
+// TestFailures runs a data test and returns the number of violating rows
+// and the first of them as "col=value ..." (ordered), so a failure says
+// which values broke it.
+func TestFailures(ctx context.Context, db querier, t Model, c RenderContext) (int, []string, error) {
 	body, err := Render(t.Text, c)
 	if err != nil {
-		return 0, fmt.Errorf("test %s: %w", t.Name, err)
+		return 0, nil, fmt.Errorf("test %s: %w", t.Name, err)
 	}
+	body = strings.TrimRight(strings.TrimSpace(body), ";")
 	var n int
-	q := "SELECT count(*) FROM (" + strings.TrimRight(strings.TrimSpace(body), ";") + ")"
-	if err := db.QueryRowContext(ctx, q).Scan(&n); err != nil {
-		return 0, fmt.Errorf("test %s: %w", t.Name, err)
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM ("+body+")").Scan(&n); err != nil {
+		return 0, nil, fmt.Errorf("test %s: %w", t.Name, err)
 	}
-	return n, nil
+	if n == 0 {
+		return 0, nil, nil
+	}
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM (%s) ORDER BY ALL LIMIT %d", body, maxFailureRows))
+	if err != nil {
+		return 0, nil, fmt.Errorf("test %s: %w", t.Name, err)
+	}
+	defer func() { _ = rows.Close() }()
+	cols, err := rows.Columns()
+	if err != nil {
+		return 0, nil, err
+	}
+	var out []string
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return 0, nil, fmt.Errorf("test %s: %w", t.Name, err)
+		}
+		parts := make([]string, len(cols))
+		for i, v := range vals {
+			if b, ok := v.([]byte); ok {
+				v = string(b)
+			}
+			parts[i] = fmt.Sprintf("%s=%v", cols[i], v)
+		}
+		out = append(out, strings.Join(parts, " "))
+	}
+	return n, out, rows.Err()
 }

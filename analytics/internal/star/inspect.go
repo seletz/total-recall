@@ -79,7 +79,7 @@ func Check(ctx context.Context, db *duck.DB) (CheckResult, error) {
 	defer func() { _ = conn.Close() }()
 	rc := RenderContext{Sources: map[string]string{}, Vars: map[string]string{}}
 	for _, t := range p.Tests {
-		n, err := TestFailures(ctx, conn, t, rc)
+		n, _, err := TestFailures(ctx, conn, t, rc)
 		if err != nil {
 			return r, err
 		}

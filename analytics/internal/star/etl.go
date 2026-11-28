@@ -86,6 +86,10 @@ type Report struct {
 	// Replaced are the sources that had loaded the same archive under
 	// another name; their facts were removed (see Options.ArchiveID).
 	Replaced []string
+	// Unknown are the values of the new events outside the value sets of
+	// their columns (values.go), loaded as "unknown": a warning, not an
+	// error.
+	Unknown []UnknownValue
 }
 
 // ErrContract means the published views differ from contract.txt.
@@ -246,6 +250,9 @@ func (r *Report) run(ctx context.Context, tx *sql.Tx, p Project, o Options) erro
 			if err := tx.QueryRowContext(ctx, "SELECT count(*), count(DISTINCT session_id) FROM stg_event").Scan(&r.Events, &r.Sessions); err != nil {
 				return fmt.Errorf("staged: %w", err)
 			}
+			if r.Unknown, err = unknownValues(ctx, tx, r.SeqFrom); err != nil {
+				return err
+			}
 		}
 	}
 	if !skipContract {
@@ -255,12 +262,12 @@ func (r *Report) run(ctx context.Context, tx *sql.Tx, p Project, o Options) erro
 	}
 	var failed []string
 	for _, t := range p.Tests {
-		n, err := TestFailures(ctx, tx, t, rc)
+		n, rows, err := TestFailures(ctx, tx, t, rc)
 		if err != nil {
 			return err
 		}
 		if n > 0 {
-			failed = append(failed, fmt.Sprintf("%s: %d rows", t.Name, n))
+			failed = append(failed, fmt.Sprintf("%s: %d rows (%s)", t.Name, n, strings.Join(rows, "; ")))
 		}
 		r.Tests++
 	}
