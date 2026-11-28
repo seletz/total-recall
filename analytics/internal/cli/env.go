@@ -25,6 +25,7 @@ func (a *App) config() (*config.Config, error) {
 		Flags:      config.Flags{DB: a.archive, Timezone: a.tz},
 		Home:       a.Home,
 		Getenv:     a.Getenv,
+		Hostname:   a.Hostname,
 	})
 	return cfg, errKind(ErrKindConfig, err)
 }
@@ -44,6 +45,10 @@ func (a *App) openAnalytics(ctx context.Context, cfg *config.Config, readOnly bo
 		if _, err := os.Stat(path); err != nil {
 			return nil, path, errKind(ErrKindDB, fmt.Errorf("analytics database %s: %w (run build first)", path, star.ErrNotBuilt))
 		}
+	} else if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		// A machine that only analyses the pool has no archive, and so no
+		// folder for the default path next to it.
+		return nil, path, errKind(ErrKindDB, err)
 	}
 	db, err := a.open(ctx, duck.Options{Path: path, ReadOnly: readOnly})
 	return db, path, err

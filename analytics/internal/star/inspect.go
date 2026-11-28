@@ -117,8 +117,11 @@ type Source struct {
 	Name    string
 	Host    string
 	Archive string
-	LastSeq int64
-	Batch   Batch
+	// ArchiveID is the archive's own ID, "" when unknown (an archive
+	// before total-recall schema v11, or a database built before it).
+	ArchiveID string
+	LastSeq   int64
+	Batch     Batch
 	// Events and Sessions loaded from this source (fact_event).
 	Events   int64
 	Sessions int64
@@ -144,8 +147,18 @@ func Sources(ctx context.Context, db *duck.DB) ([]Source, error) {
 		}
 		return nil, err
 	}
+	// archive_id came with the pool (#362); a database built before has
+	// no such column until its next build.
+	idCol := "''"
+	var n int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM duckdb_columns() WHERE table_name = 'etl_watermark' AND column_name = 'archive_id'").Scan(&n); err != nil {
+		return nil, fmt.Errorf("sources: %w", err)
+	}
+	if n > 0 {
+		idCol = "COALESCE(w.archive_id, '')"
+	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT w.source, w.host, w.archive, w.last_seq,
+		SELECT w.source, w.host, w.archive, `+idCol+`, w.last_seq,
 		       b.batch_id, b.mode, b.started_at, b.finished_at, b.seq_from, b.seq_to, b.events_loaded, b.sessions_loaded,
 		       (SELECT count(*) FROM fact_event f WHERE f.source_name = w.source),
 		       (SELECT count(DISTINCT session_key) FROM fact_event f WHERE f.source_name = w.source)
@@ -160,7 +173,7 @@ func Sources(ctx context.Context, db *duck.DB) ([]Source, error) {
 	for rows.Next() {
 		var s Source
 		var started, finished sql.NullTime
-		if err := rows.Scan(&s.Name, &s.Host, &s.Archive, &s.LastSeq, &s.Batch.ID, &s.Batch.Mode, &started, &finished,
+		if err := rows.Scan(&s.Name, &s.Host, &s.Archive, &s.ArchiveID, &s.LastSeq, &s.Batch.ID, &s.Batch.Mode, &started, &finished,
 			&s.Batch.SeqFrom, &s.Batch.SeqTo, &s.Batch.Events, &s.Batch.Sessions, &s.Events, &s.Sessions); err != nil {
 			return nil, fmt.Errorf("sources: %w", err)
 		}

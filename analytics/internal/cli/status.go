@@ -29,6 +29,7 @@ type SourceJSON struct {
 	Source       string    `json:"source"`
 	Host         string    `json:"host"`
 	Archive      string    `json:"archive"`
+	ArchiveID    *string   `json:"archive_id"`
 	ArchiveFound bool      `json:"archive_found"`
 	LastSeq      int64     `json:"last_seq"`
 	Backlog      int64     `json:"backlog"`
@@ -89,6 +90,10 @@ archive above the watermark that the next build would load.`,
 				j := SourceJSON{Source: s.Name, Host: s.Host, Archive: s.Archive, LastSeq: s.LastSeq, Events: s.Events, Sessions: s.Sessions,
 					LastBatch: BatchJSON{BatchID: s.Batch.ID, Mode: s.Batch.Mode, StartedAt: s.Batch.StartedAt, FinishedAt: s.Batch.FinishedAt,
 						SeqFrom: s.Batch.SeqFrom, SeqTo: s.Batch.SeqTo, Events: s.Batch.Events, Sessions: s.Batch.Sessions}}
+				if s.ArchiveID != "" {
+					id := s.ArchiveID
+					j.ArchiveID = &id
+				}
 				if _, err := os.Stat(s.Archive); err == nil {
 					j.ArchiveFound = true
 					if j.Backlog, err = backlog(ctx, db, s.Archive, s.LastSeq); err != nil {
