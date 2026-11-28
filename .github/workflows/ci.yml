@@ -73,7 +73,7 @@ jobs:
         # cosign in PATH the action only checks the checksum and logs
         # "cosign not found in PATH, skipping signature verification". A
         # failed verification fails the step and with it the run.
-        uses: sigstore/cosign-installer@v4.1.3
+        uses: sigstore/cosign-installer@v4.1.4
 
       - name: goreleaser check
         uses: goreleaser/goreleaser-action@v7.3.0
@@ -113,7 +113,7 @@ jobs:
         # cosign in PATH the action only checks the checksum and logs
         # "cosign not found in PATH, skipping signature verification". A
         # failed verification fails the step and with it the run.
-        uses: sigstore/cosign-installer@v4.1.3
+        uses: sigstore/cosign-installer@v4.1.4
 
       - name: goreleaser snapshot
         uses: goreleaser/goreleaser-action@v7.3.0
@@ -215,7 +215,7 @@ jobs:
           key: duckdb-darwin-${{ hashFiles('analytics/duckdb/duckdb.lock', 'analytics/duckdb/extensions.cmake', 'scripts/analytics-duckdb.sh') }}
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4.1.3
+        uses: sigstore/cosign-installer@v4.1.4
 
       - name: goreleaser snapshot
         uses: goreleaser/goreleaser-action@v7.3.0
@@ -267,7 +267,7 @@ jobs:
           key: duckdb-linux_amd64-bookworm-${{ hashFiles('analytics/duckdb/duckdb.lock', 'analytics/duckdb/extensions.cmake', 'scripts/analytics-duckdb.sh') }}
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4.1.3
+        uses: sigstore/cosign-installer@v4.1.4
 
       - name: goreleaser snapshot
         uses: goreleaser/goreleaser-action@v7.3.0
