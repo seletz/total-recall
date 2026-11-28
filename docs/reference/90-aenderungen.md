@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.10.0 (unveröffentlicht)
+## v1.10.0
 
 Meilenstein v1.10.0: Die Suche kennt feinere Objekttypen (CLI, TUI, MCP), das Projekt-Gedächtnis hat in der TUI einen eigenen Reiter, und alles Wichtige in der TUI ist sichtbar und mit der Maus bedienbar. Es gibt keinen Schema-Wechsel und keine Migration; die Befehle gewinnen nur Optionen und Felder.
 
