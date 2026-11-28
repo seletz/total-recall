@@ -319,8 +319,8 @@ func TestStaleResult(t *testing.T) {
 func TestKeyMap(t *testing.T) {
 	m := newModel(t, nil)
 	short := m.ShortHelp()
-	if len(short) != 3 {
-		t.Errorf("ShortHelp has %d bindings, want 3", len(short))
+	if len(short) != 5 {
+		t.Errorf("ShortHelp has %d bindings, want 5", len(short))
 	}
 	var keys []string
 	for _, group := range m.FullHelp() {
@@ -672,5 +672,58 @@ func TestClickMetricAndHeatmap(t *testing.T) {
 	m = tuitest.Send(t, m, tea.MouseClickMsg{X: switchX(t, m, "[heatmap]"), Y: 0, Button: tea.MouseLeft}).(Model)
 	if m.heat.on {
 		t.Error("second click did not switch it off")
+	}
+}
+
+// othersLoader adds peer and automation events to the series.
+type othersLoader struct{ Loader }
+
+func (l othersLoader) ActivitySeries(ctx context.Context, f store.ActivityFilter) (store.ActivitySeries, error) {
+	s, err := l.Loader.ActivitySeries(ctx, f)
+	s.Peer, s.Automation = 14, 3
+	return s, err
+}
+
+// TestOtherActorsTiles: peer and automation events show as figures, so the
+// events of the window add up in the TUI (#376); the rest of the row gives
+// way (days active first), never the figures of the sum.
+func TestOtherActorsTiles(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	for _, width := range []int{80, 100, 140} {
+		m := New(Options{Loader: othersLoader{st}, Now: clock, Location: testfixture.ActivityLocation, Home: home})
+		m = tuitest.Drive(t, m, tea.WindowSizeMsg{Width: width, Height: 30}).(Model)
+		line := ansi.Strip(strings.Split(m.View().Content, "\n")[1])
+		for _, want := range []string{"14 peer", "3 automation", "events", "human", "agent"} {
+			if !strings.Contains(line, want) {
+				t.Errorf("width %d: tiles %q lack %q", width, line, want)
+			}
+		}
+		if width >= 140 && !strings.Contains(line, "days active") {
+			t.Errorf("width %d: tiles %q lack the days", width, line)
+		}
+	}
+	// Without such events the tiles stay as they were.
+	m := drive(t, newModel(t, st))
+	if line := ansi.Strip(strings.Split(m.View().Content, "\n")[1]); strings.Contains(line, "peer") {
+		t.Errorf("no peer events, tiles %q", line)
+	}
+}
+
+// TestHeatmapAt45Rows: in a terminal of 45 rows (a body of 41) the heatmap
+// shows in full, with its hour axis, and the chart keeps its minimum (#376).
+func TestHeatmapAt45Rows(t *testing.T) {
+	st, _ := fixturedb.Activity(t)
+	m := New(Options{Loader: st, Now: clock, Location: testfixture.ActivityLocation, Home: home})
+	m = tuitest.Drive(t, m, tea.WindowSizeMsg{Width: 120, Height: 41}, tuitest.Keys("h")[0]).(Model)
+	l := m.layout()
+	if l.heat != chart.HeatmapHeight || l.chart < MinChartHeight {
+		t.Errorf("layout = %+v, want the full heatmap (%d rows) and a chart of at least %d", l, chart.HeatmapHeight, MinChartHeight)
+	}
+	out := ansi.Strip(m.View().Content)
+	if !strings.Contains(out, "weekday × hour") || !strings.Contains(out, "Sun│") || !strings.Contains(out, "23") {
+		t.Errorf("heatmap not complete:\n%s", out)
+	}
+	if n := strings.Count(out, "\n") + 1; n != 41 {
+		t.Errorf("view has %d rows, want 41", n)
 	}
 }

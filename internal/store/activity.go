@@ -168,6 +168,11 @@ type ActivitySeries struct {
 	// cells, a session active in several periods counts once here.
 	Sessions    int
 	KeySessions []int
+	// Peer and Automation count the events of those actors in the window.
+	// They are no cells (the series is human and agent), but a figure of
+	// their own, so that the numbers of the window add up to the events of
+	// the archive.
+	Peer, Automation int
 }
 
 // periodStart returns the start of the period containing t, in t's location.
@@ -414,6 +419,10 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		until = f.Until.In(loc)
 	}
 	out := ActivitySeries{Keys: keys}
+	var err2 error
+	if out.Peer, out.Automation, err2 = s.otherActors(ctx, f); err2 != nil {
+		return ActivitySeries{}, err2
+	}
 	for _, k := range keys {
 		if isDir[k] {
 			out.Dirs = append(out.Dirs, k)
@@ -471,4 +480,44 @@ func (s *Store) ActivitySeries(ctx context.Context, f ActivityFilter) (ActivityS
 		out.Buckets = append(out.Buckets, b)
 	}
 	return out, nil
+}
+
+// otherActors counts the peer and automation events of the window of f,
+// with the same time range and owners as the series itself.
+func (s *Store) otherActors(ctx context.Context, f ActivityFilter) (peer, automation int, err error) {
+	cond := []string{"e.actor IN ('peer', 'automation')"}
+	var args []any
+	if !f.Since.IsZero() {
+		cond = append(cond, "e.ts >= ?")
+		args = append(args, formatTime(f.Since))
+	}
+	if !f.Until.IsZero() {
+		cond = append(cond, "e.ts < ?")
+		args = append(args, formatTime(f.Until))
+	}
+	if f.Owners != nil {
+		c, a := f.Owners.cond("p")
+		cond, args = append(cond, c), append(args, a...)
+	}
+	rows, err := s.db().QueryContext(ctx, `SELECT e.actor, COUNT(*)
+		FROM events e JOIN sessions s ON s.id = e.session_id
+		LEFT JOIN sessions p ON p.id = s.parent_id
+		WHERE `+strings.Join(cond, " AND ")+` GROUP BY e.actor`, args...)
+	if err != nil {
+		return 0, 0, fmt.Errorf("store: activity: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var actor string
+		var n int
+		if err := rows.Scan(&actor, &n); err != nil {
+			return 0, 0, fmt.Errorf("store: activity: %w", err)
+		}
+		if actor == "peer" {
+			peer = n
+		} else {
+			automation = n
+		}
+	}
+	return peer, automation, rows.Err()
 }

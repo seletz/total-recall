@@ -33,4 +33,4 @@
                                                            │
  1 hit (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 1 search • 2 stats …
+ ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 2 stats • ? help • q quit

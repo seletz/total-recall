@@ -33,4 +33,4 @@
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ move • enter open session • space sessions • ←/→ prev/next day • h human/all events • esc back • 1 search • 2 stat…
+ ↑/↓ move • enter open session • space sessions • ←/→ prev/next day • h human/all events • esc back • ? help • q quit

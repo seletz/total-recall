@@ -31,7 +31,8 @@ type Shot struct {
 	Start         string
 	Query         string
 	Now           time.Time
-	// Keys are pressed in order: single characters, "enter", "tab", "esc", "right".
+	// Keys are pressed in order: single characters, "enter", "tab", "esc",
+	// "right"; "click:TEXT" and "ctrl+click:TEXT" click on TEXT in the frame.
 	Keys []string
 	// Outdated renders against the home with the outdated archive
 	// (Env.Outdated) instead of the demo archive.
@@ -86,6 +87,10 @@ var Shots = []Shot{
 		Keys: []string{"tab", "s", "m"}, Caption: "Suche über Events, Sessions und Gedächtnis: der Typ-Umschalter in der Linie, die Treffer in einer Gruppe je Typ"},
 	{Name: "search-types-all", Width: Width, Height: Height, Start: tui.ViewSearch, Query: "route", Now: searchNow,
 		Keys: []string{"tab", "u", "g", "c", "o", "f"}, Caption: "Alle Typen der Typ-Zeile: jeder Umschalter zeigt seine Taste, ausgewählte stehen in Klammern; die Treffer kommen in einer Gruppe je Typ"},
+	{Name: "search-type-click", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
+		Keys: []string{"click:input"}, Caption: "Klick auf einen Typ in der Typ-Zeile: nur dieser Typ ist gewählt (hier input), die Statuszeile nennt ctrl+Klick zum Hinzufügen"},
+	{Name: "search-type-click-add", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
+		Keys: []string{"click:input", "ctrl+click:answer"}, Caption: "ctrl+Klick auf einen weiteren Typ fügt ihn hinzu (hier input und answer), die Treffer kommen in einer Gruppe je Typ"},
 	{Name: "search-input", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
 		Keys: []string{"tab", "u", "e"}, Caption: "Nur Eingaben des Menschen (Taste u, Event aus): Treffer in dem, was getippt oder eingefügt wurde, nicht in den Antworten des Agenten"},
 	{Name: "search-answers", Width: Width, Height: Height, Start: tui.ViewSearch, Query: demo.Query, Now: searchNow,
@@ -254,6 +259,14 @@ func Render(s Shot, env *Env) (Frame, error) {
 	m = send(m, tea.WindowSizeMsg{Width: s.Width, Height: s.Height})
 	m = run(m, m.Init())
 	for _, k := range s.Keys {
+		if text, mod, ok := clickKey(k); ok {
+			click, err := clickOn(m.View().Content, text, mod)
+			if err != nil {
+				return Frame{}, fmt.Errorf("shot %s: %w", s.Name, err)
+			}
+			m = send(m, click)
+			continue
+		}
 		m = send(m, keyPress(k))
 	}
 	return Frame{Shot: s, Content: m.View().Content}, nil
@@ -270,6 +283,29 @@ func RenderAll(env *Env) ([]Frame, error) {
 		out = append(out, f)
 	}
 	return out, nil
+}
+
+// clickKey parses a key name "click:TEXT" or "ctrl+click:TEXT": a left
+// click on the first place where TEXT shows in the frame.
+func clickKey(name string) (text string, mod tea.KeyMod, ok bool) {
+	if t, found := strings.CutPrefix(name, "ctrl+click:"); found {
+		return t, tea.ModCtrl, true
+	}
+	if t, found := strings.CutPrefix(name, "click:"); found {
+		return t, 0, true
+	}
+	return "", 0, false
+}
+
+// clickOn builds the left click on the first occurrence of text in the
+// frame, so a shot names what it clicks and not a column.
+func clickOn(frame, text string, mod tea.KeyMod) (tea.MouseClickMsg, error) {
+	for y, line := range strings.Split(ansi.Strip(frame), "\n") {
+		if x := strings.Index(line, text); x >= 0 {
+			return tea.MouseClickMsg{X: ansi.StringWidth(line[:x]), Y: y, Button: tea.MouseLeft, Mod: mod}, nil
+		}
+	}
+	return tea.MouseClickMsg{}, fmt.Errorf("click: %q is not in the frame", text)
 }
 
 // keyPress builds the key press for a name: a single character or one of

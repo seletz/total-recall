@@ -110,8 +110,15 @@ func slicesEqual(a, b []store.HitType) bool {
 	return true
 }
 
-// TestTypeClick: a click on a type in the type row toggles it, a click
-// beside the names does nothing.
+// ctrlClick is a left click with ctrl held.
+func ctrlClick(x, y int) tea.MouseClickMsg {
+	return tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft, Mod: tea.ModCtrl}
+}
+
+// TestTypeClick: a click on a type in the type row selects only that type
+// (#376), a click with ctrl (or shift, alt) adds it to the selection or
+// drops it, the last type stays; a click beside the names does nothing,
+// and the status line says how to add.
 func TestTypeClick(t *testing.T) {
 	m := demoModel(t, demo.Query)
 	_, z := m.typeRow(m.width)
@@ -123,17 +130,31 @@ func TestTypeClick(t *testing.T) {
 		idx[ty] = i
 	}
 	m = drive(t, m, click(z[idx[store.TypeSession]].Start, 1))
-	if !m.hasType(store.TypeSession) || !m.hasType(store.TypeEvent) {
-		t.Errorf("after clicking session: types = %v", m.types)
+	if !slicesEqual(m.types, []store.HitType{store.TypeSession}) {
+		t.Errorf("after clicking session: types = %v, want only session", m.types)
 	}
-	m = drive(t, m, click(z[idx[store.TypeEvent]].End-1, 1), click(z[idx[store.TypeMemory]].Start, 1))
+	if !strings.Contains(m.status(), "ctrl+click adds") {
+		t.Errorf("status after a click lacks the hint: %q", m.status())
+	}
+	_, z = m.typeRow(m.width)
+	m = drive(t, m, ctrlClick(z[idx[store.TypeMemory]].Start, 1))
 	if !slicesEqual(m.types, []store.HitType{store.TypeSession, store.TypeMemory}) {
-		t.Errorf("after clicking event and memory: types = %v", m.types)
+		t.Errorf("after ctrl+click on memory: types = %v", m.types)
+	}
+	_, z = m.typeRow(m.width)
+	m = drive(t, m, click(z[idx[store.TypeMemory]].Start, 1))
+	if !slicesEqual(m.types, []store.HitType{store.TypeMemory}) {
+		t.Errorf("plain click on a selected type among two: types = %v, want only memory", m.types)
+	}
+	_, z = m.typeRow(m.width)
+	m = drive(t, m, ctrlClick(z[idx[store.TypeMemory]].Start, 1))
+	if !slicesEqual(m.types, []store.HitType{store.TypeMemory}) {
+		t.Errorf("ctrl+click on the last type: types = %v, want it to stay", m.types)
 	}
 	before := len(m.groups)
-	_, z = m.typeRow(m.width) // the widths changed with the selection
+	_, z = m.typeRow(m.width)
 	m = drive(t, m, click(z[len(z)-1].End+1, 1))
-	if len(m.groups) != before || len(m.types) != 2 {
+	if len(m.groups) != before || len(m.types) != 1 {
 		t.Errorf("a click beside the names changed the selection: %v", m.types)
 	}
 }

@@ -78,6 +78,8 @@ func TestRenderAll(t *testing.T) {
 		"search-pin":               {"project: kompass ✕", "─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ", "◄", "event 195, session 22, memory 1"},
 		"session":                  {"› session", "Release v0.3.0", "· tools", "tool_use Read", "tool_use Bash", "tool (tool_result)", "goreleaser", "mara/kompass"},
 		"memory":                   {"› memory", "kompass  memory  claude", "▸ release-process.md", "✗ old-notes.md", "deleted", "3 files, 1 deleted", "goreleaser"},
+		"search-type-click":        {"[u input]", "e event", "ctrl+click adds a type"},
+		"search-type-click-add":    {"[u input]", "[g answer]", "e event"},
 		"memory-tab":               {"[5 memory]", "projects with memory", "▸ fahrtenbuch", "kompass", "wetterwarte", "1 file ", "3 files, 1 deleted", "/home/mara/src/kompass__worktrees/gpx", "4 projects, 7 files, 14 versions (1 without files)", "enter open memory"},
 		"memory-tab-viewer":        {"[5 memory] › kompass", "kompass  memory  claude", "▸ MEMORY.md", "✗ old-notes.md"},
 		"session-memory":           {"› memory", "kompass  memory  claude", "▸ MEMORY.md"},

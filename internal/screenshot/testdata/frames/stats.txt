@@ -1,7 +1,7 @@
  total-recall                 updated 12:00:00                   1 search  [2 stats]  3 activity   4 config   5 memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  period: [day] week month  by: [project] agent directory  heatmap                                2026-10-05 – 2026-11-01
- ▎2 374 events  ▎525 human  ▎1 849 agent  ▎161 sessions  ▎24/28 days active
+ ▎2 374 events  ▎525 human  ▎1 849 agent  ▎27 peer  ▎7 automation  ▎161 sessions  ▎24/28 days active
  events
  188 ┤                            ▇▇▇                                                             ███
      │                            ███                                                             ███
@@ -33,4 +33,4 @@
  dotfiles                                                               3               3         10         23      1 %
  text chart · 28 days · 0 ms
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- d/w/m period • p/a/v by • ←/→/-/+ range • 1 search • 2 stats • 3 activity • ? help • q quit
+ d/w/m period • p/a/v by • ←/→/-/+ range • e metric • h heatmap • 1 search • 2 stats • 3 activity • ? help • q quit

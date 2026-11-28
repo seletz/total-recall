@@ -696,13 +696,37 @@ func (m Model) tileParts(human, agent, active int) []tilePart {
 		}
 		return tilePart{text: m.th.AccentText.Render("▎") + st.Render(figure) + " " + lst.Render(label), metric: metric}
 	}
-	return []tilePart{
+	parts := []tilePart{
 		tile(m.th.Figure, group(human+agent), "events", chart.MetricEvents),
 		tile(m.th.Actor(model.ActorHuman), group(human), "human", chart.MetricHuman),
 		tile(m.th.Actor(model.ActorAgent), group(agent), "agent", -1),
-		tile(m.th.Figure, group(m.series.Sessions), "sessions", chart.MetricSessions),
-		tile(m.th.Figure, fmt.Sprintf("%d/%d", active, len(m.series.Buckets)), m.window.Period.String()+"s active", -1),
 	}
+	// Peer and automation events are no part of the chart (human and agent
+	// only) but a figure of their own, so the sum of the window can be
+	// checked; they show when there are any.
+	if n := m.series.Peer; n > 0 {
+		parts = append(parts, tile(m.th.Actor(model.ActorPeer), group(n), "peer", -1))
+	}
+	if n := m.series.Automation; n > 0 {
+		parts = append(parts, tile(m.th.Actor(model.ActorAutomation), group(n), "automation", -1))
+	}
+	parts = append(parts,
+		tile(m.th.Figure, group(m.series.Sessions), "sessions", chart.MetricSessions),
+		tile(m.th.Figure, fmt.Sprintf("%d/%d", active, len(m.series.Buckets)), m.window.Period.String()+"s active", -1))
+	// A narrow row drops the days first: the figures of the sum stay.
+	for len(parts) > 3 && tilesWidth(parts) > m.width-1 && parts[len(parts)-1].metric < 0 {
+		parts = parts[:len(parts)-1]
+	}
+	return parts
+}
+
+// tilesWidth is the width of the tiles row of parts.
+func tilesWidth(parts []tilePart) int {
+	w := 1
+	for _, p := range parts {
+		w += lipgloss.Width(p.text) + 2
+	}
+	return w - 2
 }
 
 // clickTile selects the metric of the tile at column x of the tiles row;

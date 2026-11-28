@@ -498,3 +498,43 @@ func TestActivitySeriesProjectMapper(t *testing.T) {
 		t.Errorf("directory keys mapped: %q", got.Keys)
 	}
 }
+
+// TestActivitySeriesOtherActors: peer and automation events are no cells
+// of the series but are counted next to them, so the figures of the
+// window add up to the events of the archive (#376).
+func TestActivitySeriesOtherActors(t *testing.T) {
+	s, _ := openTestStore(t)
+	sess := []model.Session{{ID: "claude:o1", Harness: "claude", NativeID: "o1", Cwd: "/w/app", GitRoot: "/w/app",
+		StartedAt: ts("2026-10-31T10:00:00Z"), EndedAt: ts("2026-10-31T11:00:00Z")}}
+	evs := []model.Event{
+		ev("claude:o1-1", "claude:o1", "2026-10-31T10:00:00Z", model.ActorHuman, model.KindMessage, "user", "a"),
+		ev("claude:o1-2", "claude:o1", "2026-10-31T10:01:00Z", model.ActorAgent, model.KindMessage, "assistant", "b"),
+		ev("claude:o1-3", "claude:o1", "2026-10-31T10:02:00Z", model.ActorPeer, model.KindMessage, "user", "c"),
+		ev("claude:o1-4", "claude:o1", "2026-10-31T10:03:00Z", model.ActorPeer, model.KindMessage, "user", "d"),
+		ev("claude:o1-5", "claude:o1", "2026-10-31T10:04:00Z", model.ActorAutomation, model.KindMessage, "user", "e"),
+		ev("claude:o1-6", "claude:o1", "2026-10-31T10:05:00Z", model.ActorTool, model.KindToolResult, "tool", "f"),
+		// outside the window
+		ev("claude:o1-7", "claude:o1", "2026-09-01T10:00:00Z", model.ActorPeer, model.KindMessage, "user", "g"),
+	}
+	if err := s.WriteBatch(ctx, SourceState{Path: "/src/o.jsonl", Harness: "claude", Offset: 10}, sess, evs); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ActivitySeries(ctx, ActivityFilter{Since: ts("2026-10-01T00:00:00Z"), Until: ts("2026-11-01T00:00:00Z"),
+		Period: PeriodDay, Dimension: DimProject})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Peer != 2 || got.Automation != 1 {
+		t.Errorf("peer/automation = %d/%d, want 2/1", got.Peer, got.Automation)
+	}
+	var human, agent int
+	for _, b := range got.Buckets {
+		for _, c := range b.Cells {
+			human += c.Human
+			agent += c.Agent
+		}
+	}
+	if human != 1 || agent != 1 {
+		t.Errorf("human/agent = %d/%d, want 1/1 (peer and automation are no cells)", human, agent)
+	}
+}

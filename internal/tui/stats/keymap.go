@@ -42,12 +42,12 @@ func newKeyMap(m keys.Map) KeyMap {
 	}
 }
 
-// ShortHelp returns the grouped bindings for the footer. The metric and
-// heatmap keys are left out so the line fits beside the global keys in 100
-// columns; the chart title names the active metric, the status line the
-// heatmap.
+// ShortHelp returns the bindings for the footer: the grouped period,
+// dimension and range keys, then the metric and the heatmap, so that they
+// can be found (#376). The footer shows the view's hints first, so a
+// narrow terminal cuts the global keys, not these.
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Period, k.Dimension, k.Range}
+	return []key.Binding{k.Period, k.Dimension, k.Range, k.Metric, k.Heatmap}
 }
 
 // FullHelp returns every binding for the help overlay, in three columns.

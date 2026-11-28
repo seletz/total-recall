@@ -1,0 +1,36 @@
+ total-recall                 updated 10:00:00                  [1 search]  2 stats   3 activity   4 config   5 memory
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > goreleaser cask                                                                      actor: all  since: all  repo: *
+─ e event [u input] [g answer] c tool_call o tool_result I image D document f file s session m memory ──────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+ input  3                                                  │ Release v0.3.0
+▸2026-10-31 22:14  Release v0.3.0                     human│ claude:7d1e4c20-0001-4000-8000-000000000001  mara/kompass
+  Lade den Homebrew-Cask mit goreleaser in den Tap hoch.   │ 2026-10-31 22:14 – 22:20 (6m)  main
+ 2026-10-15 11:05  Homebrew-Tap einrichten            human│────────────────────────────────────────────────────────────
+  Richte den Homebrew-Tap ein, damit goreleaser den Cask d…│── 22:14  human ◄
+ 2026-10-28 09:02  CI pipeline                        human│Lade den Homebrew-Cask mit goreleaser in den Tap hoch.
+  can we build the cask in goreleaser and push it to the t…│
+ answer  6                                                 │── 22:16  agent
+ 2026-10-28 09:05  CI pipeline                        agent│goreleaser skips the cask upload when the tap token is
+  goreleaser needs HOMEBREW_TAP_GITHUB_TOKEN in the workfl…│missing. I added a check that fails the release early
+ 2026-10-15 11:12  Homebrew-Tap einrichten            agent│instead, so a missing HOMEBREW_TAP_GITHUB_TOKEN no longer
+  …goreleaser publishes the cask there; users install it w…│leaves a half-published release.
+ 2026-10-12 15:45  Packaging                          agent│
+  …the binary to kompass and set the cask name. goreleaser…│
+ 2026-10-22 17:34  Signierte Releases                 agent│
+  Yes: goreleaser signs the checksums file with cosign aft…│
+ 2026-10-31 22:20  Release v0.3.0                     agent│
+  …The release workflow is running; goreleaser builds the …│
+ 2026-10-31 22:16  Release v0.3.0                     agent│
+  goreleaser skips the cask upload when the tap token is m…│
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ input 3, answer 6 (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab list • enter open • ^r raw fts • ^c quit
