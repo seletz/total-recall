@@ -138,13 +138,8 @@ func (m Model) load() tea.Cmd {
 				empty++
 				continue
 			}
-			path := displayPath(p, o.Home)
-			name := cat.MemoryProjectName(p.ID)
-			if name == p.Key || strings.ContainsAny(name, "/~") {
-				// No project definition names it: the last path element
-				// reads better than the raw key.
-				name = path[strings.LastIndexAny(path, "/")+1:]
-			}
+			path := project.MemoryPath(p, o.Home)
+			name := project.MemoryLabel(cat.MemoryProjectName(p.ID), p, path)
 			rows = append(rows, Row{MemoryProject: p, Name: name, Path: path})
 		}
 		slices.SortStableFunc(rows, func(a, b Row) int {
@@ -319,30 +314,6 @@ func (m Model) status() string {
 		out += fmt.Sprintf(" (%d without files)", m.empty)
 	}
 	return out
-}
-
-// displayPath is the readable place of a memory directory.
-func displayPath(p store.MemoryProject, home string) string {
-	path := p.Cwd
-	if path == "" {
-		path = p.GitRoot
-	}
-	if path == "" {
-		// The harness key is the path with "/" replaced by "-".
-		path = strings.ReplaceAll(p.Key, "-", "/")
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-	}
-	if home = strings.TrimRight(home, "/"); home != "" {
-		if path == home {
-			return "~"
-		}
-		if rest, ok := strings.CutPrefix(path, home+"/"); ok {
-			return "~/" + rest
-		}
-	}
-	return path
 }
 
 // filesText is the number of files of a row, with the deleted ones.

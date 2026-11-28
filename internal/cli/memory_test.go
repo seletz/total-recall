@@ -294,3 +294,24 @@ func TestMemoryTimeline(t *testing.T) {
 		t.Errorf("unknown project = %+v", r)
 	}
 }
+
+// TestMemoryProjectPath: the list has the readable place of the memory
+// directory (as the tab of the TUI: project.MemoryPath), in the table and
+// in every JSON object that names a project (#375).
+func TestMemoryProjectPath(t *testing.T) {
+	t.Parallel()
+	e := memoryEnv(t)
+	files := decode[[]MemoryFileJSON](t, e.mustRun(t, "memory", "--json"))
+	if files[0].ProjectPath != "/w/alpha" || files[2].ProjectPath != "/w/beta" {
+		t.Errorf("project_path = %q, %q", files[0].ProjectPath, files[2].ProjectPath)
+	}
+	out := e.mustRun(t, "memory")
+	header := strings.SplitN(out, "\n", 2)[0]
+	if !strings.Contains(header, "PROJECT") || !strings.Contains(header, "PATH") || strings.Index(header, "PATH") > strings.Index(header, "FILE") {
+		t.Errorf("header = %q", header)
+	}
+	hits := decode[[]MemoryHitJSON](t, e.mustRun(t, "memory", "--json", "--grep", "beacon"))
+	if len(hits) != 1 || hits[0].ProjectPath != "/w/alpha" {
+		t.Errorf("hits = %+v", hits)
+	}
+}
