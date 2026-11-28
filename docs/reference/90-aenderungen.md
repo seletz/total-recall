@@ -6,7 +6,7 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
-## v1.11.0 (unveröffentlicht)
+## v1.11.0
 
 Meilenstein v1.11.0: Auswerten über mehrere Rechner. Wer Agenten auf mehreren Rechnern laufen lässt, sieht jetzt, wie sie über alle Rechner genutzt werden: je Projekt, Rechner, Modell und Tool über die Zeit, mit Tokens und Arbeitszeit. Dafür gibt es ein neues, eigenes Programm, `total-recall-analytics`, und in `total-recall` zwei kleine Bausteine: eine Kennung je Archiv und ein gemeinsames Pool-Verzeichnis für die Backups. Wer nur einen Rechner nutzt, braucht nichts davon; die Migration auf Schema v11 ist trotzdem fällig (siehe [Upgrade](#upgrade-auf-v1110)). Der Einstieg: [Agenten-Pool auswerten](../how-to/70-pool-auswerten.md).
 
