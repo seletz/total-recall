@@ -24,6 +24,11 @@ Meilenstein v1.11.0: ein eigenes Analyse-Tool mit DuckDB für die Archive eines 
   - **TUI:** die Seite Status der Ansicht Config hat dieselbe Zeile, die Seite Settings den Schlüssel.
   - **Bestätigung von `migrate` in der TUI:** Sie behält bei einem langen Plan die Kopfzeile und kürzt die ältesten Schritte zu `… N more`.
   - Rezept: [Rechner im Pool benennen](../how-to/68-host-benennen.md).
+- **Pool-Verzeichnis** ([#359](https://github.com/seletz/total-recall/issues/359)): Die Rechner eines Pools legen ihre Backups in einen gemeinsamen Ordner, `<pool_dir>/<host>/`, je Host die neueste Kopie.
+  - **Neuer Schlüssel [`[backup] pool_dir`](20-konfiguration.md#pool_dir):** Ist er gesetzt, legt jedes `backup` die Kopie auch dort ab und räumt die ältere des Hosts weg; ein übersprungenes Backup legt eine fehlende Kopie nach. Die TUI-Aktion `backup` tut dasselbe.
+  - **Neuer Befehl [`pool`](10-befehle.md#pool):** Er zeigt je Host die neueste Kopie mit Host, ID, Schema, Sessions und Events und meldet, was nicht passt. Er entpackt in einen Cache und liest mit `immutable=1`, der Pool wird nie geschrieben.
+  - **`status`:** Zeile `pool`, in JSON `pool_dir`, `pool_copy`, `pool_copy_at`; dieselbe Zeile auf der Seite Status der TUI.
+  - Rezept: [Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md).
 
 ### Upgrade auf v1.11.0
 

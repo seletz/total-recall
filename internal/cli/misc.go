@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"time"
@@ -79,7 +80,7 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 				}
 			}
 			_, _ = fmt.Fprintf(out, "backup skipped: %s is %s old (< %s)\n", p, duration(now.Sub(t)), d)
-			return nil
+			return publishPool(out, cfg, log)
 		}
 	}
 	if _, err := os.Stat(cfg.DB); errors.Is(err, fs.ErrNotExist) {
@@ -96,6 +97,27 @@ func (e *env) runBackup(cmd *cobra.Command, cfg *config.Config, ifOlder string, 
 		return err
 	}
 	_, _ = fmt.Fprintf(out, "backup written: %s\n", p)
+	return publishPool(out, cfg, log)
+}
+
+// publishPool puts the newest backup into the pool directory when
+// [backup] pool_dir is set (internal/pool): after a new backup, and after
+// a skipped one, so a copy the pool lacks arrives with the next hook.
+func publishPool(out io.Writer, cfg *config.Config, log *logfile.Logger) error {
+	r, ok, err := ops.PublishPool(cfg)
+	if !ok || err != nil {
+		return err
+	}
+	for _, p := range r.Removed {
+		if log != nil {
+			log.Infof("backup: replaced the older pool copy %s", p)
+		}
+	}
+	if !r.Copied {
+		_, _ = fmt.Fprintf(out, "pool copy: %s (unchanged)\n", r.Path)
+		return nil
+	}
+	_, _ = fmt.Fprintf(out, "pool copy: %s\n", r.Path)
 	return nil
 }
 

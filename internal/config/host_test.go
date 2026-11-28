@@ -54,3 +54,28 @@ func TestHost(t *testing.T) {
 		})
 	}
 }
+
+// TestPoolDir: [backup] pool_dir is off by default; a path from the file
+// is expanded like backup.dir.
+func TestPoolDir(t *testing.T) {
+	for _, tc := range []struct {
+		name, content, want string
+	}{
+		{"default", "", ""},
+		{"file", "[backup]\npool_dir = \"~/pool\"\n", "/home/u/pool"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := Options{GOOS: "linux", Home: "/home/u", Getenv: env(nil), Hostname: func() (string, error) { return "h", nil }}
+			if tc.content != "" {
+				opts.ConfigFile = writeFile(t, t.TempDir(), "c.toml", tc.content)
+			}
+			c, err := Load(opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Backup.PoolDir != tc.want {
+				t.Errorf("PoolDir = %q, want %q", c.Backup.PoolDir, tc.want)
+			}
+		})
+	}
+}

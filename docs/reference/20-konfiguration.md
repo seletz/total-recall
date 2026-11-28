@@ -58,6 +58,7 @@ dir = "~/Documents/total-recall"
 keep_daily = 7
 keep_monthly = 0                 # 0 = alle Monatskopien behalten
 min_interval = "24h"             # für `backup --if-older`
+# pool_dir = "/srv/pool/total-recall"  # Pool-Verzeichnis: jedes Backup auch nach <pool_dir>/<host>/
 
 [redact]
 enabled = true
@@ -196,6 +197,9 @@ lang = "en"                      # Sprache der Beschriftungen: en | de (--lang)
 
 `min_interval`
 :   Reserviert. Derzeit ungenutzt: `backup --if-older` braucht eine ausdrückliche Dauer, etwa `--if-older 24h` wie im Hook.
+
+`pool_dir` { #pool_dir }
+:   Pool-Verzeichnis, in dem die Rechner eines Pools ihre Backups für das [Analyse-Tool](15-analyse.md) ablegen, etwa eine Netzfreigabe oder ein synchronisierter Ordner. Ist es gesetzt, legt jedes [`backup`](10-befehle.md#backup) die neueste Kopie zusätzlich unter `<pool_dir>/<host>/` ab ([`host`](#host)) und entfernt dort die ältere Kopie dieses Hosts. Das gilt auch für ein übersprungenes Backup (`--if-older`), wenn die Kopie im Pool fehlt. Leer (Default): aus. `~` und Umgebungsvariablen werden aufgelöst. Rezept: [Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md).
 
 ### `[redact]`
 

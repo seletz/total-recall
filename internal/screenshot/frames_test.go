@@ -115,6 +115,8 @@ func TestRenderAll(t *testing.T) {
 		"config-status":            {"4 config]", "[status] settings projects actions setup", "~/.config/total-recall/config.toml", "~/.local/share/total-recall/archive.db", "host                  host-a  archive de00000000000000000000000000a001", "schema", "sessions", "last backup", "~/Documents/total-recall/archive-2026-11-02.db.zst", "problems              none"},
 		"config-setup-mcp":         {"4 config]", "actions [setup]", "mcp         √ ~/.claude.json: total-recall mcp", "MCP server entry for Claude Code, nothing is written", "claude mcp add --scope user total-recall -- total-recall mcp", `"mcpServers": {`},
 		"config-settings":          {"4 config]", "status [settings]", "KEY", "VALUE", "ORIGIN", "[backup]", "enter saves, esc cancels"},
+		"config-pool-edit":         {"4 config]", "status [settings]", "▸ pool_dir", "Pool directory: every backup also puts the newest copy into <pool_dir>/<host>/", "> ~/pool"},
+		"config-pool-status":       {"4 config]", "[status] settings", "pool                  ~/pool/host-a/archive-2026-11-02.db.zst  7h00m ago"},
 		"config-host-edit":         {"4 config]", "status [settings]", "▸ host", "Name of this host in a pool of hosts", "> host-b", "enter saves, esc cancels"},
 		"config-host-status":       {"4 config]", "[status] settings", "host                  host-b  archive de00000000000000000000000000a001, recorded as host-a until the next write"},
 		"config-settings-list":     {"4 config]", "status [settings]", "KEY", "VALUE", "ORIGIN", "log  Log file for hook errors", "enter edits the marked key, d resets it to the default"},

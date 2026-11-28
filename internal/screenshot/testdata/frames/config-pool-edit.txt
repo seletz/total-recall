@@ -1,0 +1,36 @@
+ total-recall                 updated 10:00:00                   1 search   2 stats   3 activity  [4 config]  5 memory
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ status [settings] projects actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ KEY                      VALUE                                                                                 ORIGIN
+  db                       ~/.local/share/total-recall/archive.db                                                default
+  timezone                 Europe/Berlin                                                                         file
+  day_start                04:00                                                                                 file
+  host                     host-a                                                                                default
+  log                      ""                                                                                    file
+  [backup]
+  dir                      ~/Documents/total-recall                                                              file
+  keep_daily               7                                                                                     file
+  keep_monthly             0                                                                                     file
+  min_interval             24h                                                                                   file
+▸ pool_dir                 ""                                                                                    default
+  [redact]
+  enabled                  true                                                                                  file
+  extra_patterns           []                                                                                    file
+  allow                    []                                                                                    file
+  [ingest]
+  tool_result_max_bytes    4096                                                                                  file
+  raw_max_bytes            0                                                                                     file
+  store_raw                true                                                                                  file
+  store_blobs              true                                                                                  file
+  store_memory             true                                                                                  file
+  store_file_history       true                                                                                  file
+  [harness.claude]
+  enabled                  true                                                                                  file
+  projects_dir             ~/.claude/projects                                                                    default
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ backup.pool_dir  Pool directory: every backup also puts the newest copy into <pool_dir>/<host>/; empty = off
+ default:  · change: used by the next command or action
+ > ~/pool   enter saves, esc cancels
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ enter edit / run • esc back • ^c quit

@@ -9,7 +9,11 @@ import (
 
 // archiveVersion is the schema version that gives an archive its identity
 // (archive_meta).
-const archiveVersion = 11
+const archiveVersion = ArchiveVersion
+
+// ArchiveVersion is the schema version from which an archive carries its
+// identity (archive_meta, see Archive).
+const ArchiveVersion = 11
 
 // Archive is the identity of an archive in a pool of hosts: ID is random
 // once per archive and stays the same in its copies and backups; Host is

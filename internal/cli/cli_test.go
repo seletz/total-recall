@@ -39,6 +39,7 @@ type testEnv struct {
 	home                                        string            // App.Home; empty means dir
 	width                                       int               // App.TerminalWidth; 0 = stdout is no terminal
 	fileProvider                                func(string) bool // App.FileProvider; nil = no domain anywhere
+	hostname                                    string            // App.Hostname; empty means host-a
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -86,7 +87,7 @@ func (e *testEnv) run(t *testing.T, stdin string, args ...string) result {
 		Stderr:   &errb,
 		Args:     args,
 		Home:     cmp.Or(e.home, e.dir),
-		Hostname: func() (string, error) { return "host-a", nil },
+		Hostname: func() (string, error) { return cmp.Or(e.hostname, "host-a"), nil },
 		Getenv: func(k string) string {
 			if k == "TOTAL_RECALL_CONFIG" {
 				return e.configPath

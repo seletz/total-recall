@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -98,6 +99,13 @@ func (m Model) statusView(width, height int) string {
 		if s.backupInfo.State == store.BackupUnknown {
 			add("backup access", m.th.Muted.Render(s.backupInfo.Reason))
 			add("backup hint", m.th.Muted.Render(s.backupInfo.Hint))
+		}
+		if s.pool.Configured {
+			v, bad := ops.PoolCell(cfg, s.pool, func(t time.Time) string { return m.th.Muted.Render(age(m.now(), t)) })
+			if v = m.tilde(v); bad {
+				v = warn(v)
+			}
+			add("pool", v)
 		}
 	}
 	add("log", m.tilde(cfg.LogPath()))

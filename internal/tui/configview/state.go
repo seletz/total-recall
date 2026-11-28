@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/seletz/total-recall/internal/logfile"
+	"github.com/seletz/total-recall/internal/ops"
 	"github.com/seletz/total-recall/internal/store"
 )
 
@@ -49,6 +50,8 @@ type state struct {
 	// directory cannot be read (then backup and backupAt come from the status
 	// file next to the database, if there is one).
 	backupInfo store.BackupStatus
+	// pool is this host's copy in the pool directory ([backup] pool_dir).
+	pool ops.PoolCopy
 	// problems are the errors of the config tables checked when used.
 	problems []error
 	// errs are the ERROR lines of the log of the last errorWindow,
@@ -101,6 +104,11 @@ func load(opts Options, now time.Time) state {
 	}
 	s.backupInfo = store.ReadBackupStatus(store.BackupProbe{DB: cfg.DB, Dir: cfg.Backup.Dir, Loc: cfg.Location(), Now: now, Home: cfg.Home})
 	s.backup, s.backupAt = s.backupInfo.Path, s.backupInfo.At
+	if pc, err := ops.ReadPoolCopy(cfg); err != nil {
+		s.err = err
+	} else {
+		s.pool = pc
+	}
 	if _, err := os.Stat(cfg.DB); err != nil {
 		s.noArchive = true
 	}

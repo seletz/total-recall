@@ -61,6 +61,7 @@ var Catalog = []Key{
 	{"backup.keep_daily", KindInt, nil, "Number of most recent days whose copies are kept"},
 	{"backup.keep_monthly", KindInt, nil, "Number of monthly copies to keep; 0 = keep all"},
 	{"backup.min_interval", KindDuration, nil, "Minimum age of the last backup for `backup --if-older` (currently unused)"},
+	{"backup.pool_dir", KindPath, nil, "Pool directory: every backup also puts the newest copy into <pool_dir>/<host>/; empty = off"},
 	{"redact.enabled", KindBool, nil, "Mask secrets in text and raw JSON before they are stored"},
 	{"redact.extra_patterns", KindList, nil, "Additional Go regular expressions to mask (group 1 if present)"},
 	{"redact.allow", KindList, nil, "Regular expressions; a candidate secret matching one is never masked"},
