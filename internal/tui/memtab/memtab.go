@@ -43,12 +43,18 @@ type Options struct {
 type Row struct {
 	store.MemoryProject
 	Name string
+	// Path is the readable place of the memory: the working directory, else
+	// the repository, else the path decoded from the harness key, with the
+	// home directory as "~". It tells apart projects of the same name.
+	Path string
 }
 
 type loadedMsg struct {
 	seq  int
 	rows []Row
-	err  error
+	// empty counts the projects without any file, which the tab leaves out.
+	empty int
+	err   error
 }
 
 // Model is the memory tab.
@@ -60,6 +66,7 @@ type Model struct {
 	width, height int
 
 	rows           []Row
+	empty          int
 	cursor, offset int
 	seq            int
 	loaded         bool
@@ -125,16 +132,31 @@ func (m Model) load() tea.Cmd {
 			return loadedMsg{seq: seq, err: err}
 		}
 		rows := make([]Row, 0, len(ps))
+		empty := 0
 		for _, p := range ps {
-			rows = append(rows, Row{MemoryProject: p, Name: cat.MemoryProjectName(p.ID)})
+			if p.Files == 0 && p.Deleted == 0 {
+				empty++
+				continue
+			}
+			path := displayPath(p, o.Home)
+			name := cat.MemoryProjectName(p.ID)
+			if name == p.Key || strings.ContainsAny(name, "/~") {
+				// No project definition names it: the last path element
+				// reads better than the raw key.
+				name = path[strings.LastIndexAny(path, "/")+1:]
+			}
+			rows = append(rows, Row{MemoryProject: p, Name: name, Path: path})
 		}
 		slices.SortStableFunc(rows, func(a, b Row) int {
 			if c := strings.Compare(a.Name, b.Name); c != 0 {
 				return c
 			}
+			if c := strings.Compare(a.Path, b.Path); c != 0 {
+				return c
+			}
 			return strings.Compare(a.Harness, b.Harness)
 		})
-		return loadedMsg{seq: seq, rows: rows}
+		return loadedMsg{seq: seq, rows: rows, empty: empty}
 	}
 }
 
@@ -156,7 +178,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if r := m.marked(); r != nil {
 			keep = r.ID
 		}
-		m.rows, m.cursor = msg.rows, 0
+		m.rows, m.empty, m.cursor = msg.rows, msg.empty, 0
 		for i, r := range m.rows {
 			if r.ID == keep {
 				m.cursor = i
@@ -292,16 +314,39 @@ func (m Model) status() string {
 		files += r.Files
 		versions += r.Versions
 	}
-	return fmt.Sprintf("%d projects, %d files, %d versions", len(m.rows), files, versions)
+	out := fmt.Sprintf("%d projects, %d files, %d versions", len(m.rows), files, versions)
+	if m.empty > 0 {
+		out += fmt.Sprintf(" (%d without files)", m.empty)
+	}
+	return out
 }
 
-// row lays out one project: mark, name, harness, files and last change.
-func (m Model) row(i int) string {
-	r := m.rows[i]
-	mark := "  "
-	if i == m.cursor {
-		mark = m.th.Mark.Render("▸") + " "
+// displayPath is the readable place of a memory directory.
+func displayPath(p store.MemoryProject, home string) string {
+	path := p.Cwd
+	if path == "" {
+		path = p.GitRoot
 	}
+	if path == "" {
+		// The harness key is the path with "/" replaced by "-".
+		path = strings.ReplaceAll(p.Key, "-", "/")
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+	}
+	if home = strings.TrimRight(home, "/"); home != "" {
+		if path == home {
+			return "~"
+		}
+		if rest, ok := strings.CutPrefix(path, home+"/"); ok {
+			return "~/" + rest
+		}
+	}
+	return path
+}
+
+// filesText is the number of files of a row, with the deleted ones.
+func filesText(r Row) string {
 	files := fmt.Sprintf("%d files", r.Files)
 	if r.Files == 1 {
 		files = "1 file"
@@ -309,15 +354,56 @@ func (m Model) row(i int) string {
 	if r.Deleted > 0 {
 		files += fmt.Sprintf(", %d deleted", r.Deleted)
 	}
-	last := ""
-	if !r.LastChange.IsZero() {
-		last = r.LastChange.In(m.opts.Location).Format("2006-01-02 15:04")
+	return files
+}
+
+// lastText is the time of the last change, "-" when there is none.
+func (m Model) lastText(r Row) string {
+	if r.LastChange.IsZero() {
+		return "-"
 	}
-	note := fmt.Sprintf("%-8s %-22s %s", r.Harness, files, last)
-	room := max(m.width-3-ansi.StringWidth(note)-2, 8)
-	name := ansi.Truncate(r.Name, room, "…")
-	pad := max(m.width-1-2-ansi.StringWidth(name)-ansi.StringWidth(note)-1, 1)
-	text := ansi.Truncate(" "+mark+name+strings.Repeat(" ", pad)+note+" ", m.width, "")
+	return r.LastChange.In(m.opts.Location).Format("2006-01-02 15:04")
+}
+
+// columns are the widths of the columns of all rows, so that they line up
+// whatever the scroll position.
+type columns struct{ name, path, harness, files, last int }
+
+func (m Model) columns() columns {
+	var c columns
+	c.last = len("2006-01-02 15:04")
+	for _, r := range m.rows {
+		c.name = max(c.name, ansi.StringWidth(r.Name))
+		c.path = max(c.path, ansi.StringWidth(r.Path))
+		c.harness = max(c.harness, ansi.StringWidth(r.Harness))
+		c.files = max(c.files, ansi.StringWidth(filesText(r)))
+	}
+	// mark(3) + gaps(4 between 5 columns) + trailing space
+	room := m.width - 3 - 5 - c.harness - c.files - c.last
+	c.name = min(c.name, max(room/3, 8))
+	c.path = min(c.path, max(room-c.name, 0))
+	return c
+}
+
+// row lays out one project: mark, name, path, harness, files and last
+// change. The path is cut from the left, the end tells projects apart.
+func (m Model) row(i int) string {
+	r, c := m.rows[i], m.columns()
+	mark := "  "
+	if i == m.cursor {
+		mark = m.th.Mark.Render("▸") + " "
+	}
+	cell := func(text string, w int) string {
+		text = ansi.Truncate(text, w, "…")
+		return text + strings.Repeat(" ", max(w-ansi.StringWidth(text), 0))
+	}
+	path := r.Path
+	if rs := []rune(path); len(rs) > c.path && c.path > 1 {
+		path = "…" + string(rs[len(rs)-c.path+1:])
+	}
+	text := " " + mark + cell(r.Name, c.name) + " " + cell(path, c.path) + " " +
+		cell(r.Harness, c.harness) + " " + cell(filesText(r), c.files) + " " + m.lastText(r) + " "
+	text = ansi.Truncate(text, m.width, "")
 	if i == m.cursor {
 		return m.th.Selected.Render(text + strings.Repeat(" ", max(m.width-ansi.StringWidth(text), 0)))
 	}

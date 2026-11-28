@@ -297,6 +297,7 @@ fahrtenbuch  MEMORY.md           2026-09-09 20:15  101 B  1
 kompass      MEMORY.md           2026-10-31 22:40  177 B  4
 kompass      conventions.md      2026-10-28 09:30  308 B  1
 kompass      release-process.md  2026-10-31 22:35  695 B  3
+kompass      MEMORY.md           2026-10-30 11:20  85 B   1
 wetterwarte  MEMORY.md           2026-10-14 18:05  91 B   1
 wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
 ```
@@ -332,7 +333,7 @@ CHANGED           OBSERVED          SIZE   SHA256        PROJECT  FILE
 | `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
 | `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
 
-**In der TUI.** Die Liste der Projekte mit Gedächtnis, die der Aufruf ohne Option zeigt, ist der Reiter **`5 memory`** (`total-recall tui memory` startet dort): je Projekt Harness, Zahl der Dateien (und gelöschten) und letzte Änderung; ++enter++ oder ein zweiter Klick öffnet den [Memory-Viewer](30-tui.md#memory) des Projekts, ohne Suche. Aus einer Session führt `M` zum Gedächtnis ihres Projekts. Die Ausgabe von `total-recall memory` gegen das Demo-Archiv:
+**In der TUI.** Die Liste der Projekte mit Gedächtnis, die der Aufruf ohne Option zeigt, ist der Reiter **`5 memory`** (`total-recall tui memory` startet dort): je Verzeichnis Name, Pfad, Harness, Zahl der Dateien (und gelöschten) und letzte Änderung; ++enter++ oder ein zweiter Klick öffnet den [Memory-Viewer](30-tui.md#memory) des Projekts, ohne Suche. Aus einer Session führt `M` zum Gedächtnis ihres Projekts. Die Ausgabe von `total-recall memory` gegen das Demo-Archiv:
 
 ```text
 PROJECT      FILE                CHANGED           SIZE   VERSIONS
@@ -340,11 +341,12 @@ fahrtenbuch  MEMORY.md           2026-09-09 20:15  101 B  1
 kompass      MEMORY.md           2026-10-31 22:40  177 B  4
 kompass      conventions.md      2026-10-28 09:30  308 B  1
 kompass      release-process.md  2026-10-31 22:35  695 B  3
+kompass      MEMORY.md           2026-10-30 11:20  85 B   1
 wetterwarte  MEMORY.md           2026-10-14 18:05  91 B   1
 wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
 ```
 
-![Reiter memory: die drei Projekte des Demo-Archivs mit Harness, Zahl der Dateien und letzter Änderung](../assets/screenshots/memory-tab.png)
+![Reiter memory: die Projekte des Demo-Archivs mit Pfad, Harness, Zahl der Dateien und letzter Änderung; `kompass` steht zweimal, die Pfade unterscheiden die beiden Verzeichnisse](../assets/screenshots/memory-tab.png)
 
 *Reiter `5 memory`: die Projekte mit Gedächtnis, wie `total-recall memory` sie zählt*
 
