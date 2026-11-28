@@ -642,7 +642,7 @@ func TestClickMetricAndHeatmap(t *testing.T) {
 	tile := func(m Model, label string) int {
 		t.Helper()
 		line := strings.Split(ansi.Strip(m.View().Content), "\n")[1]
-		x := strings.Index(line, label)
+		x := strings.Index(line, label+" ") // "human " is not the start of "human+agent"
 		if x < 0 {
 			t.Fatalf("tiles %q lack %q", line, label)
 		}
@@ -651,7 +651,7 @@ func TestClickMetricAndHeatmap(t *testing.T) {
 	for _, tt := range []struct {
 		label  string
 		metric chart.Metric
-	}{{"human", chart.MetricHuman}, {"sessions", chart.MetricSessions}, {"events", chart.MetricEvents}} {
+	}{{"human", chart.MetricHuman}, {"sessions", chart.MetricSessions}, {"human+agent", chart.MetricEvents}} {
 		m = tuitest.Send(t, m, tea.MouseClickMsg{X: tile(m, tt.label), Y: 1, Button: tea.MouseLeft}).(Model)
 		if m.metric != tt.metric {
 			t.Errorf("click on %q: metric = %v, want %v", tt.label, m.metric, tt.metric)
@@ -693,7 +693,7 @@ func TestOtherActorsTiles(t *testing.T) {
 		m := New(Options{Loader: othersLoader{st}, Now: clock, Location: testfixture.ActivityLocation, Home: home})
 		m = tuitest.Drive(t, m, tea.WindowSizeMsg{Width: width, Height: 30}).(Model)
 		line := ansi.Strip(strings.Split(m.View().Content, "\n")[1])
-		for _, want := range []string{"14 peer", "3 automation", "events", "human", "agent"} {
+		for _, want := range []string{"14 peer", "3 automation", "human+agent", "human", "agent"} {
 			if !strings.Contains(line, want) {
 				t.Errorf("width %d: tiles %q lack %q", width, line, want)
 			}

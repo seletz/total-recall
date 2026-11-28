@@ -50,7 +50,7 @@ func TestMetricString(t *testing.T) {
 		m    Metric
 		want string
 	}{
-		{MetricEvents, "events"},
+		{MetricEvents, "human+agent"},
 		{MetricHuman, "human"},
 		{MetricSessions, "sessions"},
 		{Metric(9), "Metric(9)"},
@@ -116,7 +116,7 @@ func TestFromSeries(t *testing.T) {
 			name:   "events are human plus agent, series in key order",
 			series: three, period: store.PeriodDay, metric: MetricEvents, names: names,
 			want: Spec{
-				Title:  "events",
+				Title:  "human+agent",
 				Period: store.PeriodDay,
 				Labels: []string{"05", "06"},
 				Series: []Series{
@@ -160,7 +160,7 @@ func TestFromSeries(t *testing.T) {
 			period: store.PeriodWeek,
 			metric: MetricEvents,
 			want: Spec{
-				Title:  "events",
+				Title:  "human+agent",
 				Period: store.PeriodWeek,
 				Labels: []string{"W41", "W42"},
 				Series: []Series{{Key: "/w/a", Name: "/w/a", Color: Palette[0], Values: []float64{2, 2}}},
@@ -172,7 +172,7 @@ func TestFromSeries(t *testing.T) {
 			period: store.PeriodMonth,
 			metric: MetricEvents,
 			want: Spec{
-				Title:  "events",
+				Title:  "human+agent",
 				Period: store.PeriodMonth,
 				Labels: []string{"Dec", "Jan"},
 				Series: []Series{{Key: "/w/a", Name: "/w/a", Color: Palette[0], Values: []float64{2, 2}}},
@@ -183,7 +183,7 @@ func TestFromSeries(t *testing.T) {
 			series: store.ActivitySeries{},
 			period: store.PeriodMonth,
 			metric: MetricEvents,
-			want:   Spec{Title: "events", Period: store.PeriodMonth},
+			want:   Spec{Title: "human+agent", Period: store.PeriodMonth},
 		},
 		{
 			name:   "keys without buckets",
@@ -191,7 +191,7 @@ func TestFromSeries(t *testing.T) {
 			period: store.PeriodDay,
 			metric: MetricEvents,
 			want: Spec{
-				Title:  "events",
+				Title:  "human+agent",
 				Period: store.PeriodDay,
 				Series: []Series{{Key: "/w/a", Name: "/w/a", Color: Palette[0]}},
 			},
@@ -202,7 +202,7 @@ func TestFromSeries(t *testing.T) {
 			period: store.PeriodDay,
 			metric: MetricEvents,
 			want: func() Spec {
-				s := Spec{Title: "events", Period: store.PeriodDay, Labels: []string{"05"}}
+				s := Spec{Title: "human+agent", Period: store.PeriodDay, Labels: []string{"05"}}
 				for i, k := range many {
 					c := Palette[i%len(Palette)]
 					if k == store.OtherKey {

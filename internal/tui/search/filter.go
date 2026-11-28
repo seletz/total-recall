@@ -8,7 +8,7 @@ import (
 )
 
 // actors are the actor filter cycle; "" means all.
-var actors = []string{"", "human", "agent", "peer", "tool"}
+var actors = []string{"", "human", "agent", "peer", "automation", "tool"}
 
 // attachKinds are the attachment filter cycle: off, any attachment, only
 // images, only documents.

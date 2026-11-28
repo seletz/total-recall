@@ -64,8 +64,8 @@ func TestRenderAll(t *testing.T) {
 	t.Parallel()
 	latest := store.LatestSchemaVersion()
 	markers := map[string][]string{
-		"search":                   {"[1 search]", "> goreleaser cask", "hits (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
-		"search-types":             {"[1 search]", "─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ", "project: all", " event  10", " session  0", " memory  1", "release-process.md", "event 10, session 0, memory 1"},
+		"search":                   {"[1 search]", "> goreleaser cask", "10 hits [human 3, agent 6, tool 1] (0 ms)", "Release v0.3.0", "mara/kompass", "◄"},
+		"search-types":             {"[1 search]", "─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ", "project: all", " event  10", " session  0", " memory  1", "release-process.md", "event 10 [human 3, agent 6, tool 1], session 0, memory 1"},
 		"search-memory":            {"─ e event u input g answer c tool_call o tool_result I image D document f file s session [m memory] ", "kompass  release-process.md", "kompass  claude", "A release is a signed tag on main.", "1. Update the changelog", "1 hit (0 ms)"},
 		"search-types-all":         {"─ [e event] [u input] [g answer] [c tool_call] [o tool_result] I image D document [f file] s session m memory ", "> route"},
 		"search-input":             {"─ e event [u input] g answer ", "> goreleaser cask", "Release v0.3.0"},
@@ -75,9 +75,11 @@ func TestRenderAll(t *testing.T) {
 		"search-file":              {"[f file]", "route/elevation.go", "smoothElevation", "Höhenprofil prüfen"},
 		"search-help":              {"keys: search", "u your input", "g answers", "I images", "f files", "closes this help"},
 		"search-tool":              {"> cask generated", "tool_use Bash", "brew info --cask --json=v2 mara/tap/kompass", "tool (tool_result) ◄", `  "casks": [`, `"token": "kompass"`},
-		"search-pin":               {"project: kompass ✕", "─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ", "◄", "event 195, session 22, memory 1"},
+		"search-pin":               {"project: kompass ✕", "─ [e event] u input g answer c tool_call o tool_result I image D document f file [s session] [m memory] ", "◄", "event 195 [human 38, agent 135, peer 22], session 22, memory 1"},
 		"session":                  {"› session", "Release v0.3.0", "· tools", "tool_use Read", "tool_use Bash", "tool (tool_result)", "goreleaser", "mara/kompass"},
 		"memory":                   {"› memory", "kompass  memory  claude", "▸ release-process.md", "✗ old-notes.md", "deleted", "3 files, 1 deleted", "goreleaser"},
+		"search-actors":            {"[human ", "peer ", "automation "},
+		"search-actor-automation":  {"actor: automation", "Worker"},
 		"search-type-click":        {"[u input]", "e event", "ctrl+click adds a type"},
 		"search-type-click-add":    {"[u input]", "[g answer]", "e event"},
 		"memory-tab":               {"[5 memory]", "projects with memory", "▸ fahrtenbuch", "kompass", "wetterwarte", "1 file ", "3 files, 1 deleted", "/home/mara/src/kompass__worktrees/gpx", "(path unknown)", "-home-mara-src-archiv-a", "5 projects, 8 files, 15 versions (1 without files)", "enter open memory"},
@@ -94,7 +96,7 @@ func TestRenderAll(t *testing.T) {
 		"attachment-narrow":        {"› attachments", "png 96×48", "total-recall blob"},
 		"session-attachment":       {"› session", "Höhenprofil prüfen", "▣1", "v view attachments"},
 		"stats":                    {"[2 stats]", "period: [day] week month", "by: [project]", "kompass", "wetterwarte", "text chart · 28 days · 0 ms"},
-		"stats-metric":             {"[2 stats]", "period: [day] week month", "heatmap", "▎", "events", "human", "sessions"},
+		"stats-metric":             {"[2 stats]", "period: [day] week month", "heatmap", "▎", "human+agent", "human", "sessions"},
 		"search-actor-ignored":     {"[1 search]", "actor: agent (not input)", "[u input]"},
 		"search-filter":            {"[1 search]", "actor: human  since: 7d  repo: *", "[e event]"},
 		"heatmap":                  {"[2 stats]", "0 ms · heatmap", "Mon", "Sun"},

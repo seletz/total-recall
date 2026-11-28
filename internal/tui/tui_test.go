@@ -633,7 +633,7 @@ func TestAttachmentView(t *testing.T) {
 		{"empty search with the filter lists the attachments", "", []string{"tab", "i"}, []string{"attach: any", "▣1", "▣2", "3 hits", "[image image/png", "[document application/pdf", "Das Höhenprofil kippt"}, []string{"Type to search"}},
 		{"only images", "", []string{"tab", "i", "i"}, []string{"attach: image", "2 hits", "[image image/png 956 B]", "Das Höhenprofil kippt"}, nil},
 		{"only documents", "", []string{"tab", "i", "i", "i"}, []string{"attach: document", "2 hits", "[document application/pdf 342 B]", "Das Höhenprofil kippt"}, nil},
-		{"only attachments of the tool", "", []string{"tab", "a", "a", "a", "a", "i"}, []string{"actor: tool", "attach: any", "No attachments."}, nil},
+		{"only attachments of the tool", "", []string{"tab", "a", "a", "a", "a", "a", "i"}, []string{"actor: tool", "attach: any", "No attachments."}, nil},
 		{"filter off again", "", []string{"tab", "i", "i", "i", "i"}, []string{"Type to search"}, []string{"▣", "attach:"}},
 		{"sessions with an attachment", "", []string{"tab", "e", "s", "i"}, []string{"event  3", "session  1", "Höhenprofil prüfen"}, nil},
 		{"from the search", "image", []string{"tab", "v"}, []string{"› attachments", "Höhenprofil prüfen", "png 96×48", "1 image/png", "2 application/pdf"}, nil},

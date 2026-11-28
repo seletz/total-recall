@@ -31,6 +31,6 @@
  2026-10-21 16:42  Benchmarks für den Routing-Kern    agent│
   Umbenannt, Importe angepasst, Tests laufen.              │
                                                            │
- event 195, session 22, memory 1 (0 ms)
+ event 195 [human 38, agent 135, peer 22], session 22, memory 1 (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 2 stats • ? help • q quit

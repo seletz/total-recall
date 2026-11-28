@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -322,7 +323,23 @@ type TypeHits struct {
 	Type  HitType
 	Hits  []Hit
 	Total int
+	// Actors counts the matches of the event type per actor (human, agent,
+	// peer, automation, tool, …; only actors with matches), in a fixed
+	// order. The counts are of all matches, also those the limit cut off,
+	// and add up to Total, so the numbers of the finer types can be
+	// checked against it. Empty for the other types.
+	Actors []ActorCount
 }
+
+// ActorCount is the number of matching events of one actor.
+type ActorCount struct {
+	Actor string
+	N     int
+}
+
+// actorOrder is the order of TypeHits.Actors; actors it does not list come
+// after, by name.
+var actorOrder = []string{"human", "agent", "peer", "automation", "tool"}
 
 // SearchTyped searches every type of q.Types (TypeEvent when empty) and
 // returns one group per type in that order. A reserved or unknown type
@@ -427,7 +444,63 @@ func (s *Store) searchEventsAs(ctx context.Context, q TypedQuery, t HitType) (Ty
 			LEFT JOIN sessions p ON p.id = s.parent_id
 			WHERE `+strings.Join(cond, " AND "), args[2:]...)
 	})
+	if err != nil || t != TypeEvent {
+		return g, err
+	}
+	text := q.Text
+	if !q.Raw {
+		text = ftsQuery(text)
+	}
+	cond, args := f.where(text)
+	g.Actors, err = s.actorCounts(ctx, `SELECT e.actor, count(*) FROM events_fts
+		JOIN events e ON e.seq = events_fts.rowid
+		JOIN sessions s ON s.id = e.session_id
+		LEFT JOIN sessions p ON p.id = s.parent_id
+		WHERE `+strings.Join(cond, " AND ")+` GROUP BY e.actor`, args[2:]...)
+	if err == nil {
+		// The count of the query is the truth when a limit cut hits off.
+		sum := 0
+		for _, a := range g.Actors {
+			sum += a.N
+		}
+		g.Total = sum
+	}
 	return g, err
+}
+
+// actorCounts runs a query of (actor, count) rows and orders them.
+func (s *Store) actorCounts(ctx context.Context, q string, args ...any) ([]ActorCount, error) {
+	rows, err := s.db().QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: search: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []ActorCount
+	for rows.Next() {
+		var a ActorCount
+		if err := rows.Scan(&a.Actor, &a.N); err != nil {
+			return nil, fmt.Errorf("store: search: %w", err)
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: search: %w", err)
+	}
+	rank := func(a string) int {
+		for i, o := range actorOrder {
+			if o == a {
+				return i
+			}
+		}
+		return len(actorOrder)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if ri, rj := rank(out[i].Actor), rank(out[j].Actor); ri != rj {
+			return ri < rj
+		}
+		return out[i].Actor < out[j].Actor
+	})
+	return out, rows.Err()
 }
 
 // sessionNameExpr is what the session search matches: name, AI title

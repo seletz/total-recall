@@ -24,11 +24,14 @@ const (
 	MetricSessions               // distinct sessions
 )
 
-// String returns events, human or sessions; it is the chart title.
+// String returns human+agent, human or sessions; it is the chart title.
+// MetricEvents is not called "events": in the search that word is every
+// event of the archive, here it is only the events of the human and the
+// agent (#383).
 func (m Metric) String() string {
 	switch m {
 	case MetricEvents:
-		return "events"
+		return "human+agent"
 	case MetricHuman:
 		return "human"
 	case MetricSessions:

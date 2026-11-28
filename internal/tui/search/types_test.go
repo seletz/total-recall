@@ -3,6 +3,7 @@ package search
 import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/seletz/total-recall/internal/model"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -475,5 +476,30 @@ func TestKindTypeKeys(t *testing.T) {
 	}
 	if f := tuitest.Frame(files); !strings.Contains(f, "route/elevation.go") || !strings.Contains(f, "smoothElevation") {
 		t.Errorf("frame lacks the file and its content:\n%s", f)
+	}
+}
+
+// TestStatusActors: the event group's status names the number of its
+// matches per actor, so peer and automation events are visible as numbers
+// and the sum can be checked (#383).
+func TestStatusActors(t *testing.T) {
+	m := demoModel(t, "route")
+	g := m.groups[0]
+	if g.Type != store.TypeEvent || len(g.Actors) == 0 {
+		t.Fatalf("group = %+v", g)
+	}
+	sum := 0
+	for _, a := range g.Actors {
+		sum += a.N
+	}
+	if sum != g.Total {
+		t.Errorf("actors sum to %d, Total = %d", sum, g.Total)
+	}
+	if st := m.status(); !strings.Contains(st, " [human ") || !strings.Contains(st, "agent ") {
+		t.Errorf("status lacks the actors: %q", st)
+	}
+	// The actor cycle offers automation.
+	if !slices.Contains(actors, "automation") {
+		t.Errorf("actors = %v", actors)
 	}
 }

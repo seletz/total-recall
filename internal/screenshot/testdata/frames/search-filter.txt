@@ -31,6 +31,6 @@
                                                            │
                                                            │
                                                            │
- 2 hits (0 ms)
+ 2 hits [human 2] (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 2 stats • ? help • q quit

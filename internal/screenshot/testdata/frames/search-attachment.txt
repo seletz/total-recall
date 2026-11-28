@@ -31,6 +31,6 @@
                                                            │
                                                            │
                                                            │
- 1 hit (0 ms)
+ 1 hit [human 1] (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open • v view attachments • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input …
