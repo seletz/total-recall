@@ -170,3 +170,36 @@ func TestSumEqualsParts(t *testing.T) {
 	}
 	compare(t, "tools by project", byKey(table(t, db, "SELECT project, sum(calls) FROM analytics_tool_month_v1 GROUP BY project")), byProject)
 }
+
+// TestWorktimeSumEqualsParts compares the work-time views with
+// stats --worktime --json: per day and category credited and rounded
+// seconds, per day and project credited seconds, and the total.
+func TestWorktimeSumEqualsParts(t *testing.T) {
+	archive := demoCopy(t)
+	db := openDuck(t, filepath.Join(t.TempDir(), "a.duckdb"))
+	mustRun(t, db, opts(t, archive))
+	st := statsJSON(t, archive, "--worktime")
+
+	cells, projects := keyed{}, keyed{}
+	for _, it := range st["days"].([]any) {
+		d := it.(map[string]any)
+		for _, ci := range d["categories"].([]any) {
+			c := ci.(map[string]any)
+			cells[d["day"].(string)+" "+c["category"].(string)] = num(c["raw_seconds"]) + "|" + num(c["rounded_seconds"])
+			for _, pi := range c["projects"].([]any) {
+				p := pi.(map[string]any)
+				k := d["day"].(string) + " " + Tilde(p["project"].(string), demo.Home)
+				projects[k] = num(p["raw_seconds"])
+			}
+		}
+	}
+	compare(t, "worktime day x category",
+		byKey(table(t, db, "SELECT strftime(day_local, '%Y-%m-%d') || ' ' || category, raw_seconds, rounded_seconds FROM analytics_worktime_day_v1")), cells)
+	compare(t, "worktime day x project",
+		byKey(table(t, db, "SELECT strftime(day_local, '%Y-%m-%d') || ' ' || project, sum(raw_seconds) FROM analytics_worktime_v1 GROUP BY ALL")), projects)
+	tot := st["total"].(map[string]any)
+	if got, want := row(t, db, "SELECT sum(raw_seconds), sum(rounded_seconds), count(DISTINCT day_local) FROM analytics_worktime_day_v1"),
+		num(tot["raw_seconds"])+"|"+num(tot["rounded_seconds"])+"|"+num(tot["days"]); got != want {
+		t.Errorf("worktime total: views %s, stats %s", got, want)
+	}
+}

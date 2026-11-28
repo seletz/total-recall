@@ -30,6 +30,9 @@ func ProjectFS() fs.FS {
 var seeds = map[string][]string{
 	"seed_project_name": {"dim_project_key"},
 	"seed_account_name": {"dim_account_key"},
+	// computed by worktime.Compute (worktime.go) from all sources
+	"fact_work_slice": {"fact_event", "dim_actor", "dim_session", "dim_project_key"},
+	"fact_work_day":   {"fact_work_slice"},
 }
 
 // sourceAlias is the name the archive is attached under for a run.
@@ -54,6 +57,8 @@ type Options struct {
 	Projects project.Resolver
 	// Accounts names a login (config [[account]]); nil leaves names empty.
 	Accounts func(account, organization string) (name, group string)
+	// Worktime configures the work-time facts; nil leaves them empty.
+	Worktime *Worktime
 	// Full reloads all facts of this source instead of the events above
 	// the watermark.
 	Full bool
@@ -212,6 +217,10 @@ func (r *Report) run(ctx context.Context, tx *sql.Tx, p Project, o Options) erro
 			err = seedProjects(ctx, tx, o)
 		case "seed_account_name":
 			err = seedAccounts(ctx, tx, o)
+		case "fact_work_slice":
+			err = loadWorktime(ctx, tx, o)
+		case "fact_work_day":
+			// written together with fact_work_slice
 		default:
 			err = Build(ctx, tx, m, rc)
 		}

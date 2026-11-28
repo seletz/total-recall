@@ -17,7 +17,18 @@ Die Analyse-Datenbank ist eine DuckDB-Datei neben den Archiven, keine zweite Wah
 | `fact_event` | ein Event des Archivs (Nachricht, Tool-Aufruf, Tool-Ergebnis) | `events.id` | Anzahl, Tokens: Input, frisch, Cache-Lesen, Cache-Schreiben, ohne Aufteilung, Output |
 | `fact_session` | eine Session | `sessions.id` | Beginn und Ende (erstes und letztes Event, UTC), Dauer, Events, human/agent, Tool-Aufrufe, Modelle, Modellwechsel, Tokens, Subagent |
 
-`fact_session` wird für jede Session, die ein Lauf berührt, aus `fact_event` neu gerechnet; beide Fakten stimmen deshalb immer überein (Test `relationships_fact_session`). Arbeitszeit kommt als drittes Fakt aus derselben Go-Funktion wie `stats --worktime` ([#364](https://github.com/seletz/total-recall/issues/364)).
+`fact_session` wird für jede Session, die ein Lauf berührt, aus `fact_event` neu gerechnet; beide Fakten stimmen deshalb immer überein (Test `relationships_fact_session`).
+
+## Arbeitszeit
+
+Die Arbeitszeit ist keine Summe über Events, sondern eine Schätzung aus den Lücken zwischen eigenen Prompts, mit Höchstlücke, Mindestgutschrift, Rundung und Kategorien aus `[worktime]`. Sie wird nicht in SQL nachgebaut: Jeder Lauf ruft dieselbe Go-Funktion wie `total-recall stats --worktime` (`internal/worktime`) mit den human-Events aus `fact_event` auf und schreibt zwei weitere Fakten:
+
+| Fakt | Korn | Kennzahlen |
+|---|---|---|
+| `fact_work_slice` | Arbeitstag × Kategorie × Session | gutgeschriebene Sekunden |
+| `fact_work_day` | Arbeitstag × Kategorie | gutgeschriebene und zu buchende (gerundete) Sekunden |
+
+Gerechnet wird über **alle Quellen zusammen**, nicht je Host: Eine Lücke gehört zur Person. Wer zwischen zwei Rechnern wechselt oder auf beiden gleichzeitig Agenten laufen lässt, bekommt die Zeit dazwischen einmal gutgeschrieben, nicht je Host. Je Host aufteilen lässt sich die Zeit trotzdem: Jede Scheibe gehört zu einer Session und damit zu deren Host und Projekt. Die Summe je Host im Pool ist deshalb nicht dieselbe wie `stats --worktime` auf dem Archiv eines einzelnen Hosts, wenn sich die Arbeit zeitlich überlappt. Gerundet wird wie in `stats` je Arbeitstag und Kategorie; je Projekt oder Host gibt es nur die gutgeschriebene Zeit. Die Fakten werden bei jedem Lauf ganz neu gerechnet, weil eine neue Quelle die Lücken aller anderen verändern kann.
 
 ## Modell
 
@@ -64,7 +75,7 @@ Geprüft an einer Kopie des Demo-Archivs (936 Sessions, 21 942 Events): Ein zwei
 
 ## Summe gleich Teile
 
-Die Views liefern dieselben Zahlen wie `total-recall stats --json` auf demselben Archiv: Sessions, human- und agent-Events gesamt, je Tag, je Repo, je Wochentag und Stunde; Tokens gesamt, je Tag und je Modell in allen Teilen (frisch, Cache-Lesen, Cache-Schreiben, ohne Aufteilung); Tool-Aufrufe je Tool und je Projekt. Ein Test vergleicht das bei jedem Build. Eine gewollte Abweichung: `stats --json` gibt ein Projekt ohne Repository mit vollem Pfad aus, die Analyse-Datenbank mit `~`.
+Die Views liefern dieselben Zahlen wie `total-recall stats --json` auf demselben Archiv: Sessions, human- und agent-Events gesamt, je Tag, je Repo, je Wochentag und Stunde; Tokens gesamt, je Tag und je Modell in allen Teilen (frisch, Cache-Lesen, Cache-Schreiben, ohne Aufteilung); Tool-Aufrufe je Tool und je Projekt; Arbeitszeit gesamt, je Tag und Kategorie (gutgeschrieben und gerundet) und je Tag und Projekt wie `stats --worktime --json`. Ein Test vergleicht das bei jedem Build. Eine gewollte Abweichung: `stats --json` gibt ein Projekt ohne Repository mit vollem Pfad aus, die Analyse-Datenbank mit `~`.
 
 ## Modelle als SQL-Dateien
 

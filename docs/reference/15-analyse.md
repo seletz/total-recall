@@ -35,7 +35,7 @@ Die Beispiele laufen auf dem Demo-Archiv (Benutzer `mara`, Zone Europe/Berlin). 
 total-recall-analytics build [--host NAME] [--source NAME] [--full] [--extra-tz ZONE]... [--json]
 ```
 
-Lädt das Archiv in die Analyse-Datenbank (legt sie beim ersten Mal an). Geladen werden alle Sessions mit Events über dem Wasserstand der Quelle, mit `--full` alle Events der Quelle neu. Ein Lauf ist eine Transaktion: Der Vertrag der Views und alle Datentests müssen bestehen, sonst bleibt die Datenbank, wie sie war. Was dabei passiert: [Analyse-Schema](../explanation/analyse-schema.md#laden).
+Lädt das Archiv in die Analyse-Datenbank (legt sie beim ersten Mal an). Geladen werden alle Sessions mit Events über dem Wasserstand der Quelle, mit `--full` alle Events der Quelle neu. Danach rechnet der Lauf die Arbeitszeit über alle Quellen neu ([worktime](#worktime)). Ein Lauf ist eine Transaktion: Der Vertrag der Views und alle Datentests müssen bestehen, sonst bleibt die Datenbank, wie sie war. Was dabei passiert: [Analyse-Schema](../explanation/analyse-schema.md#laden).
 
 | Option | Bedeutung |
 |---|---|
@@ -47,7 +47,7 @@ Lädt das Archiv in die Analyse-Datenbank (legt sie beim ersten Mal an). Geladen
 
 ```console
 $ total-recall-analytics build --host host-a
-/home/mara/.local/share/total-recall/analytics.duckdb: batch 1 (full) from host-a (host host-a), seq 0..21942: 21942 events in 936 sessions, 35 models, 8 tests passed, 1.495s
+/home/mara/.local/share/total-recall/analytics.duckdb: batch 1 (full) from host-a (host host-a), seq 0..21942: 21942 events in 936 sessions, 39 models, 9 tests passed, 1.557s
 ```
 
 Der zweite Lauf findet nichts Neues:
@@ -66,9 +66,9 @@ $ total-recall-analytics build --host host-a --json
   "seq_to": 21942,
   "events": 0,
   "sessions": 0,
-  "models": 35,
-  "tests": 8,
-  "elapsed_ms": 916
+  "models": 39,
+  "tests": 9,
+  "elapsed_ms": 967
 }
 ```
 
@@ -84,10 +84,10 @@ Zeigt die Analyse-Datenbank (Größe, Views, Zonen) und je Quelle Host, geladene
 
 ```console
 $ total-recall-analytics status
-/home/mara/.local/share/total-recall/analytics.duckdb: 13.8 MiB, 9 views, zone Europe/Berlin
+/home/mara/.local/share/total-recall/analytics.duckdb: 14.8 MiB, 11 views, zone Europe/Berlin
 
 SOURCE  HOST    EVENTS  SESSIONS  LAST SEQ  BACKLOG  LAST BATCH                          ARCHIVE
-host-a  host-a  21942   936       21942     0        2 incremental 2026-11-27T23:53:25Z  /home/mara/.local/share/total-recall/archive.db
+host-a  host-a  21942   936       21942     0        2 incremental 2026-11-27T23:58:39Z  /home/mara/.local/share/total-recall/archive.db
 ```
 
 JSON: `analytics_db`, `size_bytes`, `tz`, `zones`, `views`, `sources` mit je `source`, `host`, `archive`, `archive_found`, `last_seq`, `backlog`, `events`, `sessions` und `last_batch` (`batch_id`, `mode`, `started_at`, `finished_at` in UTC, `seq_from`, `seq_to`, `events`, `sessions`).
@@ -111,6 +111,7 @@ relationships_fact_event    ok
 relationships_fact_session  ok
 tokens_split                ok
 unique_keys                 ok
+worktime_slices_sum         ok
 ```
 
 JSON: `analytics_db`, `ok`, `contract_ok`, `contract_diff` (Liste), `tests` mit je `name` und `failures` (Zahl der verletzenden Zeilen).
@@ -197,6 +198,8 @@ analytics_time_slot_v1      17338  /home/mara/analyse/analytics_time_slot_v1.par
 analytics_tokens_day_v1     0      /home/mara/analyse/analytics_tokens_day_v1.parquet
 analytics_tool_month_v1     104    /home/mara/analyse/analytics_tool_month_v1.parquet
 analytics_weekhour_v1       94     /home/mara/analyse/analytics_weekhour_v1.parquet
+analytics_worktime_day_v1   297    /home/mara/analyse/analytics_worktime_day_v1.parquet
+analytics_worktime_v1       739    /home/mara/analyse/analytics_worktime_v1.parquet
 ```
 
 JSON: eine Liste mit je `view`, `path` und `rows`.
@@ -298,6 +301,56 @@ TOTAL  MODEL  EVENTS  INPUT  FRESH  CACHE READ  CACHE WRITE  UNSPLIT  OUTPUT
 ```
 
 JSON: eine Liste mit je `period`, `key`, `events`, `input`, `fresh`, `cache_read`, `cache_write`, `unsplit`, `output`.
+
+### worktime
+
+```
+total-recall-analytics worktime [--by category|project|host|none] [--period …] [--since …] [--until …] [--json]
+```
+
+Arbeitszeit, geschätzt wie bei [`total-recall stats --worktime`](../how-to/40-arbeitszeit.md): aus den Lücken zwischen eigenen Prompts, mit `[worktime]` der Konfiguration (Höchstlücke, Gutschrift, Raster, Rundung, Kategorien) und dem Tagesbeginn `day_start`. Gerechnet wird über alle Hosts der Analyse-Datenbank zusammen: Eine Lücke gehört zur Person, nicht zum Host, und wer auf zwei Rechnern gleichzeitig arbeitet, bekommt die Zeit nur einmal gutgeschrieben. Gruppiert nach Kategorie (Standard), Projekt, Host (der Host der Session) oder gar nicht, je Arbeitstag, ISO-Woche, Monat oder gesamt. `HOURS` ist die gutgeschriebene Zeit, `BOOKED` die zu buchende, gerundet je Arbeitstag und Kategorie wie in `stats`; deshalb gibt es sie nur bei `--by category` und `none`. Summe gleich Teile: Gesamt, je Tag und je Tag und Kategorie gleich `stats --worktime --json` auf demselben Archiv (Test).
+
+```console
+$ total-recall-analytics worktime
+TOTAL  CATEGORY     DAYS   HOURS  BOOKED
+total  dotfiles       24   28:58   31:45
+total  fahrtenbuch    53   57:34   62:15
+total  kompass       106  192:04  206:15
+total  wetterwarte    88  125:21  135:00
+total  ~/notizen      26   35:45   39:00
+```
+
+```console
+$ total-recall-analytics worktime --by project --period month --since 2026-10-01
+MONTH    PROJECT      DAYS  HOURS
+2026-10  dotfiles        3   1:01
+2026-10  fahrtenbuch     9   7:31
+2026-10  kompass        26  45:07
+2026-10  wetterwarte    16  20:29
+2026-10  ~/notizen       4   3:39
+```
+
+```console
+$ total-recall-analytics worktime --by none --period week --since 2026-10-12 --until 2026-10-25 --json
+[
+  {
+    "period": "2026-W42",
+    "key": null,
+    "raw_seconds": 60248,
+    "rounded_seconds": 63900,
+    "days": 6
+  },
+  {
+    "period": "2026-W43",
+    "key": null,
+    "raw_seconds": 64935,
+    "rounded_seconds": 72900,
+    "days": 7
+  }
+]
+```
+
+JSON: eine Liste mit je `period`, `key`, `raw_seconds` (gutgeschrieben), `rounded_seconds` (zu buchen; 0 bei `--by project` und `host`), `days` (Arbeitstage mit Zeit).
 
 ### version
 
@@ -549,6 +602,30 @@ Wochentag × Stunde (lokal), human- und agent-Events.
 | `local_hour` | `INTEGER` |
 | `human_events` | `BIGINT` |
 | `agent_events` | `BIGINT` |
+
+### `analytics_worktime_day_v1`
+
+Arbeitszeit je Arbeitstag × Kategorie: gutgeschrieben und zu buchen (gerundet), wie `stats --worktime`.
+
+| Spalte | Typ |
+|---|---|
+| `day_local` | `DATE` |
+| `category` | `VARCHAR` |
+| `raw_seconds` | `BIGINT` |
+| `rounded_seconds` | `BIGINT` |
+
+### `analytics_worktime_v1`
+
+Arbeitszeit je Arbeitstag × Kategorie × Session (gutgeschriebene Sekunden), mit Projekt und Host der Session; über alle Hosts gerechnet.
+
+| Spalte | Typ |
+|---|---|
+| `day_local` | `DATE` |
+| `category` | `VARCHAR` |
+| `project` | `VARCHAR` |
+| `host` | `VARCHAR` |
+| `session_id` | `VARCHAR` |
+| `raw_seconds` | `BIGINT` |
 
 ## TUI
 

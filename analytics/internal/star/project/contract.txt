@@ -105,3 +105,13 @@ analytics_weekhour_v1 iso_weekday INTEGER
 analytics_weekhour_v1 local_hour INTEGER
 analytics_weekhour_v1 human_events BIGINT
 analytics_weekhour_v1 agent_events BIGINT
+analytics_worktime_day_v1 day_local DATE
+analytics_worktime_day_v1 category VARCHAR
+analytics_worktime_day_v1 raw_seconds BIGINT
+analytics_worktime_day_v1 rounded_seconds BIGINT
+analytics_worktime_v1 day_local DATE
+analytics_worktime_v1 category VARCHAR
+analytics_worktime_v1 project VARCHAR
+analytics_worktime_v1 host VARCHAR
+analytics_worktime_v1 session_id VARCHAR
+analytics_worktime_v1 raw_seconds BIGINT

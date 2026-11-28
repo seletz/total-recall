@@ -15,6 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/seletz/total-recall/analytics/internal/duck"
+	"github.com/seletz/total-recall/internal/config"
 	"github.com/seletz/total-recall/internal/demo"
 	"github.com/seletz/total-recall/internal/testfixture/fixturedb"
 )
@@ -85,7 +86,26 @@ func berlin(t *testing.T) *time.Location {
 
 func opts(t *testing.T, archive string) Options {
 	t.Helper()
-	return Options{Archive: archive, Source: "host-a", Host: "host-a", TZ: berlin(t), Home: demo.Home}
+	return Options{Archive: archive, Source: "host-a", Host: "host-a", TZ: berlin(t), Home: demo.Home, Worktime: defaultWorktime(t)}
+}
+
+// defaultWorktime is [worktime] of a config without the section, as
+// stats --worktime uses it.
+func defaultWorktime(t *testing.T) *Worktime {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("timezone = \"Europe/Berlin\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(config.Options{ConfigFile: path, Home: demo.Home, Getenv: func(string) string { return "" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := cfg.WorktimeSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &Worktime{Settings: ws, DayStart: cfg.DayStartOffset()}
 }
 
 func mustRun(t *testing.T, db *duck.DB, o Options) Report {

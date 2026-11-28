@@ -80,6 +80,10 @@ and the data tests must pass, otherwise nothing is written.`,
 			if err != nil {
 				return errKind(ErrKindConfig, err)
 			}
+			ws, err := cfg.WorktimeSettings()
+			if err != nil {
+				return errKind(ErrKindConfig, err)
+			}
 			db, path, err := a.openAnalytics(ctx, cfg, false)
 			if err != nil {
 				return err
@@ -88,6 +92,7 @@ and the data tests must pass, otherwise nothing is written.`,
 			r, err := star.Run(ctx, db, star.Options{
 				Archive: archive, Source: source, Host: host, TZ: loc, ExtraZones: extra,
 				Home: cfg.Home, Projects: projects, Full: full, Now: a.Now,
+				Worktime: &star.Worktime{Settings: ws, DayStart: cfg.DayStartOffset()},
 				Accounts: func(id, org string) (string, string) {
 					i := accounts.Resolve(id, org)
 					return i.Name, i.Group
