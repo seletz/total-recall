@@ -194,3 +194,52 @@ func TestSearchToolName(t *testing.T) {
 		t.Errorf("--type event --tool: %+v", r)
 	}
 }
+
+// TestSearchActorsDemo: the event hits of search --json carry the matches
+// per actor, all five keys always present; the figures add up to the number
+// of hits against the real output on the demo archive (#383), also when
+// --limit cuts hits off, and the finer types have none.
+func TestSearchActorsDemo(t *testing.T) {
+	t.Parallel()
+	e, db := chartEnv(t)
+	type hit struct {
+		Type   string         `json:"type"`
+		Actors map[string]int `json:"actors"`
+	}
+	sum := func(m map[string]int) int {
+		n := 0
+		for _, v := range m {
+			n += v
+		}
+		return n
+	}
+	for _, q := range []string{"Doku", "Worker", "Branch", "goreleaser"} {
+		all := decode[[]hit](t, e.mustRun(t, "--db", db, "search", q, "--limit", "0", "--json"))
+		if len(all) == 0 {
+			t.Fatalf("%s: no hits", q)
+		}
+		for _, h := range all {
+			if len(h.Actors) != 5 {
+				t.Fatalf("%s: actors = %v, want the five keys", q, h.Actors)
+			}
+			if sum(h.Actors) != len(all) {
+				t.Errorf("%s: the actors sum to %d, there are %d hits", q, sum(h.Actors), len(all))
+			}
+		}
+		cut := decode[[]hit](t, e.mustRun(t, "--db", db, "search", q, "--limit", "2", "--json"))
+		if len(cut) != 2 || sum(cut[0].Actors) != len(all) {
+			t.Errorf("%s: with --limit 2: %d hits, actors sum %d, want all %d", q, len(cut), sum(cut[0].Actors), len(all))
+		}
+	}
+	fine := decode[[]hit](t, e.mustRun(t, "--db", db, "search", "Doku", "--type", "input,session", "--json"))
+	for _, h := range fine {
+		if h.Actors != nil {
+			t.Errorf("type %s has actors %v", h.Type, h.Actors)
+		}
+	}
+	// Without a query (attachments) the figures still add up.
+	att := decode[[]hit](t, e.mustRun(t, "--db", db, "search", "--has-attachment", "--limit", "0", "--json"))
+	if len(att) == 0 || sum(att[0].Actors) != len(att) {
+		t.Errorf("--has-attachment: %d hits, actors %v", len(att), att[0].Actors)
+	}
+}

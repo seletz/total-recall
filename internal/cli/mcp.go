@@ -51,7 +51,7 @@ func mcpTools() []mcp.Tool {
 		{
 			Name: "search", Title: "Search the archive", Command: []string{"search"}, FixedFlags: []string{"--json"},
 			Description: "Full-text search over the text of past agent sessions. Every word must occur (words are quoted); with raw=true the query is FTS5 syntax (AND, OR, NOT, \"phrase\", prefix*). " +
-				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Same JSON as `total-recall search --json`." + pagingNote,
+				"by_session=true (type event only) returns one row per session with first_hit, last_hit, hits and a snippet: the right first query. Hits of type event carry `actors`: the number of all matches per actor (human, agent, peer, automation, tool; every key present, the sum is the number of event hits, also past limit). Same JSON as `total-recall search --json`." + pagingNote,
 			Defaults: map[string]int{"limit": 20}, Units: []string{""},
 			Params: withLimit(20, 200, pCursor,
 				mcp.Param{Name: "query", Type: "string", Positional: true, Description: "words to search for; required unless has_attachment is set or the type is image or document (then leaving it out lists the newest events with attachments)"},

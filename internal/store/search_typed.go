@@ -379,6 +379,21 @@ func (s *Store) SearchTyped(ctx context.Context, q TypedQuery) ([]TypeHits, erro
 			if g, err = s.searchAttachmentEvents(ctx, q, t); err != nil {
 				return nil, err
 			}
+			if t == TypeEvent {
+				// No text: the actors come from the hits, all of them (a
+				// limit that cut hits off is lifted for the count).
+				all := g.Hits
+				if g.Total > len(g.Hits) {
+					q2 := q
+					q2.Limit = 0
+					full, err := s.searchAttachmentEvents(ctx, q2, t)
+					if err != nil {
+						return nil, err
+					}
+					all = full.Hits
+				}
+				g.Actors = actorsOfHits(all)
+			}
 		case q.Attachment != nil && t == TypeSession:
 			var err error
 			if g, err = d.search(s, ctx, q); err != nil {
@@ -468,6 +483,39 @@ func (s *Store) searchEventsAs(ctx context.Context, q TypedQuery, t HitType) (Ty
 	return g, err
 }
 
+// actorsOfHits counts event hits per actor, in the order of actorOrder.
+func actorsOfHits(hits []Hit) []ActorCount {
+	n := map[string]int{}
+	for _, h := range hits {
+		if h.Event != nil {
+			n[string(h.Event.Event.Actor)]++
+		}
+	}
+	var out []ActorCount
+	for actor, c := range n {
+		out = append(out, ActorCount{Actor: actor, N: c})
+	}
+	sortActorCounts(out)
+	return out
+}
+
+func sortActorCounts(out []ActorCount) {
+	rank := func(a string) int {
+		for i, o := range actorOrder {
+			if o == a {
+				return i
+			}
+		}
+		return len(actorOrder)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if ri, rj := rank(out[i].Actor), rank(out[j].Actor); ri != rj {
+			return ri < rj
+		}
+		return out[i].Actor < out[j].Actor
+	})
+}
+
 // actorCounts runs a query of (actor, count) rows and orders them.
 func (s *Store) actorCounts(ctx context.Context, q string, args ...any) ([]ActorCount, error) {
 	rows, err := s.db().QueryContext(ctx, q, args...)
@@ -486,20 +534,7 @@ func (s *Store) actorCounts(ctx context.Context, q string, args ...any) ([]Actor
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: search: %w", err)
 	}
-	rank := func(a string) int {
-		for i, o := range actorOrder {
-			if o == a {
-				return i
-			}
-		}
-		return len(actorOrder)
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if ri, rj := rank(out[i].Actor), rank(out[j].Actor); ri != rj {
-			return ri < rj
-		}
-		return out[i].Actor < out[j].Actor
-	})
+	sortActorCounts(out)
 	return out, rows.Err()
 }
 

@@ -511,6 +511,18 @@ total-recall search sort --tool edit --limit 1 --json | jq -c '.[0] | {type, kin
 
 `tool_name` hat jeder Treffer der Event-Typen, bei allem außer Tool-Aufrufen ist es `null`. In der TUI hat `--tool` keine eigene Bedienung: Der Typ `tool_call` (`c` in der Typ-Zeile) zeigt die Aufrufe, das Werkzeug steht im Text des Treffers.
 
+`actors` (seit v1.11.0) zählt bei den Treffern des Typs `event` **alle** Treffer der Suche je Actor, auch die, die `--limit` abschneidet: `human`, `agent`, `peer`, `automation` und `tool`, alle fünf Schlüssel immer, in jedem Treffer des Typs dasselbe Objekt (bei den feineren Typen `null`). Die Summe ist die Zahl der Treffer (mit `--limit 0`), so ist die Summe der Typen prüfbar (Demo-Archiv):
+
+```sh
+total-recall search Doku --limit 1 --json | jq -c '.[0] | {type, actors}'
+```
+
+```text
+{"type":"event","actors":{"human":104,"agent":178,"peer":32,"automation":1,"tool":0}}
+```
+
+In der TUI steht dieselbe Zählung in der Statuszeile der Suche (`200 of 315 hits, limit reached [human 104, agent 178, peer 32, automation 1]`, siehe [Statuszeile](30-tui.md)). Im MCP-Tool `search` ist es dasselbe Feld.
+
 Der Inhalt der Sicherungskopien (Claude Code legt vor jeder Bearbeitung eine Kopie der Datei an, siehe [Datei-Historie](../explanation/design.md)):
 
 ```sh

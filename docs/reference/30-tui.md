@@ -178,7 +178,15 @@ Der Default ist `event`; solange nichts umgeschaltet wird, sucht und zeigt die A
 
 *Suche nach `Doku`: die Statuszeile zählt die Treffer je Actor, `peer` und `automation` eingeschlossen*
 
-Dieselbe Zählung auf der Kommandozeile: `total-recall sql "select e.actor, count(*) n from events_fts f join events e on e.seq = f.rowid where events_fts match '\"Doku\"' group by e.actor order by n desc"` (Demo-Archiv: `agent 178`, `human 104`, `peer 32`, `automation 1`, die Zahlen der Statuszeile).
+Dieselbe Zählung auf der Kommandozeile: `search --json` trägt sie als Feld `actors` in jedem Treffer des Typs `event` (alle fünf Schlüssel immer; es sind alle Treffer gezählt, auch die, die `--limit` abschneidet, die Summe ist also die Zahl der Treffer mit `--limit 0`; bei den feineren Typen ist das Feld `null`). Gegen das Demo-Archiv, mit denselben Zahlen wie die Statuszeile oben:
+
+```sh
+total-recall search Doku --limit 1 --json | jq -c '.[0] | {type, actors}'
+```
+
+```text
+{"type":"event","actors":{"human":104,"agent":178,"peer":32,"automation":1,"tool":0}}
+```
 
 **Schritt 3: die Zustände.**
 
