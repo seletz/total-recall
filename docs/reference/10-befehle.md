@@ -292,13 +292,14 @@ total-recall blob 5e0c9a41d2b7                     # Inhalt einer Fassung
 ```
 
 ```text
-PROJECT      FILE                CHANGED           SIZE   VERSIONS
-fahrtenbuch  MEMORY.md           2026-09-09 20:15  101 B  1
-kompass      MEMORY.md           2026-10-31 22:40  177 B  4
-kompass      conventions.md      2026-10-28 09:30  308 B  1
-kompass      release-process.md  2026-10-31 22:35  695 B  3
-wetterwarte  MEMORY.md           2026-10-14 18:05  91 B   1
-wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
+PROJECT      PATH                                   FILE                CHANGED           SIZE   VERSIONS
+fahrtenbuch  /home/mara/src/fahrtenbuch             MEMORY.md           2026-09-09 20:15  101 B  1
+kompass      /home/mara/src/kompass                 MEMORY.md           2026-10-31 22:40  177 B  4
+kompass      /home/mara/src/kompass                 conventions.md      2026-10-28 09:30  308 B  1
+kompass      /home/mara/src/kompass                 release-process.md  2026-10-31 22:35  695 B  3
+kompass      /home/mara/src/kompass__worktrees/gpx  MEMORY.md           2026-10-30 11:20  85 B   1
+wetterwarte  /home/mara/src/wetterwarte             MEMORY.md           2026-10-14 18:05  91 B   1
+wetterwarte  /home/mara/src/wetterwarte             sensors.md          2026-10-14 18:00  323 B  1
 ```
 
 Die Zeitleiste und der Verlauf einer Datei (Demo-Archiv):
@@ -332,7 +333,7 @@ CHANGED           OBSERVED          SIZE   SHA256        PROJECT  FILE
 | `--raw`, `--limit N` | mit `--grep`: Anfrage unverändert an FTS5 wie bei `search --raw`; höchstens N Treffer (0 = alle) |
 | `--format`, `--json` | wie bei den [lesenden Befehlen](#ausgabe) |
 
-**In der TUI.** Die Liste der Projekte mit Gedächtnis, die der Aufruf ohne Option zeigt, ist der Reiter **`5 memory`** (`total-recall tui memory` startet dort): je Projekt Harness, Zahl der Dateien (und gelöschten) und letzte Änderung; ++enter++ oder ein zweiter Klick öffnet den [Memory-Viewer](30-tui.md#memory) des Projekts, ohne Suche. Aus einer Session führt `M` zum Gedächtnis ihres Projekts. Die Ausgabe von `total-recall memory` gegen das Demo-Archiv:
+**In der TUI.** Die Liste der Projekte mit Gedächtnis, die der Aufruf ohne Option zeigt, ist der Reiter **`5 memory`** (`total-recall tui memory` startet dort): je Verzeichnis Name, Pfad, Harness, Zahl der Dateien (und gelöschten) und letzte Änderung; ++enter++ oder ein zweiter Klick öffnet den [Memory-Viewer](30-tui.md#memory) des Projekts, ohne Suche. Aus einer Session führt `M` zum Gedächtnis ihres Projekts. Die Spalte `PATH` ist dieselbe wie im Reiter (Arbeitsverzeichnis, sonst Repository, sonst der aus dem Schlüssel zurückgerechnete Pfad; `~` für das Home-Verzeichnis) und unterscheidet zwei Verzeichnisse desselben Projekts; in `--json` heißt das Feld `project_path`. Die Ausgabe von `total-recall memory` gegen das Demo-Archiv:
 
 ```text
 PROJECT      FILE                CHANGED           SIZE   VERSIONS
@@ -340,11 +341,12 @@ fahrtenbuch  MEMORY.md           2026-09-09 20:15  101 B  1
 kompass      MEMORY.md           2026-10-31 22:40  177 B  4
 kompass      conventions.md      2026-10-28 09:30  308 B  1
 kompass      release-process.md  2026-10-31 22:35  695 B  3
+kompass      MEMORY.md           2026-10-30 11:20  85 B   1
 wetterwarte  MEMORY.md           2026-10-14 18:05  91 B   1
 wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
 ```
 
-![Reiter memory: die drei Projekte des Demo-Archivs mit Harness, Zahl der Dateien und letzter Änderung](../assets/screenshots/memory-tab.png)
+![Reiter memory: die Projekte des Demo-Archivs mit Pfad, Harness, Zahl der Dateien und letzter Änderung; `kompass` steht zweimal, die Pfade unterscheiden die beiden Verzeichnisse](../assets/screenshots/memory-tab.png)
 
 *Reiter `5 memory`: die Projekte mit Gedächtnis, wie `total-recall memory` sie zählt*
 
@@ -364,7 +366,7 @@ wetterwarte  sensors.md          2026-10-14 18:00  323 B  1
 
 **Zeiten.** `CHANGED` (JSON `changed`, bei `--history` `ts`) ist die Änderungszeit der Datei, als das Archiv die Fassung sah; bei einer Löschung die Zeit des Laufs, der sie bemerkte. `--history` zeigt daneben `OBSERVED` (`observed_at`), wann der Lauf die Fassung aufgenommen hat. Ändert der Agent eine Datei zweimal zwischen zwei Läufen, kennt das Archiv nur die zweite Fassung; da jeder Hook nachsieht, ist das selten.
 
-**JSON.** Ohne Option je Datei ein Objekt: `project`, `project_key` (Schlüssel der Harness), `harness`, `cwd` und `git_root` des Projekts (`null`, solange unbekannt), `path`, `sha256` (`null` bei gelöschten), `bytes`, `deleted`, `changed` (UTC), `versions` (Fassungen bis dahin, Löschungen mitgezählt). `--history`: je Fassung `project`, `project_key`, `harness`, `path`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `deleted`. `--timeline`: je Änderung `project`, `project_key`, `harness`, `path`, `kind`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `prev_ts` und `prev_sha256` (`null`, außer bei `changed`), `delta_bytes`; die `delta_bytes` einer Datei ergeben ihre Größe jetzt (0 nach einer Löschung), ein Test prüft das an der `--json`-Ausgabe. `--grep`: je Treffer `project`, `project_key`, `harness`, `path`, `sha256`, `changed`, `snippet` (Treffer in `[…]`).
+**JSON.** Ohne Option je Datei ein Objekt: `project`, `project_path` (lesbarer Ort des Gedächtnis-Verzeichnisses: Arbeitsverzeichnis, sonst Repository, sonst der aus dem Schlüssel zurückgerechnete Pfad, `~` für das Home-Verzeichnis; dieselbe Spalte wie im Reiter `5 memory`, sie unterscheidet zwei Verzeichnisse desselben Projekts), `project_key` (Schlüssel der Harness), `harness`, `cwd` und `git_root` des Projekts (`null`, solange unbekannt), `path`, `sha256` (`null` bei gelöschten), `bytes`, `deleted`, `changed` (UTC), `versions` (Fassungen bis dahin, Löschungen mitgezählt). `--history`: je Fassung `project`, `project_key`, `harness`, `path`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `deleted`. `--timeline`: je Änderung `project`, `project_key`, `harness`, `path`, `kind`, `ts`, `observed_at`, `sha256` (`null` bei einer Löschung), `bytes`, `prev_ts` und `prev_sha256` (`null`, außer bei `changed`), `delta_bytes`; die `delta_bytes` einer Datei ergeben ihre Größe jetzt (0 nach einer Löschung), ein Test prüft das an der `--json`-Ausgabe. `--grep`: je Treffer `project`, `project_key`, `harness`, `path`, `sha256`, `changed`, `snippet` (Treffer in `[…]`).
 
 **Projektzuordnung.** Das Archiv kennt das Projekt über den Schlüssel der Harness. Das Verzeichnis dazu liest der Adapter aus einem Transkript des Projekts; gibt es keins mehr, sucht er unter den Sessions im Archiv ein Arbeitsverzeichnis, das zu dem Schlüssel passt. Findet er keins, bleibt `cwd` leer, und das Projekt heißt wie sein Schlüssel; ein späterer Lauf trägt das Verzeichnis nach, sobald eine Session dafür auftaucht.
 

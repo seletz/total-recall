@@ -524,6 +524,7 @@ One object per memory file, by project name and path; the version valid at `--at
 |---|---|
 | `project` | project name as in `stats --by project`; the harness key while the project's directory is unknown |
 | `project_key` | the harness's native project key |
+| `project_path` | readable place of the memory directory (cwd, else git root, else decoded from the key; `~` for home), as in the memory tab of the TUI |
 | `harness` | e.g. `claude` |
 | `cwd` | the project's working directory, `null` while unknown |
 | `git_root` | its git root, `null` without one |
@@ -542,6 +543,7 @@ One object per version of the file, oldest first.
 |---|---|
 | `project` | as in `memory --json` |
 | `project_key` | as in `memory --json` |
+| `project_path` | as in `memory --json` |
 | `harness` | as in `memory --json` |
 | `path` | the file |
 | `ts` | time of the version: the file's mtime, for a deletion the scan that noticed it (UTC) |
@@ -558,6 +560,7 @@ One object per change of any file of the selected projects, newest first (same t
 |---|---|
 | `project` | as in `memory --json` |
 | `project_key` | as in `memory --json` |
+| `project_path` | as in `memory --json` |
 | `harness` | as in `memory --json` |
 | `path` | the file |
 | `kind` | `added` (first version, or back after a deletion), `changed` or `deleted` |
@@ -577,6 +580,7 @@ One object per memory file whose current content matches, best first.
 |---|---|
 | `project` | as in `memory --json` |
 | `project_key` | as in `memory --json` |
+| `project_path` | as in `memory --json` |
 | `harness` | as in `memory --json` |
 | `path` | the file |
 | `sha256` | hash of the current content |

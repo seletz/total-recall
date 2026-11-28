@@ -362,11 +362,11 @@ Das Gedächtnis hat einen **Reiter** in der Kopfzeile (`5 memory`, Taste `5`, `t
 
 ### Reiter memory { #memory-reiter }
 
-Der Reiter listet die **Projekte mit Gedächtnis**, nach Name sortiert, mit demselben Namen wie `stats --by project` (Definitionen `[[project]]` zuerst). Je Zeile stehen der Name, der Harness, die Zahl der Dateien (bei gelöschten mit Zusatz, `3 files, 1 deleted`) und der Zeitpunkt der letzten Änderung; die Statuszeile zählt Projekte, Dateien und Versionen. Das ist die Liste, die der Befehl [`memory`](10-befehle.md#memory) je Projekt zusammenfasst.
+Der Reiter listet die **Projekte mit Gedächtnis**, nach Name sortiert, mit demselben Namen wie `stats --by project` (Definitionen `[[project]]` zuerst). Je Zeile stehen der Name, der **Pfad** des Verzeichnisses (Arbeitsverzeichnis, sonst Repository, sonst der aus dem Schlüssel der Harness zurückgerechnete Pfad; `~` für das Home-Verzeichnis), der Harness, die Zahl der Dateien (bei gelöschten mit Zusatz, `3 files, 1 deleted`) und der Zeitpunkt der letzten Änderung (`-`, wenn es keinen gibt). Ein Projekt mit mehreren Gedächtnis-Verzeichnissen steht mehrfach, der Pfad unterscheidet die Zeilen; Name und Pfad sind nie der rohe Schlüssel (`-Users-…`). Die Spalten stehen untereinander, ein zu langer Pfad wird links gekürzt (`…`), denn sein Ende unterscheidet. Verzeichnisse ganz ohne Datei blendet der Reiter aus; die Statuszeile zählt sie (`(1 without files)`) und nennt Projekte, Dateien und Versionen. Das ist die Liste, die der Befehl [`memory`](10-befehle.md#memory) je Projekt zusammenfasst.
 
-![Reiter memory: die Projekte mit Gedächtnis, je Projekt Harness, Zahl der Dateien und letzte Änderung; Enter oder ein zweiter Klick öffnet das Gedächtnis](../assets/screenshots/memory-tab.png)
+![Reiter memory: die Projekte mit Gedächtnis, je Verzeichnis Name, Pfad, Harness, Zahl der Dateien und letzte Änderung (`kompass` zweimal, ein leeres Verzeichnis ist ausgeblendet); Enter oder ein zweiter Klick öffnet das Gedächtnis](../assets/screenshots/memory-tab.png)
 
-*Reiter memory: die Projekte mit Gedächtnis, je Projekt Harness, Zahl der Dateien und letzte Änderung; Enter oder ein zweiter Klick öffnet das Gedächtnis*
+*Reiter memory: die Projekte mit Gedächtnis, je Verzeichnis Name, Pfad, Harness, Zahl der Dateien und letzte Änderung (`kompass` zweimal, ein leeres Verzeichnis ist ausgeblendet); Enter oder ein zweiter Klick öffnet das Gedächtnis*
 
 **Bedienung.** Mit der Maus: ein Klick auf `5 memory` in der Kopfzeile öffnet den Reiter, das Rad oder ein Klick auf eine Zeile bewegt die Markierung, ein zweiter Klick auf die markierte Zeile öffnet das Gedächtnis des Projekts. Mit der Tastatur: `5`, ++up++/++down++ (`k`/`j`) oder ++pgup++/++pgdn++, ++enter++ öffnet. Der Viewer liegt als Ebene über dem Reiter, die Kopfzeile zeigt `[5 memory] › kompass`; ++esc++ führt zurück in die Projektliste, die Markierung bleibt.
 

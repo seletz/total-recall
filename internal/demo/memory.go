@@ -71,6 +71,16 @@ values over a five-minute window. The rain gauge counts tips, one tip is
 0.2 mm. The MQTT client must reconnect after a broker restart.
 `, at(time.October, 14, 18, 0)},
 	},
+	// A second memory directory of kompass (the worktree has its own
+	// project dir), so the name appears twice with a different path.
+	kompassWorktree: {
+		{"MEMORY.md", `# Memory
+
+- GPX import: the parser must accept files without a time stamp per point.
+`, at(time.October, 30, 11, 20)},
+	},
+	// A memory directory without any file: the memory tab leaves it out.
+	notizen: {},
 	fahrtenbuch: {
 		{"MEMORY.md", `# Memory
 
@@ -252,6 +262,9 @@ func writeMemory(projects string) error {
 
 // writeMemoryFiles writes files below dir with their modification times.
 func writeMemoryFiles(dir string, files []memoryFile) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("demo: %w", err)
+	}
 	for _, f := range files {
 		p := filepath.Join(dir, filepath.FromSlash(f.path))
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
