@@ -3,6 +3,10 @@ module github.com/seletz/total-recall/analytics
 go 1.27.4
 
 require (
+	charm.land/bubbles/v2 v2.2.2
+	charm.land/bubbletea/v2 v2.1.3
+	charm.land/lipgloss/v2 v2.1.1
+	github.com/charmbracelet/x/ansi v0.11.10
 	github.com/duckdb/duckdb-go/v2 v2.20001.0
 	github.com/seletz/total-recall v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.10.2
@@ -10,9 +14,6 @@ require (
 )
 
 require (
-	charm.land/bubbles/v2 v2.2.2 // indirect
-	charm.land/bubbletea/v2 v2.1.3 // indirect
-	charm.land/lipgloss/v2 v2.1.1 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/NimbleMarkets/ntcharts/picture/chartpicture/v2 v2.9.0 // indirect
 	github.com/NimbleMarkets/ntcharts/v2 v2.9.0 // indirect
@@ -20,7 +21,6 @@ require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20261125122737-8ed499892fb4 // indirect
-	github.com/charmbracelet/x/ansi v0.11.10 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect

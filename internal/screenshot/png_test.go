@@ -7,9 +7,6 @@ import (
 	"image/png"
 	"testing"
 
-	"golang.org/x/image/font/gofont/gomono"
-	"golang.org/x/image/font/opentype"
-	"golang.org/x/image/font/sfnt"
 )
 
 // centre returns the colour at the centre of a cell.
@@ -188,22 +185,14 @@ func TestImageQuadrants(t *testing.T) {
 // empty box in the screenshot.
 func TestFramesHaveGlyphs(t *testing.T) {
 	t.Parallel()
-	f, err := opentype.Parse(gomono.TTF)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var buf sfnt.Buffer
-	scratch := image.NewRGBA(image.Rect(0, 0, cellW, cellH))
 	missing := map[rune]string{}
 	for _, fr := range frames(t) {
-		for _, r := range fr.Plain() {
-			if r < 0x80 || missing[r] != "" {
-				continue
-			}
-			if shape(scratch, scratch.Bounds(), r, color.White) {
-				continue
-			}
-			if idx, err := f.GlyphIndex(&buf, r); err != nil || idx == 0 {
+		rs, err := MissingGlyphs(fr.Plain())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range rs {
+			if missing[r] == "" {
 				missing[r] = fr.Shot.Name
 			}
 		}

@@ -204,6 +204,23 @@ func TestCommandsBeforeBuild(t *testing.T) {
 	}
 }
 
+// TestTUIErrors: tui says what is missing before it takes the terminal.
+func TestTUIErrors(t *testing.T) {
+	e := newEnv(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"tui", "--db", e.analytics}, "run build first"},
+		{[]string{"tui", "--db", e.analytics, "--show", "nope"}, "--show nope: want events, human, agent, sessions, tool calls, tokens or hours"},
+	} {
+		code, out, errOut := e.run(tc.args...)
+		if code == 0 || !strings.Contains(out+errOut, tc.want) {
+			t.Errorf("%v: exit %d, %s%s", tc.args, code, out, errOut)
+		}
+	}
+}
+
 func TestViews(t *testing.T) {
 	e := newEnv(t)
 	var vs []ViewJSON

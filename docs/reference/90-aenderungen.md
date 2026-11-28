@@ -34,6 +34,7 @@ Meilenstein v1.11.0: ein eigenes Analyse-Tool mit DuckDB für die Archive eines 
   - **Summe gleich Teile:** Je Host stimmen die Zahlen mit `stats --json` des Host-Archivs überein, über den Pool mit einem Archiv aller Sessions, Arbeitszeit eingeschlossen.
   - **Leistung:** 2,2 Millionen Events laden in 13 s, Abfragen bleiben unter 0,2 s.
   - **Weitere Änderungen:** `build` nimmt den Host jetzt aus dem Archiv (`--host` geht vor), legt den Ordner der Analyse-Datenbank bei Bedarf an, und `build --json` und `status --json` haben `archive_id`. Siehe [Pool](15-analyse.md#pool).
+- **TUI des Analyse-Tools** ([#366](https://github.com/seletz/total-recall/issues/366)): `total-recall-analytics tui` zeigt die Nutzung des Pools als Diagramm über die Zeit mit den Summen des Fensters. Wählbar sind, was gezählt wird (Events, eigene Prompts, Agent, Sessions, Tool-Aufrufe, Tokens, Arbeitszeit), die Aufteilung (Projekt, Host, Modell, Tool, Login; bei Arbeitszeit Kategorie), Tag, Woche oder Monat, der Host und das Fenster. Alles geht per Taste oder Klick, das Mausrad verschiebt das Fenster, die Fußzeile nennt zuerst die Aktionen der Ansicht. Die Zahlen kommen aus denselben Abfragen wie `usage` und `worktime`. Neu ist auch `--host` für `usage`, `tokens` und `worktime`. Siehe [TUI](15-analyse.md#tui).
 
 ### Upgrade auf v1.11.0
 

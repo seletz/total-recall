@@ -80,7 +80,7 @@ total-recall tui config
 
 *Seite Status: die Zeile pool zeigt die Kopie dieses Hosts im Pool-Verzeichnis*
 
-Die Übersicht über alle Hosts (`total-recall pool`) hat in der TUI keine eigene Ansicht; sie gehört zum Analyse-Tool.
+Die Übersicht über die Kopien im Pool (`total-recall pool`) hat in der TUI keine eigene Ansicht; die Auswertung über alle Hosts zeigt die [TUI des Analyse-Tools](../reference/15-analyse.md#tui).
 
 ## Auswerten
 
@@ -91,7 +91,11 @@ total-recall-analytics build --pool
 total-recall-analytics usage --by host
 ```
 
-Es entpackt jede Kopie einmal in den Cache, lädt jeden Host als eigene Quelle und zählt jedes Archiv einmal, auch wenn eine Kopie doppelt im Pool liegt. Die Ausgabe gegen den Demo-Pool steht in der [Referenz](../reference/15-analyse.md#pool).
+Es entpackt jede Kopie einmal in den Cache, lädt jeden Host als eigene Quelle und zählt jedes Archiv einmal, auch wenn eine Kopie doppelt im Pool liegt. Die Ausgabe gegen den Demo-Pool steht in der [Referenz](../reference/15-analyse.md#pool). Im Terminal zeigt `total-recall-analytics tui` dieselben Zahlen als Diagramm, mit der Zeile `host` für einen einzelnen Rechner ([TUI](../reference/15-analyse.md#tui)):
+
+![Analyse-TUI: Events je Host und Woche, per Klick in der Zeile by](../assets/analytics-screenshots/analytics-by-host.png)
+
+*Analyse-TUI: Events je Host und Woche*
 
 ## Warum `backup` den Pool schreibt
 
