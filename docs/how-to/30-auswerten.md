@@ -64,7 +64,7 @@ total-recall search goreleaser --type input
 total-recall search goreleaser --type answer
 
 # Tool-Aufrufe eines Tools, und deren Ergebnisse
-total-recall search sort --type tool_call --tool Edit
+total-recall search sort --tool edit        # ohne Groß-/Kleinschreibung, --type tool_call ist dann überflüssig
 total-recall search cask --type tool_result
 
 # Bilder und Dokumente, ohne Suchwort die neuesten

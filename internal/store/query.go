@@ -363,7 +363,7 @@ type SearchFilter struct {
 	SessionID string
 	// Actor is an exact actor (human, agent, peer, automation, tool).
 	Actor string
-	// Kind is an exact event kind and Tool an exact tool name (#344: the
+	// Kind is an exact event kind and Tool a tool name compared without case (#344: the
 	// types input, answer, tool_call and tool_result).
 	Kind, Tool string
 	// Raw passes the query to FTS5 unchanged (AND/OR/NOT, "phrases", prefix*).
@@ -489,7 +489,7 @@ func (f SearchFilter) eventCond() ([]string, []any) {
 		args = append(args, f.Kind)
 	}
 	if f.Tool != "" {
-		cond = append(cond, "e.tool_name = ?")
+		cond = append(cond, "e.tool_name = ? COLLATE NOCASE")
 		args = append(args, f.Tool)
 	}
 	if f.SessionID != "" {
