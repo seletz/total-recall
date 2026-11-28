@@ -55,13 +55,22 @@ func RenderText(spec Spec, w, h int) string {
 		gap = 0 // too many bars for a gap; the rest is cut off anyway
 	}
 	bc := barchart.New(cw, chartH, barchart.WithNoAutoBarWidth(), barchart.WithBarWidth(bw), barchart.WithBarGap(gap))
+	// The bars take the rows above the axis and its labels; the tallest
+	// fills them.
+	sf := 0.0
+	if maxValue > 0 {
+		sf = float64(chartH-2) / maxValue
+	}
 	for j := 0; j < n; j++ {
 		bd := barchart.BarData{Values: make([]barchart.BarValue, 0, len(spec.Series))}
-		for _, s := range spec.Series {
-			v := 0.0
+		raw := make([]float64, len(spec.Series))
+		for i, s := range spec.Series {
 			if j < len(s.Values) {
-				v = s.Values[j]
+				raw[i] = s.Values[j]
 			}
+		}
+		for i, v := range stackValues(raw, sf) {
+			s := spec.Series[i]
 			bd.Values = append(bd.Values, barchart.BarValue{Name: s.Name, Value: v, Style: lipgloss.NewStyle().Foreground(s.Color)})
 		}
 		bc.Push(bd)
