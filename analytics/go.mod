@@ -10,7 +10,7 @@ require (
 	github.com/duckdb/duckdb-go/v2 v2.20001.0
 	github.com/seletz/total-recall v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.10.2
-	modernc.org/sqlite v1.62.0
+	modernc.org/sqlite v1.63.0
 )
 
 require (
