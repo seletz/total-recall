@@ -59,6 +59,10 @@ run = [
 description = "Build the synthetic demo archive (build/demo.db): the shared fixture of tests and screenshots"
 run = "go run ./tools/demo -out build/demo.db"
 
+[tasks."demo:pool"]
+description = "Build the synthetic demo pool (build/demo-pool/): one archive per host with models and tokens, plus all.db with every host"
+run = "go run ./tools/demo -pool build/demo-pool"
+
 [tasks."dict:train"]
 description = "Train the zstd dictionary for events.raw from synthetic lines (demo archive plus generated records) and write it to internal/store/rawz/dict/raw-v2.zdict (a new dictionary gets a new ID and file; old ones stay for old rows)"
 run = "go run ./tools/rawdict train"

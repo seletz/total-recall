@@ -182,7 +182,7 @@ func Write(dir string) (string, error) {
 		return "", fmt.Errorf("demo: %w", err)
 	}
 	for _, s := range plan() {
-		if err := writeSession(projects, s); err != nil {
+		if err := writeSession(projects, s, style{}); err != nil {
 			return "", err
 		}
 	}
@@ -192,8 +192,16 @@ func Write(dir string) (string, error) {
 	return projects, nil
 }
 
+// style is how the transcripts are written: the demo archive writes
+// them plain, the pool with models and tokens (see BuildPool).
+type style struct {
+	// usage gives every agent record a model and the usage of its API
+	// message (see usage).
+	usage bool
+}
+
 // writeSession writes one session and its subagents.
-func writeSession(projects string, s session) error {
+func writeSession(projects string, s session, st style) error {
 	var lines []testfixture.Line
 	if s.title != "" {
 		lines = append(lines, testfixture.CustomTitle(s.id, s.title))
@@ -203,7 +211,7 @@ func writeSession(projects string, s session) error {
 	if s.account != "" {
 		lines = append(lines, testfixture.SessionOwnerOf(s.id, s.account, s.organization))
 	}
-	lines = append(lines, s.lines(s.id, "")...)
+	lines = append(lines, s.lines(s.id, "", st)...)
 	history, err := writeFileHistory(projects, s)
 	if err != nil {
 		return err
@@ -220,7 +228,7 @@ func writeSession(projects string, s session) error {
 	for _, a := range s.subagents {
 		var lines []testfixture.Line
 		lines = append(lines, testfixture.Line{"type": "agent-name", "agentName": a.name, "sessionId": s.id, "agentId": a.id})
-		lines = append(lines, a.session.lines(s.id, a.id)...)
+		lines = append(lines, a.session.lines(s.id, a.id, st)...)
 		if err := writeLines(filepath.Join(dir, s.id, "subagents", "agent-"+a.id+".jsonl"), lines); err != nil {
 			return err
 		}
@@ -244,8 +252,9 @@ func projectDir(cwd string) string {
 }
 
 // lines renders the turns of a session as transcript records of session
-// sid; a non-empty agentID marks them as a subagent's.
-func (s session) lines(sid, agentID string) []testfixture.Line {
+// sid; a non-empty agentID marks them as a subagent's. With st.usage the
+// agent records carry a model and tokens (see usage).
+func (s session) lines(sid, agentID string, st style) []testfixture.Line {
 	var out []testfixture.Line
 	add := func(l testfixture.Line) {
 		if agentID != "" {
@@ -254,7 +263,15 @@ func (s session) lines(sid, agentID string) []testfixture.Line {
 		}
 		out = append(out, l)
 	}
+	u := newUsage(agentID != "")
+	agent := func(l testfixture.Line, at time.Time, text string) testfixture.Line {
+		if st.usage {
+			u.apply(l, at, text)
+		}
+		return l
+	}
 	for _, tr := range s.turns {
+		u.add(tr.prompt)
 		user := testfixture.User(sid, tr.ids[0], stamp(tr.at), s.cwd, tr.prompt)
 		if len(tr.attached) > 0 {
 			user = testfixture.UserWithAttachments(sid, tr.ids[0], stamp(tr.at), s.cwd, tr.prompt, tr.attached...)
@@ -266,11 +283,12 @@ func (s session) lines(sid, agentID string) []testfixture.Line {
 		t := tr.at.Add(20 * time.Second)
 		for i, tool := range tr.tools {
 			use := tr.ids[1+2*i]
-			add(testfixture.ToolUse(sid, use, stamp(t), s.cwd, tool.name, tool.input))
+			add(agent(testfixture.ToolUse(sid, use, stamp(t), s.cwd, tool.name, tool.input), t, tool.input))
 			add(testfixture.ToolResult(sid, tr.ids[2+2*i], stamp(t.Add(5*time.Second)), s.cwd, use, tool.output))
+			u.add(tool.output)
 			t = t.Add(25 * time.Second)
 		}
-		add(testfixture.Assistant(sid, tr.ids[len(tr.ids)-1], stamp(tr.at.Add(tr.replyAt)), s.cwd, tr.reply))
+		add(agent(testfixture.Assistant(sid, tr.ids[len(tr.ids)-1], stamp(tr.at.Add(tr.replyAt)), s.cwd, tr.reply), tr.at.Add(tr.replyAt), tr.reply))
 	}
 	return out
 }
