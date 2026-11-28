@@ -1,0 +1,143 @@
+version: 2
+
+# Release of total-recall-analytics, the DuckDB analytics binary (module
+# analytics/). It needs cgo, so it cannot be cross-built from the Linux runner
+# like total-recall (.goreleaser.yml). The release workflow runs this config
+# twice after the main release exists, selected by ANALYTICS_OS:
+#   darwin  on a macOS runner: arm64 natively, amd64 with clang -arch x86_64,
+#           both signed and notarized, plus the cask;
+#   linux   in a Debian bookworm container (glibc 2.36): amd64.
+# Each run appends its archives, SBOMs and its own checksum file to the
+# existing GitHub release and leaves the release notes alone. Local snapshot:
+# `mise run analytics:release:snapshot` (darwin on a Mac).
+project_name: total-recall-analytics
+dist: dist-analytics
+
+before:
+  hooks:
+    # Build DuckDB with sqlite_scanner compiled in for the targets of this run
+    # (analytics/duckdb/duckdb.lock, extensions.cmake); skipped when the
+    # libraries of the same pins are already there (CI cache).
+    - 'scripts/analytics-duckdb.sh {{ if eq (index .Env "ANALYTICS_OS") "darwin" }}darwin_arm64 darwin_amd64{{ else }}linux_amd64{{ end }}'
+
+builds:
+  - id: analytics-darwin
+    skip: '{{ ne (index .Env "ANALYTICS_OS") "darwin" }}'
+    dir: analytics
+    main: ./cmd/total-recall-analytics
+    binary: total-recall-analytics
+    # Link the DuckDB of scripts/analytics-duckdb.sh instead of duckdb-go's
+    # prebuilt one (analytics/internal/duck/cgo_<os>_<arch>.go).
+    tags: [duckdb_use_static_lib]
+    env:
+      - CGO_ENABLED=1
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    overrides:
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=clang -arch x86_64
+          - CXX=clang++ -arch x86_64
+    ldflags:
+      - -s -w
+      - -X github.com/seletz/total-recall/internal/version.Version={{.Version}}
+
+  - id: analytics-linux
+    skip: '{{ ne (index .Env "ANALYTICS_OS") "linux" }}'
+    dir: analytics
+    main: ./cmd/total-recall-analytics
+    binary: total-recall-analytics
+    tags: [duckdb_use_static_lib]
+    env:
+      - CGO_ENABLED=1
+    goos: [linux]
+    goarch: [amd64]
+    ldflags:
+      - -s -w
+      - -X github.com/seletz/total-recall/internal/version.Version={{.Version}}
+    # Dynamically linked against glibc and libstdc++ of Debian bookworm,
+    # present on every glibc distribution of that age or newer.
+
+# Sign (Developer ID, hardened runtime, timestamp) and notarize exactly like
+# total-recall, without entitlements: the extensions are compiled in, nothing
+# is loaded with dlopen, so library validation stays on.
+notarize:
+  macos:
+    - enabled: '{{ and (isEnvSet "MACOS_SIGN_P12") (eq (index .Env "ANALYTICS_OS") "darwin") }}'
+      ids:
+        - analytics-darwin
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+        timeout: 20m
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
+
+# One CycloneDX SBOM per binary, as for total-recall (tools/sbom), checked
+# against analytics/go.sum.
+sboms:
+  - id: binary
+    artifacts: binary
+    documents:
+      - "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}.cdx.json"
+    cmd: go
+    args:
+      - run
+      - ../tools/sbom
+      - generate
+      - -name
+      - "{{ .ProjectName }}"
+      - -sum
+      - ../analytics/go.sum
+      - -binary
+      - $artifact
+      - -out
+      - $document
+      - -goos
+      - "{{ .Os }}"
+      - -goarch
+      - "{{ .Arch }}"
+      - -version
+      - "{{ .Version }}"
+
+checksum:
+  name_template: 'checksums-{{ .ProjectName }}-{{ .Tag }}-{{ index .Env "ANALYTICS_OS" }}.txt'
+
+changelog:
+  disable: true
+
+# The release exists already (total-recall's job runs first); keep its notes
+# and only add the files.
+release:
+  prerelease: auto
+  mode: keep-existing
+
+homebrew_casks:
+  - name: total-recall-analytics
+    # Only the darwin run has macOS archives; without the tap token the cask is
+    # not pushed.
+    skip_upload: '{{ if or (ne (index .Env "ANALYTICS_OS") "darwin") (not (index .Env "HOMEBREW_TAP_GITHUB_TOKEN")) }}true{{ else }}false{{ end }}'
+    binaries:
+      - total-recall-analytics
+    repository:
+      owner: seletz
+      name: homebrew-tap
+      branch: main
+      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Update {{ .ProjectName }} to {{ .Tag }}"
+    directory: Casks
+    homepage: "https://github.com/seletz/total-recall"
+    license: "MIT"
+    description: "Analyse total-recall archives of an agent pool with DuckDB"

@@ -6,6 +6,14 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.11.0 (unveröffentlicht)
+
+Meilenstein v1.11.0: ein eigenes Analyse-Tool mit DuckDB für die Archive eines Agenten-Pools.
+
+### Hinzugefügt
+
+- **Analyse-Tool `total-recall-analytics`** ([#360](https://github.com/seletz/total-recall/issues/360)): ein eigenes Programm mit DuckDB (v2.0.1) neben `total-recall`, als eigenes Go-Modul `analytics/` mit cgo; `total-recall` bleibt statisch und cgo-frei. DuckDB wird aus dem Quellcode gebaut, mit der SQLite-Erweiterung (liest die Archive), Parquet, JSON und ICU fest eingebaut; das Programm lädt zur Laufzeit keine Erweiterung und nimmt keine Netzverbindung auf. Erster Befehl: `version` (mit `--json`) zeigt Programm, DuckDB und die eingebauten Erweiterungen. Releases tragen Archive für macOS arm64/amd64 (signiert und notarisiert wie `total-recall`, ohne Ausnahmen der Hardened Runtime) und Linux amd64, je mit SBOM und eigener Checksummen-Datei; dazu ein eigener Cask `total-recall-analytics`. Siehe [Analyse-Tool](15-analyse.md), [Installieren](../how-to/10-installieren.md#analyse-tool) und [Release-Assets](50-release.md#analyse-tool).
+
 ## v1.10.0
 
 Meilenstein v1.10.0: Die Suche kennt feinere Objekttypen (CLI, TUI, MCP), das Projekt-Gedächtnis hat in der TUI einen eigenen Reiter, und alles Wichtige in der TUI ist sichtbar und mit der Maus bedienbar. Es gibt keinen Schema-Wechsel und keine Migration; die Befehle gewinnen nur Optionen und Felder.

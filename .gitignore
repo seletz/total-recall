@@ -9,3 +9,6 @@
 /completions/
 .venv/
 __pycache__/
+/total-recall-analytics
+/dist-analytics/
+/analytics/duckdb/lib/

@@ -11,8 +11,11 @@ Was ein [Release auf GitHub](https://github.com/seletz/total-recall/releases) al
 | `total-recall-<tag>-<os>-<arch>.tar.gz` | Das statische Binary `total-recall` und die Shell-Vervollständigungen für bash, zsh und fish. Das darwin-Binary ist ab v1.0.2 [signiert und notarisiert](#signatur-der-macos-binaries). |
 | `total-recall-<tag>-<os>-<arch>.cdx.json` | Die [SBOM](#sbom) des Binarys aus demselben Archiv. |
 | `checksums-<tag>.txt` | SHA-256 aller Archive und SBOMs im Format von `sha256sum`. |
+| `total-recall-analytics-<tag>-<os>-<arch>.tar.gz` | Das [Analyse-Tool](15-analyse.md) für `darwin-arm64`, `darwin-amd64` und `linux-amd64`, siehe [Analyse-Tool](#analyse-tool). |
+| `total-recall-analytics-<tag>-<os>-<arch>.cdx.json` | Die SBOM des Analyse-Tools aus demselben Archiv. |
+| `checksums-total-recall-analytics-<tag>-<os>.txt` | SHA-256 der Archive und SBOMs des Analyse-Tools, eine Datei je Betriebssystem (`darwin`, `linux`). |
 
-Alle Dateien eines Releases entstehen in einem Lauf von goreleaser aus dem getaggten Commit (`.goreleaser.yml`, Workflow `release.yml`). `mise run release:snapshot` baut dieselben Dateien lokal nach `dist/`, ohne etwas zu veröffentlichen; die Version heißt dann `<letzter Tag>-SNAPSHOT-<commit>`. Der Snapshot signiert nicht, weil die [Secrets](#secrets-des-release-laufs) lokal fehlen; einen signierten Snapshot baut der Workflow [`signed-snapshot.yml`](#signatur-ohne-release-testen).
+Die Dateien von `total-recall` entstehen in einem Lauf von goreleaser aus dem getaggten Commit (`.goreleaser.yml`, Workflow `release.yml`), die des Analyse-Tools danach in zwei weiteren Läufen ([Analyse-Tool](#analyse-tool)). `mise run release:snapshot` baut dieselben Dateien lokal nach `dist/`, ohne etwas zu veröffentlichen; die Version heißt dann `<letzter Tag>-SNAPSHOT-<commit>`. Der Snapshot signiert nicht, weil die [Secrets](#secrets-des-release-laufs) lokal fehlen; einen signierten Snapshot baut der Workflow [`signed-snapshot.yml`](#signatur-ohne-release-testen).
 
 ## Checksummen prüfen
 
@@ -154,6 +157,33 @@ Einrichten, einmalig durch den Maintainer:
 Das `-i` von `base64` ist die macOS-Schreibweise; auf Linux `base64 -w0 datei`. Die kodierten Dateien nie ins Repository legen; `gh secret set` liest den Wert von der Standardeingabe, sodass er nicht in der Shell-History landet.
 
 Das Developer-ID-Zertifikat gilt fünf Jahre, der Zeitstempel hält bestehende Signaturen darüber hinaus gültig. Ein neues Zertifikat heißt nur `MACOS_SIGN_P12` und `MACOS_SIGN_PASSWORD` neu setzen; die API-Keys verfallen nicht, lassen sich aber in App Store Connect widerrufen.
+
+## Analyse-Tool
+
+Das [Analyse-Tool](15-analyse.md) `total-recall-analytics` braucht cgo (DuckDB) und lässt sich deshalb nicht wie `total-recall` vom Linux-Runner für alle Plattformen bauen. `release.yml` baut es nach dem Lauf von `total-recall` in zwei eigenen Jobs mit derselben goreleaser-Version und der Konfiguration `.goreleaser-analytics.yml`; die Umgebungsvariable `ANALYTICS_OS` wählt die Builds:
+
+| Job | Runner | baut |
+|---|---|---|
+| `analytics-darwin` | `macos-15` (arm64) | `darwin-arm64` nativ, `darwin-amd64` mit `clang -arch x86_64`; beide signiert und notarisiert; Cask `total-recall-analytics` |
+| `analytics-linux` | `ubuntu-latest` im Container `golang:<go-version>-bookworm` | `linux-amd64`, gegen glibc und libstdc++ von Debian 12 |
+
+Jeder Lauf hängt seine Archive, SBOMs und seine Checksummen-Datei an das bestehende Release und lässt dessen Text stehen (`release.mode: keep-existing`, kein eigenes Changelog). Die CI baut bei jedem Pull Request dieselben Snapshots auf denselben Runnern (`analytics-release-snapshot-darwin`, `analytics-release-snapshot-linux`), prüft die SBOMs und startet die Binaries; `mise run analytics:release:snapshot` baut den Snapshot für das eigene Betriebssystem nach `dist-analytics/`.
+
+**DuckDB aus dem Quellcode:** Vor dem Go-Build baut `scripts/analytics-duckdb.sh` (goreleaser-Hook, `mise run analytics:duckdb`) DuckDB im Commit aus `analytics/duckdb/duckdb.lock` als statische Bibliotheken je Zielplattform, mit den Erweiterungen aus `analytics/duckdb/extensions.cmake` fest eingebaut (`sqlite_scanner` im Commit, den DuckDB selbst für diese Version festlegt) und ohne die Fähigkeit, Erweiterungen zur Laufzeit zu laden. Go linkt sie mit dem Build-Tag `duckdb_use_static_lib` des Treibers (`analytics/internal/duck/cgo_<os>_<arch>.go`) statt der fertigen DuckDB-Bibliothek, der `sqlite_scanner` fehlt. Ein Build ohne das Tag startet nicht (`built without the static DuckDB …`). Der DuckDB-Build dauert je Plattform einige Minuten; die Workflows legen das Ergebnis in den Actions-Cache, Schlüssel ist der Hash von Lock, Erweiterungsliste und Skript.
+
+Warum nicht die Erweiterung von `extensions.duckdb.org` beilegen: DuckDB lädt sie mit `dlopen`. Die Hardened Runtime eines signierten Binarys lädt aber nur Bibliotheken, die Apple oder dasselbe Team signiert hat (`mapping process and mapped file (non-platform) have different Team IDs`). Mit unserer Developer-ID signieren lässt sich die Datei nicht: `codesign` lehnt sie ab (`main executable failed strict validation`), weil DuckDB hinter das Mach-O einen eigenen Signatur-Block hängt. Übrig bliebe die Berechtigung `com.apple.security.cs.disable-library-validation`, die die Prüfung für das ganze Binary abschaltet. Eingebaut braucht es nichts davon.
+
+**Signatur:** genau wie bei `total-recall` (Developer ID, Hardened Runtime, Zeitstempel, notarisiert), ohne Berechtigungen (Entitlements). Prüfen wie unter [Signatur prüfen](#signatur-prufen); `codesign -d --entitlements - ./total-recall-analytics` gibt nichts aus. Der Workflow `signed-snapshot.yml` hat dafür den Job `analytics`: Er baut den signierten Snapshot auf einem Mac, prüft Hardened Runtime, Team-ID und das Fehlen von Berechtigungen mit `codesign` und startet das signierte arm64-Binary mit `version`. Das Artefakt heißt `signed-snapshot-analytics-darwin`.
+
+**SBOM:** wie bei `total-recall`, geprüft gegen `analytics/go.sum`:
+
+```sh
+go run ./tools/sbom check -name total-recall-analytics -version 1.11.0 -sum analytics/go.sum total-recall-analytics-v1.11.0-darwin-arm64.cdx.json
+```
+
+Das Modul `analytics` bindet `total-recall` über eine `replace`-Direktive auf das Verzeichnis darüber ein (`replace github.com/seletz/total-recall => ../`). cyclonedx-gomod führt so ein Modul als Komponente `../` ohne Version und Hash; `tools/sbom` entfernt sie, weil es Quellcode desselben Commits wie die Hauptkomponente ist. DuckDB und seine Erweiterungen sind keine Go-Module und stehen deshalb nicht in der SBOM; Version und Commits stehen in `analytics/duckdb/duckdb.lock` und `extensions.cmake` des getaggten Commits, und `total-recall-analytics version` zeigt sie.
+
+**Neue DuckDB-Version:** Renovate fasst `github.com/duckdb/duckdb-go/v2` und die Bindings zu einem Pull Request zusammen. Darin müssen `analytics/duckdb/duckdb.lock` (Version und Commit aus `duckdb-release.json` der Bindings) und der Commit von `sqlite_scanner` in `extensions.cmake` (aus `.github/config/extensions/sqlite_scanner.cmake` von DuckDB) nachgezogen werden; bis dahin schlägt `TestLinkedDuckDBMatchesLock` fehl.
 
 ## Werkzeuge des Release-Laufs
 

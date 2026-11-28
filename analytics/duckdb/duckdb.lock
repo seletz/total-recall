@@ -1,0 +1,5 @@
+# DuckDB that total-recall-analytics links, built from source with the
+# extensions of extensions.cmake compiled in (scripts/analytics-duckdb.sh).
+# version and commit must be those of github.com/duckdb/duckdb-go-bindings
+# (its duckdb-release.json); a test checks the version against the binary.
+duckdb v2.0.1 8d78114e90a53823803660bf821f6073ac87da8c

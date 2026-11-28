@@ -190,6 +190,15 @@ internal/tui/keys         Katalog der Tasten-Aktionen (Name, Kontext, Default, H
 internal/version          Version via ldflags
 ```
 
+Daneben, als eigenes Go-Modul mit eigenen Build-Regeln: das [Analyse-Tool](../reference/15-analyse.md) `total-recall-analytics` (Epic [#357](https://github.com/seletz/total-recall/issues/357)). Es braucht cgo, weil es DuckDB über `github.com/duckdb/duckdb-go/v2` einbindet; als verschachteltes Modul (`analytics/go.mod`, `replace github.com/seletz/total-recall => ../`) liegt es außerhalb von `./...` des Hauptmoduls, sodass `total-recall` statisch und cgo-frei bleibt, und darf trotzdem die `internal/`-Pakete des Hauptmoduls importieren (etwa `internal/worktime`). Release, Signatur und CI: [Release-Assets](../reference/50-release.md#analyse-tool).
+
+```
+analytics/cmd/total-recall-analytics   CLI (cobra), dünn
+analytics/internal/cli                 Befehle und Ausgabevertrag (--json, Fehlerobjekt) wie bei total-recall
+analytics/internal/duck                DuckDB öffnen (statisch gelinkt, Erweiterungen eingebaut, cgo_<os>_<arch>.go), Archive read-only anhängen; kein Nachladen, kein Netz
+analytics/duckdb                       duckdb.lock (Version, Commit) und extensions.cmake für scripts/analytics-duckdb.sh, das DuckDB aus dem Quellcode baut
+```
+
 Datenfluss: `ingest` fragt den Adapter nach Quelldateien, liest je Datei ab dem gespeicherten Byte-Offset, der Adapter liefert `model.Record`s (Session-Fakten, Events und [Meta-Records](#session_meta); `raw` ist die ganze Zeile, Bild- und Dokumentdaten schon als Anhänge herausgelöst, `internal/blobref`), `redact` maskiert Text und `raw` (nicht die Anhänge), `store` komprimiert `raw` und schreibt in einer Transaktion Events + Meta-Records + Blobs + Session-Upsert + neuen Offset. Daneben, ohne Offsets: das [Projekt-Gedächtnis](#memory), je Projekt die geänderten Dateien, maskiert, als Fassungen.
 
 ## Datenmodell

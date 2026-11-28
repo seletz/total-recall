@@ -279,6 +279,61 @@ func TestFinishLicenses(t *testing.T) {
 	}
 }
 
+// A module built from a local directory (replace => ../, as the analytics
+// module does with total-recall) has no version and no hash; it is source of
+// the same commit as the main component, so Finish folds it into that.
+func TestFinishDropsLocalReplacements(t *testing.T) {
+	for _, local := range []string{"../", "./lib", "/abs/path"} {
+		t.Run(local, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "project-v1.0.0-linux-amd64.cdx.json")
+			bom := fixtureBOM("linux", "amd64")
+			localRef := "pkg:golang/" + local + "@(devel)?type=module"
+			c := fixtureComponent(local, "(devel)", "", "linux", "amd64")
+			c["bom-ref"] = localRef
+			bom["components"] = append(bom["components"].([]any), c)
+			mainRef := bom["metadata"].(map[string]any)["component"].(map[string]any)["bom-ref"].(string)
+			libARef := fixtureComponent(libA, libAVersion, "", "linux", "amd64")["bom-ref"].(string)
+			bom["dependencies"] = []any{
+				map[string]any{"ref": mainRef, "dependsOn": []any{libARef, localRef}},
+				map[string]any{"ref": localRef, "dependsOn": []any{libARef}},
+				map[string]any{"ref": libARef},
+			}
+			writeJSON(t, path, bom)
+
+			if err := Finish(path, "project", "1.0.0"); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), localRef) {
+				t.Errorf("local module %s still referenced:\n%s", local, data)
+			}
+			var got struct {
+				Components   []map[string]any `json:"components"`
+				Dependencies []struct {
+					Ref       string   `json:"ref"`
+					DependsOn []string `json:"dependsOn"`
+				} `json:"dependencies"`
+			}
+			if err := json.Unmarshal(data, &got); err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Components) != 3 {
+				t.Errorf("components = %d, want 3", len(got.Components))
+			}
+			if len(got.Dependencies) != 2 || fmt.Sprint(got.Dependencies[0].DependsOn) != "["+libARef+"]" {
+				t.Errorf("dependencies = %+v", got.Dependencies)
+			}
+			if _, err := CheckFile(path, expect(), mustGoSum(t)); err != nil {
+				t.Errorf("CheckFile after Finish: %v", err)
+			}
+		})
+	}
+}
+
 func TestFinishErrors(t *testing.T) {
 	dir := t.TempDir()
 	tests := []struct {
@@ -391,6 +446,9 @@ func TestCheckFileBad(t *testing.T) {
 		{"module without hash", "", func(b map[string]any) { delete(b["components"].([]any)[1].(map[string]any), "hashes") }, "hash"},
 		{"module purl platform", "", setComponent(1, "purl", purl(libB, libBVersion, "linux", "amd64")), "purl"},
 		{"std missing", "", func(b map[string]any) { b["components"] = b["components"].([]any)[:2] }, "std"},
+		{"local replacement left", "", func(b map[string]any) {
+			b["components"] = append(b["components"].([]any), fixtureComponent("../", "(devel)", "", "darwin", "arm64"))
+		}, "local"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
