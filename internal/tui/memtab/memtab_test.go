@@ -41,8 +41,10 @@ func TestListsProjectsWithMemory(t *testing.T) {
 		}
 	}
 	for i := 1; i < len(m.rows); i++ {
-		if m.rows[i-1].Name > m.rows[i].Name {
-			t.Errorf("rows not sorted by name: %q before %q", m.rows[i-1].Name, m.rows[i].Name)
+		// Rows of an unknown directory (named by their key) come last.
+		a, b := m.rows[i-1], m.rows[i]
+		if au, bu := a.PathSource == "unknown", b.PathSource == "unknown"; au && !bu || au == bu && a.Name > b.Name {
+			t.Errorf("rows not sorted by name, unknown last: %q before %q", a.Name, b.Name)
 		}
 	}
 }

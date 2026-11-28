@@ -80,7 +80,7 @@ func TestRenderAll(t *testing.T) {
 		"memory":                   {"› memory", "kompass  memory  claude", "▸ release-process.md", "✗ old-notes.md", "deleted", "3 files, 1 deleted", "goreleaser"},
 		"search-type-click":        {"[u input]", "e event", "ctrl+click adds a type"},
 		"search-type-click-add":    {"[u input]", "[g answer]", "e event"},
-		"memory-tab":               {"[5 memory]", "projects with memory", "▸ fahrtenbuch", "kompass", "wetterwarte", "1 file ", "3 files, 1 deleted", "/home/mara/src/kompass__worktrees/gpx", "4 projects, 7 files, 14 versions (1 without files)", "enter open memory"},
+		"memory-tab":               {"[5 memory]", "projects with memory", "▸ fahrtenbuch", "kompass", "wetterwarte", "1 file ", "3 files, 1 deleted", "/home/mara/src/kompass__worktrees/gpx", "(path unknown)", "-home-mara-src-archiv-a", "5 projects, 8 files, 15 versions (1 without files)", "enter open memory"},
 		"memory-tab-viewer":        {"[5 memory] › kompass", "kompass  memory  claude", "▸ MEMORY.md", "✗ old-notes.md"},
 		"session-memory":           {"› memory", "kompass  memory  claude", "▸ MEMORY.md"},
 		"memory-history":           {"› memory", "history of release-process.md", "version 2 of 3", "now", "2026-10-24 09:50"},

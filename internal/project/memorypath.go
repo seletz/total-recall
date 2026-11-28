@@ -57,7 +57,7 @@ func MemoryPathIn(p store.MemoryProject, home string, read DirReader) (path, sou
 func encodeSegment(s string) string {
 	b := []byte(s)
 	for i, c := range b {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
 			b[i] = '-'
 		}
 	}

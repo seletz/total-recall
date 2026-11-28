@@ -155,6 +155,14 @@ func (m Model) load() tea.Cmd {
 			rows = append(rows, Row{MemoryProject: p, Name: name, Path: path, PathSource: src})
 		}
 		slices.SortStableFunc(rows, func(a, b Row) int {
+			// Projects whose directory is unknown (named by their raw key)
+			// come last, so the mark starts on a real project.
+			if ua, ub := a.PathSource == project.PathUnknown, b.PathSource == project.PathUnknown; ua != ub {
+				if ua {
+					return 1
+				}
+				return -1
+			}
 			if c := strings.Compare(a.Name, b.Name); c != 0 {
 				return c
 			}
