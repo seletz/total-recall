@@ -47,7 +47,16 @@ type Row struct {
 	// the repository, else the path decoded from the harness key, with the
 	// home directory as "~". It tells apart projects of the same name.
 	Path string
+	// PathSource says where Path comes from (project.PathCwd, PathGitRoot,
+	// PathKey, PathUnknown); Path is unknownPath for the last, never a
+	// guess.
+	PathSource string
 }
+
+// unknownPath stands in the path column when the directory of a project
+// cannot be told: no session knows it and the key does not decode to one
+// existing directory.
+const unknownPath = "(path unknown)"
 
 type loadedMsg struct {
 	seq  int
@@ -138,9 +147,12 @@ func (m Model) load() tea.Cmd {
 				empty++
 				continue
 			}
-			path := project.MemoryPath(p, o.Home)
-			name := project.MemoryLabel(cat.MemoryProjectName(p.ID), p, path)
-			rows = append(rows, Row{MemoryProject: p, Name: name, Path: path})
+			path, src := project.MemoryPath(p, o.Home)
+			name := project.MemoryLabel(cat.MemoryProjectName(p.ID), p, path, src)
+			if src == project.PathUnknown {
+				path = unknownPath
+			}
+			rows = append(rows, Row{MemoryProject: p, Name: name, Path: path, PathSource: src})
 		}
 		slices.SortStableFunc(rows, func(a, b Row) int {
 			if c := strings.Compare(a.Name, b.Name); c != 0 {

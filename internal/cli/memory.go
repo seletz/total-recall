@@ -20,24 +20,26 @@ import (
 )
 
 // MemoryFileJSON is one file of `memory --json`: the project (display
-// name as in stats --by project; ProjectPath is the readable place of the
+// name as in stats --by project (the key while the path is unknown);
+// ProjectPath is the readable place of the
 // memory directory, as in the TUI tab; the harness's native key, cwd and git
 // root, null while unknown), the path relative to the memory directory
 // and the version valid at --at (now by default). SHA256 is null for a
 // deleted file (--deleted); `blob SHA256` prints the content.
 type MemoryFileJSON struct {
-	Project     string     `json:"project"`
-	ProjectPath string     `json:"project_path"`
-	ProjectKey  string     `json:"project_key"`
-	Harness     string     `json:"harness"`
-	Cwd         NullString `json:"cwd"`
-	GitRoot     NullString `json:"git_root"`
-	Path        string     `json:"path"`
-	SHA256      NullString `json:"sha256"`
-	Bytes       int64      `json:"bytes"`
-	Deleted     bool       `json:"deleted"`
-	Changed     string     `json:"changed"`
-	Versions    int        `json:"versions"`
+	Project           string     `json:"project"`
+	ProjectPath       NullString `json:"project_path"`
+	ProjectPathSource string     `json:"project_path_source"`
+	ProjectKey        string     `json:"project_key"`
+	Harness           string     `json:"harness"`
+	Cwd               NullString `json:"cwd"`
+	GitRoot           NullString `json:"git_root"`
+	Path              string     `json:"path"`
+	SHA256            NullString `json:"sha256"`
+	Bytes             int64      `json:"bytes"`
+	Deleted           bool       `json:"deleted"`
+	Changed           string     `json:"changed"`
+	Versions          int        `json:"versions"`
 }
 
 // MemoryVersionJSON is one version of `memory --history FILE --json`,
@@ -45,16 +47,17 @@ type MemoryFileJSON struct {
 // deletion; ObservedAt the scan that recorded it. SHA256 is null for a
 // deletion.
 type MemoryVersionJSON struct {
-	Project     string     `json:"project"`
-	ProjectPath string     `json:"project_path"`
-	ProjectKey  string     `json:"project_key"`
-	Harness     string     `json:"harness"`
-	Path        string     `json:"path"`
-	TS          string     `json:"ts"`
-	ObservedAt  string     `json:"observed_at"`
-	SHA256      NullString `json:"sha256"`
-	Bytes       int64      `json:"bytes"`
-	Deleted     bool       `json:"deleted"`
+	Project           string     `json:"project"`
+	ProjectPath       NullString `json:"project_path"`
+	ProjectPathSource string     `json:"project_path_source"`
+	ProjectKey        string     `json:"project_key"`
+	Harness           string     `json:"harness"`
+	Path              string     `json:"path"`
+	TS                string     `json:"ts"`
+	ObservedAt        string     `json:"observed_at"`
+	SHA256            NullString `json:"sha256"`
+	Bytes             int64      `json:"bytes"`
+	Deleted           bool       `json:"deleted"`
 }
 
 // MemoryEventJSON is one change of `memory --timeline --json`, newest
@@ -65,33 +68,35 @@ type MemoryVersionJSON struct {
 // the version it replaces (null unless changed). DeltaBytes is the change
 // in size, so the deltas of a file add up to its size now.
 type MemoryEventJSON struct {
-	Project     string     `json:"project"`
-	ProjectPath string     `json:"project_path"`
-	ProjectKey  string     `json:"project_key"`
-	Harness     string     `json:"harness"`
-	Path        string     `json:"path"`
-	Kind        string     `json:"kind"`
-	TS          string     `json:"ts"`
-	ObservedAt  string     `json:"observed_at"`
-	SHA256      NullString `json:"sha256"`
-	Bytes       int64      `json:"bytes"`
-	PrevTS      NullString `json:"prev_ts"`
-	PrevSHA256  NullString `json:"prev_sha256"`
-	DeltaBytes  int64      `json:"delta_bytes"`
+	Project           string     `json:"project"`
+	ProjectPath       NullString `json:"project_path"`
+	ProjectPathSource string     `json:"project_path_source"`
+	ProjectKey        string     `json:"project_key"`
+	Harness           string     `json:"harness"`
+	Path              string     `json:"path"`
+	Kind              string     `json:"kind"`
+	TS                string     `json:"ts"`
+	ObservedAt        string     `json:"observed_at"`
+	SHA256            NullString `json:"sha256"`
+	Bytes             int64      `json:"bytes"`
+	PrevTS            NullString `json:"prev_ts"`
+	PrevSHA256        NullString `json:"prev_sha256"`
+	DeltaBytes        int64      `json:"delta_bytes"`
 }
 
 // MemoryHitJSON is one hit of `memory --grep WORDS --json`: a file whose
 // current content matches, best first, with a snippet; Changed is the
 // time of the current version.
 type MemoryHitJSON struct {
-	Project     string     `json:"project"`
-	ProjectPath string     `json:"project_path"`
-	ProjectKey  string     `json:"project_key"`
-	Harness     string     `json:"harness"`
-	Path        string     `json:"path"`
-	SHA256      NullString `json:"sha256"`
-	Changed     string     `json:"changed"`
-	Snippet     NullString `json:"snippet"`
+	Project           string     `json:"project"`
+	ProjectPath       NullString `json:"project_path"`
+	ProjectPathSource string     `json:"project_path_source"`
+	ProjectKey        string     `json:"project_key"`
+	Harness           string     `json:"harness"`
+	Path              string     `json:"path"`
+	SHA256            NullString `json:"sha256"`
+	Changed           string     `json:"changed"`
+	Snippet           NullString `json:"snippet"`
 }
 
 // MemoryUseJSON is a memory file that had a blob as content (blob --json).
@@ -108,8 +113,9 @@ type memProject struct {
 	store.MemoryProject
 	Name string
 	// Path is the readable place of the memory directory, the same as in
-	// the memory tab of the TUI (project.MemoryPath).
-	Path string
+	// the memory tab of the TUI (project.MemoryPath); "" while unknown,
+	// PathSource says where it comes from.
+	Path, PathSource string
 }
 
 // memoryProjects loads the memory projects and names them like
@@ -144,7 +150,8 @@ func memoryProjects(ctx context.Context, st *store.Store, cfg *config.Config) ([
 	names := res.Names(keys, dirs, cfg.Home)
 	out := make([]memProject, len(ps))
 	for i, p := range ps {
-		out[i] = memProject{MemoryProject: p, Name: p.Key, Path: project.MemoryPath(p, cfg.Home)}
+		out[i] = memProject{MemoryProject: p, Name: p.Key}
+		out[i].Path, out[i].PathSource = project.MemoryPath(p, cfg.Home)
 		if raw[i] != "" {
 			out[i].Name = names[raw[i]]
 		}
@@ -283,7 +290,7 @@ versioned, redacted, deletions included.
 			out := make([]MemoryHitJSON, 0, len(hits))
 			for _, h := range hits {
 				p := byID[h.ProjectID]
-				out = append(out, MemoryHitJSON{Project: p.Name, ProjectPath: p.Path, ProjectKey: p.Key, Harness: p.Harness, Path: h.Path, SHA256: NullString(h.SHA256),
+				out = append(out, MemoryHitJSON{Project: p.Name, ProjectPath: NullString(p.Path), ProjectPathSource: p.PathSource, ProjectKey: p.Key, Harness: p.Harness, Path: h.Path, SHA256: NullString(h.SHA256),
 					Changed: isoTime(h.Changed), Snippet: NullString(h.Snippet)})
 			}
 			if o.format.IsJSON() {
@@ -306,7 +313,7 @@ versioned, redacted, deletions included.
 		out := make([]MemoryFileJSON, 0, len(files))
 		for _, f := range files {
 			p := byID[f.ProjectID]
-			out = append(out, MemoryFileJSON{Project: p.Name, ProjectPath: p.Path, ProjectKey: p.Key, Harness: p.Harness, Cwd: NullString(p.Cwd), GitRoot: NullString(p.GitRoot),
+			out = append(out, MemoryFileJSON{Project: p.Name, ProjectPath: NullString(p.Path), ProjectPathSource: p.PathSource, ProjectKey: p.Key, Harness: p.Harness, Cwd: NullString(p.Cwd), GitRoot: NullString(p.GitRoot),
 				Path: f.Path, SHA256: NullString(f.SHA256), Bytes: f.Bytes, Deleted: f.Deleted, Changed: isoTime(f.Changed), Versions: f.Versions})
 		}
 		// By project name (the store orders by ID), then path.
@@ -321,7 +328,7 @@ versioned, redacted, deletions included.
 				size = "deleted"
 			}
 			changed, _ := time.Parse(store.TimeFormat, f.Changed)
-			rows = append(rows, []string{o.cell(f.Project, 24), o.cell(f.ProjectPath, 40), f.Path, localTime(changed, loc), size, strconv.Itoa(f.Versions)})
+			rows = append(rows, []string{o.cell(f.Project, 24), o.cell(pathCell(f.ProjectPath), 40), f.Path, localTime(changed, loc), size, strconv.Itoa(f.Versions)})
 		}
 		if len(rows) == 0 {
 			_, _ = fmt.Fprintln(e.app.Stderr, "no memory files")
@@ -377,7 +384,7 @@ func (e *env) memoryHistory(ctx context.Context, o *output, st *store.Store, ps 
 			continue
 		}
 		kept = append(kept, v)
-		out = append(out, MemoryVersionJSON{Project: p.Name, ProjectPath: p.Path, ProjectKey: p.Key, Harness: p.Harness, Path: file, TS: isoTime(v.TS), ObservedAt: isoTime(v.Observed),
+		out = append(out, MemoryVersionJSON{Project: p.Name, ProjectPath: NullString(p.Path), ProjectPathSource: p.PathSource, ProjectKey: p.Key, Harness: p.Harness, Path: file, TS: isoTime(v.TS), ObservedAt: isoTime(v.Observed),
 			SHA256: NullString(v.SHA256), Bytes: v.Bytes, Deleted: v.Deleted})
 	}
 	if o.format.IsJSON() {
@@ -442,7 +449,7 @@ func (e *env) memoryTimeline(ctx context.Context, o *output, st *store.Store, ps
 	out := make([]MemoryEventJSON, 0, len(items))
 	for _, it := range items {
 		v := it.ev.Version
-		j := MemoryEventJSON{Project: it.p.Name, ProjectPath: it.p.Path, ProjectKey: it.p.Key, Harness: it.p.Harness, Path: it.ev.Path, Kind: it.ev.Kind.String(),
+		j := MemoryEventJSON{Project: it.p.Name, ProjectPath: NullString(it.p.Path), ProjectPathSource: it.p.PathSource, ProjectKey: it.p.Key, Harness: it.p.Harness, Path: it.ev.Path, Kind: it.ev.Kind.String(),
 			TS: isoTime(v.TS), ObservedAt: isoTime(v.Observed), SHA256: NullString(v.SHA256), Bytes: v.Bytes, DeltaBytes: it.ev.Delta}
 		if it.ev.Kind == memview.Changed {
 			j.PrevTS, j.PrevSHA256 = NullString(isoTime(it.ev.Prev)), NullString(it.ev.PrevSHA)
@@ -462,4 +469,14 @@ func (e *env) memoryTimeline(ctx context.Context, o *output, st *store.Store, ps
 		rows[i] = []string{localTime(items[i].ev.Version.TS, loc), j.Kind, o.cell(j.Project, 40), j.Path, d}
 	}
 	return o.table([]string{"CHANGED", "KIND", "PROJECT", "FILE", "BYTES"}, rows)
+}
+
+// pathCell is the path column of the table: the path, or a note while it
+// is unknown (no session knows it and the key does not decode to one
+// existing directory).
+func pathCell(p NullString) string {
+	if p == "" {
+		return "(path unknown)"
+	}
+	return string(p)
 }
