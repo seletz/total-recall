@@ -46,7 +46,9 @@ Gerechnet wird über **alle Quellen zusammen**, nicht je Host: Eine Lücke gehö
                              |
  Marts:  mart_daily · mart_project_week · mart_tool_month · mart_session_month · mart_tokens_day · mart_weekhour
                              |
- Views (Vertrag): analytics_{sessions,events,daily,project_week,tool_month,session_month,tokens_day,weekhour,time_slot}_v1
+ Arbeitszeit:  fact_work_slice (Tag × Kategorie × Session) · fact_work_day (Tag × Kategorie, gerundet)
+                             |
+ Views (Vertrag): analytics_{sessions,events,daily,project_week,tool_month,session_month,tokens_day,weekhour,time_slot,worktime,worktime_day}_v1
 ```
 
 - **Gemeinsame Dimensionen:** Beide Fakten teilen sich die Dimensionen, deshalb lassen sich Session- und Event-Kennzahlen nach denselben Merkmalen schneiden (Host, Projekt, Modell, Konto …).
@@ -72,6 +74,24 @@ Ein Lauf lädt ein Archiv (eine *Quelle*) in einer Transaktion:
 Jede Quelle hat ihren eigenen Wasserstand, weil `seq` je Archiv zählt; mehrere Hosts laden in eine Datenbank. Ein vollständiger Lauf ersetzt nur die Fakten seiner Quelle. Der Wasserstand merkt sich auch die ID des Archivs (`archive_id` aus `archive_meta`, ab Schema v11 von total-recall): Lädt ein Archiv, das schon unter einem anderen Quellnamen geladen war (umbenannter Host), ersetzt es diese Quelle; hat eine Quelle plötzlich ein anderes Archiv (neu aufgesetzter Rechner, `seq` beginnt von vorn), lädt der Lauf sie ganz. So zählt kein Archiv doppelt, und kein Wasserstand gilt für ein fremdes Archiv. Welche Kopien eines Pools zählen, entscheidet `pool.Select` vorher ([Pool](../reference/15-analyse.md#pool)). Was ein inkrementeller Lauf nicht sieht: Änderungen an Sessions ohne neue Events und ein `reindex --actors`; dafür gibt es den vollständigen Lauf.
 
 Geprüft an einer Kopie des Demo-Archivs (936 Sessions, 21 942 Events): Ein zweiter Lauf ohne neue Events lädt nichts und ändert nichts; ein Archiv, das zwischen zwei Läufen wächst, endet genau dort, wo ein vollständiger Lauf endet; aufgeteilt auf zwei Hosts (207 und 729 Sessions) ergeben beide zusammen dasselbe wie das ganze Archiv.
+
+## Pool und Herkunft { #pool }
+
+Die Archive mehrerer Rechner kommen über ein [Pool-Verzeichnis](../how-to/69-pool-verzeichnis.md): Jeder Rechner legt mit `total-recall backup` seine neueste Kopie unter `<pool>/<host>/` ab, `build --pool` lädt sie. Kein Dienst, kein Netzprotokoll, nur Dateien; ein Rechner muss nicht erreichbar sein, wenn ausgewertet wird, es zählt sein letzter Stand.
+
+**Herkunft je Archiv, nicht je Session.** Ein Archiv gehört genau einem Rechner. Es trägt seit Schema v11 seine Kennung selbst ([`archive_meta`](../reference/40-schema.md#archive_meta)): eine zufällige ID, die jede Kopie behält, und den Host aus der Konfiguration. Das Analyse-Tool lädt jedes Archiv als eigene Quelle und gibt jedem seiner Events diesen Host (`dim_host`); eine Session gehört so immer zu dem Rechner, auf dem sie lief. Der Ordnername im Pool ist nur der Ort, die Kennung im Archiv entscheidet.
+
+**Jedes Archiv zählt einmal.** Vor dem Laden wählt das Tool die Kopien aus: Kopien desselben Archivs (gleiche ID, etwa nach dem Umbenennen eines Rechners) zählen einmal, die neueste; zwei verschiedene Archive mit demselben Host-Namen werden beide übersprungen, statt unter einem Namen zu verschmelzen; ein Archiv ohne Kennung wird übersprungen, bis es migriert ist. Der Wasserstand je Quelle merkt sich die Archiv-ID (siehe [Laden](#laden)).
+
+## Aufbewahrung
+
+Das Analyse-Tool löscht nichts aus der Analyse-Datenbank: Was einmal geladen ist, bleibt, auch wenn ein Rechner aus dem Pool verschwindet oder sein Archiv neu aufgesetzt wird (dann lädt die Quelle ganz neu). Die Analyse-Datenbank ist eine Ableitung: Sie lässt sich jederzeit löschen und mit `build --pool` aus dem Pool neu bauen; Zahlen von Rechnern, deren Kopie nicht mehr im Pool liegt, fehlen danach. Im Pool liegt je Rechner nur die neueste Kopie, `backup` ersetzt die ältere; die Aufbewahrung der Backups selbst regelt jeder Rechner mit `keep_daily` und `keep_monthly`. Der Cache des Analyse-Tools hält je Rechner eine entpackte Kopie und wird beim nächsten Laden ersetzt.
+
+## Warum DuckDB und ein eigenes Programm
+
+Die Auswertungen sind Gruppierungen über alle Events aller Rechner, über Monate. Das ist die Stärke einer spaltenorientierten Datenbank: DuckDB liest die SQLite-Archive direkt (`sqlite_scanner`), baut das Sternschema in einer Datei und beantwortet die Abfragen der TUI auch bei 2,2 Millionen Events in unter einer Fünftelsekunde ([Leistung](../reference/15-analyse.md#pool)). Ein Dienst wie PostgreSQL wäre für einen Pool aus wenigen Rechnern zu viel Betrieb; das Schema ist so geschrieben, dass es dort trotzdem laufen könnte (gleiche Schlüssel, gleiche SQL-Modelle).
+
+DuckDB ist eine C++-Bibliothek und braucht cgo. `total-recall` selbst bleibt rein in Go, statisch gebaut und ohne C-Abhängigkeit, weil es in jedem Hook läuft und auf jedem Rechner einfach installierbar sein soll. Deshalb ist das Analyse-Tool ein eigenes Programm mit eigener Release-Matrix; es wird nur auf dem Rechner gebraucht, der auswertet. Die Erweiterungen sind in die Binary eingebaut statt nachgeladen: kein Netzzugriff, und die signierte macOS-Binary braucht keine Ausnahme von der Hardened Runtime ([Release](../reference/50-release.md#analyse-tool)).
 
 ## Summe gleich Teile
 

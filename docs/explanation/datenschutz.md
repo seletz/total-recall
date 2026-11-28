@@ -78,6 +78,12 @@ Aufbewahrt werden die letzten 7 Tageskopien und die letzte Kopie jedes Monats.
 
 Beachte: Damit liegen die Backups auch bei Apple. iCloud Drive ist nur Ende-zu-Ende-verschlüsselt, wenn der „Erweiterte Datenschutz“ aktiv ist. Willst du das nicht, setze `backup.dir` auf einen lokalen Ordner.
 
+## Pool und Analyse-Tool { #pool }
+
+Wer mehrere Rechner auswertet, legt ihre Backups in ein [Pool-Verzeichnis](../how-to/69-pool-verzeichnis.md). Die Kopien dort sind **vollständige Archive**, mit allen Nachrichten, Rohzeilen und Anhängen, so wie die Backups selbst. Wer den Pool lesen kann, kann alles lesen, was die Agenten aller Rechner im Archiv haben. Das Pool-Verzeichnis gehört deshalb auf eine Freigabe, die nur du (oder dein Team, wenn alle alles sehen dürfen) lesen kann, nicht in einen öffentlich geteilten Ordner.
+
+Das [Analyse-Tool](../reference/15-analyse.md) entpackt jede Kopie in einen Cache (Standard `~/.cache/total-recall/pool`, auf macOS `~/Library/Caches/total-recall/pool`); auch dort liegen vollständige Archive. Die Analyse-Datenbank selbst enthält **keinen Text**: keine Nachrichten, Titel, Tool-Argumente, Rohzeilen oder Anhänge, nur IDs, Namen aus der Konfiguration, Modell- und Tool-Namen, Branch, Remote-URL und Pfade mit `~`. Sie lässt sich deshalb eher weitergeben als ein Archiv; Projektnamen, Hostnamen und Arbeitszeiten verrät sie trotzdem.
+
 ## Löschen
 
-Es gibt keinen Löschbefehl. Willst du alles entfernen, lösche die Datenbank, das Log und die Backups. Das gilt auch für das Projekt-Gedächtnis: Eine Datei, die du oder der Agent löschst, bleibt mit allen Fassungen im Archiv. `sql` ist nur lesend und kann nichts löschen.
+Es gibt keinen Löschbefehl. Willst du alles entfernen, lösche die Datenbank, das Log und die Backups, mit Pool auch die Kopie des Rechners im Pool-Verzeichnis (`<pool_dir>/<host>/`), den Cache des Analyse-Tools und die Analyse-Datenbank (`analytics.duckdb`). Das gilt auch für das Projekt-Gedächtnis: Eine Datei, die du oder der Agent löschst, bleibt mit allen Fassungen im Archiv. `sql` ist nur lesend und kann nichts löschen.

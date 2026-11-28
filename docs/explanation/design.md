@@ -428,6 +428,38 @@ Nicht gebaut wurden zwei Signale, die auf dem Archiv nichts beitrugen: der Abgle
 
 Eingelesen: `user`, `assistant`, `system`, `custom-title`, `ai-title`, `agent-name`, `summary`, `session-owner`, `continued-in`. Von den Content-Blöcken einer User-Nachricht werden `text`, `tool_result`, `image` und `document` verarbeitet; `image` und `document` werden zu einem `message`-Event mit Platzhalter (`[image image/png 34,2 KiB]`), ihre Daten zu Anhängen (siehe [`raw`](#raw), [`blobs`](#blobs)), auch innerhalb eines `tool_result`. Bewusst übersprungen (`claude.SkippedRecordTypes`): `api-request`, `api-request-blob`, `last-prompt`, dazu sieben Attachment-Subtypen (`claude.SkippedAttachmentTypes`); der Offset läuft trotzdem weiter. Alle anderen Typen, bekannte (`claude.MetaRecordTypes`: `attachment`, `api-request-shape`, `queue-operation`, `file-history-*`, `pr-link`, `mode`, `permission-mode`, `cost-state`, …) wie unbekannte, werden als [Meta-Records](#session_meta) aufbewahrt; `doctor` meldet Typen, die in keiner der drei Listen stehen. `custom-title`/`ai-title`/`agent-name`/`summary`/`session-owner`/`continued-in` erzeugen kein Event, sondern setzen Felder der Session (`summary` und `ai-title` → `ai_title`, damit ein eigener Titel nie überschrieben wird; `session-owner` → `account_id`, `organization_id`; `continued-in` → `continued_in` als `claude:<continuedInSessionId>`, ohne den Zeitstempel des Records zu übernehmen, denn er stammt vom Zeitpunkt der Fortsetzung und würde `ended_at` verfälschen).
 
+## Analyse über einen Pool { #analyse }
+
+Ab v1.11.0 ([#357](https://github.com/seletz/total-recall/issues/357)) wertet ein eigenes Programm, `total-recall-analytics`, die Archive mehrerer Rechner zusammen aus. Erklärung des Schemas: [Analyse-Schema](analyse-schema.md); Bedienung: [Analyse-Tool](../reference/15-analyse.md), Rezept: [Agenten-Pool auswerten](../how-to/70-pool-auswerten.md).
+
+### Pool { #pool-analyse }
+
+Kein Dienst und kein Netzprotokoll: Jeder Rechner legt mit `backup` und `[backup] pool_dir` seine neueste Kopie unter `<pool>/<host>/` ab ([Pool-Verzeichnis](#pool)), das Analyse-Tool liest sie mit `build --pool` (`internal/pool`: Scan, Open in den Cache mit `immutable=1`, Select). Ein Rechner muss beim Auswerten nicht erreichbar sein; es zählt sein letzter Stand. Ein zentraler Abgleich, bei dem Rechner Sessions laufend an ein zentrales Archiv schicken, ist nicht Teil davon.
+
+### Herkunft { #herkunft }
+
+Die Herkunft hängt am Archiv, nicht an der Session: Ein Archiv gehört genau einem Rechner und trägt seine Kennung selbst ([`archive_meta`](#archive_meta): zufällige `archive_id`, `host` aus der Konfiguration). Das Analyse-Tool lädt jedes Archiv als eigene Quelle mit dem Namen seines Hosts und gibt jedem Event diesen Host (`dim_host`, Spalte `host` der Views). Der Wasserstand je Quelle (`etl_watermark`) merkt sich die `archive_id`: dasselbe Archiv unter neuem Namen ersetzt die alte Quelle, ein neues Archiv unter bekanntem Namen lädt ganz. `pool.Select` zählt jedes Archiv einmal (Kopien derselben ID: die neueste; zwei IDs mit demselben Host: beide übersprungen; ohne Kennung: übersprungen). Der Ordnername im Pool entscheidet nichts. Erst ein zentrales Archiv mit Sessions vieler Rechner bräuchte die Herkunft je Session (`sessions.host` wie im Spike #347).
+
+### Analyse-Views { #analyse-views }
+
+Die einzige Schnittstelle der Analyse-Datenbank sind die Views `analytics_*_v1`; Dimensionen, Fakten und Marts dahinter dürfen sich ändern. Spalten und Typen stehen in `analytics/internal/star/project/contract.txt` und werden nach jedem Lauf geprüft (Abweichung: der Lauf wird verworfen). Spalten kommen nur dazu; ein Bruch ergibt `_v2` neben `_v1`. Kein Text in den Views (keine Nachrichten, Titel, Argumente, Rohzeilen), Zeiten in UTC, lokale Tage in der primären Zone des Laufs.
+
+| View | Korn |
+|---|---|
+| `analytics_sessions_v1` | eine Session |
+| `analytics_events_v1` | ein Event |
+| `analytics_daily_v1` | lokaler Tag × Host × Projekt |
+| `analytics_project_week_v1` | ISO-Woche × Projekt |
+| `analytics_session_month_v1` | lokaler Monat des Session-Beginns × Projekt |
+| `analytics_tool_month_v1` | lokaler Monat × Projekt × Tool |
+| `analytics_tokens_day_v1` | lokaler Tag × Modell |
+| `analytics_weekhour_v1` | Wochentag × Stunde (lokal) |
+| `analytics_time_slot_v1` | Zone × UTC-Viertelstunde |
+| `analytics_worktime_v1` | Arbeitstag × Kategorie × Session (mit Projekt und Host) |
+| `analytics_worktime_day_v1` | Arbeitstag × Kategorie, gerundet |
+
+Die Spalten je View: [Referenz](../reference/15-analyse.md#views-vertrag-v1). Die Befehle `usage`, `tokens`, `worktime` und die TUI (`analytics/internal/report`, `analytics/internal/tui`) lesen nur diese Views; ein Test vergleicht ihre Zahlen mit `total-recall stats --json`.
+
 ## Neue Harness anbinden
 
 Eine Harness bekommt ein Paket `internal/harness/<name>` mit einem Typ, der `harness.Adapter` erfüllt (`Name`, `Sources`, `Parse`), und wird in `internal/ops` (`Adapters`) samt eigenem Config-Abschnitt `[harness.<name>]` eingehängt. Was keine Nachricht ist, aber zur Session gehört, liefert der Adapter als `model.Meta` ([`session_meta`](#session_meta)): ganze Zeile, Typname der Harness, ID oder Inhalts-Hash, große Inhalte als Anhänge; der Store kennt keine Typnamen. Optional erfüllt er `harness.Reclassifier` (`reindex --actors`) und `harness.MemorySource`, wenn die Harness ein Gedächtnis je Projekt außerhalb der Transkripte führt ([Projekt-Gedächtnis](#memory)). `model.Event.Raw` ist die ganze Zeile; trägt die Harness Bilder oder Dokumente als Base64 in ihren Zeilen, nimmt der Adapter sie mit `blobref.Extract` und einer eigenen Regel (welche Felder Daten und Medientyp tragen) heraus und hängt sie als `model.Attachment` an die Events (siehe [`raw`](#raw)). Alles andere (Redaction, Git-Info, Store, Locking, Offsets, Kompression, Blobs) ist gemeinsam.

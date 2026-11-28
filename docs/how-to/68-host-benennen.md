@@ -77,4 +77,4 @@ total-recall tui config
 
 ## Backups
 
-Ein Backup ist eine Kopie des Archivs und trägt Host und ID in sich; der Dateiname bleibt `archive-YYYY-MM-DD.db.zst`. Wie die Backups mehrerer Rechner zentral abgelegt werden, regelt das Pool-Verzeichnis ([#359](https://github.com/seletz/total-recall/issues/359)).
+Ein Backup ist eine Kopie des Archivs und trägt Host und ID in sich; der Dateiname bleibt `archive-YYYY-MM-DD.db.zst`. Wie die Backups mehrerer Rechner zentral abgelegt werden, steht unter [Pool-Verzeichnis einrichten](69-pool-verzeichnis.md).
