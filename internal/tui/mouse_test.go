@@ -209,7 +209,7 @@ func TestMouseFooter(t *testing.T) {
 		return tuitest.Send(t, m, tea.MouseClickMsg{X: x, Y: tuitest.Height - 1, Button: tea.MouseLeft}).(App)
 	}
 	t.Run("global key switches the view", func(t *testing.T) {
-		m := open(t, tuitest.Width, "tab", "2")
+		m := open(t, 140, "tab", "2")
 		m = click(t, m, footerX(t, m, "3 activity"))
 		if m.active != 2 {
 			t.Errorf("active = %d, want activity", m.active)
@@ -276,12 +276,12 @@ func TestMouseFooter(t *testing.T) {
 		// The session footer does not fit in 100 columns: the global keys
 		// after "3 activity" are cut, so a click at the end of the line
 		// does not open the help or quit.
-		m := open(t, tuitest.Width, "enter")
+		m := open(t, 70, "enter")
 		line, _ := m.footer()
 		if f := ansi.Strip(line); !strings.HasSuffix(f, "…") || strings.Contains(f, "q quit") {
 			t.Fatalf("footer should be cut: %q", f)
 		}
-		_, cmd := m.Update(tea.MouseClickMsg{X: tuitest.Width - 1, Y: tuitest.Height - 1, Button: tea.MouseLeft})
+		_, cmd := m.Update(tea.MouseClickMsg{X: 70 - 1, Y: tuitest.Height - 1, Button: tea.MouseLeft})
 		if m2 := tuitest.Run(t, m, cmd).(App); m2.help || !m2.showDetail {
 			t.Errorf("help = %v, detail = %v after a click on the ellipsis", m2.help, m2.showDetail)
 		}
@@ -292,14 +292,14 @@ func TestMouseFooter(t *testing.T) {
 		}
 	})
 	t.Run("between hints is inert", func(t *testing.T) {
-		m := open(t, tuitest.Width, "tab", "2")
+		m := open(t, 140, "tab", "2")
 		m = click(t, m, footerX(t, m, "• 3 activity")+1)
 		if m.active != 1 {
 			t.Errorf("active = %d after a click on the separator", m.active)
 		}
 	})
 	t.Run("right button is ignored", func(t *testing.T) {
-		m := open(t, tuitest.Width, "tab", "2")
+		m := open(t, 140, "tab", "2")
 		m = tuitest.Send(t, m, tea.MouseClickMsg{X: footerX(t, m, "3 activity"), Y: tuitest.Height - 1, Button: tea.MouseRight}).(App)
 		if m.active != 1 {
 			t.Errorf("active = %d after a right click", m.active)

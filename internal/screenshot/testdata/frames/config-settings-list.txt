@@ -33,4 +33,4 @@
  default:  · change: used by the next command or action
  enter edits the marked key, d resets it to the default
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- tab page • ↑/↓ move • enter edit / run • d reset to default • E open config in $EDITOR • 1 search • 2 stats …
+ tab page • ↑/↓ move • enter edit / run • d reset to default • E open config in $EDITOR • 2 stats • ? help • q quit

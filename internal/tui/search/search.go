@@ -139,12 +139,15 @@ const (
 
 // Model is the search view.
 type Model struct {
-	opts    Options
-	keys    KeyMap
-	input   textinput.Model
-	repoIn  textinput.Model
-	focus   focus
-	filters filters
+	opts Options
+	keys KeyMap
+	// typeNote is set after a click on a type: the status line says how to
+	// add a type; the next key press clears it.
+	typeNote bool
+	input    textinput.Model
+	repoIn   textinput.Model
+	focus    focus
+	filters  filters
 	// types are the selected object types (display order), pin the
 	// project the search is restricted to, cat the project catalog (nil
 	// until loaded) and pick the state of the project choice.
@@ -243,6 +246,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampOffset()
 		return m, nil
 	case tea.KeyPressMsg:
+		m.typeNote = false
 		return m.key(msg)
 	case tea.MouseWheelMsg:
 		return m.wheel(msg)
@@ -442,7 +446,7 @@ func (m Model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if msg.Y == 1 {
-		return m.clickTypes(msg.X)
+		return m.clickTypes(msg.X, msg.Mod)
 	}
 	if msg.Y == 2 {
 		return m.clickRule(msg.X)
@@ -711,16 +715,29 @@ func (m Model) toggleTypeAndSearch(t store.HitType) (tea.Model, tea.Cmd) {
 }
 
 // clickTypes handles a click at column x of the type row: the type under
-// the pointer toggles.
-func (m Model) clickTypes(x int) (tea.Model, tea.Cmd) {
+// the pointer becomes the only one selected; with ctrl, shift or alt held
+// it is added to the selection or dropped from it like its key does (#376).
+// After a plain click the status line says how to add.
+func (m Model) clickTypes(x int, mod tea.KeyMod) (tea.Model, tea.Cmd) {
 	if m.focus == focusPick {
 		return m, nil
 	}
 	_, spans := m.typeRow(m.width)
-	if i := zone.At(spans, x); i >= 0 {
-		return m.toggleTypeAndSearch(searchableTypes()[i])
+	i := zone.At(spans, x)
+	if i < 0 {
+		return m, nil
 	}
-	return m, nil
+	t := searchableTypes()[i]
+	if mod&(tea.ModCtrl|tea.ModShift|tea.ModAlt) != 0 {
+		m.typeNote = false
+		return m.toggleTypeAndSearch(t)
+	}
+	m.typeNote = true
+	if len(m.types) == 1 && m.hasType(t) {
+		return m, nil
+	}
+	m.types = []store.HitType{t}
+	return m.refilter()
 }
 
 // clickRule handles a click at column x of the rule row: the project label
@@ -904,6 +921,9 @@ func (m Model) status() string {
 		return "type to search"
 	}
 	ms := fmt.Sprintf(" (%d ms)", m.took.Milliseconds())
+	if m.typeNote {
+		ms += " · ctrl+click adds a type"
+	}
 	if len(m.groups) > 1 {
 		parts := make([]string, len(m.groups))
 		for i, g := range m.groups {

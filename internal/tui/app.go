@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -822,15 +823,25 @@ func (a App) tabsFor(short bool) []string {
 	return tabs
 }
 
-// tabAt returns the index of the tab at column x of the header, -1 between
-// and outside the tabs. It follows the layout of header: the tabs sit at
-// the right edge, one space apart, with a trailing space.
+// tabClickMargin is how far left of the first tab a click still hits it.
+const tabClickMargin = 3
+
+// tabAt returns the index of the tab at column x of the header, -1 left of
+// the tabs. The click targets are wider than the labels (#376): the
+// columns between two tabs go to the nearer one, the first tab also takes
+// tabClickMargin columns on its left and the last one everything up to the
+// right edge. It follows the layout of header: the tabs sit at the right
+// edge, one space apart, with a trailing space.
 func (a App) tabAt(x int) int {
 	tabs := a.tabs()
 	start := a.width - lipgloss.Width(strings.Join(tabs, " ")) - 1
+	if x < start-tabClickMargin {
+		return -1
+	}
 	for i, t := range tabs {
 		end := start + lipgloss.Width(t)
-		if x >= start && x < end {
+		// The gap after this tab is one space; it belongs to this tab.
+		if x <= end || i == len(tabs)-1 {
 			return i
 		}
 		start = end + 1
@@ -866,7 +877,18 @@ func (a App) footer() (string, []hint) {
 		// The view takes every key but ctrl+c, so only that one is global.
 		bindings = append(a.current().ShortHelp(), a.keys.ForceQuit)
 	default:
-		bindings = append(a.current().ShortHelp(), bindings...)
+		view := a.current().ShortHelp()
+		bindings = append(view, bindings...)
+		// The tab keys 1/2/3 are the first to go when the line is too
+		// long: the tabs in the header are clickable, help and quit stay.
+		for _, tab := range []key.Binding{a.keys.Activity, a.keys.Search, a.keys.Stats} {
+			if a.footerWidth(bindings) <= a.width-1 {
+				break
+			}
+			if i := slices.IndexFunc(bindings, func(kb key.Binding) bool { return sameKeys(kb, tab) }); i >= 0 {
+				bindings = slices.Delete(bindings, i, i+1)
+			}
+		}
 	}
 	limit := a.width - 1
 	sep := st.ShortSeparator.Inline(true).Render(footerSeparator)
@@ -900,6 +922,25 @@ func (a App) footer() (string, []hint) {
 		}
 	}
 	return line, hints
+}
+
+// sameKeys reports whether two bindings have the same keys.
+func sameKeys(a, b key.Binding) bool { return slices.Equal(a.Keys(), b.Keys()) }
+
+// footerWidth is the width of the footer line of bindings, without the
+// leading space: the enabled bindings, key and description, separated.
+func (a App) footerWidth(bindings []key.Binding) int {
+	w := 0
+	for _, kb := range bindings {
+		if !kb.Enabled() {
+			continue
+		}
+		if w > 0 {
+			w += lipgloss.Width(footerSeparator)
+		}
+		w += lipgloss.Width(kb.Help().Key) + 1 + lipgloss.Width(kb.Help().Desc)
+	}
+	return w
 }
 
 // hintsOf splits one key hint into its clickable parts between the

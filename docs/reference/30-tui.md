@@ -96,7 +96,7 @@ Die TUI fordert Mausmeldungen vom Terminal an (Cell Motion: Klicks und Rad, kein
 | Maus | Wirkung |
 |---|---|
 | Rad | blättert, was unter dem Zeiger liegt: die Trefferliste (bewegt die Markierung wie ++up++/++down++), die Vorschau, den Verlauf einer Session, die Tage der Aktivität (wie ++up++/++down++ dort: am Rand einen Tag weiter in der Zeit) |
-| Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1` bis `5`; schließt eine offene Session oder den Memory-Viewer |
+| Klick auf einen Tab in der Kopfzeile | wechselt die Ansicht wie `1` bis `5`; schließt eine offene Session oder den Memory-Viewer. Das Klickziel ist breiter als der Name: die Lücke zwischen zwei Tabs gehört dem linken, vor dem ersten Tab zählen drei Spalten, hinter dem letzten der Rest der Zeile |
 | Klick auf einen Tastenhinweis in der Fußzeile | drückt die Taste: `? help` öffnet die Hilfe, `esc back` schließt die Session oder die Hilfe, `q quit` beendet, `T tools` blendet die Tool-Events ein. Bei einem Hinweis mit mehreren Tasten (`d/w/m period`, `↑/↓ scroll`) ist jede Taste einzeln klickbar, die Beschreibung nicht; bei einem Hinweis mit einer Taste der ganze Hinweis. Was die Fußzeile abschneidet (`…`), ist nicht klickbar |
 | Klick außerhalb der Hilfe | schließt sie wie ++esc++; ein Klick in das Fenster tut nichts |
 
@@ -111,9 +111,9 @@ In den Ansichten:
 | Klick auf einen Reiter im Anhang-Viewer | markiert den Anhang wie ++left++/++right++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
 | Klick auf `actor:`, `since:`, `attach:` oder `raw` rechts in der Eingabezeile | schaltet den Filter weiter wie `a`, `t`, `i` bzw. `raw` aus; ein Klick auf `repo:` öffnet die Eingabe wie `r`, siehe [Filter](#filter) |
-| Klick auf die Kacheln `events`, `human` oder `sessions` in der Statistik | wählt die Kennzahl des Charts wie `e`; `agent` und die Kachel der aktiven Perioden tun nichts |
+| Klick auf die Kacheln `events`, `human` oder `sessions` in der Statistik | wählt die Kennzahl des Charts wie `e`; `agent`, `peer`, `automation` und die Kachel der aktiven Perioden tun nichts |
 | Klick auf `heatmap` in der Statistik | blendet die Heatmap ein oder aus wie `h` |
-| Klick auf einen Typ in der Typ-Zeile der Suche (`event`, `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory`) | schaltet den Typ ein oder aus wie seine Taste (`e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m`) |
+| Klick auf einen Typ in der Typ-Zeile der Suche (`event`, `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory`) | wählt **nur diesen Typ** (die Treffer kommen in der Gruppe dieses Typs); ein Klick mit ++ctrl++, ++shift++ oder ++alt++ fügt den Typ zur Auswahl hinzu oder nimmt ihn heraus wie seine Taste (`e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m`). Die Statuszeile nennt es nach dem Klick (`ctrl+click adds a type`) |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
 | Klick auf das `✕` hinter dem Pin | hebt den Pin auf wie `p` |
 | Klick auf `day`, `week`, `month` oder `project`, `agent`, `directory` in der Statistik | wählt die Periode wie `d`/`w`/`m` bzw. die Dimension wie `p`/`a`/`v` |
@@ -164,7 +164,15 @@ Der Default ist `event`; solange nichts umgeschaltet wird, sucht und zeigt die A
 
 *Alle Typen der Typ-Zeile: jeder Umschalter zeigt seine Taste, ausgewählte stehen in Klammern; die Treffer kommen in einer Gruppe je Typ*
 
-**Schritt 2: umschalten.** Mit der Maus: ein Klick auf den Namen schaltet den Typ ein oder aus. Mit der Tastatur: die Taste in der Liste (++tab++ aus der Eingabe, dort wären die Buchstaben Suchtext). Mehrfachauswahl ist möglich, der letzte gewählte Typ bleibt immer stehen. Jede Änderung sucht sofort neu. Die Tasten sind die Aktionen `search_type_event`, `search_type_input`, `search_type_answer`, `search_type_tool_call`, `search_type_tool_result`, `search_type_image`, `search_type_document`, `search_type_file`, `search_type_session` und `search_type_memory`.
+**Schritt 2: umschalten.** Mit der Maus: ein Klick auf den Namen wählt **nur diesen Typ** (wer `input` anklickt, sucht in `input` und nicht mehr in `event`); ein Klick mit ++ctrl++ (oder ++shift++, ++alt++) fügt den Typ hinzu oder nimmt ihn heraus. Nach dem Klick sagt die Statuszeile `ctrl+click adds a type`. Mit der Tastatur schalten die Tasten dagegen immer einzeln um: die Taste in der Liste (++tab++ aus der Eingabe, dort wären die Buchstaben Suchtext). Mehrfachauswahl ist möglich (Tasten, ++ctrl++-Klick), der letzte gewählte Typ bleibt immer stehen. Jede Änderung sucht sofort neu. Die Tasten sind die Aktionen `search_type_event`, `search_type_input`, `search_type_answer`, `search_type_tool_call`, `search_type_tool_result`, `search_type_image`, `search_type_document`, `search_type_file`, `search_type_session` und `search_type_memory`.
+
+![Klick auf `input`: nur dieser Typ ist gewählt, `event` ist aus; die Statuszeile nennt ctrl+Klick zum Hinzufügen](../assets/screenshots/search-type-click.png)
+
+*Klick auf `input` in der Typ-Zeile: nur dieser Typ ist gewählt, die Statuszeile nennt ctrl+Klick zum Hinzufügen*
+
+![ctrl+Klick auf `answer` fügt den Typ hinzu: input und answer sind gewählt, die Treffer kommen in einer Gruppe je Typ](../assets/screenshots/search-type-click-add.png)
+
+*ctrl+Klick auf `answer` fügt den Typ zur Auswahl hinzu*
 
 **Schritt 3: die Zustände.**
 
@@ -322,8 +330,8 @@ Was die TUI kann, ist auf oberster Ebene sichtbar und mit der Maus erreichbar; d
 | Memory | Verlauf, Diff, Basis, Zeitleiste | Element: Datei, Version, Änderung; Fußzeile (`enter`, `d`, `c`, `t`) |
 | Anhänge | Anhang wechseln, öffnen | Element: Reiter der Anhänge; Fußzeile (`←/→`, `o`) |
 | Statistik | Periode, Dimension | Element: Umschalter oben |
-| Statistik | Kennzahl (`e`) | Element: Kacheln `events`, `human`, `sessions`, die gewählte in Akzentfarbe |
-| Statistik | Heatmap (`h`) | Element: `heatmap` in der Umschalterzeile, an in Klammern |
+| Statistik | Kennzahl (`e`) | Element: Kacheln `events`, `human`, `sessions`, die gewählte in Akzentfarbe; Fußzeile `e metric` |
+| Statistik | Heatmap (`h`) | Element: `heatmap` in der Umschalterzeile, an in Klammern; Fußzeile `h heatmap` |
 | Statistik | Zeitfenster, Zoom | Fußzeile: `←/→/-/+ range` |
 | Statistik | Grafikmodus (`g`) | Taste; die Statuszeile nennt den Modus |
 | Aktivität | Fenster, Zählweise, Balken | Element: Umschalter oben |
@@ -336,7 +344,7 @@ Die Funktionen mit **Taste** sind bewusst so: Sie sind Zugriffe, die ein Mensch 
 
 ### Fußzeile { #fusszeile }
 
-Die Fußzeile zeigt **zuerst die Aktionen der Ansicht**, in der Reihenfolge ihrer Wichtigkeit, danach die globalen Tasten (`1 search • 2 stats • 3 activity • ? help • q quit`). Reicht die Breite nicht, fallen zuerst die globalen Tasten weg, und `…` zeigt das an; die Tabs in der Kopfzeile bleiben klickbar. Die Beschreibungen sind kurz gehalten (`T tools`, `y copy id`, `M memory`), damit die Zeile bei 100 Spalten reicht: In der Session stehen bei 100 Spalten `M memory` und `esc back` vor den globalen Tasten. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`.
+Die Fußzeile zeigt **zuerst die Aktionen der Ansicht**, in der Reihenfolge ihrer Wichtigkeit, danach die globalen Tasten (`1 search • 2 stats • 3 activity • ? help • q quit`). Reicht die Breite nicht, fallen zuerst die Tab-Tasten `3 activity`, `1 search` und `2 stats` weg (die Tabs in der Kopfzeile sind klickbar), `? help` und `q quit` bleiben; erst wenn auch das nicht passt, zeigt `…` den abgeschnittenen Rest an. In der Statistik stehen `e metric` und `h heatmap` hinter den Gruppen für Periode, Dimension und Zeitfenster. Die Beschreibungen sind kurz gehalten (`T tools`, `y copy id`, `M memory`), damit die Zeile bei 100 Spalten reicht: In der Session stehen bei 100 Spalten `M memory` und `esc back` vor den globalen Tasten. Hat ein Eingabefeld den Fokus, steht dort nur noch `ctrl+c quit`.
 
 ### Leere Zustände { #leere-zustaende }
 
@@ -469,7 +477,7 @@ Zu jedem Anhang gehört der Kopf (Typ, Größe, Position unter den Anhängen, di
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](20-konfiguration.md#tui).
-- **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
+- **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), danach `peer` und `automation` als eigene Zahlen (Events dieser Actors im Fenster, nur wenn es welche gibt; sie sind **nicht** in `events` enthalten, aber so ist die Summe prüfbar: `events + peer + automation` zusammen mit den Tool- und System-Events ergeben die Events des Archivs im Fenster), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Bei wenig Breite fällt zuerst die Kachel der aktiven Perioden weg, die Zahlen der Summe bleiben. Dasselbe Zählen auf der Kommandozeile: `total-recall sql "select actor, count(*) from events where actor in ('human','agent','peer','automation') and ts >= … and ts < … group by actor"` (Zeitgrenzen des Fensters in UTC); gegen das Demo-Archiv und das Fenster des Screenshots oben ergibt es `agent 1849`, `human 525`, `peer 27`, `automation 7`, genau die Kacheln. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
 - **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`, ebenso ein Klick auf die Kachel `events`, `human` bzw. `sessions`; die gewählte steht in der Akzentfarbe, der Titel über dem Chart nennt sie.
 
 ![Statistik mit der Kennzahl human: die Kachel human ist hervorgehoben, das Chart zählt nur menschliche Events](../assets/screenshots/stats-metric.png)

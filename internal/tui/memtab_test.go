@@ -151,3 +151,48 @@ func TestHeaderFitsEightyColumns(t *testing.T) {
 		}
 	}
 }
+
+// TestTabClickTargets: the click targets of the tab bar are wider than the
+// labels (#376): a click up to three columns beside the tabs, and on the
+// space between two tabs, still hits one of them; far left of the tabs it
+// hits none.
+func TestTabClickTargets(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	app, err := New(Options{Store: st, Now: tuitest.Clock, Location: demo.Location})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, width := range []int{80, 120} {
+		a := app
+		a.width = width
+		tabs := a.tabs()
+		x := width - ansi.StringWidth(strings.Join(tabs, " ")) - 1
+		first := x
+		for i, tab := range tabs {
+			w := ansi.StringWidth(tab)
+			for _, c := range []int{x, x + w - 1} {
+				if got := a.tabAt(c); got != i {
+					t.Errorf("width %d: column %d is on tab %d, got %d", width, c, i, got)
+				}
+			}
+			x += w + 1
+		}
+		for d := 1; d <= 3; d++ {
+			if got := a.tabAt(first - d); got != 0 {
+				t.Errorf("width %d: %d columns left of the first tab hit %d, want 0", width, d, got)
+			}
+		}
+		if got := a.tabAt(width - 1); got != len(tabs)-1 {
+			t.Errorf("width %d: the last column hit %d, want the last tab", width, got)
+		}
+		if got := a.tabAt(first - 4); got != -1 {
+			t.Errorf("width %d: 4 columns left of the first tab hit %d, want none", width, got)
+		}
+		// Every column between the first and the last tab belongs to one.
+		for c := first; c < width; c++ {
+			if a.tabAt(c) < 0 {
+				t.Errorf("width %d: column %d hits no tab", width, c)
+			}
+		}
+	}
+}

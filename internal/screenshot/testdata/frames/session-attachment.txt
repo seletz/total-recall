@@ -33,4 +33,4 @@ picture matches the route again.
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ↑/↓ scroll • n/N next/prev hit • T tools • y copy id • v view attachments • M memory • esc back • 1 search • 2 stats …
+ ↑/↓ scroll • n/N next/prev hit • T tools • y copy id • v view attachments • M memory • esc back • ? help • q quit
