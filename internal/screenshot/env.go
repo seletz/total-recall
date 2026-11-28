@@ -132,7 +132,8 @@ func newHome(home, dbPath string, v int) (*Env, error) {
 	if err := os.WriteFile(paths["binary"], []byte("#!/bin/sh\n"), 0o755); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
-	cfg, err := config.Load(config.Options{GOOS: "linux", Home: home, Getenv: func(string) string { return "" }})
+	cfg, err := config.Load(config.Options{GOOS: "linux", Home: home, Getenv: func(string) string { return "" },
+		Hostname: func() (string, error) { return demo.Host, nil }})
 	if err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}

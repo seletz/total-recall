@@ -28,6 +28,8 @@ type state struct {
 	pages     store.PageStats
 	schema    int
 	latest    int
+	// archive is the identity the archive recorded (ID, host).
+	archive store.Archive
 	// plan is what migrate would do, loaded when a migration is pending.
 	plan store.MigratePlan
 	// raw counts the stored raw lines and their size; not read while a
@@ -117,6 +119,10 @@ func load(opts Options, now time.Time) state {
 		return s
 	}
 	if s.pages, err = opts.Store.PageStats(ctx); err != nil {
+		s.err = err
+		return s
+	}
+	if s.archive, err = opts.Store.Archive(ctx); err != nil {
 		s.err = err
 		return s
 	}

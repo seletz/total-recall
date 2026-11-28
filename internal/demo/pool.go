@@ -38,6 +38,18 @@ type PoolArchive struct {
 	Summary
 }
 
+// PoolArchiveID is the fixed archive ID of the pool archive name (a host
+// of PoolHosts, or "all").
+func PoolArchiveID(name string) string {
+	switch name {
+	case "host-a":
+		return "de00000000000000000000000000b00a"
+	case "host-b":
+		return "de00000000000000000000000000b00b"
+	}
+	return "de00000000000000000000000000b0ff"
+}
+
 // hostOf returns the host of the pool s ran on (see PoolHosts).
 func hostOf(s session) string {
 	if s.num > 0 && (s.cwd == kompassWorktree.cwd || s.cwd == wetterwarte.cwd) {
@@ -87,7 +99,7 @@ func BuildPool(ctx context.Context, dir string) (Pool, error) {
 	if err != nil {
 		return p, err
 	}
-	if _, err := ingestPool(ctx, p.All, projects, filepath.Join(tmp, "locks-all")); err != nil {
+	if _, err := ingestPool(ctx, p.All, "", PoolArchiveID("all"), projects, filepath.Join(tmp, "locks-all")); err != nil {
 		return p, err
 	}
 	for _, h := range PoolHosts {
@@ -96,7 +108,7 @@ func BuildPool(ctx context.Context, dir string) (Pool, error) {
 			return p, err
 		}
 		a := PoolArchive{Host: h, Path: filepath.Join(dir, h+".db")}
-		if a.Summary, err = ingestPool(ctx, a.Path, projects, filepath.Join(tmp, "locks-"+h)); err != nil {
+		if a.Summary, err = ingestPool(ctx, a.Path, h, PoolArchiveID(h), projects, filepath.Join(tmp, "locks-"+h)); err != nil {
 			return p, err
 		}
 		p.Hosts = append(p.Hosts, a)
@@ -106,14 +118,14 @@ func BuildPool(ctx context.Context, dir string) (Pool, error) {
 
 // ingestPool ingests the transcripts below projects into a new archive at
 // path the way Build does, without the project memory and the file
-// history.
-func ingestPool(ctx context.Context, path, projects, locks string) (Summary, error) {
+// history, as the archive id of host ("": none).
+func ingestPool(ctx context.Context, path, host, id, projects, locks string) (Summary, error) {
 	for _, f := range []string{path, path + "-wal", path + "-shm"} {
 		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
 			return Summary{}, fmt.Errorf("demo: %w", err)
 		}
 	}
-	st, err := store.Open(path, store.WithClock(func() time.Time { return Now }))
+	st, err := store.Open(path, store.WithClock(func() time.Time { return Now }), store.WithHost(host))
 	if err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
@@ -143,5 +155,5 @@ func ingestPool(ctx context.Context, path, projects, locks string) (Summary, err
 	if err := st.Close(); err != nil {
 		return Summary{}, fmt.Errorf("demo: %w", err)
 	}
-	return relocate(ctx, path, projects, Projects)
+	return relocate(ctx, path, projects, Projects, id)
 }

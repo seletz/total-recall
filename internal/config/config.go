@@ -89,11 +89,16 @@ type Config struct {
 	// the first/last activity per day (stats --workday, TUI activity):
 	// events before it count for the previous day.
 	DayStart string `toml:"day_start"`
-	Log      string `toml:"log"`
-	Backup   Backup `toml:"backup"`
-	Redact   Redact `toml:"redact"`
-	Ingest   Ingest `toml:"ingest"`
-	Harness  struct {
+	// Host names the host that writes the archive; it is recorded in the
+	// archive (archive_meta) and tells the hosts of a pool apart. Default:
+	// the first label of the machine's host name in lower case (see
+	// HostDefault).
+	Host    string `toml:"host"`
+	Log     string `toml:"log"`
+	Backup  Backup `toml:"backup"`
+	Redact  Redact `toml:"redact"`
+	Ingest  Ingest `toml:"ingest"`
+	Harness struct {
 		Claude Claude `toml:"claude"`
 	} `toml:"harness"`
 	Git Git `toml:"git"`
@@ -518,6 +523,9 @@ type Options struct {
 	Home string
 	// Getenv looks up environment variables; default os.Getenv.
 	Getenv func(string) string
+	// Hostname returns the machine's host name, the source of the default
+	// of host; default os.Hostname.
+	Hostname func() (string, error)
 }
 
 // Entry is one effective value for `config show`.
@@ -535,6 +543,7 @@ var fields = []struct {
 	{"db", func(c *Config) string { return c.DB }},
 	{"timezone", func(c *Config) string { return c.Timezone }},
 	{"day_start", func(c *Config) string { return c.DayStart }},
+	{"host", func(c *Config) string { return c.Host }},
 	{"log", func(c *Config) string { return c.Log }},
 	{"backup.dir", func(c *Config) string { return c.Backup.Dir }},
 	{"backup.keep_daily", func(c *Config) string { return strconv.Itoa(c.Backup.KeepDaily) }},
@@ -790,7 +799,11 @@ func load(opts Options, text []byte) (*Config, error) {
 	}
 	expand := func(p string) string { return ExpandPath(p, opts.Home, opts.Getenv) }
 
+	if opts.Hostname == nil {
+		opts.Hostname = os.Hostname
+	}
 	c := defaults(opts.GOOS, opts.Home, opts.Getenv)
+	c.Host = HostDefault(opts.Hostname)
 	c.Home = opts.Home
 	c.opts = opts
 	c.origins = map[string]Origin{}
@@ -895,6 +908,9 @@ func (c *Config) validate() error {
 		return fmt.Errorf("config: day_start %q: %w", c.DayStart, err)
 	}
 	c.dayStart = d
+	if c.Origin("host") != OriginDefault && !hostPattern.MatchString(c.Host) {
+		return fmt.Errorf("config: host %q: 1 to 63 letters, digits, '.', '_' or '-', starting with a letter or digit", c.Host)
+	}
 	if c.Backup.KeepDaily < 0 {
 		return fmt.Errorf("config: backup.keep_daily must be >= 0")
 	}

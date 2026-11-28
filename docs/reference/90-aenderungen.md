@@ -17,6 +17,25 @@ Meilenstein v1.11.0: ein eigenes Analyse-Tool mit DuckDB für die Archive eines 
 - **Befehle des Analyse-Tools** ([#363](https://github.com/seletz/total-recall/issues/363)): `build` (Analyse-Datenbank aus dem Archiv, inkrementell oder `--full`, Host und Quelle), `status` (Quellen, Wasserstand, Rückstand, letzter Lauf), `check` (Vertrag und Datentests, Exit-Code für CI), `views` (der Vertrag), `query` (nur lesend, ohne Dateizugriff, `table|json|jsonl|csv`), `export` (Parquet oder CSV), dazu die fertigen Auswertungen `usage` (Nutzung je Projekt, Host, Modell, Tool, Konto, Repo über Tag, ISO-Woche, Monat) und `tokens` (mit Cache-Aufteilung). Alle mit `--json` nach dem Ausgabevertrag der CLI; Projekte und Konten heißen wie in `stats`, weil das Tool dieselbe Konfiguration liest. Summe gleich Teile gegen `stats --json` (Test). Siehe [Analyse-Tool](15-analyse.md#befehle).
 - **Arbeitszeit im Analyse-Tool** ([#364](https://github.com/seletz/total-recall/issues/364)): die Fakten `fact_work_slice` (Arbeitstag × Kategorie × Session) und `fact_work_day` (Arbeitstag × Kategorie, gutgeschrieben und gerundet) aus derselben Go-Funktion wie `stats --worktime`, über alle Hosts zusammen gerechnet; die Views `analytics_worktime_v1` und `analytics_worktime_day_v1` und der Befehl `worktime` (`--by category|project|host|none`, `--period`). Summe gleich Teile gegen `stats --worktime --json` (Test). Siehe [worktime](15-analyse.md#worktime) und [Analyse-Schema](../explanation/analyse-schema.md#arbeitszeit).
 - **Demo-Pool** ([#365](https://github.com/seletz/total-recall/issues/365)): `mise run demo:pool` baut aus dem Demo-Archiv einen erfundenen Pool aus zwei Hosts für die Tests und die Doku des Analyse-Tools. Die Archive sind `build/demo-pool/host-a.db` (Notebook) und `host-b.db` (Agenten-Rechner mit dem Worktree von kompass und mit wetterwarte), dazu `all.db` mit beiden Hosts als Vergleich. Anders als das Demo-Archiv tragen die Pool-Archive Tokens (frische Eingabe, Cache schreiben und lesen, Ausgabe) und drei erfundene Modelle. Die Hauptsessions wechseln am 17. August von `demo-large-4` auf `demo-large-5`, die Subagenten laufen auf `demo-small-4`. Ein Test prüft, dass `stats --json` und `stats --tools --json` der beiden Hosts Zahl für Zahl `all.db` ergeben. Das Demo-Archiv selbst und alle Screenshots bleiben unverändert.
+- **Host-Kennung im Archiv** ([#358](https://github.com/seletz/total-recall/issues/358)): Jedes Archiv weiß jetzt, zu welchem Rechner es gehört. Das braucht das Analyse-Tool für die Archive mehrerer Hosts.
+  - **Neuer Schlüssel [`host`](20-konfiguration.md#host):** Default ist der Hostname bis zum ersten Punkt, kleingeschrieben.
+  - **Schema v11, neue Tabelle [`archive_meta`](40-schema.md#archive_meta):** Sie hält eine zufällige `archive_id` und den Host. Jedes Backup trägt beides mit; der Dateiname bleibt.
+  - **[`status`](10-befehle.md#status):** neue Zeile `host`, in JSON die Felder `host`, `archive_host` und `archive_id`.
+  - **TUI:** die Seite Status der Ansicht Config hat dieselbe Zeile, die Seite Settings den Schlüssel.
+  - **Bestätigung von `migrate` in der TUI:** Sie behält bei einem langen Plan die Kopfzeile und kürzt die ältesten Schritte zu `… N more`.
+  - Rezept: [Rechner im Pool benennen](../how-to/68-host-benennen.md).
+
+### Upgrade auf v1.11.0
+
+Schema v11 kommt wie jede Migration nur auf ausdrücklichen Befehl ins Archiv. Bis dahin schreiben die Hooks nichts (eine `WARN`-Zeile im Log), lesende Befehle und die TUI laufen weiter. Die Schritte:
+
+1. `total-recall status`: Die Zeile `schema` sagt `MIGRATION PENDING`, die Zeile `host` `the archive records it after migrate`.
+2. `total-recall backup`: sichern.
+3. `total-recall migrate`: Plan ansehen und bestätigen. Die Migration legt nur `archive_meta` an, dauert Millisekunden und speichert den Host gleich mit.
+4. Optional, vor oder nach dem Migrieren: `total-recall config set host <name>`, wenn der Hostname nicht passt, etwa weil zwei Rechner gleich heißen. Das Archiv übernimmt den Namen beim nächsten Schreiben.
+5. `total-recall status`: `schema v11` ohne Hinweis, `host <name>  archive <ID>`.
+
+Dasselbe in der TUI: Ansicht Config (`4`), Seite actions mit `backup` und `migrate`. Ein `ingest --all --reread` oder `maintenance` ist nicht nötig. Siehe [Installieren, Aktualisieren](../how-to/10-installieren.md#aktualisieren).
 
 ### Geändert
 

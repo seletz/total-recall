@@ -178,12 +178,16 @@ var Shots = []Shot{
 	{Name: "heatmap-compact", Width: CompactWidth, Height: CompactHeight, Start: tui.ViewStats, Now: statsNow, Keys: []string{"h"},
 		Caption: "Statistik mit Heatmap bei 80×24: kompaktes Layout, Tabelle ausgeblendet"},
 	{Name: "config-status", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow,
-		Caption: "Config, Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs"},
-	{Name: "config-settings", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "enter"},
+		Caption: "Config, Seite Status: Archiv, Host, Schema, Zähler, letztes Backup, Fehler des Logs"},
+	{Name: "config-host-edit", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "enter", "backspace", "b"},
+		Caption: "Config, Seite Settings: der Schlüssel host wird in der Eingabezeile auf host-b geändert"},
+	{Name: "config-host-status", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "enter", "backspace", "b", "enter", "shift+tab"},
+		Caption: "Config, Seite Status nach der Änderung: das Archiv nennt bis zum nächsten Schreiben noch host-a"},
+	{Name: "config-settings", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "j", "enter"},
 		Caption: "Config, Seite Settings: das Backup-Verzeichnis wird in der Eingabezeile bearbeitet"},
-	{Name: "config-settings-list", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j"},
+	{Name: "config-settings-list", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j"},
 		Caption: "Config, Seite Settings: alle Schlüssel mit Wert und Herkunft; unter der Linie Hilfetext, erlaubte Werte und Default des markierten Schlüssels"},
-	{Name: "config-settings-invalid", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "j", "j", "j", "enter", "x", "enter"},
+	{Name: "config-settings-invalid", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "x", "enter"},
 		Caption: "Config, Seite Settings: ein abgelehnter Wert (24hx statt einer Dauer); die Datei bleibt unverändert, die Eingabezeile bleibt zum Korrigieren offen"},
 	{Name: "config-projects-delete", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "tab", "x"},
 		Caption: "Config, Seite Projects: x auf einer Definition fragt vor dem Löschen nach"},
@@ -313,7 +317,7 @@ func clickOn(frame, text string, mod tea.KeyMod) (tea.MouseClickMsg, error) {
 }
 
 // keyPress builds the key press for a name: a single character or one of
-// enter, space, tab, shift+tab, esc, right.
+// enter, space, tab, shift+tab, esc, right, backspace.
 func keyPress(name string) tea.KeyPressMsg {
 	switch name {
 	case "enter":
@@ -328,6 +332,8 @@ func keyPress(name string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
 	case "right":
 		return tea.KeyPressMsg{Code: tea.KeyRight}
+	case "backspace":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
 	}
 	r := []rune(name)
 	if len(r) != 1 {

@@ -30,6 +30,9 @@ type App struct {
 	Getenv func(string) string
 	// Home overrides the home directory.
 	Home string
+	// Hostname returns the machine's host name, the default of the config
+	// key host; default os.Hostname.
+	Hostname func() (string, error)
 	// Now is the clock; default time.Now.
 	Now func() time.Time
 	// StartDetached starts this binary with args in a new session, detached
@@ -61,6 +64,9 @@ func (a *App) defaults() {
 	}
 	if a.Now == nil {
 		a.Now = time.Now
+	}
+	if a.Hostname == nil {
+		a.Hostname = os.Hostname
 	}
 	if a.StartDetached == nil {
 		a.StartDetached = startDetached
@@ -189,6 +195,7 @@ func (e *env) loadConfig() (*config.Config, error) {
 		Flags:      config.Flags{DB: e.g.db, BackupDir: e.g.backupDir, Timezone: e.g.tz},
 		Home:       e.app.Home,
 		Getenv:     e.app.Getenv,
+		Hostname:   e.app.Hostname,
 	})
 	return cfg, errKind(ErrKindConfig, err)
 }

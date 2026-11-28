@@ -22,6 +22,12 @@ timezone = "Europe/Berlin"
 # counts for the previous day and is shown as "01:30 (+1)".
 day_start = "04:00"
 
+# Name of this host in a pool of hosts (total-recall-analytics). Recorded in
+# the archive at the next write and carried by every backup, so the backups
+# of several hosts can be told apart. 1 to 63 letters, digits, ".", "_" or
+# "-". Default: the host name up to the first dot, in lower case.
+# host = "host-a"
+
 # Log file for hook errors. Empty = total-recall.log next to the database.
 log = ""
 

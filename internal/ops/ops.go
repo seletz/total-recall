@@ -36,9 +36,10 @@ func LockDir(cfg *config.Config) string { return filepath.Join(filepath.Dir(cfg.
 // lock until Close: while `maintenance` or `migrate` holds the archive, it
 // fails with store.ErrMaintenance. It never migrates: an archive with an
 // older schema is store.ErrSchemaOutdated unless extra has
-// store.AllowOutdated (backup).
+// store.AllowOutdated (backup). It records cfg.Host as the archive's host
+// (store.WithHost).
 func OpenWrite(cfg *config.Config, log *logfile.Logger, extra ...store.Option) (*store.Store, error) {
-	opts := append([]store.Option{store.WithLocation(cfg.Location()),
+	opts := append([]store.Option{store.WithLocation(cfg.Location()), store.WithHost(cfg.Host),
 		store.WithLockDir(LockDir(cfg)),
 		store.WithLogf(func(f string, a ...any) { log.Infof(f, a...) })}, extra...)
 	return store.Open(cfg.DB, opts...)
@@ -121,9 +122,10 @@ func PlanLines(plan store.MigratePlan) []string {
 // Migrate brings the archive of cfg to the schema of this binary as the
 // `migrate` command does: with the maintenance lock, waiting up to wait
 // for running hooks, one line per step to logf and the progress of a long
-// step to progress (both optional).
+// step to progress (both optional). It records cfg.Host as the archive's
+// host.
 func Migrate(ctx context.Context, cfg *config.Config, wait time.Duration, logf func(string, ...any), progress func(store.Progress)) (store.MigrateResult, error) {
-	return store.Migrate(ctx, cfg.DB, store.MigrateOptions{LockDir: LockDir(cfg), Wait: wait, Logf: logf, Progress: progress})
+	return store.Migrate(ctx, cfg.DB, store.MigrateOptions{LockDir: LockDir(cfg), Wait: wait, Logf: logf, Progress: progress, Host: cfg.Host})
 }
 
 // MaintainOptions are the options of store.Maintain for cfg: the

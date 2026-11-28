@@ -632,11 +632,11 @@ Es ist die einzige Ansicht, die schreibt: in die Config-Datei (Settings, Project
 
 ### Status
 
-![Config, Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs](../assets/screenshots/config-status.png)
+![Config, Seite Status: Archiv, Host, Schema, Zähler, letztes Backup, Fehler des Logs](../assets/screenshots/config-status.png)
 
 *Seite Status: Archiv, Schema, Zähler, letztes Backup, Fehler des Logs*
 
-Was [`status`](10-befehle.md#status) ausgibt, als Tabelle: Pfad und Größe des Archivs mit Seitenzahl, Seitengröße (mit Hinweis, solange sie unter 16384 liegt), Schema der Datenbank und der Binary (`v4, binary v5` mit `migration pending: back up, then run migrate (actions)`, wenn die Datenbank hinter der Binary liegt), `raw` (die komprimierte Größe aller Rohzeilen und die Zahl der Events mit und ohne `raw`, siehe [Schema](40-schema.md#raw); bis zur Migration `unknown until the migration ran`; das Kompressionsverhältnis, das `status` aus einer Stichprobe schätzt, fehlt hier), Sessions, Events, Quellen, letztes Einlesen je Harness, letztes Backup, Log- und Config-Datei. Darunter die Probleme der Konfiguration, die nur die TUI und `stats` betreffen (siehe [Prüfung](20-konfiguration.md#pruefung)), und die `ERROR`-Zeilen des Logs der letzten 24 Stunden, neueste zuerst; ältere nur als Zahl (`status --all-errors` zeigt sie). Die Seite lädt mit dem [Neuladen](#neuladen) der TUI nach, nach jeder Aktion sofort.
+Was [`status`](10-befehle.md#status) ausgibt, als Tabelle: Pfad des Archivs, der Host mit der ID des Archivs (`host-a  archive de00000000000000000000000000a001`; rot mit dem Grund, solange das Archiv einen anderen oder noch keinen Host gespeichert hat, siehe [`host`](20-konfiguration.md#host)), Größe mit Seitenzahl, Seitengröße (mit Hinweis, solange sie unter 16384 liegt), Schema der Datenbank und der Binary (`v4, binary v5` mit `migration pending: back up, then run migrate (actions)`, wenn die Datenbank hinter der Binary liegt), `raw` (die komprimierte Größe aller Rohzeilen und die Zahl der Events mit und ohne `raw`, siehe [Schema](40-schema.md#raw); bis zur Migration `unknown until the migration ran`; das Kompressionsverhältnis, das `status` aus einer Stichprobe schätzt, fehlt hier), Sessions, Events, Quellen, letztes Einlesen je Harness, letztes Backup, Log- und Config-Datei. Darunter die Probleme der Konfiguration, die nur die TUI und `stats` betreffen (siehe [Prüfung](20-konfiguration.md#pruefung)), und die `ERROR`-Zeilen des Logs der letzten 24 Stunden, neueste zuerst; ältere nur als Zahl (`status --all-errors` zeigt sie). Die Seite lädt mit dem [Neuladen](#neuladen) der TUI nach, nach jeder Aktion sofort.
 
 ### Settings
 

@@ -18,4 +18,5 @@ Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 - [Agenten anbinden](50-agenten-anbinden.md): den eingebetteten Skill für Claude Code ablegen.
 - [Archiv warten](60-wartung.md): die Datenbankdatei mit größeren Seiten kompakter neu aufbauen, wann und wie.
 - [Einstellungen in der TUI ändern](65-einstellungen-tui.md): Werte der Konfiguration, Wartungsaktionen und die Prüfung der Installation in der Ansicht Config.
+- [Rechner im Pool benennen](68-host-benennen.md): der Host-Name, unter dem das Analyse-Tool die Archive eines Rechners führt, in CLI und TUI.
 - [Projekte definieren](67-projekte-definieren.md): Sessions mit `[[project]]` zu benannten Projekten mit Farbe zusammenfassen, in der Datei oder auf der Seite Projects der TUI; Worktrees, Überschneidungen.
