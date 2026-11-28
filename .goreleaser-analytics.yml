@@ -123,16 +123,19 @@ release:
 
 homebrew_casks:
   - name: total-recall-analytics
-    # Only the darwin run has macOS archives; without the tap token the cask is
-    # not pushed.
-    skip_upload: '{{ if or (ne (index .Env "ANALYTICS_OS") "darwin") (not (index .Env "HOMEBREW_TAP_GITHUB_TOKEN")) }}true{{ else }}false{{ end }}'
+    # The workflow decides whether the cask is pushed (ANALYTICS_SKIP_CASK
+    # "true" or "false"): only the darwin release run has the macOS archives
+    # and the tap token. Snapshots and the linux run set "true".
+    skip_upload: "{{ .Env.ANALYTICS_SKIP_CASK }}"
     binaries:
       - total-recall-analytics
     repository:
       owner: seletz
       name: homebrew-tap
       branch: main
-      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
+      # goreleaser accepts exactly {{ .Env.NAME }} here, nothing else; it is
+      # read only when the cask is pushed.
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

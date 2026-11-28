@@ -70,6 +70,7 @@ jobs:
     runs-on: macos-15
     env:
       ANALYTICS_OS: darwin
+      ANALYTICS_SKIP_CASK: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN == '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -118,6 +119,7 @@ jobs:
     container: golang:1.27.4-bookworm
     env:
       ANALYTICS_OS: linux
+      ANALYTICS_SKIP_CASK: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1

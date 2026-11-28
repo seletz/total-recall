@@ -6,6 +6,16 @@ icon: lucide/history
 
 Was sich je Version geändert hat, aus Sicht der Benutzer. Die vollständige Liste der Commits steht bei jedem [Release auf GitHub](https://github.com/seletz/total-recall/releases); der Abschnitt zur jeweiligen Version dieser Seite bildet dort den Kopf der Release Notes.
 
+## v1.11.1 (unveröffentlicht)
+
+### Behoben
+
+- **Homebrew-Cask `total-recall-analytics` fehlte:** Im Release v1.11.0 brach der Schritt für den Cask ab (`expected {{ .Env.VAR_NAME }} only`), weil goreleaser für das Token des Taps nur eine reine Umgebungsvariable annimmt. Die signierten und notarisierten Programme und die Prüfsummen waren hochgeladen, der Cask im Tap fehlte. Ab v1.11.1 entsteht er wieder; `brew install --cask seletz/tap/total-recall-analytics` funktioniert dann wie beschrieben ([Installieren](../how-to/10-installieren.md#analyse-tool)). Wer v1.11.0 aus den Release-Archiven installiert hat, braucht nichts zu tun.
+
+### Für Entwickler
+
+- In `.goreleaser-analytics.yml` sind `repository.token` und `skip_upload` des Casks jetzt reine Env-Vorlagen (`{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}`, `{{ .Env.ANALYTICS_SKIP_CASK }}`); ob der Cask hochgeladen wird, entscheidet der Workflow über `ANALYTICS_SKIP_CASK` (nur der darwin-Lauf des Releases mit Tap-Token setzt `false`). Ein Test in `scripts/` prüft beides für beide Konfigurationen, weil ein Snapshot den Upload nie erreicht.
+
 ## v1.11.0
 
 Meilenstein v1.11.0: Auswerten über mehrere Rechner. Wer Agenten auf mehreren Rechnern laufen lässt, sieht jetzt, wie sie über alle Rechner genutzt werden: je Projekt, Rechner, Modell und Tool über die Zeit, mit Tokens und Arbeitszeit. Dafür gibt es ein neues, eigenes Programm, `total-recall-analytics`, und in `total-recall` zwei kleine Bausteine: eine Kennung je Archiv und ein gemeinsames Pool-Verzeichnis für die Backups. Wer nur einen Rechner nutzt, braucht nichts davon; die Migration auf Schema v11 ist trotzdem fällig (siehe [Upgrade](#upgrade-auf-v1110)). Der Einstieg: [Agenten-Pool auswerten](../how-to/70-pool-auswerten.md).

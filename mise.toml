@@ -61,7 +61,7 @@ run = ["go vet ./...", "golangci-lint run --build-tags duckdb_use_static_lib ./.
 [tasks."analytics:release:snapshot"]
 description = "Build a snapshot release of total-recall-analytics into dist-analytics/ for this OS (darwin on a Mac), SBOMs checked; nothing published"
 tools = { "github:CycloneDX/cyclonedx-gomod" = "1.12.0" }
-env = { ANALYTICS_OS = "{{ os() | replace(from='macos', to='darwin') }}" }
+env = { ANALYTICS_OS = "{{ os() | replace(from='macos', to='darwin') }}", ANALYTICS_SKIP_CASK = "true" }
 run = [
   "goreleaser release --snapshot --clean --config .goreleaser-analytics.yml",
   "go run ./tools/sbom check -sum analytics/go.sum dist-analytics",
