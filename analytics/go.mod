@@ -4,9 +4,9 @@ go 1.27.4
 
 require (
 	charm.land/bubbles/v2 v2.2.2
-	charm.land/bubbletea/v2 v2.1.3
+	charm.land/bubbletea/v2 v2.2.0
 	charm.land/lipgloss/v2 v2.1.1
-	github.com/charmbracelet/x/ansi v0.11.10
+	github.com/charmbracelet/x/ansi v0.12.0
 	github.com/duckdb/duckdb-go/v2 v2.20001.0
 	github.com/seletz/total-recall v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.10.2
