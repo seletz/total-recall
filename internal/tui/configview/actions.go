@@ -444,7 +444,16 @@ func runBackup(ctx context.Context, env runEnv, log logf) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "backup written: " + filepath.Base(p), nil
+	done := "backup written: " + filepath.Base(p)
+	r, ok, err := ops.PublishPool(env.cfg)
+	if err != nil {
+		return "", fmt.Errorf("%s, but %w", done, err)
+	}
+	if ok {
+		log("pool copy: %s", Model{opts: env.opts}.tilde(r.Path))
+		done += " · pool copy: " + filepath.Join(filepath.Base(filepath.Dir(r.Path)), filepath.Base(r.Path))
+	}
+	return done, nil
 }
 
 // progressInterval is how often a running migration reports its progress.

@@ -449,6 +449,9 @@ type Backup struct {
 	KeepDaily   int      `toml:"keep_daily"`
 	KeepMonthly int      `toml:"keep_monthly"`
 	MinInterval Duration `toml:"min_interval"`
+	// PoolDir is the pool directory: after every backup the newest copy
+	// also goes to <PoolDir>/<host>/ (internal/pool). Empty: off.
+	PoolDir string `toml:"pool_dir"`
 }
 
 // Redact configures secret masking.
@@ -549,6 +552,7 @@ var fields = []struct {
 	{"backup.keep_daily", func(c *Config) string { return strconv.Itoa(c.Backup.KeepDaily) }},
 	{"backup.keep_monthly", func(c *Config) string { return strconv.Itoa(c.Backup.KeepMonthly) }},
 	{"backup.min_interval", func(c *Config) string { return c.Backup.MinInterval.String() }},
+	{"backup.pool_dir", func(c *Config) string { return c.Backup.PoolDir }},
 	{"redact.enabled", func(c *Config) string { return strconv.FormatBool(c.Redact.Enabled) }},
 	{"redact.extra_patterns", func(c *Config) string { return formatList(c.Redact.ExtraPatterns) }},
 	{"redact.allow", func(c *Config) string { return formatList(c.Redact.Allow) }},
@@ -891,7 +895,7 @@ func (c *Config) readFile(expand func(string) string, text []byte) error {
 	for id := range c.Accounts {
 		c.fileKeys["accounts."+id] = struct{}{}
 	}
-	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Harness.Claude.ProjectsDir, &c.AccountRegistry} {
+	for _, p := range []*string{&c.DB, &c.Log, &c.Backup.Dir, &c.Backup.PoolDir, &c.Harness.Claude.ProjectsDir, &c.AccountRegistry} {
 		*p = expand(*p)
 	}
 	return nil

@@ -333,6 +333,7 @@ The archive holds **conversation**, not artifacts (the project memory of the har
 | Command | Use it for |
 |---|---|
 | `total-recall status --json` | DB path, host and archive ID, size, page size, schema version (`migration_pending` when the archive is older than the binary: ingestion is paused until the user migrates), counts, last ingest, last backup, errors of the last 24h (`--all-errors` for all, `--errors N` caps the lines) |
+| `total-recall pool --json [--dir D] [--cache C]` | the pool directory (`[backup] pool_dir`): per host folder the newest backup, unpacked into a cache once and read without writing; what the archive says about itself (host, ID, schema, sessions, events) and `problems` when the copy does not fit (archive names another host, the same archive in two folders, schema before v11) |
 | `total-recall sql --json "SELECT …"` | read-only SQL (`mode=ro`, `PRAGMA query_only`); `--format table\|json\|jsonl\|csv`, `--no-truncate` |
 | `total-recall sessions --json [--since D] [--until D] [--repo R] [--harness H] [--name N] [--account A] [--account-group G] [--project P] [--has-attachment[=image\|document] [--actor A]] [--limit N] [--subagents] [--all-sessions]` | sessions newest first; `--has-attachment` keeps the sessions with an image or a document (the kind goes after `=`; `--actor` says whose event carries it, e.g. `human` for what the user pasted, `tool` for screenshots of tool results) and `attachment_count` counts those attachments; `--name` is a substring of the display name; `--account` is a configured name, an account id or a prefix of it; `--all-sessions` includes sessions without events |
 | `total-recall show SESSION --json [--since D] [--until D] [--limit N] [--offset N] [--from-event ID] [--all]` | conversation of one session; without bounds the whole session; `--from-event` starts at the `event_id` of a search hit; every event lists its `attachments` |
@@ -631,12 +632,39 @@ One object per memory file whose current content matches, best first.
 | `last_backup_state` | `ok` (backup found), `none` (directory read, no backup) or `unknown` (directory cannot be read, e.g. macOS privacy block on ~/Documents: not a sign that backups are missing; `last_backup`/`last_backup_at` then come from the status file next to the database, or are `null`) |
 | `last_backup_reason` | with `unknown`: why, e.g. `no access: operation not permitted`; else `null` |
 | `last_backup_hint` | with `unknown`: what to do about it: the macOS privacy hint (naming the folder) only when the directory is in ~/Documents, ~/Desktop or ~/Downloads and the error is `operation not permitted`, else check the file permissions (any read error but "does not exist" makes the state `unknown`); "the backups are fine" only if the status file shows a backup of the last 48 h; else `null` |
+| `pool_dir` | `[backup] pool_dir`, the pool directory every backup also copies into; `null` without a pool |
+| `pool_copy` | this host's newest copy in the pool (`<pool_dir>/<host>/archive-….db.zst`); `null` without a pool or before the first backup with it |
+| `pool_copy_at` | time of `pool_copy` (UTC), `null` without one |
 | `log` | path of the log file |
 | `errors_window` | age limit of `recent_errors`, `"24h"`; `null` with `--all-errors` |
 | `errors_since` | start of the window (UTC); `null` with `--all-errors` |
 | `recent_errors` | error lines of the window, oldest first, at most `--errors N` (default 5): `at` (UTC, `null` without timestamp), `message`. Lines about transcripts that did not exist yet are never included |
 | `recent_errors_total` | count of errors in the window, including lines beyond the cap |
 | `older_errors` | count of errors before the window (0 with `--all-errors`) |
+
+#### `pool --json`
+
+| field | meaning |
+|---|---|
+| `pool` | the pool directory |
+| `cache` | where the copies are unpacked |
+| `hosts` | one entry per host folder with a backup, by host name, see below |
+
+#### `pool --json hosts[]`
+
+| field | meaning |
+|---|---|
+| `host` | the host folder |
+| `backup` | path of the newest copy in the folder |
+| `backup_at` | when the copy was made (UTC) |
+| `backup_bytes` | size of the copy |
+| `cached` | the unpacked database in the cache |
+| `archive_host` | the host the archive recorded; `null` before schema v11 |
+| `archive_id` | the archive's ID; `null` before schema v11 |
+| `schema_version` | schema of the archive |
+| `sessions` | sessions in the archive |
+| `events` | events in the archive |
+| `problems` | what keeps the copy from counting as this host's archive (archive names another host, the same archive in another folder, no host before schema v11); empty when it fits |
 
 #### `stats --json`
 

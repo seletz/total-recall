@@ -156,7 +156,9 @@ log                   /home/mara/.local/share/total-recall/total-recall.log
 recent errors (last 24h, since 2026-11-27 03:55): none
 ```
 
-**Host.** Die Zeile `host` nennt den konfigurierten Namen dieses Rechners ([`host`](20-konfiguration.md#host)) und die ID des Archivs ([`archive_meta`](40-schema.md#archive_meta)). Beides braucht das [Analyse-Tool](15-analyse.md), um die Archive mehrerer Hosts auseinanderzuhalten. Weicht das Archiv ab, steht der Unterschied dahinter: nach einer Änderung von `host` `archive …, recorded as <alter Name> until the next write`, vor der Migration auf Schema v11 `the archive records it after migrate`. In JSON sind es die Felder `host` (konfiguriert), `archive_host` (im Archiv, `null` solange nichts geschrieben hat) und `archive_id` (`null` vor v11):
+**Host.** Die Zeile `host` nennt den konfigurierten Namen dieses Rechners ([`host`](20-konfiguration.md#host)) und die ID des Archivs ([`archive_meta`](40-schema.md#archive_meta)). Beides braucht das [Analyse-Tool](15-analyse.md), um die Archive mehrerer Hosts auseinanderzuhalten. Weicht das Archiv ab, steht der Unterschied dahinter: nach einer Änderung von `host` `archive …, recorded as <alter Name> until the next write`, vor der Migration auf Schema v11 `the archive records it after migrate`. In JSON sind es die Felder `host` (konfiguriert), `archive_host` (im Archiv, `null` solange nichts geschrieben hat) und `archive_id` (`null` vor v11).
+
+**Pool.** Mit [`[backup] pool_dir`](20-konfiguration.md#pool_dir) zeigt die Zeile `pool` die Kopie dieses Hosts im Pool-Verzeichnis mit ihrem Alter (`pool  /srv/pool/total-recall/host-b/archive-2026-11-28.db.zst  (0s ago)`), vor dem ersten Backup `no copy yet: the next backup writes one`. Ohne Pool fehlt die Zeile. In JSON: `pool_dir`, `pool_copy` und `pool_copy_at`, `null` ohne Pool oder ohne Kopie:
 
 ```json
 {
@@ -164,6 +166,9 @@ recent errors (last 24h, since 2026-11-27 03:55): none
   "host": "host-a",
   "archive_host": "host-a",
   "archive_id": "de00000000000000000000000000a001",
+  "pool_dir": null,
+  "pool_copy": null,
+  "pool_copy_at": null,
   "db_size_bytes": 11190272,
   "page_size": 4096,
   "schema_version": 11,
@@ -1151,6 +1156,50 @@ backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.zst
 |---|---|
 | `--if-older DAUER` | nichts tun, wenn die neueste Kopie jünger ist (Go-Dauer: `24h`, `90m`) |
 | `--detach` | im Hintergrund laufen, sofort mit 0 zurückkehren; Ausgabe und Fehler ins Log |
+
+**Pool.** Mit [`[backup] pool_dir`](20-konfiguration.md#pool_dir) legt `backup` die neueste Kopie danach auch unter `<pool_dir>/<host>/` ab. Die Kopie behält Namen und Zeit und entsteht als Temporärdatei, die erst fertig umbenannt wird; eine ältere Kopie des Hosts dort wird entfernt, so liegt je Host genau eine. Ein übersprungenes Backup legt die Kopie nach, wenn sie im Pool fehlt, sonst sagt es `(unchanged)`. Ohne gültigen [`host`](20-konfiguration.md#host) schreibt `backup` die lokale Kopie und endet mit einem Fehler für die Pool-Kopie. Ausgabe auf zwei Rechnern eines Pools:
+
+```text
+$ total-recall backup        # auf host-a
+backup written: /home/host-a/Documents/total-recall/archive-2026-11-28.db.zst
+pool copy: /srv/pool/total-recall/host-a/archive-2026-11-28.db.zst
+
+$ total-recall backup --if-older 24h        # auf host-b, nach einem backup
+backup skipped: /home/host-b/Documents/total-recall/archive-2026-11-28.db.zst is 0s old (< 24h0m0s)
+pool copy: /srv/pool/total-recall/host-b/archive-2026-11-28.db.zst (unchanged)
+```
+
+## `pool` { #pool }
+
+Zeigt das Pool-Verzeichnis ([`[backup] pool_dir`](20-konfiguration.md#pool_dir) oder `--dir`): je Host-Ordner die neueste Kopie und was das Archiv darin über sich sagt. Jede Kopie wird einmal in einen Cache entpackt (bei der nächsten Abfrage wiederverwendet, solange sie sich nicht ändert) und mit `immutable=1` gelesen. Der Pool wird nie geschrieben, neben der entpackten Kopie entstehen keine `-wal`- oder `-shm`-Dateien. So liest später auch das Analyse-Tool den Pool ([#362](https://github.com/seletz/total-recall/issues/362)).
+
+```sh
+total-recall pool
+total-recall pool --dir /srv/pool/total-recall --json
+```
+
+```text
+HOST    BACKUP                     AGE     SIZE       ARCHIVE HOST  ARCHIVE                           SCHEMA  SESSIONS  EVENTS  NOTE
+host-a  archive-2026-11-28.db.zst  0s ago  1.8 MiB    host-a        de00000000000000000000000000b00a  v11     639       15058   ok
+host-b  archive-2026-11-28.db.zst  0s ago  888.5 KiB  host-b        de00000000000000000000000000b00b  v11     297       6884    ok
+```
+
+`NOTE` nennt, was nicht passt: ein Ordner, dessen Archiv einen anderen Host nennt, dasselbe Archiv (gleiche ID) in zwei Ordnern, ein Archiv vor Schema v11 ohne Kennung. Hier liegt eine Kopie des Archivs von host-b zusätzlich im Ordner host-c:
+
+```text
+HOST    BACKUP                     AGE     SIZE       ARCHIVE HOST  ARCHIVE                           SCHEMA  SESSIONS  EVENTS  NOTE
+host-a  archive-2026-11-28.db.zst  0s ago  1.8 MiB    host-a        de00000000000000000000000000b00a  v11     639       15058   ok
+host-b  archive-2026-11-28.db.zst  0s ago  888.5 KiB  host-b        de00000000000000000000000000b00b  v11     297       6884    same archive as host-c
+host-c  archive-2026-11-28.db.zst  0s ago  888.5 KiB  host-b        de00000000000000000000000000b00b  v11     297       6884    archive names host host-b; same archive as host-b
+```
+
+| Option | Bedeutung |
+|---|---|
+| `--dir DIR` | Pool-Verzeichnis statt `[backup] pool_dir` |
+| `--cache DIR` | wohin entpackt wird; Default `<Cache-Verzeichnis des Benutzers>/total-recall/pool` (Linux `~/.cache/…`, macOS `~/Library/Caches/…`) |
+| `--json` | Objekt mit `pool`, `cache` und `hosts`: je Host `host`, `backup`, `backup_at`, `backup_bytes`, `cached`, `archive_host`, `archive_id`, `schema_version`, `sessions`, `events`, `problems` |
+
+Ohne Pool-Verzeichnis ist `pool` ein `usage`-Fehler. In der TUI gibt es keine eigene Ansicht dafür; die Seite Status der Ansicht Config zeigt in der Zeile `pool` die Kopie dieses Hosts ([Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md#in-der-tui)).
 
 ## `restore` { #restore }
 

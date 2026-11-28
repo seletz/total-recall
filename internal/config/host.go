@@ -23,3 +23,6 @@ func HostDefault(hostname func() (string, error)) string {
 	}
 	return n
 }
+
+// ValidHost reports whether name is a valid host (see the key host).
+func ValidHost(name string) bool { return hostPattern.MatchString(name) }

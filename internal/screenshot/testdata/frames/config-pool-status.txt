@@ -1,0 +1,36 @@
+ total-recall                 updated 10:00:00                   1 search   2 stats   3 activity  [4 config]  5 memory
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ [status] settings projects actions setup                                            ~/.config/total-recall/config.toml
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ archive               ~/.local/share/total-recall/archive.db
+ host                  host-a  archive de00000000000000000000000000a001
+ size                  10.7 MiB  2732 pages, 0 free
+ page size             4096  maintenance rebuilds with 16384 and saves space
+ schema                v11, binary v11
+ raw                   1.7 MiB in 21942 events
+ blobs                 18 blobs, 0.0 MiB  2 files 0.0 MiB
+ meta records          0.0 MiB in 2 records
+ sessions              936
+ events                21942
+ sources               936
+ last ingest (claude)  2026-11-02 10:00  0s ago
+ last backup           ~/Documents/total-recall/archive-2026-11-02.db.zst  7h00m ago
+ pool                  ~/pool/host-a/archive-2026-11-02.db.zst  7h00m ago
+ log                   ~/.local/share/total-recall/total-recall.log
+ config                ~/.config/total-recall/config.toml  loaded
+
+ problems              none
+ errors                none in the last 24h
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab page • 1 search • 2 stats • 3 activity • ? help • q quit

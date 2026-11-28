@@ -709,6 +709,39 @@ func TestStatusBackupUnknown(t *testing.T) {
 	}
 }
 
+// TestStatusPool: with [backup] pool_dir the status page has a row pool
+// with this host's copy there, or says that the next backup writes one.
+func TestStatusPool(t *testing.T) {
+	h := newTestEnv(t, "")
+	pool := filepath.Join(h.home, "pool")
+	if err := os.WriteFile(h.cfg.Path, []byte(strings.Replace(h.file(t), "\n[backup]\n", "\n[backup]\npool_dir = "+quote(pool)+"\n", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.reload(t)
+	f := frame(drive(t, New(h.options(t))))
+	requireRow(t, f, "pool", "~/pool/host-b  no copy yet: the next backup writes one")
+}
+
+// TestBackupActionPool: the backup action of the TUI publishes to the pool
+// like the command, and the status page then shows the copy.
+func TestBackupActionPool(t *testing.T) {
+	h := newTestEnv(t, "")
+	pool := filepath.Join(h.home, "pool")
+	if err := os.WriteFile(h.cfg.Path, []byte(strings.Replace(h.file(t), "\n[backup]\n", "\n[backup]\npool_dir = "+quote(pool)+"\n", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.reload(t)
+	m := drive(t, New(h.options(t)), "tab", "tab", "tab")
+	m = press(t, m, "enter", "y")
+	requireContains(t, frame(m), "backup: backup written: archive-2026-10-20.db.zst · pool copy: host-b/archive-2026-10-20.db.zst",
+		"pool copy: ~/pool/host-b/archive-2026-10-20.db.zst")
+	if _, err := os.Stat(filepath.Join(pool, "host-b", "archive-2026-10-20.db.zst")); err != nil {
+		t.Errorf("no pool copy: %v", err)
+	}
+	m = press(t, m, "shift+tab", "shift+tab", "shift+tab")
+	requireRow(t, frame(m), "pool", "~/pool/host-b/archive-2026-10-20.db.zst")
+}
+
 // TestTrimLog: a running log keeps its newest lines, the details of a
 // confirmation keep their header and their end.
 func TestTrimLog(t *testing.T) {

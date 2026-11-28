@@ -47,6 +47,11 @@ keep_daily = 7
 keep_monthly = 0
 # Minimum age of the last backup for `backup --if-older` when no duration is given.
 min_interval = "24h"
+# Pool directory shared by the hosts of a pool (a network share or a synced
+# folder): every backup also puts the newest copy into <pool_dir>/<host>/ and
+# removes the host's older copy there. total-recall-analytics reads the pool.
+# Empty = off.
+# pool_dir = "/Volumes/pool/total-recall"
 
 [redact]
 # Mask secrets in text and raw JSON before they are stored.

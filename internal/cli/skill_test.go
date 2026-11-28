@@ -245,6 +245,9 @@ func TestSkillJSONFields(t *testing.T) {
 	worktime := []string{"stats", "--json", "--worktime", "--since", "2026-10-05", "--until", "2026-10-07"}
 	blocks := append(slices.Clone(workday), "--blocks")
 	both := append(slices.Clone(blocks), "--projects")
+	poolDir := t.TempDir()
+	e.mustRun(t, "--backup-dir", filepath.Join(poolDir, "host-a"), "backup")
+	poolArgs := []string{"pool", "--dir", poolDir, "--cache", t.TempDir(), "--json"}
 	tests := []struct {
 		key  string
 		args []string
@@ -265,6 +268,8 @@ func TestSkillJSONFields(t *testing.T) {
 		{"search --type memory --json", []string{"search", "sbom", "--type", "memory", "--json"}, "[]", reflect.TypeOf(MemorySearchHitJSON{}), "", nil},
 		{"search --type file --json", []string{"search", "cyclonedx", "--type", "file", "--json"}, "[]", reflect.TypeOf(FileSearchHitJSON{}), "", nil},
 		{"status --json", []string{"status", "--json"}, "", reflect.TypeOf(StatusJSON{}), "", nil},
+		{"pool --json", poolArgs, "", reflect.TypeOf(PoolJSON{}), "", nil},
+		{"pool --json hosts[]", poolArgs, "hosts[]", reflect.TypeOf(PoolHostJSON{}), "", nil},
 		{"memory --json", []string{"memory", "--json"}, "[]", reflect.TypeOf(MemoryFileJSON{}), "", nil},
 		{"memory --history --json", []string{"memory", "--json", "--history", "MEMORY.md"}, "[]", reflect.TypeOf(MemoryVersionJSON{}), "", nil},
 		{"memory --timeline --json", []string{"memory", "--json", "--timeline"}, "[]", reflect.TypeOf(MemoryEventJSON{}), "", nil},

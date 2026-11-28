@@ -181,6 +181,10 @@ var Shots = []Shot{
 		Caption: "Config, Seite Status: Archiv, Host, Schema, Zähler, letztes Backup, Fehler des Logs"},
 	{Name: "config-host-edit", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "enter", "backspace", "b"},
 		Caption: "Config, Seite Settings: der Schlüssel host wird in der Eingabezeile auf host-b geändert"},
+	{Name: "config-pool-edit", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "~", "/", "p", "o", "o", "l"},
+		Caption: "Config, Seite Settings: backup.pool_dir wird in der Eingabezeile auf ~/pool gesetzt"},
+	{Name: "config-pool-status", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "~", "/", "p", "o", "o", "l", "enter", "shift+tab"},
+		Caption: "Config, Seite Status: die Zeile pool zeigt die Kopie dieses Hosts im Pool-Verzeichnis"},
 	{Name: "config-host-status", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "enter", "backspace", "b", "enter", "shift+tab"},
 		Caption: "Config, Seite Status nach der Änderung: das Archiv nennt bis zum nächsten Schreiben noch host-a"},
 	{Name: "config-settings", Width: Width, Height: Height, Start: tui.ViewConfig, Now: searchNow, Keys: []string{"tab", "j", "j", "j", "j", "j", "enter"},
@@ -255,6 +259,11 @@ func options(s Shot, env *Env) (tui.Options, error) {
 // run synchronously as they are returned, so every load has landed when
 // the frame is taken.
 func Render(s Shot, env *Env) (Frame, error) {
+	if env != nil {
+		if err := env.Reset(); err != nil {
+			return Frame{}, err
+		}
+	}
 	opts, err := options(s, env)
 	if err != nil {
 		return Frame{}, err

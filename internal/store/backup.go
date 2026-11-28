@@ -514,3 +514,7 @@ func lastBackup(dir string, loc *time.Location, readDir func(string) ([]os.DirEn
 	}
 	return filepath.Join(dir, files[0].name), files[0].at, nil
 }
+
+// IsBackupName reports whether name is the file name of a backup copy
+// (archive-YYYY-MM-DD[-HHMM[-N]].db[.zst|.gz]).
+func IsBackupName(name string) bool { return backupName.MatchString(name) }

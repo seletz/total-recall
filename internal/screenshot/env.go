@@ -32,6 +32,23 @@ type Env struct {
 	// schema version in place of the demo archive; the shot of a pending
 	// migration renders against it. nil in Outdated itself.
 	Outdated *Env
+	// configText is the config file as laid out; Reset writes it back.
+	configText []byte
+}
+
+// Reset restores the config file a shot may have changed (the settings
+// page writes it), so every shot starts from the same home.
+func (e *Env) Reset() error {
+	if e.Config == nil || e.configText == nil {
+		return nil
+	}
+	if err := os.WriteFile(e.Config.Path, e.configText, 0o644); err != nil {
+		return fmt.Errorf("screenshot: %w", err)
+	}
+	if e.Outdated != nil {
+		return e.Outdated.Reset()
+	}
+	return nil
 }
 
 // Version is what the setup page shows as the version of the binary.
@@ -129,6 +146,18 @@ func newHome(home, dbPath string, v int) (*Env, error) {
 	if err := os.Chtimes(paths["backup"], backupAt, backupAt); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
+	// The same copy in a pool directory (~/pool/<host>/), for the shots
+	// that set [backup] pool_dir; the config leaves it unset.
+	poolCopy := filepath.Join(home, "pool", demo.Host, filepath.Base(paths["backup"]))
+	if err := os.MkdirAll(filepath.Dir(poolCopy), 0o755); err != nil {
+		return nil, fmt.Errorf("screenshot: %w", err)
+	}
+	if err := os.WriteFile(poolCopy, []byte("not a real backup"), 0o644); err != nil {
+		return nil, fmt.Errorf("screenshot: %w", err)
+	}
+	if err := os.Chtimes(poolCopy, backupAt, backupAt); err != nil {
+		return nil, fmt.Errorf("screenshot: %w", err)
+	}
 	if err := os.WriteFile(paths["binary"], []byte("#!/bin/sh\n"), 0o755); err != nil {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
@@ -142,7 +171,7 @@ func newHome(home, dbPath string, v int) (*Env, error) {
 		return nil, fmt.Errorf("screenshot: %w", err)
 	}
 	return &Env{
-		Store: st, Home: home, Config: cfg,
+		Store: st, Home: home, Config: cfg, configText: []byte(config.Template + projects),
 		View: configview.Options{
 			Version:      Version,
 			SettingsFile: paths["settings"],

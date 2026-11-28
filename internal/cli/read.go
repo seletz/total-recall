@@ -40,9 +40,14 @@ type StatusJSON struct {
 	// Host is the configured host (config key host); ArchiveHost the host
 	// the archive recorded at its last write (null: none yet), ArchiveID
 	// the archive's own ID (null before schema v11). See store.Archive.
-	Host                string     `json:"host"`
-	ArchiveHost         NullString `json:"archive_host"`
-	ArchiveID           NullString `json:"archive_id"`
+	Host        string     `json:"host"`
+	ArchiveHost NullString `json:"archive_host"`
+	ArchiveID   NullString `json:"archive_id"`
+	// PoolDir is [backup] pool_dir (null: no pool), PoolCopy and
+	// PoolCopyAt this host's newest copy there (null: none yet).
+	PoolDir             NullString `json:"pool_dir"`
+	PoolCopy            NullString `json:"pool_copy"`
+	PoolCopyAt          NullString `json:"pool_copy_at"`
 	DBSizeBytes         int64      `json:"db_size_bytes"`
 	PageSize            int        `json:"page_size"`
 	SchemaVersion       int        `json:"schema_version"`
@@ -263,6 +268,10 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		if err != nil {
 			return err
 		}
+		pc, err := ops.ReadPoolCopy(cfg)
+		if err != nil {
+			return err
+		}
 		// The raw statistics need the columns of v5; on an older archive
 		// the line says so instead of failing the whole status.
 		var rs store.RawStats
@@ -284,7 +293,8 @@ Lines about transcripts that did not exist yet never count as errors.`,
 			}
 		}
 		now, loc := e.app.Now(), cfg.Location()
-		out := StatusJSON{DB: cfg.DB, Host: cfg.Host, ArchiveHost: NullString(arch.Host), ArchiveID: NullString(arch.ID), PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
+		out := StatusJSON{DB: cfg.DB, Host: cfg.Host, ArchiveHost: NullString(arch.Host), ArchiveID: NullString(arch.ID),
+			PoolDir: NullString(cfg.Backup.PoolDir), PoolCopy: NullString(pc.Path), PoolCopyAt: NullString(isoTime(pc.At)), PageSize: ps.PageSize, SchemaVersion: v, BinarySchemaVersion: store.LatestSchemaVersion(), MigrationPending: st.MigrationPending(),
 			Sessions: s.Sessions, Events: s.Events, Sources: s.Sources, LastIngest: map[string]string{},
 			RawRows: rs.Rows, RawBytes: rs.Bytes, RawTruncated: rs.Truncated, RawRatio: rs.Ratio,
 			Blobs: bs.Count, BlobBytes: bs.Bytes, BlobStoredBytes: bs.StoredBytes, BlobKinds: blobKinds(bs), MetaRows: ms.Rows, MetaBytes: ms.Bytes,
@@ -368,6 +378,10 @@ Lines about transcripts that did not exist yet never count as errors.`,
 		}
 		if bk.State == store.BackupUnknown {
 			rows = append(rows, []string{"", "hint: " + bk.Hint})
+		}
+		if pc.Configured {
+			v, _ := ops.PoolCell(cfg, pc, func(t time.Time) string { return "(" + age(now, t) + ")" })
+			rows = append(rows, []string{"pool", v})
 		}
 		rows = append(rows, []string{"log", cfg.LogPath()})
 		if err := o.table(nil, rows); err != nil {
