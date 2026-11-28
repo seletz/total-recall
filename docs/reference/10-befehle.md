@@ -1149,7 +1149,7 @@ total-recall backup --if-older 24h --detach   # aus einem Hook
 ```
 
 ```text
-backup written: /Users/me/Documents/total-recall/archive-2026-11-01.db.zst
+backup written: /home/mara/Documents/total-recall/archive-2026-11-28.db.zst
 ```
 
 | Option | Bedeutung |
@@ -1171,7 +1171,7 @@ pool copy: /srv/pool/total-recall/host-b/archive-2026-11-28.db.zst (unchanged)
 
 ## `pool` { #pool }
 
-Zeigt das Pool-Verzeichnis ([`[backup] pool_dir`](20-konfiguration.md#pool_dir) oder `--dir`): je Host-Ordner die neueste Kopie und was das Archiv darin über sich sagt. Jede Kopie wird einmal in einen Cache entpackt (bei der nächsten Abfrage wiederverwendet, solange sie sich nicht ändert) und mit `immutable=1` gelesen. Der Pool wird nie geschrieben, neben der entpackten Kopie entstehen keine `-wal`- oder `-shm`-Dateien. So liest später auch das Analyse-Tool den Pool ([#362](https://github.com/seletz/total-recall/issues/362)).
+Zeigt das Pool-Verzeichnis ([`[backup] pool_dir`](20-konfiguration.md#pool_dir) oder `--dir`): je Host-Ordner die neueste Kopie und was das Archiv darin über sich sagt. Jede Kopie wird einmal in einen Cache entpackt (bei der nächsten Abfrage wiederverwendet, solange sie sich nicht ändert) und mit `immutable=1` gelesen. Der Pool wird nie geschrieben, neben der entpackten Kopie entstehen keine `-wal`- oder `-shm`-Dateien. Genauso liest das Analyse-Tool den Pool ([`build --pool`](15-analyse.md#pool)).
 
 ```sh
 total-recall pool

@@ -20,4 +20,5 @@ Die Rezepte sind in der Reihenfolge nummeriert, in der man sie braucht:
 - [Einstellungen in der TUI ändern](65-einstellungen-tui.md): Werte der Konfiguration, Wartungsaktionen und die Prüfung der Installation in der Ansicht Config.
 - [Rechner im Pool benennen](68-host-benennen.md): der Host-Name, unter dem das Analyse-Tool die Archive eines Rechners führt, in CLI und TUI.
 - [Pool-Verzeichnis einrichten](69-pool-verzeichnis.md): die Backups mehrerer Rechner für das Analyse-Tool in einem gemeinsamen Ordner, mit `[backup] pool_dir`; prüfen mit `pool`, in CLI und TUI.
+- [Agenten-Pool auswerten](70-pool-auswerten.md): vom ersten Rechner bis zur ersten Auswertung über alle Rechner: Host-Kennung, Pool-Verzeichnis, Analyse-Tool installieren, laden, in CLI und TUI auswerten.
 - [Projekte definieren](67-projekte-definieren.md): Sessions mit `[[project]]` zu benannten Projekten mit Farbe zusammenfassen, in der Datei oder auf der Seite Projects der TUI; Worktrees, Überschneidungen.

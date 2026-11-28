@@ -15,7 +15,7 @@ Typischer Ablauf: [`build`](#build) lädt das Archiv in die Analyse-Datenbank (b
 - **Erweiterungen eingebaut, nichts wird nachgeladen.** `sqlite_scanner` gehört nicht zur fertigen DuckDB-Bibliothek; DuckDB würde sie sonst beim ersten Gebrauch von `extensions.duckdb.org` laden. Das Analyse-Tool linkt stattdessen ein DuckDB, das beim Bauen aus dem Quellcode entsteht (`scripts/analytics-duckdb.sh`), mit `sqlite_scanner`, `parquet`, `json`, `icu` (Zeitzonen) und `core_functions` fest eingebaut. Version und Commit stehen in `analytics/duckdb/duckdb.lock`, die Erweiterungen samt Commit von `sqlite_scanner` in `analytics/duckdb/extensions.cmake`. Dieses DuckDB kann zur Laufzeit keine Erweiterung laden oder installieren: `LOAD` und `INSTALL` enden mit `Permission Error: … this build does not link the loadable_extensions library`. Es gibt also keinen Download, keine Erweiterungsdatei auf der Platte und kein `dlopen`; ein `~/.duckdb` einer DuckDB-CLI spielt keine Rolle. Zusätzlich ist automatisches Installieren und Laden abgeschaltet.
 - **Plattformen:** macOS arm64 und amd64 (signiert und notarisiert, Hardened Runtime ohne Ausnahmen), Linux amd64 (gegen glibc und libstdc++ von Debian 12 gelinkt; Alpine/musl geht nicht).
 - **Ausgabe** wie bei `total-recall`: `--json` gibt ein eingerücktes Dokument mit allen dokumentierten Schlüsseln aus, ein Fehler im JSON-Modus ist ein Objekt `{"error":{"kind":"…","message":"…"}}` auf stdout, die Meldung steht zusätzlich auf stderr, Exit-Code 1. `kind` ist `usage` (Flags, Argumente), `db` (Datenbank oder Archiv nicht zu öffnen), `sql` (DuckDB lehnt eine Abfrage ab) oder `internal`. Siehe [Ausgabevertrag](../explanation/design.md#ausgabevertrag-der-lesebefehle).
-- **Pool:** Die Archive mehrerer Hosts kommen über ein gemeinsames Pool-Verzeichnis, in das `total-recall backup` mit [`[backup] pool_dir`](20-konfiguration.md#pool_dir) die neueste Kopie je Host legt ([Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md)). `total-recall pool` prüft es; das Analyse-Tool liest den Pool ab [#362](https://github.com/seletz/total-recall/issues/362).
+- **Pool:** Die Archive mehrerer Hosts kommen über ein gemeinsames Pool-Verzeichnis, in das `total-recall backup` mit [`[backup] pool_dir`](20-konfiguration.md#pool_dir) die neueste Kopie je Host legt ([Pool-Verzeichnis einrichten](../how-to/69-pool-verzeichnis.md)). `total-recall pool` prüft es, [`build --pool`](#pool) lädt es.
 
 ## Befehle
 
@@ -468,7 +468,7 @@ Beispiel (Linux, Snapshot-Build, in einem Container ohne Netz):
 
 ```console
 $ total-recall-analytics version
-total-recall-analytics  1.9.1-SNAPSHOT-1120ad0
+total-recall-analytics  1.11.0
 DuckDB                  v2.0.1 (8d78114e90, linux_amd64)
 extensions              core_functions, icu, json, parquet, sqlite_scanner (compiled in)
 ```
@@ -476,7 +476,7 @@ extensions              core_functions, icu, json, parquet, sqlite_scanner (comp
 ```console
 $ total-recall-analytics version --json
 {
-  "version": "1.9.1-SNAPSHOT-1120ad0",
+  "version": "1.11.0",
   "duckdb": "v2.0.1",
   "duckdb_source": "8d78114e90",
   "platform": "linux_amd64",
@@ -793,4 +793,6 @@ Mit `day` passt nur ein Teil der Tage ins Fenster (`35 of 181 days`); `←` in d
 | `--host HOST` | nur dieser Host |
 | `--no-mouse` | keine Mausmeldungen vom Terminal anfordern (dann markiert das Terminal Text wie gewohnt) |
 
-Ohne Analyse-Datenbank endet `tui` mit dem Hinweis, erst `build` auszuführen. Die Screenshots entstehen mit `mise run analytics:screenshots` gegen den Demo-Pool; ein Test vergleicht ihren Text mit `analytics/internal/shots/testdata/frames`.
+Ohne Analyse-Datenbank endet `tui` mit dem Hinweis, erst `build` auszuführen.
+
+**Was es nur in der Kommandozeile gibt.** Die TUI zeigt die Auswertungen von `usage`, `tokens` (in Summe von Eingabe und Ausgabe; die Aufteilung des Caches nur in `tokens`) und `worktime`. Laden (`build`), prüfen (`status`, `check`, `views`), eigenes SQL (`query`), `export` und `version` haben kein Gegenstück in der TUI; die Kopfzeile der TUI nennt die Analyse-Datenbank, die Zahl der Rechner und die Zone, also das, was `status` zuerst zeigt. Die Screenshots entstehen mit `mise run analytics:screenshots` gegen den Demo-Pool; ein Test vergleicht ihren Text mit `analytics/internal/shots/testdata/frames`.
