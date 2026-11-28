@@ -1,0 +1,36 @@
+# dbt project over the same model files (dbt-duckdb). total-recall-analytics
+# does not use dbt: its runner (runner.go) builds these models itself and
+# rejects dbt syntax outside the subset (config, ref, source, var). This file
+# lets dbt build them too, e.g. for lineage and generated docs:
+#
+#   dbt seed && dbt run --vars "$VARS" && dbt test --vars "$VARS"
+#
+# with a profile that attaches an archive as "src" (profiles.example.yml).
+# The seeds are empty here; total-recall-analytics fills them from the
+# configuration (project and login names).
+name: total_recall_analytics
+version: "1"
+config-version: 2
+profile: total_recall_analytics
+model-paths: [models]
+test-paths: [tests]
+seed-paths: [seeds]
+macro-paths: [dbt_macros]
+
+# The SQL macros of macros.sql, statement by statement (a test checks that
+# both agree).
+on-run-start:
+  - "CREATE OR REPLACE MACRO tr_hex64(h) AS (CAST(('0x' || h)::UBIGINT AS HUGEINT) - CASE WHEN ('0x' || h)::UBIGINT >= 9223372036854775808 THEN CAST(18446744073709551616 AS HUGEINT) ELSE CAST(0 AS HUGEINT) END)::BIGINT"
+  - "CREATE OR REPLACE MACRO tr_key(s) AS CASE WHEN tr_hex64(substr(md5(s), 1, 16)) = 0 THEN 1 ELSE tr_hex64(substr(md5(s), 1, 16)) END"
+  - "CREATE OR REPLACE MACRO tr_tilde(p, home) AS CASE WHEN home = '' OR p = '' THEN p WHEN p = home OR p = rtrim(home, '/') THEN '~' WHEN starts_with(p, rtrim(home, '/') || '/') THEN '~' || substr(p, length(rtrim(home, '/')) + 1) ELSE p END"
+
+seeds:
+  total_recall_analytics:
+    seed_project_name:
+      +column_types: {project_key: BIGINT, project_name: VARCHAR}
+    seed_account_name:
+      +column_types: {account_key: BIGINT, account_name: VARCHAR, account_group: VARCHAR}
+
+models:
+  total_recall_analytics:
+    +incremental_strategy: delete+insert

@@ -9,6 +9,7 @@ Hintergrund, Entwurfsentscheidungen, Begründungen: warum `total-recall` so geba
 
 In diesem Abschnitt:
 
+- [Analyse-Schema](analyse-schema.md): wie das Analyse-Tool die Archive eines Agenten-Pools als Star-Schema aufbereitet: Korn, Schlüssel, Zeitzonen, inkrementelles Laden, Summe gleich Teile, kein Text.
 - [Datenschutz](datenschutz.md): was gespeichert und maskiert wird, wo die Dateien liegen, warum die Datenbank nicht in iCloud liegt.
 - [Design (Spezifikation)](design.md): die verbindliche Spezifikation: Ziele, Architektur, Datenmodell, Actor-Klassifikation, Redaction, Hooks, Schema-Versionierung, CLI.
 - [Einlesen über Hooks](hooks.md): was ein Hook-Lauf liest, warum `--detach`, wie das Nachlesen Lücken auffängt.

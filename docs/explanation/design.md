@@ -196,6 +196,7 @@ Daneben, als eigenes Go-Modul mit eigenen Build-Regeln: das [Analyse-Tool](../re
 analytics/cmd/total-recall-analytics   CLI (cobra), dünn
 analytics/internal/cli                 Befehle und Ausgabevertrag (--json, Fehlerobjekt) wie bei total-recall
 analytics/internal/duck                DuckDB öffnen (statisch gelinkt, Erweiterungen eingebaut, cgo_<os>_<arch>.go), Archive read-only anhängen; kein Nachladen, kein Netz
+analytics/internal/star                Star-Schema: Modelle als SQL-Dateien in dbt-Schreibweise (project/), Runner (config/ref/source/var), ETL je Quelle, Vertrag der Views, Datentests (Erklärung: analyse-schema.md)
 analytics/duckdb                       duckdb.lock (Version, Commit) und extensions.cmake für scripts/analytics-duckdb.sh, das DuckDB aus dem Quellcode baut
 ```
 

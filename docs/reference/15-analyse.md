@@ -6,7 +6,7 @@ icon: lucide/chart-network
 
 `total-recall-analytics` ist ein eigenes Programm neben `total-recall`. Es wertet die Archive eines oder mehrerer Hosts mit [DuckDB](https://duckdb.org/) aus: Es liest die Archive schreibgeschützt, baut daraus eine Analyse-Datenbank (Star-Schema) und beantwortet Fragen über alle Hosts eines Agenten-Pools. Die Archive selbst ändert es nie.
 
-Diese Seite wächst mit dem Meilenstein v1.11.0. Bisher gibt es das Programm selbst mit dem Befehl [`version`](#version); die Befehle zum Bauen und Abfragen der Analyse-Datenbank folgen. Installieren: [Installieren, Analyse-Tool](../how-to/10-installieren.md#analyse-tool).
+Diese Seite wächst mit dem Meilenstein v1.11.0. Bisher gibt es das Programm selbst mit dem Befehl [`version`](#version) und das Schema der Analyse-Datenbank mit seinen [Views](#views-vertrag-v1); die Befehle zum Bauen und Abfragen folgen. Installieren: [Installieren, Analyse-Tool](../how-to/10-installieren.md#analyse-tool).
 
 ## Aufbau
 
@@ -94,6 +94,180 @@ $ total-recall-analytics version --json --bogus
 total-recall-analytics: unknown flag: --bogus
 {"error":{"kind":"usage","message":"unknown flag: --bogus"}}
 ```
+
+## Views (Vertrag v1)
+
+Die Views `analytics_*_v1` sind die einzige Schnittstelle der Analyse-Datenbank für Abfragen, Notebooks und BI-Werkzeuge; die Tabellen dahinter (Dimensionen, Fakten, Marts) können sich ändern. Spalten und Typen stehen in `analytics/internal/star/project/contract.txt` und werden nach jedem Lauf geprüft: Weicht eine View ab, bricht der Lauf ab und die Datenbank bleibt, wie sie war. Spalten kommen nur dazu; ein Bruch ergibt eine View `_v2` neben `_v1`. Zeiten sind UTC (`TIMESTAMP`), lokale Tage und Stunden in der primären Zone des Laufs; andere Zonen über `analytics_time_slot_v1` und `slot_key` (Unix-Sekunden / 900). Warum das Schema so aussieht: [Analyse-Schema](../explanation/analyse-schema.md).
+
+### `analytics_daily_v1`
+
+lokaler Tag × Host × Projekt.
+
+| Spalte | Typ |
+|---|---|
+| `day_local` | `DATE` |
+| `host` | `VARCHAR` |
+| `project` | `VARCHAR` |
+| `sessions` | `BIGINT` |
+| `human_prompts` | `BIGINT` |
+| `agent_events` | `BIGINT` |
+| `tool_calls` | `BIGINT` |
+| `tokens_in` | `BIGINT` |
+| `tokens_out` | `BIGINT` |
+
+### `analytics_events_v1`
+
+eine Zeile je Event (Fakt `fact_event`), lokale Zeit in der primären Zone.
+
+| Spalte | Typ |
+|---|---|
+| `event_id` | `VARCHAR` |
+| `session_id` | `VARCHAR` |
+| `host` | `VARCHAR` |
+| `project` | `VARCHAR` |
+| `repo` | `VARCHAR` |
+| `is_subagent` | `BOOLEAN` |
+| `ts` | `TIMESTAMP` |
+| `day_local` | `DATE` |
+| `hour_local` | `INTEGER` |
+| `weekday_local` | `INTEGER` |
+| `slot_key` | `BIGINT` |
+| `kind` | `VARCHAR` |
+| `role` | `VARCHAR` |
+| `actor` | `VARCHAR` |
+| `input_kind` | `VARCHAR` |
+| `tool_name` | `VARCHAR` |
+| `tool_kind` | `VARCHAR` |
+| `mcp_server` | `VARCHAR` |
+| `model` | `VARCHAR` |
+| `model_family` | `VARCHAR` |
+| `harness` | `VARCHAR` |
+| `account_name` | `VARCHAR` |
+| `account_group` | `VARCHAR` |
+| `tokens_in` | `BIGINT` |
+| `tokens_out` | `BIGINT` |
+| `tokens_cache_read` | `BIGINT` |
+| `tokens_cache_write` | `BIGINT` |
+| `tokens_fresh` | `BIGINT` |
+| `tokens_unsplit` | `BIGINT` |
+
+### `analytics_project_week_v1`
+
+ISO-Woche × Projekt.
+
+| Spalte | Typ |
+|---|---|
+| `iso_year` | `INTEGER` |
+| `iso_week` | `INTEGER` |
+| `project` | `VARCHAR` |
+| `sessions` | `BIGINT` |
+| `active_days` | `BIGINT` |
+| `human_events` | `BIGINT` |
+| `agent_events` | `BIGINT` |
+| `tool_calls` | `BIGINT` |
+| `tokens_in` | `BIGINT` |
+| `tokens_out` | `BIGINT` |
+
+### `analytics_session_month_v1`
+
+lokaler Monat des Session-Beginns × Projekt.
+
+| Spalte | Typ |
+|---|---|
+| `month` | `VARCHAR` |
+| `project` | `VARCHAR` |
+| `sessions` | `BIGINT` |
+| `subagent_sessions` | `BIGINT` |
+| `avg_duration_min` | `DOUBLE` |
+| `total_duration_h` | `DOUBLE` |
+| `human_events` | `BIGINT` |
+| `agent_events` | `BIGINT` |
+| `agent_per_human` | `DOUBLE` |
+| `model_switch_sessions` | `BIGINT` |
+
+### `analytics_sessions_v1`
+
+eine Zeile je Session (Fakt `fact_session`).
+
+| Spalte | Typ |
+|---|---|
+| `session_id` | `VARCHAR` |
+| `host` | `VARCHAR` |
+| `harness` | `VARCHAR` |
+| `harness_version` | `VARCHAR` |
+| `project` | `VARCHAR` |
+| `repo` | `VARCHAR` |
+| `git_branch` | `VARCHAR` |
+| `model` | `VARCHAR` |
+| `account_id` | `VARCHAR` |
+| `account_name` | `VARCHAR` |
+| `account_group` | `VARCHAR` |
+| `parent_id` | `VARCHAR` |
+| `is_subagent` | `BOOLEAN` |
+| `started_at` | `TIMESTAMP` |
+| `ended_at` | `TIMESTAMP` |
+| `duration_s` | `BIGINT` |
+| `events` | `BIGINT` |
+| `human_events` | `BIGINT` |
+| `agent_events` | `BIGINT` |
+| `tool_calls` | `BIGINT` |
+| `distinct_models` | `BIGINT` |
+| `model_switches` | `BIGINT` |
+| `tokens_in` | `BIGINT` |
+| `tokens_out` | `BIGINT` |
+
+### `analytics_time_slot_v1`
+
+die Zeitzonen-Brücke: Zone × UTC-Viertelstunde → lokaler Tag, Stunde, Wochentag.
+
+| Spalte | Typ |
+|---|---|
+| `tz` | `VARCHAR` |
+| `slot_key` | `BIGINT` |
+| `local_date` | `DATE` |
+| `local_hour` | `INTEGER` |
+| `iso_weekday` | `INTEGER` |
+
+### `analytics_tokens_day_v1`
+
+lokaler Tag × Modell, nur Events mit Token-Angaben.
+
+| Spalte | Typ |
+|---|---|
+| `day_local` | `DATE` |
+| `model` | `VARCHAR` |
+| `model_family` | `VARCHAR` |
+| `events` | `BIGINT` |
+| `tokens_in` | `BIGINT` |
+| `tokens_fresh` | `BIGINT` |
+| `tokens_cache_read` | `BIGINT` |
+| `tokens_cache_write` | `BIGINT` |
+| `tokens_unsplit` | `BIGINT` |
+| `tokens_out` | `BIGINT` |
+
+### `analytics_tool_month_v1`
+
+lokaler Monat × Projekt × Tool.
+
+| Spalte | Typ |
+|---|---|
+| `month` | `VARCHAR` |
+| `project` | `VARCHAR` |
+| `tool_name` | `VARCHAR` |
+| `tool_kind` | `VARCHAR` |
+| `mcp_server` | `VARCHAR` |
+| `calls` | `BIGINT` |
+
+### `analytics_weekhour_v1`
+
+Wochentag × Stunde (lokal), human- und agent-Events.
+
+| Spalte | Typ |
+|---|---|
+| `iso_weekday` | `INTEGER` |
+| `local_hour` | `INTEGER` |
+| `human_events` | `BIGINT` |
+| `agent_events` | `BIGINT` |
 
 ## TUI
 
