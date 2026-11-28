@@ -111,7 +111,7 @@ In den Ansichten:
 | Klick auf einen Reiter im Anhang-Viewer | markiert den Anhang wie ++left++/++right++ |
 | Klick auf die Eingabezeile der Suche | gibt der Eingabe den Fokus |
 | Klick auf `actor:`, `since:`, `attach:` oder `raw` rechts in der Eingabezeile | schaltet den Filter weiter wie `a`, `t`, `i` bzw. `raw` aus; ein Klick auf `repo:` öffnet die Eingabe wie `r`, siehe [Filter](#filter) |
-| Klick auf die Kacheln `events`, `human` oder `sessions` in der Statistik | wählt die Kennzahl des Charts wie `e`; `agent`, `peer`, `automation` und die Kachel der aktiven Perioden tun nichts |
+| Klick auf die Kacheln `human+agent`, `human` oder `sessions` in der Statistik | wählt die Kennzahl des Charts wie `e`; `agent`, `peer`, `automation` und die Kachel der aktiven Perioden tun nichts |
 | Klick auf `heatmap` in der Statistik | blendet die Heatmap ein oder aus wie `h` |
 | Klick auf einen Typ in der Typ-Zeile der Suche (`event`, `input`, `answer`, `tool_call`, `tool_result`, `image`, `document`, `file`, `session`, `memory`) | wählt **nur diesen Typ** (die Treffer kommen in der Gruppe dieses Typs); ein Klick mit ++ctrl++, ++shift++ oder ++alt++ fügt den Typ zur Auswahl hinzu oder nimmt ihn heraus wie seine Taste (`e`, `u`, `g`, `c`, `o`, `I`, `D`, `f`, `s`, `m`). Die Statuszeile nennt es nach dem Klick (`ctrl+click adds a type`) |
 | Klick auf `project:` in der Linie der Suche | öffnet die Liste der Projekte wie `P`; ein Klick auf ein Projekt pinnt es |
@@ -137,7 +137,7 @@ Klicks anderswo (Chart, Tabelle und Heatmap der Statistik, die Tage der Aktivit�
 - **Trefferliste** links, zwei Zeilen je Treffer, im Format des Typs (siehe [Typen und Projekt](#typen-und-projekt)). Beim Typ `event`: Zeit (gedämpft), Session-Name und Actor (in seiner Farbe, siehe [Farben](#farben)), darunter der Textausschnitt mit den Suchwörtern gelb, fett und unterstrichen. Sortierung wie `search`: Rang, dann Zeit. Der markierte Treffer trägt `▸`; hat die Liste den Fokus, ist seine Kopfzeile zusätzlich hinterlegt.
 - **Vorschau** rechts, folgt der Markierung (nach 100 ms Ruhe) und zeigt den [Viewer](#viewer) des Treffertyps. Beim Typ `event` und einer Nachricht: der Session-Kopf (Name in der Akzentfarbe, ID und Repo gedämpft, Zeitraum und Branch), dann der Austausch um den Treffer, also die menschliche Nachricht davor und die Antwort des Agenten danach. Die Trennzeilen nennen Zeit und Actor in seiner Farbe, der Treffer-Event ist mit `◄` markiert, die Suchwörter sind hervorgehoben wie in der Liste.
 - **Fokus:** ++tab++ wechselt zwischen Eingabe und Liste, siehe [Fokus](#fokus). In der Liste bewegen ++up++/++down++ und `k`/`j`, ++enter++ öffnet die Session des markierten Treffers (auch direkt aus der Eingabe; bei einer Memory-Datei den Memory-Viewer, bei einem Treffer vom Typ `file` die Session, in der die Datei bearbeitet wurde). Mit der [Maus](#maus): das Rad über der Liste bewegt die Markierung, ein Klick markiert den Treffer, ein zweiter Klick öffnet ihn.
-- **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), mit mehreren Typen die Zahl je Typ (`event 12, session 0, memory 1 (3 ms)`), sonst `type to search`, `searching…` mit einem drehenden Spinner davor, solange die Abfrage läuft, `no hits` oder die Fehlermeldung.
+- **Statuszeile:** Trefferzahl und Dauer der Abfrage (`5 hits (12 ms)`), beim Typ `event` dahinter die Treffer **je Actor** in eckigen Klammern (`10 hits [human 3, agent 6, tool 1] (0 ms)`, mit mehreren Typen `event 10 [human 3, agent 6, tool 1], session 0, memory 1 (0 ms)`); `peer` und `automation` sind kein Typ der Typ-Zeile, aber `event` enthält sie, und so ist die Summe prüfbar: die Zahlen in den Klammern ergeben die Zahl der Treffer (auch über das Limit hinaus, `200 of 315 hits … [human 104, agent 178, peer 32, automation 1]`). Mit mehreren Typen die Zahl je Typ (`event 12, session 0, memory 1 (3 ms)`), sonst `type to search`, `searching…` mit einem drehenden Spinner davor, solange die Abfrage läuft, `no hits` oder die Fehlermeldung.
 
 ### Typen und Projekt { #typen-und-projekt }
 
@@ -173,6 +173,20 @@ Der Default ist `event`; solange nichts umgeschaltet wird, sucht und zeigt die A
 ![ctrl+Klick auf `answer` fügt den Typ hinzu: input und answer sind gewählt, die Treffer kommen in einer Gruppe je Typ](../assets/screenshots/search-type-click-add.png)
 
 *ctrl+Klick auf `answer` fügt den Typ zur Auswahl hinzu*
+
+![Die Statuszeile nennt die Treffer des Typs event je Actor, auch peer und automation: 104 + 178 + 32 + 1 = 315](../assets/screenshots/search-actors.png)
+
+*Suche nach `Doku`: die Statuszeile zählt die Treffer je Actor, `peer` und `automation` eingeschlossen*
+
+Dieselbe Zählung auf der Kommandozeile: `search --json` trägt sie als Feld `actors` in jedem Treffer des Typs `event` (alle fünf Schlüssel immer; es sind alle Treffer gezählt, auch die, die `--limit` abschneidet, die Summe ist also die Zahl der Treffer mit `--limit 0`; bei den feineren Typen ist das Feld `null`). Gegen das Demo-Archiv, mit denselben Zahlen wie die Statuszeile oben:
+
+```sh
+total-recall search Doku --limit 1 --json | jq -c '.[0] | {type, actors}'
+```
+
+```text
+{"type":"event","actors":{"human":104,"agent":178,"peer":32,"automation":1,"tool":0}}
+```
 
 **Schritt 3: die Zustände.**
 
@@ -223,6 +237,10 @@ Nicht jeder [Filter](#filter) gilt für jeden Typ: Actor für `event`, `image` u
 ![Actor-Filter agent bei gewähltem Typ input: die Eingabezeile nennt, dass input den Filter nicht anwendet](../assets/screenshots/search-actor-ignored.png)
 
 *Actor-Filter `agent` bei gewähltem Typ `input`: die Eingabezeile sagt `(not input)`; `input` legt den Actor selbst fest*
+
+![Actor-Filter automation: nur die Events der Automatik](../assets/screenshots/search-actor-automation.png)
+
+*Actor-Filter `automation` (viermal `a`): nur die Events der Automatik; `a` geht weiter über `tool` zurück zu `all`*
 
 **CLI.** Die CLI weist denselben Aufruf mit einem `usage`-Fehler ab (Exit 1):
 
@@ -295,7 +313,7 @@ event: 2 of 3 hits, --limit 0 for all
 
 | Taste | Filter | Werte |
 |---|---|---|
-| `a` | Actor | `all` → `human` → `agent` → `peer` → `tool` → `all` |
+| `a` | Actor | `all` → `human` → `agent` → `peer` → `automation` → `tool` → `all` (`automation`: Meldungen und Aufträge der Automatik, zum Beispiel die Worker-Meldungen im Demo-Archiv) |
 | `i` | nur mit Anhang | `off` → `any` → `image` → `document` → `off`; aktiv steht `attach: …` in der Eingabezeile. Siehe [Anhänge finden](#anhaenge-finden) |
 | `t` | Zeitraum (Zeit des Events) | `all` → `7d` → `30d` → `90d` → `all` |
 | `r` | Repo | Teilstring von Remote-URL, Git-Root oder Arbeitsverzeichnis. Öffnet ein Eingabefeld in der Statuszeile: ++enter++ oder ++tab++ übernimmt, ++esc++ verwirft. Leer löscht den Filter |
@@ -330,7 +348,7 @@ Was die TUI kann, ist auf oberster Ebene sichtbar und mit der Maus erreichbar; d
 | Memory | Verlauf, Diff, Basis, Zeitleiste | Element: Datei, Version, Änderung; Fußzeile (`enter`, `d`, `c`, `t`) |
 | Anhänge | Anhang wechseln, öffnen | Element: Reiter der Anhänge; Fußzeile (`←/→`, `o`) |
 | Statistik | Periode, Dimension | Element: Umschalter oben |
-| Statistik | Kennzahl (`e`) | Element: Kacheln `events`, `human`, `sessions`, die gewählte in Akzentfarbe; Fußzeile `e metric` |
+| Statistik | Kennzahl (`e`) | Element: Kacheln `human+agent`, `human`, `sessions`, die gewählte in Akzentfarbe; Fußzeile `e metric` |
 | Statistik | Heatmap (`h`) | Element: `heatmap` in der Umschalterzeile, an in Klammern; Fußzeile `h heatmap` |
 | Statistik | Zeitfenster, Zoom | Fußzeile: `←/→/-/+ range` |
 | Statistik | Grafikmodus (`g`) | Taste; die Statuszeile nennt den Modus |
@@ -477,14 +495,14 @@ Zu jedem Anhang gehört der Kopf (Typ, Größe, Position unter den Anhängen, di
 
 - **Umschalter** oben: Periode (`d` Tage, `w` Wochen, `m` Monate) und Dimension (`p` Projekt, `a` Agent, `v` Verzeichnis), der aktive Wert in Klammern. Rechts der gezeigte Zeitraum.
 - **Zeitfenster:** Standard sind die letzten 28 Tage, 16 Wochen oder 12 Monate bis heute. ++left++ und ++right++ (ebenso `,` und `.` oder `[` und `]`) verschieben um ein ganzes Fenster, `-` und `+` halbieren bzw. verdoppeln die Anzahl Perioden (mindestens eine, höchstens das Achtfache des Standardfensters). Ein Periodenwechsel springt auf das Standardfenster, das die zuletzt gezeigte Periode enthält. Periode und Dimension beim Start: `stats_period` und `stats_dimension` in [`[tui]`](20-konfiguration.md#tui).
-- **Kacheln** unter den Umschaltern: die Events des Fensters (davon menschliche und Agenten-Events in den Farben der Actors), danach `peer` und `automation` als eigene Zahlen (Events dieser Actors im Fenster, nur wenn es welche gibt; sie sind **nicht** in `events` enthalten, aber so ist die Summe prüfbar: `events + peer + automation` zusammen mit den Tool- und System-Events ergeben die Events des Archivs im Fenster), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Bei wenig Breite fällt zuerst die Kachel der aktiven Perioden weg, die Zahlen der Summe bleiben. Dasselbe Zählen auf der Kommandozeile: `total-recall sql "select actor, count(*) from events where actor in ('human','agent','peer','automation') and ts >= … and ts < … group by actor"` (Zeitgrenzen des Fensters in UTC); gegen das Demo-Archiv und das Fenster des Screenshots oben ergibt es `agent 1849`, `human 525`, `peer 27`, `automation 7`, genau die Kacheln. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
-- **Kennzahl:** `e` wechselt zwischen `events` (menschliche plus Agenten-Events), `human` und `sessions`, ebenso ein Klick auf die Kachel `events`, `human` bzw. `sessions`; die gewählte steht in der Akzentfarbe, der Titel über dem Chart nennt sie.
+- **Kacheln** unter den Umschaltern: die Summe aus menschlichen und Agenten-Events (`human+agent`; der Name sagt, was gezählt wird: in der Suche ist `event` dagegen **jedes** Event, auch von `peer`, `automation` und `tool`), davon `human` und `agent` in den Farben der Actors, danach `peer` und `automation` als eigene Zahlen (Events dieser Actors im Fenster, nur wenn es welche gibt; sie sind **nicht** in `human+agent` enthalten, aber so ist die Summe prüfbar: `human+agent + peer + automation` zusammen mit den Tool- und System-Events ergeben die Events des Archivs im Fenster), die eindeutigen Sessions und die Perioden mit Aktivität, jede Zahl fett hinter einem Akzentbalken. Bei wenig Breite fällt zuerst die Kachel der aktiven Perioden weg, die Zahlen der Summe bleiben. Dasselbe Zählen auf der Kommandozeile: `total-recall sql "select actor, count(*) from events where actor in ('human','agent','peer','automation') and ts >= … and ts < … group by actor"` (Zeitgrenzen des Fensters in UTC); gegen das Demo-Archiv und das Fenster des Screenshots oben ergibt es `agent 1849`, `human 525`, `peer 27`, `automation 7`, genau die Kacheln. Die Zeile weicht, wenn das Chart sonst unter seine Mindesthöhe von acht Zeilen fiele, etwa mit Heatmap bei 80×24.
+- **Kennzahl:** `e` wechselt zwischen `human+agent` (menschliche plus Agenten-Events), `human` und `sessions`, ebenso ein Klick auf die Kachel `human+agent`, `human` bzw. `sessions`; die gewählte steht in der Akzentfarbe, der Titel über dem Chart nennt sie.
 
 ![Statistik mit der Kennzahl human: die Kachel human ist hervorgehoben, das Chart zählt nur menschliche Events](../assets/screenshots/stats-metric.png)
 
 *Kennzahl human: die Kachel ist hervorgehoben, das Chart zählt nur menschliche Events; ein Klick auf eine Kachel wählt die Kennzahl wie e*
 
-**CLI.** Die Zahlen hinter dem Chart liefert [`stats --period … --by project`](10-befehle.md#stats-period): je Periode und Projekt Sessions, menschliche und Agenten-Events, `events` ist ihre Summe (Demo-Archiv, gekürzt):
+**CLI.** Die Zahlen hinter dem Chart liefert [`stats --period … --by project`](10-befehle.md#stats-period): je Periode und Projekt Sessions, menschliche und Agenten-Events (`HUMAN`, `AGENT`); ihre Summe ist die Kachel `human+agent` (Demo-Archiv, gekürzt):
 
 ```sh
 total-recall stats --period week --by project --since 2026-10-05 --until 2026-11-01 | head -6
@@ -810,7 +828,7 @@ Reiter (Liste der Projekte): ++up++ / `k`, ++down++ / `j` (`memory_up`, `memory_
 | `p` / `a` / `v` | `stats_project`, `stats_agent`, `stats_directory` | Dimension Projekt / Agent / Verzeichnis |
 | ++left++ / ++right++, `,` / `.`, `[` / `]` | `stats_earlier`, `stats_later` | ein Fenster zurück / vor |
 | `-` / `+` | `stats_zoom_out`, `stats_zoom_in` | Fenster halbieren / verdoppeln (`=` wie `+`) |
-| `e` | `stats_metric` | Kennzahl: events → human → sessions |
+| `e` | `stats_metric` | Kennzahl: human+agent → human → sessions |
 | `h` | `stats_heatmap` | Heatmap ein/aus |
 | `g` | `stats_graphics` | Grafikmodus: auto → text → kitty → auto |
 

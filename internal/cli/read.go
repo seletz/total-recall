@@ -831,6 +831,16 @@ window.`,
 
 // ---- search ----
 
+// ActorsJSON is the number of matching events per actor (HitJSON.Actors):
+// human, agent, peer, automation and tool are all the actors there are.
+type ActorsJSON struct {
+	Human      int `json:"human"`
+	Agent      int `json:"agent"`
+	Peer       int `json:"peer"`
+	Automation int `json:"automation"`
+	Tool       int `json:"tool"`
+}
+
 // HitJSON is a search hit in JSON output. Every key is always present; a
 // NullString without a value is null.
 type HitJSON struct {
@@ -852,6 +862,12 @@ type HitJSON struct {
 	// session's project like stats --by project (since v1.4.0).
 	Type    string     `json:"type"`
 	Project NullString `json:"project"`
+	// Actors counts the matches of the type event per actor, all of them,
+	// also those --limit cut off: the same object in every hit of type
+	// event, so the figures add up to the number of hits (--limit 0).
+	// null for the finer types (input, answer, …); every key of the
+	// object is always present (since v1.11.0).
+	Actors *ActorsJSON `json:"actors"`
 	// Attachments are the attachments of the event (those of the kind
 	// asked for with --has-attachment=KIND), like the attachments of the
 	// event in show; AttachmentCount their number (since v1.7.0).

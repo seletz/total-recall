@@ -438,6 +438,7 @@ One object per hit, grouped by type in the order of `--type`. Every hit has `typ
 | `input_kind` | see `events.input_kind`; `null` if unknown or not a human event |
 | `kind` | `message`, `tool_use`, `tool_result`, … |
 | `tool_name` | the tool of a tool call (`Bash`, `Edit`, …), else `null`; `--tool` compares it without case |
+| `actors` | only hits of type `event`, else `null`: the matches of the query per actor, `{"human":…,"agent":…,"peer":…,"automation":…,"tool":…}`, every key always present. The same object in every such hit; counts **all** matches, also those `--limit` cut off, so the five numbers add up to the number of event hits (with `--limit 0`) |
 | `snippet` | matched words in `[…]` |
 | `rank` | FTS5 rank, lower is better |
 | `type` | `event` |

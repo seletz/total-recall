@@ -31,6 +31,6 @@
                                                            │
                                                            │
                                                            │
- event 10, session 0, memory 1 (0 ms)
+ event 10 [human 3, agent 6, tool 1], session 0, memory 1 (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 2 stats • ? help • q quit

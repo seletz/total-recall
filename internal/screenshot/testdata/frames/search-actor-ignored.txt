@@ -31,6 +31,6 @@
                                                            │
                                                            │
                                                            │
- event 6, input 3 (0 ms)
+ event 6 [agent 6], input 3 (0 ms)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 2 stats • ? help • q quit

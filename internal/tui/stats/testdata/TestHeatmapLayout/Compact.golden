@@ -1,5 +1,5 @@
  period: [day] week month  by: [project] agent directory  [heatmap] 2025-12-15 …
- events
+ human+agent
  8 ┤      █
    │      █                                         ▄
    │  ▄   █         ▄               ▄   ▄           █     ▄
@@ -7,7 +7,7 @@
  0 ┼────────────────────────────────────────────────────────────────────────────
     15  17  19  21  23  25  27  29  31  02  04  06  08  10
  ██ alpha  ██ ~/gamma  ██ beta
- events by weekday × hour · ░▒▓█ · max 8
+ human+agent by weekday × hour · ░▒▓█ · max 8
  Mon│                         ▒▒▒
  Tue│                         ▒▒▒▒▒▒
  Wed│                                                                        ▒▒▒

@@ -123,7 +123,8 @@ func TestAttachmentFilterKindAndActor(t *testing.T) {
 		{"images", []string{"i", "i"}, store.AttachmentImage, "", false},
 		{"documents", []string{"i", "i", "i"}, store.AttachmentDocument, "", false},
 		{"images of the human", []string{"a", "i", "i"}, store.AttachmentImage, "human", false},
-		{"tool results", []string{"a", "a", "a", "a", "i", "i"}, store.AttachmentImage, "tool", false},
+		{"automation", []string{"a", "a", "a", "a", "i", "i"}, store.AttachmentImage, "automation", false},
+		{"tool results", []string{"a", "a", "a", "a", "a", "i", "i"}, store.AttachmentImage, "tool", false},
 		{"with a search word", []string{"i", "i"}, store.AttachmentImage, "", true},
 	}
 	for _, tt := range tests {

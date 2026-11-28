@@ -697,7 +697,7 @@ func (m Model) tileParts(human, agent, active int) []tilePart {
 		return tilePart{text: m.th.AccentText.Render("▎") + st.Render(figure) + " " + lst.Render(label), metric: metric}
 	}
 	parts := []tilePart{
-		tile(m.th.Figure, group(human+agent), "events", chart.MetricEvents),
+		tile(m.th.Figure, group(human+agent), "human+agent", chart.MetricEvents),
 		tile(m.th.Actor(model.ActorHuman), group(human), "human", chart.MetricHuman),
 		tile(m.th.Actor(model.ActorAgent), group(agent), "agent", -1),
 	}

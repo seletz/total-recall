@@ -931,8 +931,12 @@ func (m Model) status() string {
 			if g.Total > len(g.Hits) {
 				parts[i] = fmt.Sprintf("%s %d of %d", g.Type, len(g.Hits), g.Total)
 			}
+			parts[i] += actorsText(g)
 		}
 		return strings.Join(parts, ", ") + ms
+	}
+	if len(m.groups) == 1 {
+		ms = actorsText(m.groups[0]) + ms
 	}
 	total := len(m.hits)
 	if len(m.groups) == 1 {
@@ -950,6 +954,21 @@ func (m Model) status() string {
 	default:
 		return fmt.Sprintf("%d hits%s", n, ms)
 	}
+}
+
+// actorsText is the breakdown of the event group by actor, " [human 20,
+// agent 50, peer 3, automation 1]": peer and automation events are no type
+// of their own, so this is where the numbers of the types add up (#383).
+// Empty for the other types.
+func actorsText(g store.TypeHits) string {
+	if len(g.Actors) == 0 {
+		return ""
+	}
+	parts := make([]string, len(g.Actors))
+	for i, a := range g.Actors {
+		parts[i] = fmt.Sprintf("%s %d", a.Actor, a.N)
+	}
+	return " [" + strings.Join(parts, ", ") + "]"
 }
 
 // hint is shown in the list column instead of hits.

@@ -1,0 +1,36 @@
+ total-recall                 updated 10:00:00                  [1 search]  2 stats   3 activity   4 config   5 memory
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > Worker                                                                        actor: automation  since: all  repo: *
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory ────────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+▸2026-10-25 22:20  Worker starten                automation│ Worker starten
+  <task-notification>Worker w2 finished: import merged.</t…│ claude:7d1e4c20-000a-4000-8000-00000000000a  mara/kompass
+ 2026-10-18 22:20  Worker per Funktion starten   automation│ 2026-10-25 22:20 – 22:22 (2m)  main
+  <task-notification>Worker w3 finished: export merged.</t…│────────────────────────────────────────────────────────────
+ 2026-10-29 22:35  Worker koordinieren           automation│── 22:20  automation ◄
+  <task-notification>Worker w1 finished: lint fix pushed.<…│<task-notification>Worker w2 finished: import merged.</task-
+                                                           │notification>
+                                                           │
+                                                           │── 22:20  tool_use Bash
+                                                           │herdr agent start w3 --cwd
+                                                           │/home/mara/src/kompass__worktrees/gpx
+                                                           │
+                                                           │── 22:20  tool (tool_result)
+                                                           │started w3
+                                                           │
+                                                           │── 22:20  tool_use Bash
+                                                           │herdr agent prompt w3 "$(cat auftrag-gpx.md)"
+                                                           │
+                                                           │── 22:20  tool (tool_result)
+                                                           │sent to w3
+                                                           │
+                                                           │── 22:22  agent
+                                                           │I started w3 in the gpx worktree and sent it the task file.
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+                                                           │
+ 3 hits [automation 3] (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑/↓ move • enter open • a actor • i attached • t time • r repo • ^r raw fts • tab/esc input • 2 stats • ? help • q quit

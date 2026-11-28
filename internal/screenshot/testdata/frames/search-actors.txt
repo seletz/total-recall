@@ -1,0 +1,36 @@
+ total-recall                 updated 10:00:00                  [1 search]  2 stats   3 activity   4 config   5 memory
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ > Doku                                                                                 actor: all  since: all  repo: *
+─ [e event] u input g answer c tool_call o tool_result I image D document f file s session m memory ────────────────────
+───────────────────────────────────────────────────────────┬─ project: all ─────────────────────────────────────────────
+▸2026-10-13 09:48  docs                                peer│ docs
+  Ergänze die Doku um das neue Chart.                      │ claude:agent-0a00b1  mara/wetterwarte
+ 2026-10-12 09:47  docs                                peer│ 2026-10-13 09:48 – 09:52 (4m)  main
+  Ergänze die Doku um das neue Chart.                      │────────────────────────────────────────────────────────────
+ 2026-10-05 17:37  docs                                peer│── 09:48  peer ◄
+  Ergänze die Doku um das neue Chart.                      │Ergänze die Doku um das neue Chart.
+ 2026-09-22 09:14  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │── 09:52  agent
+ 2026-09-16 09:53  docs                                peer│The reference lists the flag with an example.
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-09-15 15:52  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-09-08 15:37  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-09-03 16:09  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-09-02 15:09  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-09-02 14:51  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-08-28 11:41  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-08-05 12:32  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-07-31 14:59  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 2026-07-31 14:38  docs                                peer│
+  Ergänze die Doku um das neue Chart.                      │
+ 200 of 315 hits, limit reached [human 104, agent 178, peer 32, automation 1] (0 ms)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab list • enter open • ^r raw fts • ^c quit

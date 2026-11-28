@@ -1,6 +1,6 @@
  period: day week [month]  by: [project] agent directory  heatmap            2025-02-01 – 2026-01-31
- ▎59 events  ▎22 human  ▎37 agent  ▎1 peer  ▎17 sessions  ▎2/12 months active
- events
+ ▎59 human+agent  ▎22 human  ▎37 agent  ▎1 peer  ▎17 sessions  ▎2/12 months active
+ human+agent
  44 ┤                                                                                ███████
     │                                                                                ▃▃▃▃▃▃▃
     │                                                                                ███████

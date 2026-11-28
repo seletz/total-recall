@@ -120,8 +120,14 @@ func (e *env) writeTypedHits(o *output, groups []store.TypeHits, cat *project.Ca
 	if o.format.IsJSON() {
 		var out []any
 		for _, g := range groups {
+			actors := actorsJSON(g)
 			for _, h := range g.Hits {
-				out = append(out, typedHitJSON(h, cat))
+				j := typedHitJSON(h, cat)
+				if hj, ok := j.(HitJSON); ok {
+					hj.Actors = actors
+					j = hj
+				}
+				out = append(out, j)
 			}
 		}
 		if out == nil {
@@ -168,6 +174,30 @@ func (e *env) writeTypedHits(o *output, groups []store.TypeHits, cat *project.Ca
 		_, _ = fmt.Fprintln(e.app.Stderr, "no matches")
 	}
 	return nil
+}
+
+// actorsJSON is the per-actor count of the event group g, nil for the other
+// types (the finer event types fix the actor themselves).
+func actorsJSON(g store.TypeHits) *ActorsJSON {
+	if g.Type != store.TypeEvent {
+		return nil
+	}
+	a := &ActorsJSON{}
+	for _, c := range g.Actors {
+		switch c.Actor {
+		case "human":
+			a.Human = c.N
+		case "agent":
+			a.Agent = c.N
+		case "peer":
+			a.Peer = c.N
+		case "automation":
+			a.Automation = c.N
+		case "tool":
+			a.Tool = c.N
+		}
+	}
+	return a
 }
 
 func typedHitJSON(h store.Hit, cat *project.Catalog) any {

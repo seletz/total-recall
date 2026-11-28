@@ -1,6 +1,6 @@
  period: [day] week month  by: [project] agent directory  heatmap            2026-01-05 – 2026-01-11
- ▎10 events  ▎4 human  ▎6 agent  ▎3 sessions  ▎3/7 days active
- events
+ ▎10 human+agent  ▎4 human  ▎6 agent  ▎3 sessions  ▎3/7 days active
+ human+agent
  5 ┤                           ████████
    │                           ████████
    │                           ████████
