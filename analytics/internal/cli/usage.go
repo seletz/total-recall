@@ -2,105 +2,55 @@ package cli
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
-	"github.com/seletz/total-recall/analytics/internal/duck"
+	"github.com/seletz/total-recall/analytics/internal/report"
 )
 
 // UsageJSON is one row of `usage --json`.
-type UsageJSON struct {
-	Period    string  `json:"period"`
-	Key       *string `json:"key"`
-	Sessions  int64   `json:"sessions"`
-	Human     int64   `json:"human"`
-	Agent     int64   `json:"agent"`
-	ToolCalls int64   `json:"tool_calls"`
-	TokensIn  int64   `json:"tokens_in"`
-	TokensOut int64   `json:"tokens_out"`
-}
+type UsageJSON = report.Usage
 
 // TokensJSON is one row of `tokens --json`; the fields are those of
 // `total-recall stats --json` (tokens).
-type TokensJSON struct {
-	Period     string  `json:"period"`
-	Key        *string `json:"key"`
-	Events     int64   `json:"events"`
-	Input      int64   `json:"input"`
-	Fresh      int64   `json:"fresh"`
-	CacheRead  int64   `json:"cache_read"`
-	CacheWrite int64   `json:"cache_write"`
-	Unsplit    int64   `json:"unsplit"`
-	Output     int64   `json:"output"`
-}
+type TokensJSON = report.Tokens
 
-// Grouping columns of analytics_events_v1 for --by.
-var byColumns = map[string]string{
-	"project": "project",
-	"host":    "host",
-	"model":   "model",
-	"family":  "model_family",
-	"tool":    "tool_name",
-	"account": "account_name",
-	"repo":    "repo",
-	"harness": "harness",
-	"none":    "NULL",
-}
-
-// Period expressions over day_local for --period.
-var periodExprs = map[string]string{
-	"day":   "strftime(day_local, '%Y-%m-%d')",
-	"week":  "strftime(day_local, '%G-W%V')",
-	"month": "strftime(day_local, '%Y-%m')",
-	"total": "'total'",
-}
-
-// reportFlags are the flags usage and tokens share.
+// reportFlags are the flags usage, tokens and worktime share.
 type reportFlags struct {
-	by, period, since, until string
-	asJSON                   bool
+	report.Filter
+	asJSON bool
 }
 
-func (r *reportFlags) add(cmd *cobra.Command, by string) {
+func (r *reportFlags) add(cmd *cobra.Command, by string, names []string) {
 	f := cmd.Flags()
-	f.StringVar(&r.by, "by", by, "group by project, host, model, family, tool, account, repo, harness or none")
-	f.StringVar(&r.period, "period", "total", "day, week (ISO), month or total")
-	f.StringVar(&r.since, "since", "", "first local day YYYY-MM-DD")
-	f.StringVar(&r.until, "until", "", "last local day YYYY-MM-DD")
+	f.StringVar(&r.By, "by", by, "group by "+orList(names))
+	f.StringVar(&r.Period, "period", "total", "day, week (ISO), month or total")
+	f.StringVar(&r.Since, "since", "", "first local day YYYY-MM-DD")
+	f.StringVar(&r.Until, "until", "", "last local day YYYY-MM-DD")
+	f.StringSliceVar(&r.Hosts, "host", nil, "only these hosts (repeatable)")
 	f.BoolVar(&r.asJSON, "json", false, "output as JSON")
 }
 
-// sql builds the SELECT parts: period, key and the WHERE clause.
-func (r *reportFlags) sql() (period, key, where string, args []any, err error) {
-	var ok bool
-	if key, ok = byColumns[r.by]; !ok {
-		return "", "", "", nil, usagef("--by %s: want project, host, model, family, tool, account, repo, harness or none", r.by)
+// orList joins names as "a, b or c".
+func orList(names []string) string {
+	if len(names) < 2 {
+		return strings.Join(names, "")
 	}
-	if period, ok = periodExprs[r.period]; !ok {
-		return "", "", "", nil, usagef("--period %s: want day, week, month or total", r.period)
+	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+}
+
+// reportErr maps the errors of a report: a bad filter is a usage error,
+// the rest an error of the query.
+func reportErr(err error) error {
+	if errors.Is(err, report.ErrFilter) {
+		return usagef("%s", strings.TrimPrefix(err.Error(), report.ErrFilter.Error()+": "))
 	}
-	var conds []string
-	for _, d := range []struct{ flag, val, op string }{{"since", r.since, ">="}, {"until", r.until, "<="}} {
-		if d.val == "" {
-			continue
-		}
-		if _, err := time.Parse(time.DateOnly, d.val); err != nil {
-			return "", "", "", nil, usagef("--%s %s: want YYYY-MM-DD", d.flag, d.val)
-		}
-		conds = append(conds, "day_local "+d.op+" CAST(? AS DATE)")
-		args = append(args, d.val)
-	}
-	where = "TRUE"
-	if len(conds) > 0 {
-		where = strings.Join(conds, " AND ")
-	}
-	return period, key, where, args, nil
+	return errKind(ErrKindSQL, err)
 }
 
 func newUsageCmd(a *App) *cobra.Command {
@@ -113,28 +63,10 @@ func newUsageCmd(a *App) *cobra.Command {
 a human or agent event in the group, as stats does.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			period, key, where, args, err := rf.sql()
-			if err != nil {
+			var out []UsageJSON
+			err := a.withReport(cmd.Context(), func(db report.Querier) (err error) {
+				out, err = report.UsageRows(cmd.Context(), db, rf.Filter)
 				return err
-			}
-			q := `SELECT ` + period + ` AS period, ` + key + ` AS key,
-				count(DISTINCT CASE WHEN actor IN ('human', 'agent') THEN session_id END),
-				count(*) FILTER (WHERE actor = 'human'),
-				count(*) FILTER (WHERE actor = 'agent'),
-				count(*) FILTER (WHERE kind = 'tool_use'),
-				CAST(COALESCE(sum(tokens_in), 0) AS BIGINT), CAST(COALESCE(sum(tokens_out), 0) AS BIGINT)
-				FROM analytics_events_v1 WHERE ` + where + `
-				GROUP BY ALL ORDER BY period, key NULLS FIRST`
-			out := []UsageJSON{}
-			err = a.report(cmd.Context(), q, args, func(rows *sql.Rows) error {
-				var u UsageJSON
-				var k sql.NullString
-				if err := rows.Scan(&u.Period, &k, &u.Sessions, &u.Human, &u.Agent, &u.ToolCalls, &u.TokensIn, &u.TokensOut); err != nil {
-					return err
-				}
-				u.Key = nullKey(k)
-				out = append(out, u)
-				return nil
 			})
 			if err != nil {
 				return err
@@ -149,7 +81,7 @@ a human or agent event in the group, as stats does.`,
 			return t.flush()
 		},
 	}
-	rf.add(cmd, "project")
+	rf.add(cmd, "project", report.UsageByNames)
 	return cmd
 }
 
@@ -163,25 +95,10 @@ func newTokensCmd(a *App) *cobra.Command {
 total-recall stats --json.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			period, key, where, args, err := rf.sql()
-			if err != nil {
+			var out []TokensJSON
+			err := a.withReport(cmd.Context(), func(db report.Querier) (err error) {
+				out, err = report.TokensRows(cmd.Context(), db, rf.Filter)
 				return err
-			}
-			q := `SELECT ` + period + ` AS period, ` + key + ` AS key, count(*),
-				CAST(sum(tokens_in) AS BIGINT), CAST(sum(tokens_fresh) AS BIGINT), CAST(sum(tokens_cache_read) AS BIGINT),
-				CAST(sum(tokens_cache_write) AS BIGINT), CAST(sum(tokens_unsplit) AS BIGINT), CAST(sum(tokens_out) AS BIGINT)
-				FROM analytics_events_v1 WHERE (tokens_in > 0 OR tokens_out > 0) AND ` + where + `
-				GROUP BY ALL ORDER BY period, key NULLS FIRST`
-			out := []TokensJSON{}
-			err = a.report(cmd.Context(), q, args, func(rows *sql.Rows) error {
-				var t TokensJSON
-				var k sql.NullString
-				if err := rows.Scan(&t.Period, &k, &t.Events, &t.Input, &t.Fresh, &t.CacheRead, &t.CacheWrite, &t.Unsplit, &t.Output); err != nil {
-					return err
-				}
-				t.Key = nullKey(k)
-				out = append(out, t)
-				return nil
 			})
 			if err != nil {
 				return err
@@ -196,12 +113,12 @@ total-recall stats --json.`,
 			return tb.flush()
 		},
 	}
-	rf.add(cmd, "model")
+	rf.add(cmd, "model", report.UsageByNames)
 	return cmd
 }
 
-// report runs a query against the analytics database and scans each row.
-func (a *App) report(ctx context.Context, q string, args []any, scan func(*sql.Rows) error) error {
+// withReport opens the analytics database read-only and runs a report.
+func (a *App) withReport(ctx context.Context, run func(report.Querier) error) error {
 	cfg, err := a.config()
 	if err != nil {
 		return err
@@ -211,29 +128,10 @@ func (a *App) report(ctx context.Context, q string, args []any, scan func(*sql.R
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	return queryRows(ctx, db, q, args, scan)
-}
-
-func queryRows(ctx context.Context, db *duck.DB, q string, args []any, scan func(*sql.Rows) error) error {
-	rows, err := db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return errKind(ErrKindSQL, err)
+	if err := run(db); err != nil {
+		return reportErr(err)
 	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		if err := scan(rows); err != nil {
-			return errKind(ErrKindSQL, err)
-		}
-	}
-	return errKind(ErrKindSQL, rows.Err())
-}
-
-// nullKey maps NULL and "" to a JSON null.
-func nullKey(k sql.NullString) *string {
-	if !k.Valid || k.String == "" {
-		return nil
-	}
-	return &k.String
+	return nil
 }
 
 func keyText(k *string) string {
@@ -253,10 +151,10 @@ type table struct {
 }
 
 func newTable(w io.Writer, rf reportFlags, cols ...string) *table {
-	t := &table{w: w, noKey: rf.by == "none"}
-	t.header = []string{strings.ToUpper(rf.period)}
+	t := &table{w: w, noKey: rf.By == "none"}
+	t.header = []string{strings.ToUpper(rf.Period)}
 	if !t.noKey {
-		t.header = append(t.header, strings.ToUpper(rf.by))
+		t.header = append(t.header, strings.ToUpper(rf.By))
 	}
 	t.header = append(t.header, cols...)
 	return t

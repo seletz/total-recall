@@ -16,6 +16,7 @@ import (
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/gomonobold"
 	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -346,4 +347,31 @@ func blend(a, b color.Color, t float64) color.Color {
 func alpha(c color.Color, a float64) color.Color {
 	r, g, b, _ := c.RGBA()
 	return color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), uint8(255*a + 0.5)}
+}
+
+// MissingGlyphs returns the characters of text that a PNG of it could not
+// draw: neither drawn as a shape (box drawing, blocks) nor in the font,
+// each once, in the order they first appear. Frames must have none.
+func MissingGlyphs(text string) ([]rune, error) {
+	f, err := opentype.Parse(gomono.TTF)
+	if err != nil {
+		return nil, err
+	}
+	var buf sfnt.Buffer
+	scratch := image.NewRGBA(image.Rect(0, 0, cellW, cellH))
+	seen := map[rune]bool{}
+	var out []rune
+	for _, r := range text {
+		if r < 0x80 || seen[r] {
+			continue
+		}
+		seen[r] = true
+		if shape(scratch, scratch.Bounds(), r, color.White) {
+			continue
+		}
+		if idx, err := f.GlyphIndex(&buf, r); err != nil || idx == 0 {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }

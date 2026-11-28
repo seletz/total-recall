@@ -109,6 +109,22 @@ func TestBuildPool(t *testing.T) {
 		}
 	}
 
+	// --host keeps one host: the same numbers as its row of --by host.
+	for _, u := range byHost {
+		var one []UsageJSON
+		e.json(&one, "usage", "--db", e.analytics, "--by", "none", "--host", keyText(u.Key))
+		if len(one) != 1 || one[0].Sessions != u.Sessions || one[0].Human != u.Human || one[0].ToolCalls != u.ToolCalls || one[0].TokensIn != u.TokensIn {
+			t.Errorf("--host %s = %+v, --by host %+v", keyText(u.Key), one, u)
+		}
+	}
+	var wh []WorktimeJSON
+	e.json(&wh, "worktime", "--db", e.analytics, "--by", "category", "--host", "host-a")
+	for _, w := range wh {
+		if w.RoundedSeconds != 0 {
+			t.Errorf("worktime --host has a booked time: %+v", w)
+		}
+	}
+
 	all := e.statsOf(e.archive)
 	var total []UsageJSON
 	e.json(&total, "usage", "--db", e.analytics, "--by", "none")

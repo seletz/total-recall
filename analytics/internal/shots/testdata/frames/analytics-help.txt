@@ -1,0 +1,36 @@
+ total-recall-analytics  ~/.local/share/total-recall/analytics.duckdb · 2 hosts · Europe/Berlin
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ show     [events] human agent sessions tool calls tokens hours
+ by       [project] host model tool account
+ period   day [week] month
+ host     [all] host-a host-b
+ range    ← 2026-W19 … 2026-W44 →  26 of 26 weeks
+
+
+
+
+
+
+
+
+                ╭──────────────────────────────────────────────────────────────────────────────────────╮
+                │ keys: usage                                                                          │
+                │                                                                                      │
+                │ m show         ←    earlier    r   reload                                            │
+                │ M show back    →    later      ?   help                                              │
+                │ b by           home first      esc back                                              │
+                │ p period       end  last       q   quit                                              │
+                │ h host                                                                               │
+                │                                                                                      │
+                │ esc or ? closes this help; every toggle, the arrows and the hints are also clickable │
+                ╰──────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ esc back • q quit

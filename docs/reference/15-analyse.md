@@ -298,10 +298,19 @@ JSON: eine Liste mit je `view`, `path` und `rows`.
 ### usage
 
 ```
-total-recall-analytics usage [--by GRUPPE] [--period day|week|month|total] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json]
+total-recall-analytics usage [--by GRUPPE] [--period day|week|month|total] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--host HOST]... [--json]
 ```
 
 Nutzung über die Zeit: Sessions, eigene Prompts (`human`), Agent-Events, Tool-Aufrufe und Tokens, gruppiert nach `--by` (`project` als Standard, `host`, `model`, `family`, `tool`, `account`, `repo`, `harness` oder `none`) und `--period` (lokale Tage, ISO-Wochen `2026-W42`, Monate oder `total`, Standard) in der primären Zone. `sessions` zählt die Sessions mit einem human- oder agent-Event in der Gruppe, wie `stats`. `--since` und `--until` begrenzen auf lokale Tage. Summe gleich Teile: Gesamt und je Tag stimmen mit `total-recall stats --json` überein, und jede Gruppierung summiert sich zum Gesamt (Test).
+
+`--host HOST` (mehrfach) beschränkt `usage`, `tokens` und `worktime` auf diese Hosts; im Pool zum Beispiel host-b allein:
+
+```console
+$ total-recall-analytics usage --by project --host host-b
+TOTAL  PROJECT      SESSIONS  HUMAN  AGENT  TOOL CALLS  TOKENS IN  TOKENS OUT
+total  kompass            27    106    358         249    4850364       58899
+total  wetterwarte       270    927   3084        2105   40167955      504231
+```
 
 ```console
 $ total-recall-analytics usage --by project
@@ -396,10 +405,10 @@ JSON: eine Liste mit je `period`, `key`, `events`, `input`, `fresh`, `cache_read
 ### worktime
 
 ```
-total-recall-analytics worktime [--by category|project|host|none] [--period …] [--since …] [--until …] [--json]
+total-recall-analytics worktime [--by category|project|host|none] [--period …] [--since …] [--until …] [--host HOST]... [--json]
 ```
 
-Arbeitszeit, geschätzt wie bei [`total-recall stats --worktime`](../how-to/40-arbeitszeit.md): aus den Lücken zwischen eigenen Prompts, mit `[worktime]` der Konfiguration (Höchstlücke, Gutschrift, Raster, Rundung, Kategorien) und dem Tagesbeginn `day_start`. Gerechnet wird über alle Hosts der Analyse-Datenbank zusammen: Eine Lücke gehört zur Person, nicht zum Host, und wer auf zwei Rechnern gleichzeitig arbeitet, bekommt die Zeit nur einmal gutgeschrieben. Gruppiert nach Kategorie (Standard), Projekt, Host (der Host der Session) oder gar nicht, je Arbeitstag, ISO-Woche, Monat oder gesamt. `HOURS` ist die gutgeschriebene Zeit, `BOOKED` die zu buchende, gerundet je Arbeitstag und Kategorie wie in `stats`; deshalb gibt es sie nur bei `--by category` und `none`. Summe gleich Teile: Gesamt, je Tag und je Tag und Kategorie gleich `stats --worktime --json` auf demselben Archiv (Test).
+Arbeitszeit, geschätzt wie bei [`total-recall stats --worktime`](../how-to/40-arbeitszeit.md): aus den Lücken zwischen eigenen Prompts, mit `[worktime]` der Konfiguration (Höchstlücke, Gutschrift, Raster, Rundung, Kategorien) und dem Tagesbeginn `day_start`. Gerechnet wird über alle Hosts der Analyse-Datenbank zusammen: Eine Lücke gehört zur Person, nicht zum Host, und wer auf zwei Rechnern gleichzeitig arbeitet, bekommt die Zeit nur einmal gutgeschrieben. Gruppiert nach Kategorie (Standard), Projekt, Host (der Host der Session) oder gar nicht, je Arbeitstag, ISO-Woche, Monat oder gesamt. `HOURS` ist die gutgeschriebene Zeit, `BOOKED` die zu buchende, gerundet je Arbeitstag und Kategorie wie in `stats`; deshalb gibt es sie nur bei `--by category` und `none` und ohne `--host`. Summe gleich Teile: Gesamt, je Tag und je Tag und Kategorie gleich `stats --worktime --json` auf demselben Archiv (Test).
 
 ```console
 $ total-recall-analytics worktime
@@ -718,6 +727,70 @@ Arbeitszeit je Arbeitstag × Kategorie × Session (gutgeschriebene Sekunden), mi
 | `session_id` | `VARCHAR` |
 | `raw_seconds` | `BIGINT` |
 
-## TUI
+## TUI { #tui }
 
-Das Analyse-Tool hat noch keine Bedienung im Terminal; sie kommt mit [#366](https://github.com/seletz/total-recall/issues/366) im selben Meilenstein. Bis dahin gibt es kein TUI-Gegenstück zu den Befehlen oben. Die Zahlen von `usage` (gesamt, je Tag, je Projekt) zeigt die Statistik-Ansicht der TUI von `total-recall` für ein einzelnes Archiv, siehe [TUI](30-tui.md); über mehrere Hosts gibt es sie nur hier. Die TUI von `total-recall` zeigt auf der Einstellungsseite nur ihre eigene Version, nicht die des Analyse-Tools.
+```
+total-recall-analytics tui [--show WAS] [--by GRUPPE] [--period day|week|month] [--host HOST] [--no-mouse]
+```
+
+Die Nutzung des Pools als Diagramm über die Zeit, mit den Summen darunter. Die Zahlen sind die von [`usage`](#usage) und [`worktime`](#worktime), aus denselben Abfragen; ein Test vergleicht die Tabelle der Ansicht mit ihnen. Die Analyse-Datenbank ist nur offen, solange eine Ansicht lädt, so kann daneben ein `build` laufen; `r` lädt neu.
+
+![Analyse-TUI: Events je Projekt und Woche über alle Hosts des Pools](../assets/analytics-screenshots/analytics-usage.png)
+
+*Analyse-TUI: Events je Projekt und Woche über alle Hosts des Pools*
+
+Oben stehen fünf Zeilen, in denen die gewählte Möglichkeit in Klammern auf farbigem Grund steht. Jede Möglichkeit ist anklickbar und hat eine Taste:
+
+| Zeile | Möglichkeiten | Taste |
+|---|---|---|
+| `show` | `events` (eigene Prompts und Agent-Events), `human`, `agent`, `sessions`, `tool calls`, `tokens` (Eingabe und Ausgabe), `hours` (Arbeitszeit) | `m`, zurück `M` |
+| `by` | `project`, `host`, `model`, `tool`, `account`; bei `hours` `category`, `project`, `host` | `b` |
+| `period` | `day`, `week` (ISO), `month` | `p` |
+| `host` | `all` oder ein Host des Pools | `h` |
+| `range` | das Fenster der Perioden: `←` und `→` verschieben es um ein halbes Fenster | ++left++ / ++right++, ++home++ / ++end++, Mausrad |
+
+Darunter das gestapelte Balkendiagramm des Fensters: die sechs größten Schlüssel einzeln, der Rest als `other`, die Farben bleiben beim Umschalten gleich. Bei Tagen sind Wochenenden auf der Achse blass. Die Tabelle darunter zeigt die Summen des Fensters je Schlüssel und in der Zeile `all` über alle; Sessions zählen dort einmal je Fenster, nicht je Periode, wie bei `usage --since --until`. Die Fußzeile nennt zuerst die Tasten der Ansicht, dann Hilfe und Beenden; jeder Eintrag ist anklickbar. `?` öffnet die Hilfe mit allen Tasten, ++esc++ oder `?` schließt sie, `q` beendet.
+
+Ein Klick auf `host-b` in der Zeile `host` zeigt nur diesen Host:
+
+![Analyse-TUI: dieselbe Auswertung nur für host-b, per Klick in der Zeile host](../assets/analytics-screenshots/analytics-host.png)
+
+*Analyse-TUI: dieselbe Auswertung nur für host-b, per Klick in der Zeile host*
+
+Ein Klick auf `host` in der Zeile `by` teilt nach Host:
+
+![Analyse-TUI: Events je Host und Woche, per Klick in der Zeile by](../assets/analytics-screenshots/analytics-by-host.png)
+
+*Analyse-TUI: Events je Host und Woche, per Klick in der Zeile by*
+
+`tokens` nach `model` und `month`; im Demo-Pool wechseln die Hauptsessions im August das Modell:
+
+![Analyse-TUI: Tokens je Modell und Monat; der Modellwechsel im August ist zu sehen](../assets/analytics-screenshots/analytics-tokens.png)
+
+*Analyse-TUI: Tokens je Modell und Monat; der Modellwechsel im August ist zu sehen*
+
+`hours` zeigt die Arbeitszeit, über alle Hosts zusammen gerechnet wie bei `worktime`:
+
+![Analyse-TUI: Arbeitszeit je Kategorie und Woche über alle Hosts](../assets/analytics-screenshots/analytics-hours.png)
+
+*Analyse-TUI: Arbeitszeit je Kategorie und Woche über alle Hosts*
+
+Mit `day` passt nur ein Teil der Tage ins Fenster (`35 of 181 days`); `←` in der Zeile `range` geht ein halbes Fenster zurück:
+
+![Analyse-TUI: Tage, mit dem Pfeil in der Zeile range zwei halbe Fenster zurück](../assets/analytics-screenshots/analytics-days.png)
+
+*Analyse-TUI: Tage, mit dem Pfeil in der Zeile range zwei halbe Fenster zurück*
+
+![Analyse-TUI: die Hilfe mit allen Tasten](../assets/analytics-screenshots/analytics-help.png)
+
+*Analyse-TUI: die Hilfe mit allen Tasten*
+
+| Option | Bedeutung |
+|---|---|
+| `--show WAS` | was gezählt wird, wie in der Zeile `show`; Standard `events` |
+| `--by GRUPPE` | Aufteilung; Standard die erste der Zeile `by` |
+| `--period P` | `day`, `week` (Standard) oder `month` |
+| `--host HOST` | nur dieser Host |
+| `--no-mouse` | keine Mausmeldungen vom Terminal anfordern (dann markiert das Terminal Text wie gewohnt) |
+
+Ohne Analyse-Datenbank endet `tui` mit dem Hinweis, erst `build` auszuführen. Die Screenshots entstehen mit `mise run analytics:screenshots` gegen den Demo-Pool; ein Test vergleicht ihren Text mit `analytics/internal/shots/testdata/frames`.
