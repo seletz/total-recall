@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -313,5 +314,42 @@ func TestMemoryProjectPath(t *testing.T) {
 	hits := decode[[]MemoryHitJSON](t, e.mustRun(t, "memory", "--json", "--grep", "beacon"))
 	if len(hits) != 1 || hits[0].ProjectPath != "/w/alpha" {
 		t.Errorf("hits = %+v", hits)
+	}
+}
+
+// TestMemoryProjectPathFromKey: a project without a session has no cwd;
+// its key is decoded against the file system, so hyphens in directory names
+// stay hyphens. A key that fits no existing directory has no path and keeps
+// the key as name: never a guess (#382).
+func TestMemoryProjectPathFromKey(t *testing.T) {
+	t.Parallel()
+	e := newTestEnv(t)
+	dir := filepath.Join(t.TempDir(), "mein-projekt", "web-app")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	key := regexp.MustCompile(`[^A-Za-z0-9]`).ReplaceAllString(dir, "-")
+	d := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	e.memFile(t, key, "MEMORY.md", "# Memory of the web app\n", d)
+	e.memFile(t, "-nowhere-mein-projekt-gone", "MEMORY.md", "# Memory\n", d)
+	e.mustRun(t, "ingest", "--all")
+	files := decode[[]MemoryFileJSON](t, e.mustRun(t, "memory", "--json"))
+	if len(files) != 2 {
+		t.Fatalf("files = %+v", files)
+	}
+	for _, f := range files {
+		switch f.ProjectKey {
+		case key:
+			if string(f.ProjectPath) != dir || f.ProjectPathSource != "key" {
+				t.Errorf("hyphenated dir: path %q source %q, want %q key", f.ProjectPath, f.ProjectPathSource, dir)
+			}
+		default:
+			if f.ProjectPath != "" || f.ProjectPathSource != "unknown" || f.Project != f.ProjectKey {
+				t.Errorf("unknown dir: %+v", f)
+			}
+		}
+	}
+	if out := e.mustRun(t, "memory"); !strings.Contains(out, "(path unknown)") || strings.Contains(out, "mein/projekt") {
+		t.Errorf("table:\n%s", out)
 	}
 }

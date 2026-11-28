@@ -76,6 +76,9 @@ var (
 		titles:  []string{"GPX-Import", "Tracks mit Zeitstempeln", "GPX-Fixtures", "Streaming-Parser für große Dateien"},
 		prompts: kompass.prompts, replies: kompass.replies, tools: kompass.tools,
 	}
+	// archivAlt has memory but no session in the archive: nothing tells its
+	// directory (the key of the harness is lossy), see the memory tab.
+	archivAlt   = &project{key: "archiv-alt", cwd: Home + "/src/archiv-alt"}
 	wetterwarte = &project{
 		key: "wetterwarte", cwd: Home + "/src/wetterwarte", root: Home + "/src/wetterwarte", remote: remoteBase + "wetterwarte", branch: "main", weight: 24,
 		titles: []string{

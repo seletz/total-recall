@@ -196,3 +196,26 @@ func TestTabClickTargets(t *testing.T) {
 		}
 	}
 }
+
+// TestFooterHasNoTab: the footer is made of spaces and separators only, in
+// every view and at every width (#382 saw a tab in a capture of the stats
+// footer).
+func TestFooterHasNoTab(t *testing.T) {
+	st, _ := fixturedb.Demo(t)
+	for _, width := range []int{60, 80, 100, 120, 160} {
+		for _, k := range []string{"1", "2", "3", "4", "5"} {
+			app, err := New(Options{Store: st, Now: tuitest.Clock, Location: demo.Location})
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := tuitest.Drive(t, app, append([]tea.Msg{tea.WindowSizeMsg{Width: width, Height: tuitest.Height}}, tuitest.Keys("tab", k)...)...).(App)
+			line, _ := m.footer()
+			if strings.ContainsAny(line, "\t\r\n") {
+				t.Errorf("width %d, view %s: footer %q has a control character", width, k, line)
+			}
+			if strings.ContainsAny(ansi.Strip(m.View().Content), "\t") {
+				t.Errorf("width %d, view %s: the frame has a tab", width, k)
+			}
+		}
+	}
+}

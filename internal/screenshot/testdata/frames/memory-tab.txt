@@ -2,10 +2,11 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Memory  projects with memory
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▸ fahrtenbuch /home/mara/src/fahrtenbuch            claude 1 file             2026-09-09 20:15
-   kompass     /home/mara/src/kompass                claude 3 files, 1 deleted 2026-10-31 22:40
-   kompass     /home/mara/src/kompass__worktrees/gpx claude 1 file             2026-10-30 11:20
-   wetterwarte /home/mara/src/wetterwarte            claude 2 files            2026-10-14 18:05
+ ▸ fahrtenbuch              /home/mara/src/fahrtenbuch            claude 1 file             2026-09-09 20:15
+   kompass                  /home/mara/src/kompass                claude 3 files, 1 deleted 2026-10-31 22:40
+   kompass                  /home/mara/src/kompass__worktrees/gpx claude 1 file             2026-10-30 11:20
+   wetterwarte              /home/mara/src/wetterwarte            claude 2 files            2026-10-14 18:05
+   -home-mara-src-archiv-a… (path unknown)                        claude 1 file             2026-08-18 14:10
 
 
 
@@ -30,7 +31,6 @@
 
 
 
-
- 4 projects, 7 files, 14 versions (1 without files)
+ 5 projects, 8 files, 15 versions (1 without files)
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ move • enter open memory • 1 search • 2 stats • 3 activity • ? help • q quit

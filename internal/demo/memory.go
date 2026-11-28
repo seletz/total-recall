@@ -79,6 +79,14 @@ values over a five-minute window. The rain gauge counts tips, one tip is
 - GPX import: the parser must accept files without a time stamp per point.
 `, at(time.October, 30, 11, 20)},
 	},
+	// Memory of a project that has no session in the archive: the memory
+	// tab cannot tell its directory and says so.
+	archivAlt: {
+		{"MEMORY.md", `# Memory
+
+- The old archive tool is retired; keep the notes until the move is done.
+`, at(time.August, 18, 14, 10)},
+	},
 	// A memory directory without any file: the memory tab leaves it out.
 	notizen: {},
 	fahrtenbuch: {
